@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= campaign.name %> — Cartyx</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    <%- include('../partials/topbar-css') %>
+
+    .main { flex: 1; width: 100%; max-width: 640px; margin: 0 auto; padding: 48px 32px 100px; }
+    .back-link { display: inline-flex; align-items: center; gap: 6px; color: #475569; font-size: 13px; text-decoration: none; margin-bottom: 32px; transition: color 0.2s; }
+    .back-link:hover { color: #94A3B8; }
+    .summary-card { background: #0D1117; border: 1px solid rgba(255,255,255,0.07); border-radius: 20px; padding: 36px; box-shadow: 0 8px 40px rgba(0,0,0,0.4); }
+    .campaign-name { font-family: 'Press Start 2P', monospace; font-size: 12px; color: #F1F5F9; line-height: 1.8; margin-bottom: 12px; }
+    .campaign-desc { font-size: 14px; color: #64748B; line-height: 1.7; margin-bottom: 28px; }
+    .banner-img { width: 100%; max-height: 200px; object-fit: cover; border-radius: 12px; margin-bottom: 24px; }
+    .invite-section { text-align: center; padding: 28px 20px; background: rgba(37,99,235,0.06); border: 1px solid rgba(59,130,246,0.15); border-radius: 14px; margin-bottom: 24px; }
+    .invite-label { font-family: 'Press Start 2P', monospace; font-size: 7px; color: #3B82F6; letter-spacing: 2px; margin-bottom: 16px; }
+    .invite-code { font-family: 'Press Start 2P', monospace; font-size: 22px; color: #fff; letter-spacing: 6px; margin-bottom: 20px; line-height: 1.6; }
+    .copy-btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 12px; border: 1px solid rgba(59,130,246,0.3); background: rgba(37,99,235,0.12); color: #60A5FA; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .copy-btn:hover { background: rgba(37,99,235,0.2); border-color: rgba(59,130,246,0.5); }
+    .meta-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .meta-icon { font-size: 14px; width: 22px; text-align: center; }
+    .meta-label { font-size: 12px; color: #475569; font-weight: 500; flex: 1; }
+    .meta-value { font-size: 13px; color: #94A3B8; font-weight: 500; }
+    .meta-value a { color: #60A5FA; }
+    .actions { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+    .btn-primary { flex: 1; min-width: 140px; padding: 14px 20px; border-radius: 12px; border: none; background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 60%, #3B82F6 100%); color: #fff; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; text-decoration: none; text-align: center; transition: all 0.2s; box-shadow: 0 3px 14px rgba(37,99,235,0.3); display: flex; align-items: center; justify-content: center; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(37,99,235,0.45); }
+    .btn-secondary { flex: 1; min-width: 140px; padding: 14px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94A3B8; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; text-align: center; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
+    .btn-secondary:hover { background: rgba(255,255,255,0.04); color: #E2E8F0; }
+    .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px); background: #1E293B; border: 1px solid rgba(59,130,246,0.3); border-radius: 10px; padding: 12px 20px; font-size: 13px; color: #93C5FD; font-weight: 500; transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); z-index: 999; white-space: nowrap; }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    @media (max-width: 640px) { .main { padding: 32px 16px 80px; } .topbar { padding: 0 16px; } .invite-code { font-size: 16px; letter-spacing: 4px; } }
+  </style>
+</head>
+<body>
+  <%- include('../partials/topbar', { user }) %>
+
+  <main class="main">
+    <a href="/campaigns" class="back-link">← Back to Campaigns</a>
+
+    <div class="summary-card">
+      <% if (campaign.imagePath) { %>
+        <img src="<%= campaign.imagePath %>" class="banner-img" alt="">
+      <% } %>
+
+      <div class="campaign-name"><%= campaign.name %></div>
+      <% if (campaign.description) { %>
+        <div class="campaign-desc"><%= campaign.description %></div>
+      <% } %>
+
+      <div class="invite-section">
+        <div class="invite-label">INVITE CODE</div>
+        <div class="invite-code" id="inviteCode"><%= campaign.inviteCode || '—' %></div>
+        <button class="copy-btn" onclick="copyCode()">📋 Copy Code</button>
+      </div>
+
+      <div class="meta-row">
+        <span class="meta-icon">🗓</span>
+        <span class="meta-label">Schedule</span>
+        <span class="meta-value"><%= scheduleText %></span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-icon">👥</span>
+        <span class="meta-label">Max Players</span>
+        <span class="meta-value"><%= campaign.maxPlayers %></span>
+      </div>
+      <% if (campaign.callUrl) { %>
+      <div class="meta-row">
+        <span class="meta-icon">💬</span>
+        <span class="meta-label">Communication</span>
+        <span class="meta-value"><a href="<%= campaign.callUrl %>" target="_blank" rel="noopener">Link</a></span>
+      </div>
+      <% } %>
+      <% if (campaign.dndBeyondUrl) { %>
+      <div class="meta-row">
+        <span class="meta-icon">📖</span>
+        <span class="meta-label">D&amp;D Beyond</span>
+        <span class="meta-value"><a href="<%= campaign.dndBeyondUrl %>" target="_blank" rel="noopener">Link</a></span>
+      </div>
+      <% } %>
+
+      <div class="actions">
+        <a href="/campaigns" class="btn-primary">View All Campaigns</a>
+        <% if (isOwner) { %>
+          <a href="/campaigns/editor?id=<%= campaign._id %>" class="btn-secondary">Edit Campaign</a>
+        <% } %>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    <%- include('../partials/topbar-js') %>
+    function copyCode() {
+      const code = document.getElementById('inviteCode').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const toast = document.getElementById('toast');
+        toast.textContent = '✓ Invite code copied: ' + code;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2400);
+      });
+    }
+  </script>
+</body>
+</html>

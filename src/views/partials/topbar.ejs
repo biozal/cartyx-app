@@ -1,0 +1,20 @@
+  <nav class="topbar">
+    <a href="/campaigns" class="topbar-brand">CARTYX</a>
+    <div class="topbar-right">
+      <% if (user.avatar) { %>
+        <img src="<%= user.avatar %>" class="topbar-avatar" alt="">
+      <% } else { %>
+        <div class="topbar-avatar-placeholder">🧙</div>
+      <% } %>
+      <div class="user-menu">
+        <div class="user-menu-trigger" onclick="toggleMenu(this)">
+          <span class="topbar-name"><%= user.name || '' %></span>
+          <span class="user-menu-arrow">▼</span>
+        </div>
+        <div class="user-menu-dropdown">
+          <a href="/settings" class="user-menu-item">⚙️ Settings</a>
+          <a href="/logout" class="user-menu-item danger">🚪 Sign Out</a>
+        </div>
+      </div>
+    </div>
+  </nav>

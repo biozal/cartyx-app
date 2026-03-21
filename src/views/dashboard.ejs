@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Cartyx</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { min-height: 100vh; background: linear-gradient(135deg, #0E101C 0%, #10121E 100%); color: #c9b89e;
+           font-family: 'Cinzel', 'Segoe UI', system-ui, sans-serif;
+           display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; }
+    .card { background: linear-gradient(135deg, #0E101C 0%, #10121E 100%); border: 1px solid rgba(100,160,220,0.15); border-radius: 16px;
+            padding: 2.5rem; max-width: 520px; width: 90%; text-align: center; }
+    h1 { color: #e8d5b7; font-size: 1.6rem; margin-bottom: .25rem; }
+    .subtitle { color: #8a7a6a; font-size: .85rem; margin-bottom: 1.5rem; }
+    .avatar { width: 80px; height: 80px; border-radius: 50%; border: 3px solid #d4a853;
+              margin: 0 auto 1rem; display: block; object-fit: cover; }
+    .no-avatar { width: 80px; height: 80px; border-radius: 50%; border: 3px solid #d4a853;
+                 margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center;
+                 background: #2a2218; font-size: 2rem; }
+    .info { text-align: left; background: #13100c; border-radius: 8px; padding: 1rem 1.25rem;
+            margin: 1rem 0; font-size: .9rem; line-height: 1.8; }
+    .info .label { color: #8a7a6a; }
+    .info .value { color: #e8d5b7; }
+    .badge { display: inline-block; padding: .15rem .5rem; border-radius: 4px;
+             font-size: .75rem; font-weight: 600; text-transform: uppercase; }
+    .badge.google { background: #4285f422; color: #8ab4f8; border: 1px solid #4285f444; }
+    .badge.github { background: #f0f6fc11; color: #c9d1d9; border: 1px solid #30363d; }
+    .badge.apple  { background: #ffffff11; color: #f5f5f7; border: 1px solid #48484a; }
+    .session-info { background: #1e1a14; border: 1px solid #332b20; border-radius: 8px;
+                    padding: .75rem 1rem; margin: 1rem 0; font-size: .8rem; color: #8a7a6a; }
+    .session-info strong { color: #c9b89e; }
+    .actions { display: flex; gap: .75rem; justify-content: center; margin-top: 1.5rem; flex-wrap: wrap; }
+    .btn { padding: .6rem 1.5rem; border-radius: 8px; border: none; cursor: pointer;
+           font-size: .9rem; font-weight: 500; text-decoration: none; transition: all .2s; font-family: inherit; }
+    .btn-campaigns { background: #2a3a4a; color: #7ea8e8; border: 1px solid #3a5a7a; }
+    .btn-campaigns:hover { background: #3a4a5a; }
+    .btn-logout { background: #4a2a2a; color: #e87e7e; border: 1px solid #6a3a3a; }
+    .btn-logout:hover { background: #5a3a3a; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>⚔️ Welcome, Adventurer</h1>
+    <p class="subtitle">You have entered the realm</p>
+
+    <% if (user.avatar) { %>
+      <img src="<%= user.avatar %>" alt="avatar" class="avatar">
+    <% } else { %>
+      <div class="no-avatar">🧙</div>
+    <% } %>
+
+    <div class="info">
+      <div><span class="label">Name: </span><span class="value"><%= user.name %></span></div>
+      <div><span class="label">Email: </span><span class="value"><%= user.email || 'Not provided' %></span></div>
+      <div><span class="label">Provider: </span><span class="badge <%= user.provider %>"><%= user.provider %></span></div>
+      <div><span class="label">User ID: </span><span class="value" style="font-size:.8em;opacity:.7"><%= user.id %></span></div>
+    </div>
+
+    <div class="session-info">
+      🕐 Session expires: <strong><%= expiresAt %></strong><br>
+      <% if (expiresIn !== null) { %>
+        ⏳ Time remaining: <strong><%= expiresIn %> minutes</strong>
+      <% } %>
+    </div>
+
+    <div class="actions">
+      <a href="/campaigns" class="btn btn-campaigns">⚔️ My Campaigns</a>
+      <a href="/logout" class="btn btn-logout">🚪 Sign Out</a>
+    </div>
+  </div>
+</body>
+</html>
