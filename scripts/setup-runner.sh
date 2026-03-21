@@ -49,6 +49,17 @@ if ! command -v pm2 >/dev/null 2>&1; then
   echo "❌ PM2 is not installed. Install it with: npm install -g pm2"
   exit 1
 fi
+if ! command -v curl >/dev/null 2>&1; then
+  echo "❌ curl is not installed. Install it with your package manager (e.g., apt-get install curl)."
+  exit 1
+fi
+if ! command -v tar >/dev/null 2>&1; then
+  echo "❌ tar is not installed. Install it with your package manager (e.g., apt-get install tar)."
+  exit 1
+fi
+if ! command -v sha256sum >/dev/null 2>&1; then
+  echo "⚠️  sha256sum not found — checksum verification will be skipped."
+fi
 echo "✅ Prerequisites OK: Node.js $(node -v), PM2 $(pm2 -v 2>/dev/null || echo 'installed')"
 
 RUNNER_DIR="${RUNNER_INSTALL_DIR:-$HOME/actions-runner}"
@@ -73,14 +84,18 @@ if [ ! -f "./run.sh" ]; then
   echo "⬇️  Downloading GitHub Actions runner v${RUNNER_VERSION}..."
   curl -fL --retry 3 --retry-delay 5 -o "${RUNNER_TARBALL}" "${RUNNER_URL}"
 
-  # Verify checksum if available
-  CHECKSUM_URL="${RUNNER_URL}.sha256"
-  if curl -fL --retry 3 --retry-delay 5 -o "${RUNNER_TARBALL}.sha256" "${CHECKSUM_URL}" 2>/dev/null; then
-    echo "🔒 Verifying SHA256 checksum..."
-    sha256sum -c "${RUNNER_TARBALL}.sha256"
-    rm "${RUNNER_TARBALL}.sha256"
+  # Verify checksum if sha256sum is available and checksum file can be fetched
+  if command -v sha256sum >/dev/null 2>&1; then
+    CHECKSUM_URL="${RUNNER_URL}.sha256"
+    if curl -fL --retry 3 --retry-delay 5 -o "${RUNNER_TARBALL}.sha256" "${CHECKSUM_URL}" 2>/dev/null; then
+      echo "🔒 Verifying SHA256 checksum..."
+      sha256sum -c "${RUNNER_TARBALL}.sha256"
+      rm "${RUNNER_TARBALL}.sha256"
+    else
+      echo "⚠️  Checksum file not available — skipping verification"
+    fi
   else
-    echo "⚠️  Checksum file not available — skipping verification"
+    echo "⚠️  sha256sum not available — skipping checksum verification"
   fi
 
   tar xzf "${RUNNER_TARBALL}"

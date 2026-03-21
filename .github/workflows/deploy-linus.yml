@@ -98,7 +98,7 @@ jobs:
           # Wait for app to be healthy (retry up to 5 times with backoff)
           for i in 1 2 3 4 5; do
             sleep "$i"
-            HTTP_STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/ || echo "000")
+            HTTP_STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/ || true)
             if [ "$HTTP_STATUS" = "200" ]; then
               echo "✅ Deploy successful — app responding with HTTP $HTTP_STATUS"
               exit 0
@@ -131,8 +131,7 @@ jobs:
           if run_nginx_dump | grep -q "${DEPLOY_DIR}/public"; then
             echo "✅ Nginx is configured to serve from ${DEPLOY_DIR}/public"
           else
-            echo "⚠️  Nginx does not appear to serve from ${DEPLOY_DIR}/public"
-            echo "    (or nginx config could not be read — check permissions)."
-            echo "Please update your nginx configuration manually and reload nginx."
-            echo "This workflow does NOT modify nginx — infrastructure changes are manual."
+            echo "⚠️  Nginx does not appear to serve from ${DEPLOY_DIR}/public."
+            echo "    Please update your nginx configuration manually and reload nginx."
+            echo "    This workflow does NOT modify nginx — infrastructure changes are manual."
           fi
