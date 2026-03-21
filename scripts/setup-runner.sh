@@ -35,6 +35,22 @@ if [ "$(id -u)" -eq 0 ]; then
   exit 1
 fi
 
+# Validate prerequisites — fail fast with helpful messages.
+if ! command -v node >/dev/null 2>&1; then
+  echo "❌ Node.js is not installed. Install Node.js 20+ before running this script."
+  exit 1
+fi
+NODE_MAJOR=$(node -e 'console.log(process.versions.node.split(".")[0])')
+if [ "$NODE_MAJOR" -lt 20 ]; then
+  echo "❌ Node.js $NODE_MAJOR detected — version 20+ is required."
+  exit 1
+fi
+if ! command -v pm2 >/dev/null 2>&1; then
+  echo "❌ PM2 is not installed. Install it with: npm install -g pm2"
+  exit 1
+fi
+echo "✅ Prerequisites OK: Node.js $(node -v), PM2 $(pm2 -v 2>/dev/null || echo 'installed')"
+
 RUNNER_DIR="${RUNNER_INSTALL_DIR:-$HOME/actions-runner}"
 REPO_URL="https://github.com/Cartyx/cartyx-app"
 RUNNER_VERSION="2.322.0"

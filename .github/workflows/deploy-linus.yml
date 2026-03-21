@@ -89,9 +89,18 @@ jobs:
       - name: Verify nginx configuration
         run: |
           DEPLOY_DIR="/var/www/cartyx-app"
-          # Check the full effective nginx config (includes sites-enabled, etc.)
-          # rather than just /etc/nginx/nginx.conf.
-          NGINX_FULL=$(nginx -T 2>/dev/null || sudo nginx -T 2>/dev/null || true)
+          # Verify nginx is installed and accessible before checking config.
+          if ! command -v nginx >/dev/null 2>&1; then
+            echo "⚠️  nginx is not installed or not in PATH; skipping config verification."
+            exit 0
+          fi
+          # Dump the full effective config (all includes, sites-enabled, etc.).
+          # Use sudo -n to avoid blocking on a password prompt.
+          if ! NGINX_FULL=$(nginx -T 2>/dev/null || sudo -n nginx -T 2>/dev/null); then
+            echo "⚠️  Unable to read nginx config (permission denied). Skipping verification."
+            echo "Run 'nginx -T' manually to check the config."
+            exit 0
+          fi
           if echo "$NGINX_FULL" | grep -q "${DEPLOY_DIR}/public"; then
             echo "✅ Nginx is configured to serve from ${DEPLOY_DIR}/public"
           else
