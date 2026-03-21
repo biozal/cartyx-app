@@ -31,14 +31,19 @@ describe('escapeHtml', () => {
 });
 
 describe('providerConfigured', () => {
-  const originalEnv = process.env;
+  const savedKeys = {};
 
   beforeEach(() => {
-    process.env = { ...originalEnv };
+    for (const key of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'APPLE_CLIENT_ID', 'APPLE_TEAM_ID', 'APPLE_KEY_ID', 'APPLE_PRIVATE_KEY_PATH']) {
+      savedKeys[key] = process.env[key];
+    }
   });
 
   afterEach(() => {
-    process.env = originalEnv;
+    for (const [key, val] of Object.entries(savedKeys)) {
+      if (val === undefined) delete process.env[key];
+      else process.env[key] = val;
+    }
   });
 
   it('returns false for unknown provider', () => {

@@ -5,6 +5,17 @@ const User = require('../models/User');
 const Campaign = require('../models/Campaign');
 const { generateInviteCode } = require('../utils/helpers');
 
+function validateUrl(value) {
+  if (!value || !value.trim()) return null;
+  try {
+    const parsed = new URL(value.trim());
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+    return parsed.toString();
+  } catch {
+    return false;
+  }
+}
+
 exports.listCampaigns = async (req, res) => {
   const user = req.user;
   const isGm = user.role === 'gm';
@@ -104,16 +115,31 @@ exports.createCampaign = async (req, res) => {
     return res.status(400).json({ error: 'Campaign name is required.' });
   }
 
+  const normalizedCallUrl = validateUrl(callUrl);
+  if (normalizedCallUrl === false) {
+    return res.status(400).json({ error: 'callUrl must be a valid http or https URL.' });
+  }
+  const normalizedDndBeyondUrl = validateUrl(dndBeyondUrl);
+  if (normalizedDndBeyondUrl === false) {
+    return res.status(400).json({ error: 'dndBeyondUrl must be a valid http or https URL.' });
+  }
+
   try {
     const dbUser = await User.findOne({ providerId: req.user.id });
     if (!dbUser) return res.status(400).json({ error: 'User not found.' });
 
     let inviteCode;
     let attempts = 0;
+    let codeInUse = false;
     do {
       inviteCode = generateInviteCode();
+      codeInUse = await Campaign.exists({ inviteCode });
       attempts++;
-    } while (attempts < 10 && await Campaign.exists({ inviteCode }));
+    } while (attempts < 10 && codeInUse);
+
+    if (codeInUse) {
+      return res.status(503).json({ error: 'Could not generate a unique invite code. Please try again.' });
+    }
 
     const imagePath = req.file ? `/uploads/campaigns/${req.file.filename}` : null;
 
@@ -123,8 +149,8 @@ exports.createCampaign = async (req, res) => {
       description: description ? description.trim() : '',
       imagePath,
       schedule: { frequency: schedFreq || null, dayOfWeek: schedDay || null, time: schedTime || null, timezone: schedTz || null },
-      callUrl: callUrl || null,
-      dndBeyondUrl: dndBeyondUrl || null,
+      callUrl: normalizedCallUrl,
+      dndBeyondUrl: normalizedDndBeyondUrl,
       maxPlayers: parseMaxPlayers(maxPlayers),
       inviteCode,
     });
@@ -160,11 +186,20 @@ exports.updateCampaign = async (req, res) => {
     const { name, description, schedFreq, schedDay, schedTime, schedTz, callUrl, dndBeyondUrl, maxPlayers } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Campaign name is required.' });
 
+    const normalizedCallUrl = validateUrl(callUrl);
+    if (normalizedCallUrl === false) {
+      return res.status(400).json({ error: 'callUrl must be a valid http or https URL.' });
+    }
+    const normalizedDndBeyondUrl = validateUrl(dndBeyondUrl);
+    if (normalizedDndBeyondUrl === false) {
+      return res.status(400).json({ error: 'dndBeyondUrl must be a valid http or https URL.' });
+    }
+
     campaign.name = name.trim();
     campaign.description = description ? description.trim() : '';
     campaign.schedule = { frequency: schedFreq || null, dayOfWeek: schedDay || null, time: schedTime || null, timezone: schedTz || null };
-    campaign.callUrl = callUrl || null;
-    campaign.dndBeyondUrl = dndBeyondUrl || null;
+    campaign.callUrl = normalizedCallUrl;
+    campaign.dndBeyondUrl = normalizedDndBeyondUrl;
     campaign.maxPlayers = parseMaxPlayers(maxPlayers);
     campaign.updatedAt = new Date();
     if (req.file) campaign.imagePath = `/uploads/campaigns/${req.file.filename}`;
