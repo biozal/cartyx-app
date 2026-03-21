@@ -128,32 +128,42 @@ exports.createCampaign = async (req, res) => {
     const dbUser = await User.findOne({ providerId: req.user.id });
     if (!dbUser) return res.status(400).json({ error: 'User not found.' });
 
-    let inviteCode;
-    let attempts = 0;
-    let codeInUse = false;
-    do {
-      inviteCode = generateInviteCode();
-      codeInUse = await Campaign.exists({ inviteCode });
-      attempts++;
-    } while (attempts < 10 && codeInUse);
-
-    if (codeInUse) {
-      return res.status(503).json({ error: 'Could not generate a unique invite code. Please try again.' });
-    }
-
     const imagePath = req.file ? `/uploads/campaigns/${req.file.filename}` : null;
 
-    const campaign = await Campaign.create({
-      gameMasterId: dbUser._id,
-      name: name.trim(),
-      description: description ? description.trim() : '',
-      imagePath,
-      schedule: { frequency: schedFreq || null, dayOfWeek: schedDay || null, time: schedTime || null, timezone: schedTz || null },
-      callUrl: normalizedCallUrl,
-      dndBeyondUrl: normalizedDndBeyondUrl,
-      maxPlayers: parseMaxPlayers(maxPlayers),
-      inviteCode,
-    });
+    let campaign;
+    let inviteCode;
+    let attempts = 0;
+
+    while (attempts < 10 && !campaign) {
+      inviteCode = generateInviteCode();
+      const codeInUse = await Campaign.exists({ inviteCode });
+      attempts++;
+      if (codeInUse) continue;
+
+      try {
+        campaign = await Campaign.create({
+          gameMasterId: dbUser._id,
+          name: name.trim(),
+          description: description ? description.trim() : '',
+          imagePath,
+          schedule: { frequency: schedFreq || null, dayOfWeek: schedDay || null, time: schedTime || null, timezone: schedTz || null },
+          callUrl: normalizedCallUrl,
+          dndBeyondUrl: normalizedDndBeyondUrl,
+          maxPlayers: parseMaxPlayers(maxPlayers),
+          inviteCode,
+        });
+      } catch (createErr) {
+        if (createErr.code === 11000) {
+          campaign = null;
+          continue;
+        }
+        throw createErr;
+      }
+    }
+
+    if (!campaign) {
+      return res.status(503).json({ error: 'Could not generate a unique invite code. Please try again.' });
+    }
 
     res.json({ success: true, campaignId: String(campaign._id), inviteCode, redirectTo: `/campaigns/summary/${campaign._id}` });
   } catch (err) {

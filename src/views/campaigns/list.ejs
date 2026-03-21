@@ -158,13 +158,39 @@
   <script>
     <%- include('../partials/topbar-js') %>
 
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2400);
+    }
+
+    function fallbackCopy(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.top = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+      document.body.removeChild(ta);
+      return ok;
+    }
+
     function copyInvite(code, btn) {
-      navigator.clipboard.writeText(code).then(() => {
-        const toast = document.getElementById('toast');
-        toast.textContent = '✓ Invite code copied: ' + code;
-        toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 2400);
-      });
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code)
+          .then(() => showToast('✓ Invite code copied: ' + code))
+          .catch(() => {
+            if (fallbackCopy(code)) showToast('✓ Invite code copied: ' + code);
+            else showToast('Could not copy. Code: ' + code);
+          });
+      } else {
+        if (fallbackCopy(code)) showToast('✓ Invite code copied: ' + code);
+        else showToast('Could not copy. Code: ' + code);
+      }
     }
   </script>
 </body>
