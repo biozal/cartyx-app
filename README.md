@@ -23,6 +23,7 @@ npm start              # http://localhost:3001
 - **Views:** EJS server-rendered templates
 - **Auth:** Passport.js (Google, GitHub, Apple)
 - **Database:** MongoDB Atlas (Mongoose)
+- **Analytics:** PostHog (server-side + client-side)
 - **Hosting:** Nginx reverse proxy on Linux, PM2 process manager
 
 ## Project Structure
@@ -31,10 +32,11 @@ npm start              # http://localhost:3001
 server.js               # Thin entry — delegates to src/server.js
 src/
   app.js                # Express app (middleware, routes, view engine)
-  server.js             # DB connection + server start
+  server.js             # DB connection + server start + graceful shutdown
   config/
     index.js            # Centralised config from env vars
     passport.js         # OAuth strategy setup
+    posthog.js          # PostHog server-side client init + shutdown
   controllers/
     authController.js   # OAuth callbacks, logout, token refresh
     campaignController.js # Campaign CRUD, dashboard, API
@@ -147,6 +149,19 @@ sudo nginx -t && sudo systemctl reload nginx
 ## Environment Variables
 
 See [`.env.example`](.env.example) for all required configuration.
+
+Key variables:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `MONGODB_URI` | Yes | MongoDB connection string |
+| `SESSION_SECRET` | Yes (prod) | Session encryption key |
+| `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | No | Google OAuth secret |
+| `GITHUB_CLIENT_ID` | No | GitHub OAuth client ID |
+| `GITHUB_CLIENT_SECRET` | No | GitHub OAuth secret |
+| `VITE_PUBLIC_POSTHOG_KEY` | No | PostHog project API key |
+| `VITE_PUBLIC_POSTHOG_HOST` | No | PostHog instance URL (default: `https://us.i.posthog.com`) |
 
 ## License
 

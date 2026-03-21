@@ -35,6 +35,13 @@ app.use(passport.initialize());
 app.use(passport.session());
 setupPassport();
 
+// ── PostHog config available to all templates ──
+app.use((req, res, next) => {
+  res.locals.posthogKey = config.posthog.apiKey || '';
+  res.locals.posthogHost = config.posthog.host || '';
+  next();
+});
+
 // ── Static files ──
 app.use(express.static(path.join(__dirname, '..', 'public')));
 

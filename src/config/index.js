@@ -33,4 +33,8 @@ module.exports = {
       privateKeyPath: process.env.APPLE_PRIVATE_KEY_PATH,
     },
   },
+  posthog: {
+    apiKey: process.env.VITE_PUBLIC_POSTHOG_KEY,
+    host: process.env.VITE_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
+  },
 };

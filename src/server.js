@@ -5,6 +5,7 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const app = require('./app');
 const config = require('./config');
+const { shutdownPosthog } = require('./config/posthog');
 
 // ── Connect to MongoDB ──
 if (config.mongodbUri) {
@@ -23,5 +24,16 @@ app.listen(config.port, () => {
   console.log(`  Google: ${providerConfigured('google') ? '✅' : '❌ (add credentials to .env)'}`);
   console.log(`  GitHub: ${providerConfigured('github') ? '✅' : '❌ (add credentials to .env)'}`);
   console.log(`  Apple:  ${providerConfigured('apple')  ? '✅' : '❌ (add credentials to .env)'}`);
+  console.log(`  PostHog: ${config.posthog.apiKey ? '✅' : '❌ (add VITE_PUBLIC_POSTHOG_KEY to .env)'}`);
   console.log('');
 });
+
+// ── Graceful shutdown ──
+async function gracefulShutdown(signal) {
+  console.log(`\n${signal} received — shutting down gracefully...`);
+  await shutdownPosthog();
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
