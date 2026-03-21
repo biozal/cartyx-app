@@ -119,16 +119,16 @@ jobs:
           fi
           # Check if nginx config references the deploy directory.
           # Try without sudo first, fall back to non-interactive sudo.
-          NGINX_CMD="nginx -T"
-          if ! $NGINX_CMD >/dev/null 2>&1; then
-            NGINX_CMD="sudo -n nginx -T"
-            if ! $NGINX_CMD >/dev/null 2>&1; then
-              echo "⚠️  Unable to read nginx config (neither 'nginx -T' nor 'sudo -n nginx -T' succeeded)."
-              echo "    Skipping nginx verification. Run 'nginx -T' manually to check."
-              exit 0
-            fi
+          # Use a function to avoid word-splitting issues with command strings.
+          run_nginx_dump() {
+            nginx -T 2>/dev/null || sudo -n nginx -T 2>/dev/null
+          }
+          if ! run_nginx_dump >/dev/null 2>&1; then
+            echo "⚠️  Unable to read nginx config (neither 'nginx -T' nor 'sudo -n nginx -T' succeeded)."
+            echo "    Skipping nginx verification. Run 'nginx -T' manually to check."
+            exit 0
           fi
-          if $NGINX_CMD 2>/dev/null | grep -q "${DEPLOY_DIR}/public"; then
+          if run_nginx_dump | grep -q "${DEPLOY_DIR}/public"; then
             echo "✅ Nginx is configured to serve from ${DEPLOY_DIR}/public"
           else
             echo "⚠️  Nginx does not appear to serve from ${DEPLOY_DIR}/public"

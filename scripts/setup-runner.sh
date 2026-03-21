@@ -52,7 +52,10 @@ fi
 echo "✅ Prerequisites OK: Node.js $(node -v), PM2 $(pm2 -v 2>/dev/null || echo 'installed')"
 
 RUNNER_DIR="${RUNNER_INSTALL_DIR:-$HOME/actions-runner}"
+RUNNER_NAME="linus"
 REPO_URL="https://github.com/Cartyx/cartyx-app"
+# Pin the runner version for reproducibility. Find the latest at:
+# https://github.com/actions/runner/releases
 RUNNER_VERSION="2.322.0"
 RUNNER_ARCH="linux-x64"
 
@@ -102,7 +105,7 @@ else
     fi
   fi
   echo "⚙️  Configuring runner..."
-  ./config.sh --url "$REPO_URL" --token "$TOKEN" --unattended --name "linus" --labels "self-hosted,linux,x64,linus"
+  ./config.sh --url "$REPO_URL" --token "$TOKEN" --unattended --name "$RUNNER_NAME" --labels "self-hosted,linux,x64,$RUNNER_NAME"
 fi
 
 # Install as a service (idempotent — handles installed+running, installed+stopped,
@@ -115,28 +118,34 @@ if ! sudo -n true 2>/dev/null; then
   exit 1
 fi
 
-# Check if the service unit file exists (installed vs not-installed)
-SERVICE_FILE="/etc/systemd/system/actions.runner.*.service"
-# shellcheck disable=SC2086
-if ls $SERVICE_FILE >/dev/null 2>&1; then
-  echo "ℹ️  Runner service already installed."
+# Derive the expected systemd service name for this specific runner.
+# GitHub runner service names follow: actions.runner.<owner>-<repo>.<runner-name>.service
+OWNER_REPO="${REPO_URL#https://github.com/}"
+OWNER_REPO="${OWNER_REPO%.git}"
+SERVICE_OWNER="${OWNER_REPO%%/*}"
+SERVICE_REPO="${OWNER_REPO#*/}"
+SERVICE_NAME="actions.runner.${SERVICE_OWNER}-${SERVICE_REPO}.${RUNNER_NAME}.service"
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}"
+
+if [ -f "$SERVICE_FILE" ]; then
+  echo "ℹ️  Runner service already installed (${SERVICE_NAME})."
   # Ensure it's running (handles installed-but-stopped case)
-  if ! sudo -n ./svc.sh status >/dev/null 2>&1; then
-    echo "🔄 Service is stopped — starting it..."
+  if ! sudo -n systemctl is-active --quiet "$SERVICE_NAME"; then
+    echo "🔄 Service is installed but not running — starting it..."
     sudo -n ./svc.sh start
   else
     echo "ℹ️  Service is running."
   fi
 else
-  echo "📦 Installing runner as system service..."
+  echo "📦 Installing runner as system service (${SERVICE_NAME})..."
   sudo -n ./svc.sh install
   sudo -n ./svc.sh start
 fi
 
 echo ""
 echo "✅ GitHub Actions runner installed and running!"
-echo "   Runner name: linus"
-echo "   Labels: self-hosted, linux, x64, linus"
+echo "   Runner name: $RUNNER_NAME"
+echo "   Labels: self-hosted, linux, x64, $RUNNER_NAME"
 echo "   Service: enabled and started"
 echo ""
 echo "Verify at: ${REPO_URL}/settings/actions/runners"
