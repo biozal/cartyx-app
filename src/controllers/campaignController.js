@@ -222,29 +222,28 @@ exports.updateCampaign = async (req, res) => {
   }
 };
 
-exports.summaryCampaign = async (req, res) => {
+exports.summaryCampaign = async (req, res, next) => {
   const user = req.user;
   if (!mongoose.connection.readyState) {
     return res.status(503).send('Database not available.');
   }
-  let campaign;
   try {
-    campaign = await Campaign.findById(req.params.id);
-  } catch (_e) {
-    return res.status(404).send('Campaign not found.');
+    const campaign = await Campaign.findById(req.params.id);
+    if (!campaign) return res.status(404).send('Campaign not found.');
+
+    const dbUser = await User.findOne({ providerId: user.id });
+    const isOwner = dbUser && String(campaign.gameMasterId) === String(dbUser._id);
+
+    const freqLabel = campaign.schedule && campaign.schedule.frequency ? campaign.schedule.frequency : null;
+    const dayLabel = campaign.schedule && campaign.schedule.dayOfWeek ? campaign.schedule.dayOfWeek : null;
+    const timeLabel = campaign.schedule && campaign.schedule.time ? campaign.schedule.time : null;
+    const tzLabel = campaign.schedule && campaign.schedule.timezone ? campaign.schedule.timezone : null;
+    const scheduleText = [freqLabel, dayLabel, timeLabel, tzLabel].filter(Boolean).join(' · ') || 'Not scheduled';
+
+    res.render('campaigns/summary', { user, campaign, isOwner, scheduleText });
+  } catch (err) {
+    next(err);
   }
-  if (!campaign) return res.status(404).send('Campaign not found.');
-
-  const dbUser = await User.findOne({ providerId: user.id });
-  const isOwner = dbUser && String(campaign.gameMasterId) === String(dbUser._id);
-
-  const freqLabel = campaign.schedule && campaign.schedule.frequency ? campaign.schedule.frequency : null;
-  const dayLabel = campaign.schedule && campaign.schedule.dayOfWeek ? campaign.schedule.dayOfWeek : null;
-  const timeLabel = campaign.schedule && campaign.schedule.time ? campaign.schedule.time : null;
-  const tzLabel = campaign.schedule && campaign.schedule.timezone ? campaign.schedule.timezone : null;
-  const scheduleText = [freqLabel, dayLabel, timeLabel, tzLabel].filter(Boolean).join(' · ') || 'Not scheduled';
-
-  res.render('campaigns/summary', { user, campaign, isOwner, scheduleText });
 };
 
 exports.dashboard = (req, res) => {
