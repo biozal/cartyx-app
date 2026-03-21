@@ -105,13 +105,20 @@ else
   ./config.sh --url "$REPO_URL" --token "$TOKEN" --unattended --name "linus" --labels "self-hosted,linux,x64,linus"
 fi
 
-# Install as a service (idempotent — skip if already installed)
+# Install as a service (idempotent — skip if already installed).
+# Use sudo -n first to avoid blocking on a password prompt when the script
+# is run non-interactively (e.g., via RUNNER_TOKEN env var).
 echo "🔧 Ensuring runner is installed as a system service..."
-if sudo ./svc.sh status >/dev/null 2>&1; then
+if sudo -n ./svc.sh status >/dev/null 2>&1; then
   echo "ℹ️  Runner service already installed and running; skipping installation."
+elif sudo -n true 2>/dev/null; then
+  sudo -n ./svc.sh install
+  sudo -n ./svc.sh start
 else
-  sudo ./svc.sh install
-  sudo ./svc.sh start
+  echo "⚠️  Passwordless sudo not available — installing service requires sudo."
+  echo "   Run these commands manually:"
+  echo "     cd ${RUNNER_DIR} && sudo ./svc.sh install && sudo ./svc.sh start"
+  exit 1
 fi
 
 echo ""

@@ -57,6 +57,10 @@ jobs:
           # correct symlinks even if a stale file/dir was left from a prior deploy)
           if [ -f /var/www/cartyx-auth/.env ]; then
             ln -sfn /var/www/cartyx-auth/.env "$DEPLOY_DIR/.env"
+          else
+            echo "❌ /var/www/cartyx-auth/.env not found — cannot deploy without config."
+            echo "   See README for first-time server setup instructions."
+            exit 1
           fi
           if [ -d /var/www/cartyx-auth/keys ]; then
             # Remove a non-symlink directory if it exists (ln -sfn can't
