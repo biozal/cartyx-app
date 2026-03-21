@@ -1,0 +1,90 @@
+name: Deploy to Linus
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to production server
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy to application directory
+        run: |
+          DEPLOY_DIR="/var/www/cartyx-app"
+
+          # Create deploy directory if it doesn't exist
+          sudo mkdir -p "$DEPLOY_DIR"
+          sudo chown $USER:$USER "$DEPLOY_DIR"
+
+          # Sync files (exclude secrets, uploads, node_modules)
+          rsync -av --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'node_modules' \
+            --exclude '.env' \
+            --exclude 'keys/' \
+            --exclude 'public/uploads/' \
+            ./ "$DEPLOY_DIR/"
+
+          # Install production dependencies in deploy directory
+          cd "$DEPLOY_DIR"
+          npm ci --production
+
+          # Ensure uploads directory exists
+          mkdir -p public/uploads/campaigns
+
+          # Symlink .env and keys from secure location if they exist
+          [ -f /var/www/cartyx-auth/.env ] && [ ! -f "$DEPLOY_DIR/.env" ] && \
+            ln -sf /var/www/cartyx-auth/.env "$DEPLOY_DIR/.env"
+          [ -d /var/www/cartyx-auth/keys ] && [ ! -d "$DEPLOY_DIR/keys" ] && \
+            ln -sf /var/www/cartyx-auth/keys "$DEPLOY_DIR/keys"
+
+      - name: Restart application
+        run: |
+          DEPLOY_DIR="/var/www/cartyx-app"
+          cd "$DEPLOY_DIR"
+
+          # Check if PM2 process exists, update or start
+          if pm2 describe cartyx-app > /dev/null 2>&1; then
+            pm2 restart cartyx-app --update-env
+          else
+            pm2 start server.js --name cartyx-app
+            pm2 save
+          fi
+
+          # Wait for app to be healthy
+          sleep 3
+          HTTP_STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/ || echo "000")
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Deploy successful — app responding with HTTP $HTTP_STATUS"
+          else
+            echo "❌ Deploy may have failed — app responding with HTTP $HTTP_STATUS"
+            pm2 logs cartyx-app --lines 20 --nostream
+            exit 1
+          fi
+
+      - name: Update nginx config (first deploy only)
+        run: |
+          DEPLOY_DIR="/var/www/cartyx-app"
+          # Update nginx to serve uploads from the new deploy directory
+          if grep -q "cartyx-auth" /etc/nginx/nginx.conf 2>/dev/null; then
+            echo "Updating nginx to point to new deploy directory..."
+            sudo sed -i "s|/var/www/cartyx-auth/public|${DEPLOY_DIR}/public|g" /etc/nginx/nginx.conf
+            sudo nginx -t && sudo systemctl reload nginx
+            echo "✅ Nginx updated"
+          else
+            echo "Nginx already points to correct directory"
+          fi
