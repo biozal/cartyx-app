@@ -51,28 +51,28 @@ The deploy workflow **does not** copy `.env` or `keys/` — those live in a secu
 ### First-Time Server Setup
 
 ```bash
-# 1. Get a runner registration token from:
-#    https://github.com/Cartyx/cartyx-app/settings/actions/runners/new
-
-# 2. Run the setup script on your server (as a regular user, NOT root):
-#    You'll be prompted for the token securely (no shell history leak).
-./scripts/setup-runner.sh
-
-# 3. Pre-provision the deploy directory (owned by the runner user):
+# 1. Pre-provision the deploy directory (owned by the runner user):
 sudo mkdir -p /var/www/cartyx-app
 sudo chown "$(id -un):$(id -gn)" /var/www/cartyx-app
 
-# 4. Create the secure config directory on the server:
+# 2. Create the secure config directory on the server:
 sudo mkdir -p /var/www/cartyx-auth/keys
 sudo chown -R "$(id -un):$(id -gn)" /var/www/cartyx-auth
 
-# 5. Create your .env file in the secure config directory:
+# 3. Create your .env file in the secure config directory:
 cp .env.example /var/www/cartyx-auth/.env
 # Edit /var/www/cartyx-auth/.env with your OAuth credentials, MongoDB URI, etc.
-# IMPORTANT: Ensure NODE_ENV=production is set — this enables secure session cookies.
+# IMPORTANT: Set NODE_ENV=production and ensure SESSION_SECRET is a strong random value.
 
-# 6. Place your Apple Sign-In key in the secure keys directory:
+# 4. Place your Apple Sign-In key in the secure keys directory:
 cp /path/to/your/apple.p8 /var/www/cartyx-auth/keys/apple.p8
+
+# 5. Get a runner registration token from:
+#    https://github.com/Cartyx/cartyx-app/settings/actions/runners/new
+
+# 6. Run the setup script on your server (as a regular user, NOT root):
+#    You'll be prompted for the token securely (no shell history leak).
+./scripts/setup-runner.sh
 
 # 7. Update nginx to serve from /var/www/cartyx-app/public.
 #    The deploy workflow verifies nginx config but does NOT modify it.
