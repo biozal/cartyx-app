@@ -15,8 +15,12 @@ const ALLOWED_MIMETYPES = {
 const campaignImageStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, '..', '..', 'public', 'uploads', 'campaigns');
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    } catch (err) {
+      cb(err);
+    }
   },
   filename: (req, file, cb) => {
     const ext = ALLOWED_MIMETYPES[file.mimetype] || '.bin';
