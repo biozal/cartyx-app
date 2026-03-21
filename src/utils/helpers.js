@@ -4,7 +4,7 @@ const fs = require('fs');
 const mongoose = require('mongoose');
 
 function escapeHtml(str) {
-  if (!str) return '';
+  if (str === null || str === undefined) return '';
   return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
