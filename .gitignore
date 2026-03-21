@@ -1,102 +1,28 @@
-# ============================================================
-# macOS
-# ============================================================
-.DS_Store
-.AppleDouble
-.LSOverride
-Icon?
-._*
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachined.donotpresent
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
-
-# ============================================================
-# Node / npm / yarn / pnpm
-# ============================================================
+# Dependencies
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-.pnpm-store/
-.npm
-.yarn/cache
-.yarn/unplugged
-.yarn/build-state.yml
-.yarn/install-state.gz
-.pnp.*
-package-lock.json.bak
 
-# ============================================================
-# React / Vite / CRA build output
-# ============================================================
-/build
-/dist
-/out
-/.next
-/.nuxt
-/.output
-
-# ============================================================
 # Environment & secrets
-# ============================================================
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env*.local
+keys/
 
-# ============================================================
-# Editor / IDE
-# ============================================================
-# VS Code
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
+# Uploads (user content, not in repo)
+public/uploads/
 
-# JetBrains (WebStorm, etc.)
+# Backups
+*.bak
+*.bak.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
 .idea/
-*.iml
-*.iws
-*.ipr
 
-# Vim / Emacs
-*.swp
-*.swo
-*~
-\#*\#
+# PM2
+ecosystem.config.js
 
-# ============================================================
-# Testing & coverage
-# ============================================================
-/coverage
-/.nyc_output
-/test-results
-/playwright-report
-/cypress/videos
-/cypress/screenshots
-
-# ============================================================
-# Misc
-# ============================================================
+# Logs
 *.log
-*.pid
-*.seed
-*.tgz
-.cache/
-.parcel-cache/
-.eslintcache
-.stylelintcache
-.turbo
-.vercel
-.netlify
+npm-debug.log*

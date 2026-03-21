@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cartyx — Enter the Realm</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      background: #080A12;
+      color: #E2E8F0;
+      font-family: 'Inter', system-ui, sans-serif;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── Left — Art Panel ── */
+    .art-panel {
+      flex: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 40px;
+      overflow: hidden;
+      min-height: 100vh;
+      background-image: url('/cartyx-fortress.jpg');
+      background-size: cover;
+      background-position: center 30%;
+      background-repeat: no-repeat;
+    }
+    .art-bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 20%;
+      image-rendering: pixelated;
+      filter: sepia(1) hue-rotate(185deg) saturate(2.5) brightness(0.55) contrast(1.2);
+    }
+    .art-overlay {
+      position: absolute;
+      inset: 0;
+      background: 
+        linear-gradient(to right, rgba(8,10,18,0) 0%, rgba(8,10,18,0.2) 70%, rgba(8,10,18,0.95) 100%),
+        linear-gradient(to top, rgba(8,10,18,0.9) 0%, transparent 50%),
+        rgba(10, 30, 80, 0.35);
+    }
+    .art-content {
+      position: relative;
+      z-index: 1;
+      max-width: 420px;
+    }
+    .art-label {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: #64B5F6;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      opacity: 0.8;
+    }
+    .art-title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 22px;
+      line-height: 1.4;
+      color: #FFFFFF;
+      margin-bottom: 16px;
+      text-shadow: 0 0 30px rgba(100,181,246,0.3);
+    }
+    .art-desc {
+      font-size: 14px;
+      line-height: 1.7;
+      color: #94A3B8;
+      font-weight: 300;
+    }
+
+    /* ── Right — Auth Panel ── */
+    .auth-panel {
+      width: 440px;
+      min-width: 440px;
+      min-height: 100vh;
+      background: rgba(10, 12, 20, 0.98);
+      border-left: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 40px;
+      position: relative;
+    }
+
+    .auth-logo {
+      width: 180px;
+      height: 180px;
+      object-fit: cover;
+      margin-bottom: 16px;
+      image-rendering: pixelated;
+      border-radius: 8px;
+      filter: sepia(1) hue-rotate(185deg) saturate(3) brightness(0.7) contrast(1.2);
+    }
+
+    .auth-brand {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 13px;
+      color: #FFFFFF;
+      letter-spacing: 4px;
+      margin-bottom: 32px;
+    }
+
+    .auth-heading {
+      font-size: 22px;
+      font-weight: 600;
+      color: #F1F5F9;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+    .auth-sub {
+      font-size: 13px;
+      color: #64748B;
+      text-align: center;
+      margin-bottom: 36px;
+      line-height: 1.5;
+    }
+
+    /* ── Buttons ── */
+    .btn-group { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+
+    .auth-btn {
+      width: 100%;
+      padding: 14px 20px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      color: #E2E8F0;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .auth-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .auth-btn:hover {
+      border-color: rgba(255,255,255,0.16);
+      background: rgba(255,255,255,0.08);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .auth-btn:active { transform: translateY(0); }
+
+    .auth-btn.google { border-color: rgba(66,133,244,0.3); }
+    .auth-btn.google:hover { border-color: rgba(66,133,244,0.6); box-shadow: 0 4px 20px rgba(66,133,244,0.15); }
+
+    .auth-btn.github { border-color: rgba(240,246,252,0.12); }
+    .auth-btn.github:hover { border-color: rgba(240,246,252,0.25); box-shadow: 0 4px 20px rgba(255,255,255,0.05); }
+
+    .auth-btn.apple { border-color: rgba(255,255,255,0.12); }
+    .auth-btn.apple:hover { border-color: rgba(255,255,255,0.25); box-shadow: 0 4px 20px rgba(255,255,255,0.05); }
+
+    .btn-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-text { flex: 1; text-align: left; }
+    .btn-arrow { color: #475569; font-size: 16px; }
+
+    /* ── Divider ── */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0;
+      width: 100%;
+      color: #334155;
+      font-size: 12px;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255,255,255,0.06);
+    }
+
+    /* ── Footer ── */
+    .auth-footer {
+      margin-top: 32px;
+      font-size: 11px;
+      color: #334155;
+      text-align: center;
+      line-height: 1.6;
+    }
+    .auth-footer a { color: #475569; text-decoration: none; }
+    .auth-footer a:hover { color: #64748B; }
+
+    /* ── Invite code input ── */
+    .invite-section {
+      width: 100%;
+      display: none;
+    }
+    .invite-section.visible { display: block; }
+    .invite-label {
+      font-size: 12px;
+      color: #64748B;
+      margin-bottom: 8px;
+      display: block;
+    }
+    .invite-input-wrap {
+      display: flex;
+      gap: 8px;
+    }
+    .invite-input {
+      flex: 1;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      color: #E2E8F0;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .invite-input:focus { border-color: rgba(100,181,246,0.4); }
+    .invite-submit {
+      padding: 12px 16px;
+      background: linear-gradient(135deg, #1E40AF, #2563EB);
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .invite-submit:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(37,99,235,0.4); }
+
+    /* ── Dashboard (logged in) ── */
+    .dashboard-card {
+      width: 100%;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .user-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .user-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 2px solid rgba(100,181,246,0.3);
+      object-fit: cover;
+    }
+    .user-avatar-placeholder {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 2px solid rgba(100,181,246,0.3);
+      background: rgba(30,64,175,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+    .user-name { font-size: 15px; font-weight: 600; color: #F1F5F9; }
+    .user-meta { font-size: 12px; color: #64748B; margin-top: 2px; }
+
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .role-badge.gm {
+      background: rgba(245,158,11,0.15);
+      color: #F59E0B;
+      border: 1px solid rgba(245,158,11,0.25);
+    }
+    .role-badge.player {
+      background: rgba(99,102,241,0.15);
+      color: #818CF8;
+      border: 1px solid rgba(99,102,241,0.25);
+    }
+    .role-badge.unknown {
+      background: rgba(100,116,139,0.15);
+      color: #94A3B8;
+      border: 1px solid rgba(100,116,139,0.25);
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 13px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, #1D4ED8, #2563EB);
+      color: white;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+      margin-bottom: 10px;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(37,99,235,0.4); }
+
+    .btn-ghost {
+      width: 100%;
+      padding: 13px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: transparent;
+      color: #94A3B8;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .btn-ghost:hover { border-color: rgba(255,255,255,0.15); color: #E2E8F0; }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .art-panel { display: none; }
+      .auth-panel { width: 100%; min-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Left: Art Panel -->
+<div class="art-panel">
+  
+  <div class="art-overlay"></div>
+  <div class="art-content">
+    <div class="art-label" id="artLabel">Welcome to Cartyx</div>
+    <div class="art-title" id="artTitle">ENTER THE<br>REALM</div>
+    <div class="art-desc" id="artDesc">Your adventure begins with a single step through the gate.</div>
+  </div>
+</div>
+
+<!-- Right: Auth Panel -->
+<div class="auth-panel">
+  <img src="/cartyx-logo-pixel.jpg" alt="Cartyx" class="auth-logo">
+
+
+  <!-- State: Not logged in -->
+  <div id="loginView">
+    <div class="auth-heading">Link Your Account</div>
+    <div class="auth-sub">Choose how you'd like to enter the realm</div>
+
+    <div class="btn-group">
+      <a href="/auth/google" class="auth-btn google">
+        <span class="btn-icon">
+          <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z"/></svg>
+        </span>
+        <span class="btn-text">Continue with Google</span>
+        <span class="btn-arrow">›</span>
+      </a>
+
+      <a href="/auth/github" class="auth-btn github">
+        <span class="btn-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+        </span>
+        <span class="btn-text">Continue with GitHub</span>
+        <span class="btn-arrow">›</span>
+      </a>
+
+      <a href="/auth/apple" class="auth-btn apple">
+        <span class="btn-icon">
+          <svg width="16" height="18" viewBox="0 0 814 1000" fill="#fff"><path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-57.8-155.5-127.4C46 790.7 0 663 0 541.8c0-207.5 135.4-317.3 269.5-317.3 124.4 0 173 77.6 185.9 77.6 13.6 0 73.5-80.5 207.2-80.5 62.9 0 162.8 10.8 215.1 97.6zm-234.7-76.4c-19.4-37.5-5.7-107.8 44.8-150.4 27.8-22.6 78.2-38.9 89.3-41.3.5 3.5 1.3 9.3 1.3 20.6 0 71-49.2 127.2-69.6 134.6-12.7 4.6-62.9 38.5-65.8 36.5z"/></svg>
+        </span>
+        <span class="btn-text">Continue with Apple</span>
+        <span class="btn-arrow">›</span>
+      </a>
+    </div>
+
+    <div class="divider">or</div>
+
+    <div class="invite-section" id="inviteSection">
+      <label class="invite-label">Have an invite code?</label>
+      <div class="invite-input-wrap">
+        <input class="invite-input" type="text" placeholder="XXXX-XXXX" maxlength="9" id="inviteInput">
+        <button class="invite-submit" onclick="joinWithCode()">→</button>
+      </div>
+    </div>
+    <div style="text-align:center">
+      <button onclick="toggleInvite()" style="background:none;border:none;color:#475569;font-size:12px;cursor:pointer;font-family:Inter,sans-serif;text-decoration:underline">
+        Have an invite code?
+      </button>
+    </div>
+
+    <div class="auth-footer">
+      By continuing you agree to our
+      <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>
+    </div>
+  </div>
+
+  <!-- State: Logged in -->
+  <div id="dashView" style="display:none;width:100%">
+    <div class="dashboard-card">
+      <div class="user-row">
+        <div id="avatarWrap"></div>
+        <div>
+          <div class="user-name" id="userName">—</div>
+          <div class="user-meta" id="userEmail">—</div>
+        </div>
+        <div id="roleBadge" style="margin-left:auto"></div>
+      </div>
+    </div>
+    <a href="/campaigns" class="btn-primary" id="btnGM" style="display:none">⚔️ My Campaigns</a>
+    <a href="/campaigns" class="btn-primary" id="btnPlayer" style="display:none">🗺️ My Campaigns</a>
+    <div id="btnUnknown" style="display:none;width:100%">
+      <div style="text-align:center;margin-bottom:16px;color:#64748B;font-size:13px">You don't have access yet.<br>Ask your GM for an invite code.</div>
+      <div class="invite-section visible">
+        <label class="invite-label">Enter your invite code</label>
+        <div class="invite-input-wrap">
+          <input class="invite-input" type="text" placeholder="XXXX-XXXX" maxlength="9" id="inviteInput2">
+          <button class="invite-submit" onclick="joinWithCode2()">→</button>
+        </div>
+      </div>
+    </div>
+    <a href="/logout" class="btn-ghost" style="margin-top:8px">Sign Out</a>
+  </div>
+</div>
+
+<script>
+let artData = null;
+
+function toggleInvite() {
+  const s = document.getElementById('inviteSection');
+  s.classList.toggle('visible');
+}
+
+function joinWithCode() {
+  const code = document.getElementById('inviteInput').value.trim().toUpperCase();
+  if (code) window.location.href = '/join/' + code;
+}
+
+function joinWithCode2() {
+  const code = document.getElementById('inviteInput2').value.trim().toUpperCase();
+  if (code) window.location.href = '/join/' + code;
+}
+
+// Check auth state
+fetch('/api/me').then(r => {
+  if (!r.ok) return null;
+  return r.json();
+}).then(user => {
+  if (!user) return;
+
+  document.getElementById('loginView').style.display = 'none';
+  document.getElementById('dashView').style.display = 'block';
+
+  document.getElementById('userName').textContent = user.name || 'Adventurer';
+  document.getElementById('userEmail').textContent = user.email || '';
+
+  const avatarWrap = document.getElementById('avatarWrap');
+  if (user.avatar) {
+    avatarWrap.innerHTML = `<img src="${user.avatar}" class="user-avatar" alt="">`;
+  } else {
+    avatarWrap.innerHTML = `<div class="user-avatar-placeholder">🧙</div>`;
+  }
+
+  const roleMap = {
+    gm:      { label: '⚔️ Game Master', cls: 'gm' },
+    player:  { label: '🗺️ Player',      cls: 'player' },
+    unknown: { label: '👤 Guest',        cls: 'unknown' },
+  };
+  const r = roleMap[user.role] || roleMap.unknown;
+  document.getElementById('roleBadge').innerHTML = `<span class="role-badge ${r.cls}">${r.label}</span>`;
+
+  if (user.role === 'gm') {
+    document.getElementById('btnGM').style.display = 'flex';
+    document.getElementById('artLabel').textContent = 'Game Master Portal';
+    document.getElementById('artTitle').innerHTML = 'YOUR REALM<br>AWAITS';
+    document.getElementById('artDesc').textContent = 'Create campaigns, invite players, and forge legendary adventures.';
+  } else if (user.role === 'player') {
+    document.getElementById('btnPlayer').style.display = 'flex';
+    document.getElementById('artLabel').textContent = 'Welcome back';
+    document.getElementById('artTitle').innerHTML = 'YOUR<br>ADVENTURE';
+    document.getElementById('artDesc').textContent = 'Continue your journey and check on your campaigns.';
+  } else {
+    document.getElementById('btnUnknown').style.display = 'block';
+    document.getElementById('artLabel').textContent = "You've been invited";
+    document.getElementById('artTitle').innerHTML = 'CLAIM YOUR<br>PLACE';
+    document.getElementById('artDesc').textContent = 'Enter your invite code to join a campaign.';
+  }
+}).catch(() => {});
+
+// Format invite code as XXXX-XXXX
+['inviteInput','inviteInput2'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('input', e => {
+    let v = e.target.value.replace(/[^A-Z0-9a-z]/g,'').toUpperCase();
+    if (v.length > 4) v = v.slice(0,4) + '-' + v.slice(4,8);
+    e.target.value = v;
+  });
+  el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.target.id === 'inviteInput' ? joinWithCode() : joinWithCode2(); }});
+});
+</script>
+</body>
+</html>
