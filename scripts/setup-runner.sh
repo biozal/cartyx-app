@@ -105,20 +105,32 @@ else
   ./config.sh --url "$REPO_URL" --token "$TOKEN" --unattended --name "linus" --labels "self-hosted,linux,x64,linus"
 fi
 
-# Install as a service (idempotent — skip if already installed).
-# Use sudo -n first to avoid blocking on a password prompt when the script
-# is run non-interactively (e.g., via RUNNER_TOKEN env var).
+# Install as a service (idempotent — handles installed+running, installed+stopped,
+# and not-installed states). Uses sudo -n to avoid blocking on password prompts.
 echo "🔧 Ensuring runner is installed as a system service..."
-if sudo -n ./svc.sh status >/dev/null 2>&1; then
-  echo "ℹ️  Runner service already installed and running; skipping installation."
-elif sudo -n true 2>/dev/null; then
-  sudo -n ./svc.sh install
-  sudo -n ./svc.sh start
-else
+if ! sudo -n true 2>/dev/null; then
   echo "⚠️  Passwordless sudo not available — installing service requires sudo."
   echo "   Run these commands manually:"
   echo "     cd ${RUNNER_DIR} && sudo ./svc.sh install && sudo ./svc.sh start"
   exit 1
+fi
+
+# Check if the service unit file exists (installed vs not-installed)
+SERVICE_FILE="/etc/systemd/system/actions.runner.*.service"
+# shellcheck disable=SC2086
+if ls $SERVICE_FILE >/dev/null 2>&1; then
+  echo "ℹ️  Runner service already installed."
+  # Ensure it's running (handles installed-but-stopped case)
+  if ! sudo -n ./svc.sh status >/dev/null 2>&1; then
+    echo "🔄 Service is stopped — starting it..."
+    sudo -n ./svc.sh start
+  else
+    echo "ℹ️  Service is running."
+  fi
+else
+  echo "📦 Installing runner as system service..."
+  sudo -n ./svc.sh install
+  sudo -n ./svc.sh start
 fi
 
 echo ""

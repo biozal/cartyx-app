@@ -42,8 +42,8 @@ jobs:
             --exclude '.github' \
             --exclude 'node_modules' \
             --exclude '.env' \
-            --exclude 'keys/' \
-            --exclude 'public/uploads/' \
+            --exclude 'keys' \
+            --exclude 'public/uploads' \
             ./ "$DEPLOY_DIR/"
 
           # Install production dependencies in deploy directory
