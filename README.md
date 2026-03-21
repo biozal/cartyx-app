@@ -55,7 +55,8 @@ The deploy workflow **does not** copy `.env` or `keys/` — those live in a secu
 #    https://github.com/Cartyx/cartyx-app/settings/actions/runners/new
 
 # 2. Run the setup script on your server (as a regular user, NOT root):
-./scripts/setup-runner.sh <REGISTRATION_TOKEN>
+#    You'll be prompted for the token securely (no shell history leak).
+./scripts/setup-runner.sh
 
 # 3. Create the secure config directory on the server:
 sudo mkdir -p /var/www/cartyx-auth/keys
@@ -68,8 +69,11 @@ cp .env.example /var/www/cartyx-auth/.env
 # 5. Place your Apple Sign-In key in the secure keys directory:
 cp /path/to/your/apple.p8 /var/www/cartyx-auth/keys/apple.p8
 
-# 6. Update nginx to serve from /var/www/cartyx-app/public
-#    and reload: sudo systemctl reload nginx
+# 6. Update nginx to serve from /var/www/cartyx-app/public.
+#    The deploy workflow verifies nginx config but does NOT modify it.
+#    You must update nginx manually on first setup:
+#    - Replace /var/www/cartyx-auth/public with /var/www/cartyx-app/public in your nginx config
+#    - sudo nginx -t && sudo systemctl reload nginx
 ```
 
 ## Environment Variables

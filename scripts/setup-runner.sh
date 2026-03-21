@@ -12,10 +12,17 @@
 #
 # Usage:
 #   chmod +x scripts/setup-runner.sh
-#   ./scripts/setup-runner.sh <REGISTRATION_TOKEN>
+#   ./scripts/setup-runner.sh
+#   # (You will be prompted for the registration token securely)
+#
+# Alternatively, pass via environment variable:
+#   RUNNER_TOKEN=ghp_xxx ./scripts/setup-runner.sh
 #
 # WARNING: Do NOT run this script as root. The runner should be installed
 # under a regular user account.
+#
+# This script is idempotent — re-running it on an already-configured
+# runner will skip configuration and service install steps.
 # ==============================================================================
 
 set -euo pipefail
@@ -33,15 +40,20 @@ REPO_URL="https://github.com/Cartyx/cartyx-app"
 RUNNER_VERSION="2.322.0"
 RUNNER_ARCH="linux-x64"
 
-if [ -z "${1:-}" ]; then
-  echo "Usage: $0 <GITHUB_RUNNER_REGISTRATION_TOKEN>"
-  echo ""
-  echo "Get a token from:"
+# Read token from env var, or prompt securely (avoids leaking via shell
+# history or /proc/*/cmdline)
+TOKEN="${RUNNER_TOKEN:-}"
+if [ -z "$TOKEN" ]; then
+  echo "Get a registration token from:"
   echo "  ${REPO_URL}/settings/actions/runners/new"
-  exit 1
+  echo ""
+  read -rsp "Paste registration token (hidden): " TOKEN
+  echo ""
+  if [ -z "$TOKEN" ]; then
+    echo "❌ No token provided."
+    exit 1
+  fi
 fi
-
-TOKEN="$1"
 
 echo "📦 Setting up GitHub Actions runner in ${RUNNER_DIR}..."
 
@@ -71,14 +83,22 @@ if [ ! -f "./run.sh" ]; then
   rm "${RUNNER_TARBALL}"
 fi
 
-# Configure the runner
-echo "⚙️  Configuring runner..."
-./config.sh --url "$REPO_URL" --token "$TOKEN" --unattended --name "linus" --labels "self-hosted,linux,x64,linus"
+# Configure the runner (idempotent — skip if already configured)
+if [ -f ".runner" ]; then
+  echo "ℹ️  Runner already configured in ${RUNNER_DIR}; skipping configuration."
+else
+  echo "⚙️  Configuring runner..."
+  ./config.sh --url "$REPO_URL" --token "$TOKEN" --unattended --name "linus" --labels "self-hosted,linux,x64,linus"
+fi
 
-# Install as a service
-echo "🔧 Installing runner as a system service..."
-sudo ./svc.sh install
-sudo ./svc.sh start
+# Install as a service (idempotent — skip if already installed)
+echo "🔧 Ensuring runner is installed as a system service..."
+if sudo ./svc.sh status >/dev/null 2>&1; then
+  echo "ℹ️  Runner service already installed and running; skipping installation."
+else
+  sudo ./svc.sh install
+  sudo ./svc.sh start
+fi
 
 echo ""
 echo "✅ GitHub Actions runner installed and running!"

@@ -3,11 +3,15 @@ name: Deploy to Linus
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
     name: Deploy to production server
     runs-on: [self-hosted, linux, x64, linus]
+    environment: production
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -43,11 +47,14 @@ jobs:
           # Ensure uploads directory exists
           mkdir -p public/uploads/campaigns
 
-          # Symlink .env and keys from secure location if they exist
-          [ -f /var/www/cartyx-auth/.env ] && [ ! -f "$DEPLOY_DIR/.env" ] && \
-            ln -sf /var/www/cartyx-auth/.env "$DEPLOY_DIR/.env"
-          [ -d /var/www/cartyx-auth/keys ] && [ ! -d "$DEPLOY_DIR/keys" ] && \
-            ln -sf /var/www/cartyx-auth/keys "$DEPLOY_DIR/keys"
+          # Symlink .env and keys from secure location (force-replace to ensure
+          # correct symlinks even if a stale file/dir was left from a prior deploy)
+          if [ -f /var/www/cartyx-auth/.env ]; then
+            ln -sfn /var/www/cartyx-auth/.env "$DEPLOY_DIR/.env"
+          fi
+          if [ -d /var/www/cartyx-auth/keys ]; then
+            ln -sfn /var/www/cartyx-auth/keys "$DEPLOY_DIR/keys"
+          fi
 
       - name: Restart application
         run: |
@@ -76,13 +83,13 @@ jobs:
       - name: Verify nginx configuration
         run: |
           DEPLOY_DIR="/var/www/cartyx-app"
-          # Check that nginx is configured to serve from the correct directory.
-          # Nginx configuration changes should be performed manually or via
-          # infrastructure tooling, not from this deploy workflow.
-          if grep -q "${DEPLOY_DIR}/public" /etc/nginx/nginx.conf 2>/dev/null; then
-            echo "✅ Nginx is already configured to serve from ${DEPLOY_DIR}/public"
+          # Check the full effective nginx config (includes sites-enabled, etc.)
+          # rather than just /etc/nginx/nginx.conf.
+          NGINX_FULL=$(sudo nginx -T 2>/dev/null || true)
+          if echo "$NGINX_FULL" | grep -q "${DEPLOY_DIR}/public"; then
+            echo "✅ Nginx is configured to serve from ${DEPLOY_DIR}/public"
           else
-            echo "⚠️  Nginx does not appear to be configured to serve from ${DEPLOY_DIR}/public."
-            echo "Please update your nginx configuration manually (replace references to"
-            echo "/var/www/cartyx-auth/public with ${DEPLOY_DIR}/public) and reload nginx."
+            echo "⚠️  Nginx does not appear to serve from ${DEPLOY_DIR}/public."
+            echo "Please update your nginx configuration manually and reload nginx."
+            echo "This workflow does NOT modify nginx — infrastructure changes are manual."
           fi
