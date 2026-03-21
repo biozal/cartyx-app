@@ -7,7 +7,7 @@ on:
 jobs:
   deploy:
     name: Deploy to production server
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux, x64, linus]
 
     steps:
       - name: Checkout code
@@ -18,16 +18,13 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
-        run: npm ci
-
       - name: Deploy to application directory
         run: |
           DEPLOY_DIR="/var/www/cartyx-app"
 
           # Create deploy directory if it doesn't exist
           sudo mkdir -p "$DEPLOY_DIR"
-          sudo chown $USER:$USER "$DEPLOY_DIR"
+          sudo chown "$(id -un)":"$(id -gn)" "$DEPLOY_DIR"
 
           # Sync files (exclude secrets, uploads, node_modules)
           rsync -av --delete \
@@ -41,7 +38,7 @@ jobs:
 
           # Install production dependencies in deploy directory
           cd "$DEPLOY_DIR"
-          npm ci --production
+          npm ci --omit=dev
 
           # Ensure uploads directory exists
           mkdir -p public/uploads/campaigns
@@ -76,15 +73,16 @@ jobs:
             exit 1
           fi
 
-      - name: Update nginx config (first deploy only)
+      - name: Verify nginx configuration
         run: |
           DEPLOY_DIR="/var/www/cartyx-app"
-          # Update nginx to serve uploads from the new deploy directory
-          if grep -q "cartyx-auth" /etc/nginx/nginx.conf 2>/dev/null; then
-            echo "Updating nginx to point to new deploy directory..."
-            sudo sed -i "s|/var/www/cartyx-auth/public|${DEPLOY_DIR}/public|g" /etc/nginx/nginx.conf
-            sudo nginx -t && sudo systemctl reload nginx
-            echo "✅ Nginx updated"
+          # Check that nginx is configured to serve from the correct directory.
+          # Nginx configuration changes should be performed manually or via
+          # infrastructure tooling, not from this deploy workflow.
+          if grep -q "${DEPLOY_DIR}/public" /etc/nginx/nginx.conf 2>/dev/null; then
+            echo "✅ Nginx is already configured to serve from ${DEPLOY_DIR}/public"
           else
-            echo "Nginx already points to correct directory"
+            echo "⚠️  Nginx does not appear to be configured to serve from ${DEPLOY_DIR}/public."
+            echo "Please update your nginx configuration manually (replace references to"
+            echo "/var/www/cartyx-auth/public with ${DEPLOY_DIR}/public) and reload nginx."
           fi

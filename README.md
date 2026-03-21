@@ -42,9 +42,11 @@ Deployments are automated via GitHub Actions. When code is merged to `main`, a s
 
 1. Checks out the latest code
 2. Installs dependencies
-3. Syncs files to the deploy directory
+3. Syncs files to the deploy directory (`/var/www/cartyx-app`)
 4. Restarts the application via PM2
 5. Runs a health check
+
+The deploy workflow **does not** copy `.env` or `keys/` — those live in a secure location on the server and are symlinked into the deploy directory automatically.
 
 ### First-Time Server Setup
 
@@ -52,14 +54,22 @@ Deployments are automated via GitHub Actions. When code is merged to `main`, a s
 # 1. Get a runner registration token from:
 #    https://github.com/Cartyx/cartyx-app/settings/actions/runners/new
 
-# 2. Run the setup script on your server:
+# 2. Run the setup script on your server (as a regular user, NOT root):
 ./scripts/setup-runner.sh <REGISTRATION_TOKEN>
 
-# 3. Create your .env file:
-cp .env.example .env
-# Fill in OAuth credentials, MongoDB URI, etc.
+# 3. Create the secure config directory on the server:
+sudo mkdir -p /var/www/cartyx-auth/keys
+sudo chown -R $USER:$USER /var/www/cartyx-auth
 
-# 4. Place your Apple Sign-In key at keys/apple.p8
+# 4. Create your .env file in the secure config directory:
+cp .env.example /var/www/cartyx-auth/.env
+# Edit /var/www/cartyx-auth/.env with your OAuth credentials, MongoDB URI, etc.
+
+# 5. Place your Apple Sign-In key in the secure keys directory:
+cp /path/to/your/apple.p8 /var/www/cartyx-auth/keys/apple.p8
+
+# 6. Update nginx to serve from /var/www/cartyx-app/public
+#    and reload: sudo systemctl reload nginx
 ```
 
 ## Environment Variables
