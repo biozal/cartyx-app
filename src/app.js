@@ -46,4 +46,15 @@ app.use('/api', apiRoutes);
 
 app.get('/logout', require('./controllers/authController').logout);
 
+// ── Error handler (must be last — catches multer, route errors, etc.) ──
+app.use((err, req, res, _next) => {
+  console.error('Unhandled error:', err.message);
+  if (req.originalUrl.startsWith('/api/')) {
+    return res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+  }
+  res.status(err.status || 500).send(
+    `<h1>${err.status || 500}</h1><p>${config.nodeEnv === 'production' ? 'Something went wrong.' : err.message}</p>`
+  );
+});
+
 module.exports = app;

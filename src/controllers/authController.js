@@ -118,31 +118,25 @@ exports.appleAuth = (req, res, next) => {
   passport.authenticate('apple')(req, res, next);
 };
 
-exports.appleCallbackPost = [
-  (req, res, next) => {
-    if (!providerConfigured('apple')) return res.redirect('/');
-    passport.authenticate('apple', { failureRedirect: '/?reason=auth_failed' }, (err, user, info) => {
-      if (err) {
-        console.error('🍎 Apple auth error:', JSON.stringify(err, null, 2));
-        console.error('🍎 Apple auth info:', JSON.stringify(info, null, 2));
-        return res.redirect('/?reason=auth_failed');
-      }
-      if (!user) {
-        console.error('🍎 Apple no user, info:', JSON.stringify(info, null, 2));
-        return res.redirect('/?reason=auth_failed');
-      }
-      req.logIn(user, (loginErr) => {
-        if (loginErr) return next(loginErr);
-        applyRememberMe(req);
-        res.redirect('/campaigns');
-      });
-    })(req, res, next);
-  },
-  (req, res) => {
-    applyRememberMe(req);
-    res.redirect('/campaigns');
-  },
-];
+exports.appleCallbackPost = (req, res, next) => {
+  if (!providerConfigured('apple')) return res.redirect('/');
+  passport.authenticate('apple', { failureRedirect: '/?reason=auth_failed' }, (err, user, info) => {
+    if (err) {
+      console.error('🍎 Apple auth error:', JSON.stringify(err, null, 2));
+      console.error('🍎 Apple auth info:', JSON.stringify(info, null, 2));
+      return res.redirect('/?reason=auth_failed');
+    }
+    if (!user) {
+      console.error('🍎 Apple no user, info:', JSON.stringify(info, null, 2));
+      return res.redirect('/?reason=auth_failed');
+    }
+    req.logIn(user, (loginErr) => {
+      if (loginErr) return next(loginErr);
+      applyRememberMe(req);
+      res.redirect('/campaigns');
+    });
+  })(req, res, next);
+};
 
 exports.appleCallbackGet = [
   (req, res, next) => {

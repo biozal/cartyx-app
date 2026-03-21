@@ -12,7 +12,7 @@ router.get('/github', auth.githubAuth);
 router.get('/github/callback', ...auth.githubCallback);
 
 router.get('/apple', auth.appleAuth);
-router.post('/apple/callback', ...auth.appleCallbackPost);
+router.post('/apple/callback', auth.appleCallbackPost);
 router.get('/apple/callback', ...auth.appleCallbackGet);
 
 router.get('/refresh', isAuthenticated, auth.tokenRefresh);

@@ -48,6 +48,10 @@ exports.editorForm = async (req, res) => {
   let campaign = null;
   let errorMsg = null;
 
+  if (!campaignId && user.role !== 'gm') {
+    return res.redirect('/campaigns');
+  }
+
   if (campaignId) {
     if (!mongoose.connection.readyState) {
       errorMsg = 'Database not available.';
@@ -213,21 +217,25 @@ exports.apiMe = async (req, res) => {
   const user = req.user;
   let role = user.role || 'unknown';
 
-  if (mongoose.connection.readyState) {
-    const stored = await User.findOne({
-      $or: [
-        { providerId: user.id },
-        ...(user.email ? [{ email: user.email }] : []),
-      ],
-    });
-    if (stored) {
-      role = stored.role;
-      if (!stored.providerId && user.id) {
-        await User.updateOne({ _id: stored._id }, { providerId: user.id, lastLoginAt: new Date() });
-      } else {
-        await User.updateOne({ _id: stored._id }, { lastLoginAt: new Date() });
+  try {
+    if (mongoose.connection.readyState) {
+      const stored = await User.findOne({
+        $or: [
+          { providerId: user.id },
+          ...(user.email ? [{ email: user.email }] : []),
+        ],
+      });
+      if (stored) {
+        role = stored.role;
+        if (!stored.providerId && user.id) {
+          await User.updateOne({ _id: stored._id }, { providerId: user.id, lastLoginAt: new Date() });
+        } else {
+          await User.updateOne({ _id: stored._id }, { lastLoginAt: new Date() });
+        }
       }
     }
+  } catch (err) {
+    console.error('apiMe DB error:', err.message);
   }
 
   res.json({

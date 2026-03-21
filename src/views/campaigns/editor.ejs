@@ -90,8 +90,8 @@
       <div class="field">
         <label>Frequency</label>
         <div class="pills" id="freqPills">
-          <% ['Weekly', 'Bi-weekly', 'Monthly'].forEach(function(f) { %>
-            <div class="pill<%= schedFreq === f ? ' active' : '' %>" data-val="<%= f %>" onclick="selectPill('freqPills',this)"><%= f %></div>
+          <% [['weekly','Weekly'], ['biweekly','Bi-weekly'], ['monthly','Monthly']].forEach(function(pair) { %>
+            <div class="pill<%= schedFreq === pair[0] ? ' active' : '' %>" data-val="<%= pair[0] %>" onclick="selectPill('freqPills',this)"><%= pair[1] %></div>
           <% }); %>
         </div>
         <input type="hidden" id="schedFreq" value="<%= schedFreq %>">
