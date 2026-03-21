@@ -57,6 +57,11 @@ if ! command -v tar >/dev/null 2>&1; then
   echo "❌ tar is not installed. Install it with your package manager (e.g., apt-get install tar)."
   exit 1
 fi
+if ! command -v rsync >/dev/null 2>&1; then
+  echo "❌ rsync is not installed. The deploy workflow requires it for file sync."
+  echo "   Install it with your package manager (e.g., apt-get install rsync)."
+  exit 1
+fi
 if ! command -v sha256sum >/dev/null 2>&1; then
   echo "⚠️  sha256sum not found — checksum verification will be skipped."
 fi
