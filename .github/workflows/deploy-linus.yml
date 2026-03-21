@@ -87,6 +87,22 @@ jobs:
           DEPLOY_DIR="/var/www/cartyx-app"
           cd "$DEPLOY_DIR"
 
+          # PM2 is installed globally under nvm, which isn't on the GitHub
+          # Actions runner's default PATH. Add nvm's default Node bin dir.
+          if ! command -v pm2 >/dev/null 2>&1 && [ -d "$HOME/.nvm" ]; then
+            export NVM_DIR="$HOME/.nvm"
+            # shellcheck source=/dev/null
+            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" --no-use
+            NVM_DEFAULT="$(nvm which default 2>/dev/null || true)"
+            if [ -n "$NVM_DEFAULT" ]; then
+              export PATH="$(dirname "$NVM_DEFAULT"):$PATH"
+            fi
+          fi
+          if ! command -v pm2 >/dev/null 2>&1; then
+            echo "❌ PM2 not found. Install it with: npm install -g pm2"
+            exit 1
+          fi
+
           # Check if PM2 process exists, update or start
           if pm2 describe cartyx-app > /dev/null 2>&1; then
             pm2 restart cartyx-app --update-env
