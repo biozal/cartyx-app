@@ -51,7 +51,12 @@ const { escapeHtml } = require('./utils/helpers');
 app.use((err, req, res, _next) => {
   console.error('Unhandled error:', err.message);
   if (req.originalUrl.startsWith('/api/')) {
-    return res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+    const statusCode = err.status || 500;
+    const errorMessage =
+      config.nodeEnv === 'production'
+        ? 'Internal server error'
+        : (err.message || 'Internal server error');
+    return res.status(statusCode).json({ error: errorMessage });
   }
   const statusCode = err.status || 500;
   const safeMessage = config.nodeEnv === 'production' ? 'Something went wrong.' : escapeHtml(err.message);
