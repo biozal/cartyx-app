@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "dotenv": "^16.4.7",
-    "ejs": "^3.1.10",
+    "ejs": "^5.0.1",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
     "mongoose": "^9.3.1",
