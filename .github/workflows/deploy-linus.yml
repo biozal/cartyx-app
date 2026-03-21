@@ -26,9 +26,10 @@ jobs:
         run: |
           DEPLOY_DIR="/var/www/cartyx-app"
 
-          # Create deploy directory if it doesn't exist
-          sudo mkdir -p "$DEPLOY_DIR"
-          sudo chown "$(id -un)":"$(id -gn)" "$DEPLOY_DIR"
+          # /var/www/cartyx-app must be pre-provisioned and owned by
+          # the runner user during first-time server setup (see README).
+          # No sudo is used in this job.
+          mkdir -p "$DEPLOY_DIR"
 
           # Sync files (exclude secrets, uploads, node_modules)
           rsync -av --delete \
@@ -85,7 +86,7 @@ jobs:
           DEPLOY_DIR="/var/www/cartyx-app"
           # Check the full effective nginx config (includes sites-enabled, etc.)
           # rather than just /etc/nginx/nginx.conf.
-          NGINX_FULL=$(sudo nginx -T 2>/dev/null || true)
+          NGINX_FULL=$(nginx -T 2>/dev/null || sudo nginx -T 2>/dev/null || true)
           if echo "$NGINX_FULL" | grep -q "${DEPLOY_DIR}/public"; then
             echo "✅ Nginx is configured to serve from ${DEPLOY_DIR}/public"
           else

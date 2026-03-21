@@ -15,8 +15,8 @@
 #   ./scripts/setup-runner.sh
 #   # (You will be prompted for the registration token securely)
 #
-# Alternatively, pass via environment variable:
-#   RUNNER_TOKEN=ghp_xxx ./scripts/setup-runner.sh
+# Alternatively, pass the short-lived registration token via env var:
+#   RUNNER_TOKEN=<REGISTRATION_TOKEN> ./scripts/setup-runner.sh
 #
 # WARNING: Do NOT run this script as root. The runner should be installed
 # under a regular user account.
