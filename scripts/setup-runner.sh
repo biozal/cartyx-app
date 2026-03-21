@@ -109,6 +109,11 @@ if [ -f ".runner" ]; then
 else
   TOKEN="${RUNNER_TOKEN:-}"
   if [ -z "$TOKEN" ]; then
+    if [ ! -t 0 ]; then
+      echo "❌ No RUNNER_TOKEN set and stdin is not a terminal — cannot prompt."
+      echo "   Pass the token via: RUNNER_TOKEN=<token> $0"
+      exit 1
+    fi
     echo "Get a registration token from:"
     echo "  ${REPO_URL}/settings/actions/runners/new"
     echo ""

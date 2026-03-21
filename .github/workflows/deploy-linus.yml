@@ -96,16 +96,21 @@ jobs:
           fi
 
           # Wait for app to be healthy (retry up to 5 times with backoff)
-          for i in 1 2 3 4 5; do
+          MAX_ATTEMPTS=5
+          for i in $(seq 1 "$MAX_ATTEMPTS"); do
             sleep "$i"
             HTTP_STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/ || true)
             if [ "$HTTP_STATUS" = "200" ]; then
               echo "✅ Deploy successful — app responding with HTTP $HTTP_STATUS"
               exit 0
             fi
-            echo "⏳ Attempt $i: HTTP $HTTP_STATUS — retrying in $((i+1))s..."
+            if [ "$i" -lt "$MAX_ATTEMPTS" ]; then
+              echo "⏳ Attempt $i/$MAX_ATTEMPTS: HTTP $HTTP_STATUS — retrying in $((i+1))s..."
+            else
+              echo "⏳ Attempt $i/$MAX_ATTEMPTS: HTTP $HTTP_STATUS"
+            fi
           done
-          echo "❌ Deploy may have failed — app not responding with HTTP 200 after 5 attempts"
+          echo "❌ Deploy may have failed — app not responding with HTTP 200 after $MAX_ATTEMPTS attempts"
           pm2 logs cartyx-app --lines 20 --nostream
           exit 1
 
@@ -118,17 +123,18 @@ jobs:
             exit 0
           fi
           # Check if nginx config references the deploy directory.
-          # Try without sudo first, fall back to non-interactive sudo.
-          # Use a function to avoid word-splitting issues with command strings.
-          run_nginx_dump() {
-            nginx -T 2>/dev/null || sudo -n nginx -T 2>/dev/null
-          }
-          if ! run_nginx_dump >/dev/null 2>&1; then
+          # Capture the full config dump once to avoid running nginx -T multiple times.
+          NGINX_DUMP=""
+          if NGINX_DUMP=$(nginx -T 2>/dev/null); then
+            : # success without sudo
+          elif NGINX_DUMP=$(sudo -n nginx -T 2>/dev/null); then
+            : # success with non-interactive sudo
+          else
             echo "⚠️  Unable to read nginx config (neither 'nginx -T' nor 'sudo -n nginx -T' succeeded)."
             echo "    Skipping nginx verification. Run 'nginx -T' manually to check."
             exit 0
           fi
-          if run_nginx_dump | grep -q "${DEPLOY_DIR}/public"; then
+          if printf '%s\n' "$NGINX_DUMP" | grep -q "${DEPLOY_DIR}/public"; then
             echo "✅ Nginx is configured to serve from ${DEPLOY_DIR}/public"
           else
             echo "⚠️  Nginx does not appear to serve from ${DEPLOY_DIR}/public."
