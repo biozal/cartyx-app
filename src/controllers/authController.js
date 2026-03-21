@@ -12,7 +12,7 @@ async function revokeToken(user) {
   switch (user.provider) {
     case 'google': {
       const resp = await fetch(
-        `https://oauth2.googleapis.com/revoke?token=${user.accessToken}`,
+        `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(user.accessToken)}`,
         { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
       );
       if (!resp.ok) console.warn('Google token revocation returned:', resp.status);
