@@ -85,8 +85,9 @@
           const bannerFallback = c.status === 'active'
             ? 'linear-gradient(135deg, #0F1729 0%, #0D1B3E 50%, #0A1628 100%)'
             : 'linear-gradient(135deg, #0F1117 0%, #141820 50%, #0C0E14 100%)';
-          const bannerStyle = c.imagePath
-            ? `background:url('${c.imagePath}') center/cover no-repeat, ${bannerFallback};`
+          const safePath = c.imagePath ? c.imagePath.replace(/['"()\\]/g, '') : '';
+          const bannerStyle = safePath
+            ? `background:url('${safePath}') center/cover no-repeat, ${bannerFallback};`
             : `background:${bannerFallback};`;
           const playerBarBg = c.status === 'active'
             ? 'linear-gradient(90deg,#1D4ED8,#3B82F6)'

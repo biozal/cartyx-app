@@ -7,11 +7,11 @@
         <div class="topbar-avatar-placeholder">🧙</div>
       <% } %>
       <div class="user-menu">
-        <div class="user-menu-trigger" onclick="toggleMenu(this)">
+        <button type="button" class="user-menu-trigger" onclick="toggleMenu(this)" aria-expanded="false" aria-controls="user-dropdown">
           <span class="topbar-name"><%= user.name || '' %></span>
           <span class="user-menu-arrow">▼</span>
-        </div>
-        <div class="user-menu-dropdown">
+        </button>
+        <div class="user-menu-dropdown" id="user-dropdown">
           <a href="/settings" class="user-menu-item">⚙️ Settings</a>
           <a href="/logout" class="user-menu-item danger">🚪 Sign Out</a>
         </div>

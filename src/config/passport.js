@@ -69,7 +69,7 @@ function setupPassport() {
           callbackURL: `${config.baseUrl}/auth/apple/callback`,
           scope: ['name', 'email'],
         },
-        (req, accessToken, refreshToken, idToken, profile, done) => {
+        (accessToken, refreshToken, idToken, profile, done) => {
           const user = {
             id: `apple_${profile.id || idToken.sub}`,
             provider: 'apple',

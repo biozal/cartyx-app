@@ -2,7 +2,15 @@
 
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const multer = require('multer');
+
+const ALLOWED_MIMETYPES = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+};
 
 const campaignImageStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -11,8 +19,8 @@ const campaignImageStorage = multer.diskStorage({
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+    const ext = ALLOWED_MIMETYPES[file.mimetype] || '.bin';
+    cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`);
   },
 });
 
@@ -20,8 +28,8 @@ const uploadCampaignImage = multer({
   storage: campaignImageStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only image files allowed'));
+    if (ALLOWED_MIMETYPES[file.mimetype]) cb(null, true);
+    else cb(new Error('Only PNG, JPEG, GIF, and WebP images are allowed'));
   },
 });
 

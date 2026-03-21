@@ -1,21 +1,8 @@
 'use strict';
 
 const passport = require('passport');
-const config = require('../config');
 const { providerConfigured } = require('../utils/helpers');
-
-// ── Session duration helpers ──
-
-function applyRememberMe(req) {
-  if (req.session.rememberMe) {
-    req.session.cookie.maxAge = config.sessionDurationRemember;
-    req.session.sessionExpiresAt = Date.now() + config.sessionDurationRemember;
-    delete req.session.rememberMe;
-  } else {
-    req.session.cookie.maxAge = config.sessionDurationDefault;
-    req.session.sessionExpiresAt = Date.now() + config.sessionDurationDefault;
-  }
-}
+const { applyRememberMe } = require('../middleware/auth');
 
 // ── Token revocation ──
 

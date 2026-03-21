@@ -1,10 +1,14 @@
     function toggleMenu(trigger) {
-      trigger.classList.toggle('open');
+      const isOpen = trigger.classList.toggle('open');
+      trigger.setAttribute('aria-expanded', isOpen);
       trigger.nextElementSibling.classList.toggle('open');
     }
     document.addEventListener('click', e => {
       if (!e.target.closest('.user-menu')) {
-        document.querySelectorAll('.user-menu-trigger.open').forEach(t => t.classList.remove('open'));
+        document.querySelectorAll('.user-menu-trigger.open').forEach(t => {
+          t.classList.remove('open');
+          t.setAttribute('aria-expanded', 'false');
+        });
         document.querySelectorAll('.user-menu-dropdown.open').forEach(d => d.classList.remove('open'));
       }
     });

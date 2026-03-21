@@ -121,7 +121,7 @@ exports.createCampaign = async (req, res) => {
       schedule: { frequency: schedFreq || null, dayOfWeek: schedDay || null, time: schedTime || null, timezone: schedTz || null },
       callUrl: callUrl || null,
       dndBeyondUrl: dndBeyondUrl || null,
-      maxPlayers: parseInt(maxPlayers) || 4,
+      maxPlayers: parseMaxPlayers(maxPlayers),
       inviteCode,
     });
 
@@ -131,6 +131,13 @@ exports.createCampaign = async (req, res) => {
     res.status(500).json({ error: 'Failed to create campaign.' });
   }
 };
+
+function parseMaxPlayers(value) {
+  const n = parseInt(value, 10);
+  if (isNaN(n) || n < 1) return 1;
+  if (n > 10) return 10;
+  return n;
+}
 
 exports.updateCampaign = async (req, res) => {
   if (!mongoose.connection.readyState) {
@@ -154,7 +161,7 @@ exports.updateCampaign = async (req, res) => {
     campaign.schedule = { frequency: schedFreq || null, dayOfWeek: schedDay || null, time: schedTime || null, timezone: schedTz || null };
     campaign.callUrl = callUrl || null;
     campaign.dndBeyondUrl = dndBeyondUrl || null;
-    campaign.maxPlayers = parseInt(maxPlayers) || 4;
+    campaign.maxPlayers = parseMaxPlayers(maxPlayers);
     campaign.updatedAt = new Date();
     if (req.file) campaign.imagePath = `/uploads/campaigns/${req.file.filename}`;
 

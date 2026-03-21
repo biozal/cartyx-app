@@ -57,9 +57,10 @@ function normalizeProfile(provider, profile, accessToken, refreshToken) {
 }
 
 function generateInviteCode() {
+  const crypto = require('crypto');
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const part = () =>
-    Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    Array.from({ length: 4 }, () => chars[crypto.randomInt(chars.length)]).join('');
   return `${part()}-${part()}`;
 }
 
@@ -68,7 +69,7 @@ async function upsertUser(profile) {
   const User = require('../models/User');
   try {
     const nameParts = (profile.name || '').split(' ');
-    await User.findOneAndUpdate(
+    const stored = await User.findOneAndUpdate(
       { providerId: profile.id },
       {
         provider:   profile.provider,
@@ -79,9 +80,8 @@ async function upsertUser(profile) {
         lastLoginAt: new Date(),
         $setOnInsert: { createdAt: new Date(), role: 'unknown' },
       },
-      { upsert: true, returnDocument: 'after' }
+      { upsert: true, returnDocument: 'after', new: true }
     );
-    const stored = await User.findOne({ providerId: profile.id });
     return {
       ...profile,
       email:  profile.email  || stored?.email  || null,

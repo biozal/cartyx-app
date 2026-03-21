@@ -23,6 +23,12 @@ app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
+// ── Reverse proxy trust (nginx terminates TLS) ──
+const config = require('./config');
+if (config.nodeEnv === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // ── Session & Passport ──
 app.use(sessionMiddleware());
 app.use(passport.initialize());

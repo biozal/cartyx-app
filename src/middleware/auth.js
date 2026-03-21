@@ -3,6 +3,8 @@
 const session = require('express-session');
 const config = require('../config');
 
+// TODO: Add connect-mongo or Redis session store for production.
+// The default MemoryStore leaks memory and loses sessions on restart.
 function sessionMiddleware() {
   return session({
     secret: config.sessionSecret,
@@ -21,7 +23,7 @@ function isAuthenticated(req, res, next) {
   if (req.isAuthenticated && req.isAuthenticated() && req.user) {
     return next();
   }
-  if (req.path.startsWith('/api/')) {
+  if (req.originalUrl.startsWith('/api/')) {
     return res.status(401).json({ error: 'Not authenticated', user: null });
   }
   return res.redirect('/?reason=session_expired');
