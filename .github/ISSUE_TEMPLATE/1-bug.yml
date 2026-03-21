@@ -1,0 +1,67 @@
+name: 🐛 Bug Report
+description: Report a bug in Cartyx
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill out all required fields.
+
+  - type: input
+    id: cartyx-version
+    attributes:
+      label: Cartyx Version
+      placeholder: "e.g. 2.4.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      description: Which browser(s) are you seeing this on?
+      multiple: true
+      options:
+        - Chrome
+        - Firefox
+        - Safari
+        - Edge
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: browser-version
+    attributes:
+      label: Browser Version
+      placeholder: "e.g. Chrome 123.0.6312.86"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: existing-check
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true

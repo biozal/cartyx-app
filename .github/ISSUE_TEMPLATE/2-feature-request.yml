@@ -1,0 +1,56 @@
+name: ✨ Feature Request
+description: Suggest a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form to propose a new feature or improvement.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Feature Summary
+      description: A clear and concise description of the feature.
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation / Use Case
+      description: Why is this needed? What problem does it solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: How do you envision this working?
+    validations:
+      required: false
+
+  - type: textarea
+    id: mockups
+    attributes:
+      label: Design Mockups / Screenshots
+      description: Drag and drop any mockups, wireframes, or reference screenshots here.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: existing-check
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true
