@@ -56,21 +56,6 @@ REPO_URL="https://github.com/Cartyx/cartyx-app"
 RUNNER_VERSION="2.322.0"
 RUNNER_ARCH="linux-x64"
 
-# Read token from env var, or prompt securely (avoids leaking via shell
-# history or /proc/*/cmdline)
-TOKEN="${RUNNER_TOKEN:-}"
-if [ -z "$TOKEN" ]; then
-  echo "Get a registration token from:"
-  echo "  ${REPO_URL}/settings/actions/runners/new"
-  echo ""
-  read -rsp "Paste registration token (hidden): " TOKEN
-  echo ""
-  if [ -z "$TOKEN" ]; then
-    echo "❌ No token provided."
-    exit 1
-  fi
-fi
-
 echo "📦 Setting up GitHub Actions runner in ${RUNNER_DIR}..."
 
 # Create runner directory
@@ -99,10 +84,23 @@ if [ ! -f "./run.sh" ]; then
   rm "${RUNNER_TARBALL}"
 fi
 
-# Configure the runner (idempotent — skip if already configured)
+# Configure the runner (idempotent — skip if already configured).
+# Only prompt for a token when we actually need to configure.
 if [ -f ".runner" ]; then
   echo "ℹ️  Runner already configured in ${RUNNER_DIR}; skipping configuration."
 else
+  TOKEN="${RUNNER_TOKEN:-}"
+  if [ -z "$TOKEN" ]; then
+    echo "Get a registration token from:"
+    echo "  ${REPO_URL}/settings/actions/runners/new"
+    echo ""
+    read -rsp "Paste registration token (hidden): " TOKEN
+    echo ""
+    if [ -z "$TOKEN" ]; then
+      echo "❌ No token provided."
+      exit 1
+    fi
+  fi
   echo "⚙️  Configuring runner..."
   ./config.sh --url "$REPO_URL" --token "$TOKEN" --unattended --name "linus" --labels "self-hosted,linux,x64,linus"
 fi

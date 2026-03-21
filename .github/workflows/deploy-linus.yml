@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
 jobs:
   deploy:
     name: Deploy to production server
@@ -28,7 +32,8 @@ jobs:
 
           # /var/www/cartyx-app must be pre-provisioned and owned by
           # the runner user during first-time server setup (see README).
-          # No sudo is used in this job.
+          # This deploy step uses no sudo; nginx verification below may
+          # use non-interactive sudo as a fallback.
           mkdir -p "$DEPLOY_DIR"
 
           # Sync files (exclude secrets, uploads, node_modules)
@@ -94,17 +99,13 @@ jobs:
             echo "⚠️  nginx is not installed or not in PATH; skipping config verification."
             exit 0
           fi
-          # Dump the full effective config (all includes, sites-enabled, etc.).
-          # Use sudo -n to avoid blocking on a password prompt.
-          if ! NGINX_FULL=$(nginx -T 2>/dev/null || sudo -n nginx -T 2>/dev/null); then
-            echo "⚠️  Unable to read nginx config (permission denied). Skipping verification."
-            echo "Run 'nginx -T' manually to check the config."
-            exit 0
-          fi
-          if echo "$NGINX_FULL" | grep -q "${DEPLOY_DIR}/public"; then
+          # Pipe nginx -T directly into grep to avoid capturing large configs
+          # into a shell variable. Use sudo -n (non-interactive) as fallback.
+          if (nginx -T 2>/dev/null || sudo -n nginx -T 2>/dev/null) | grep -q "${DEPLOY_DIR}/public"; then
             echo "✅ Nginx is configured to serve from ${DEPLOY_DIR}/public"
           else
-            echo "⚠️  Nginx does not appear to serve from ${DEPLOY_DIR}/public."
+            echo "⚠️  Nginx does not appear to serve from ${DEPLOY_DIR}/public"
+            echo "    (or nginx config could not be read — check permissions)."
             echo "Please update your nginx configuration manually and reload nginx."
             echo "This workflow does NOT modify nginx — infrastructure changes are manual."
           fi

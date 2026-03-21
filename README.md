@@ -69,6 +69,7 @@ sudo chown -R "$(id -un):$(id -gn)" /var/www/cartyx-auth
 # 5. Create your .env file in the secure config directory:
 cp .env.example /var/www/cartyx-auth/.env
 # Edit /var/www/cartyx-auth/.env with your OAuth credentials, MongoDB URI, etc.
+# IMPORTANT: Ensure NODE_ENV=production is set — this enables secure session cookies.
 
 # 6. Place your Apple Sign-In key in the secure keys directory:
 cp /path/to/your/apple.p8 /var/www/cartyx-auth/keys/apple.p8
