@@ -31,7 +31,7 @@ set -euo pipefail
 # configured under the wrong account.
 if [ "$(id -u)" -eq 0 ]; then
   echo "❌ Do not run this script as root."
-  echo "   Run as the regular deploy user (e.g., labeaaa)."
+  echo "   Run as a regular non-root deploy user (e.g., your deploy account)."
   exit 1
 fi
 

@@ -54,6 +54,11 @@ jobs:
             ln -sfn /var/www/cartyx-auth/.env "$DEPLOY_DIR/.env"
           fi
           if [ -d /var/www/cartyx-auth/keys ]; then
+            # Remove a non-symlink directory if it exists (ln -sfn can't
+            # atomically replace a real directory)
+            if [ -e "$DEPLOY_DIR/keys" ] && [ ! -L "$DEPLOY_DIR/keys" ]; then
+              rm -rf "$DEPLOY_DIR/keys"
+            fi
             ln -sfn /var/www/cartyx-auth/keys "$DEPLOY_DIR/keys"
           fi
 
