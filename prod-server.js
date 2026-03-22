@@ -30,7 +30,8 @@ const MIME_TYPES = {
 
 function serveStatic(req, res) {
   const url = new URL(req.url, `http://localhost:${PORT}`);
-  const filePath = join(CLIENT_DIR, url.pathname);
+  // Use relative path to avoid join ignoring CLIENT_DIR with absolute pathname
+  const filePath = join(CLIENT_DIR, url.pathname.slice(1));
 
   // Security: prevent directory traversal
   if (!filePath.startsWith(CLIENT_DIR)) return false;
@@ -92,8 +93,28 @@ const server = createServer(async (req, res) => {
       ? handler(webRequest)
       : handler.fetch(webRequest));
 
-    // Convert Web Response back to Node response
-    res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+    // Convert Web Response back to Node response, preserving multi-value headers like Set-Cookie
+    const nodeHeaders = {};
+    for (const [key, value] of response.headers.entries()) {
+      if (key.toLowerCase() === "set-cookie") continue;
+      nodeHeaders[key] = value;
+    }
+
+    // Handle Set-Cookie explicitly to preserve multiple cookies
+    let setCookieValues = [];
+    if (typeof response.headers.getSetCookie === "function") {
+      setCookieValues = response.headers.getSetCookie();
+    } else {
+      const singleSetCookie = response.headers.get("set-cookie");
+      if (singleSetCookie) {
+        setCookieValues = [singleSetCookie];
+      }
+    }
+    if (setCookieValues.length > 0) {
+      nodeHeaders["set-cookie"] = setCookieValues;
+    }
+
+    res.writeHead(response.status, nodeHeaders);
 
     if (response.body) {
       const reader = response.body.getReader();

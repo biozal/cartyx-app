@@ -352,9 +352,11 @@ export const joinCampaign = createServerFn({ method: 'POST' })
       if (!campaign) throw new Error('Invalid invite code')
       if (campaign.status !== 'active') throw new Error('Campaign is not active')
 
-      const alreadyMember = (campaign.members ?? []).some(
-        (m: { userId: unknown }) => String(m.userId) === String(dbUser._id)
-      )
+      // Treat GM as implicit member (consistent with getCampaign)
+      const alreadyMember =
+        (campaign.members ?? []).some(
+          (m: { userId: unknown }) => String(m.userId) === String(dbUser._id)
+        ) || String(campaign.gameMasterId) === String(dbUser._id)
       if (alreadyMember) throw new Error('Already a member of this campaign')
 
       const now = new Date()
@@ -380,12 +382,10 @@ export const joinCampaign = createServerFn({ method: 'POST' })
           },
         },
         {
-          $addToSet: { members: { userId: dbUser._id, role: 'player' } },
-          $set: { 'members.$[elem].joinedAt': now },
+          $addToSet: { members: { userId: dbUser._id, role: 'player', joinedAt: now } },
         },
         {
           new: true,
-          arrayFilters: [{ 'elem.userId': dbUser._id }],
         }
       )
 
@@ -396,11 +396,7 @@ export const joinCampaign = createServerFn({ method: 'POST' })
       await User.updateOne(
         { _id: dbUser._id },
         {
-          $addToSet: { campaigns: { campaignId: updatedCampaign._id, status: 'active' } },
-          $set: { 'campaigns.$[elem].joinedAt': now },
-        },
-        {
-          arrayFilters: [{ 'elem.campaignId': updatedCampaign._id }],
+          $addToSet: { campaigns: { campaignId: updatedCampaign._id, status: 'active', joinedAt: now } },
         }
       )
 
