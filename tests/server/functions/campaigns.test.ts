@@ -144,6 +144,7 @@ describe('listCampaigns', () => {
       $or: [
         { 'members.userId': 'dbuser-1' },
         { gameMasterId: 'dbuser-1', members: { $in: [null, []] } },
+        { gameMasterId: 'dbuser-1' },
       ],
     })
     expect(result).toHaveLength(1)
@@ -271,6 +272,7 @@ describe('legacy campaigns (no members array)', () => {
       $or: [
         { 'members.userId': 'dbuser-1' },
         { gameMasterId: 'dbuser-1', members: { $in: [null, []] } },
+        { gameMasterId: 'dbuser-1' },
       ],
     })
     expect(result).toHaveLength(1)
