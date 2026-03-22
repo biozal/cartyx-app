@@ -279,9 +279,9 @@ function LandingPage() {
 
             <p className="mt-8 text-[11px] text-slate-600 text-center leading-relaxed">
               By continuing you agree to our{' '}
-              <a href="#" className="text-slate-500 hover:text-slate-400">Terms of Service</a>{' '}
+              <span className="text-slate-500 hover:text-slate-400">Terms of Service</span>{' '}
               and{' '}
-              <a href="#" className="text-slate-500 hover:text-slate-400">Privacy Policy</a>
+              <span className="text-slate-500 hover:text-slate-400">Privacy Policy</span>
             </p>
           </div>
         ) : null}
