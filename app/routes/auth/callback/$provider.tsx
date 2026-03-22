@@ -6,7 +6,7 @@ import { exchangeGoogleCode, exchangeGithubCode, exchangeAppleCode, upsertUser }
 import { setSession } from '~/server/session'
 
 const handleCallback = createServerFn({ method: 'GET' })
-  .inputValidator(z.object({ provider: z.string(), code: z.string(), state: z.string() }))
+  .inputValidator(z.object({ provider: z.enum(['google', 'github', 'apple']), code: z.string(), state: z.string() }))
   .handler(async ({ data }) => {
     const { provider, code, state } = data
 
