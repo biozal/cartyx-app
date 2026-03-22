@@ -28,6 +28,7 @@ function PostHogInit() {
         api_host: host,
         capture_pageview: false, // we capture manually on navigation
         persistence: 'localStorage+cookie',
+        capture_exceptions: true,
       })
       posthogInstance = posthog
       initialized = true
@@ -79,4 +80,14 @@ export function PostHogProvider({ children }: { children: ReactNode }) {
 
 export function capturePageView(url: string) {
   if (initialized && posthogInstance) posthogInstance.capture('$pageview', { $current_url: url })
+}
+
+export function captureException(error: unknown, additionalProperties?: Record<string, unknown>): void {
+  if (!initialized || !posthogInstance) return
+  posthogInstance.captureException(error instanceof Error ? error : new Error(String(error)), additionalProperties)
+}
+
+export function captureEvent(event: string, properties?: Record<string, unknown>): void {
+  if (!initialized || !posthogInstance) return
+  posthogInstance.capture(event, properties)
 }

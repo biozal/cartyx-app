@@ -5,6 +5,7 @@ import { connectDB, isDBConnected } from '../db/connection'
 import { User } from '../db/models/User'
 import { Campaign } from '../db/models/Campaign'
 import { generateInviteCode, validateUrl, parseMaxPlayers, saveUploadedFile, MAX_IMAGE_BASE64_LENGTH } from '../utils/helpers'
+import { serverCaptureException } from '../utils/posthog'
 
 export interface CampaignData {
   id: string
@@ -83,55 +84,65 @@ function serializeCampaign(c: {
 }
 
 export const listCampaigns = createServerFn({ method: 'GET' }).handler(async () => {
-  const user = await getSession()
-  if (!user) return []
+  try {
+    const user = await getSession()
+    if (!user) return []
 
-  await connectDB()
-  if (!isDBConnected()) return []
+    await connectDB()
+    if (!isDBConnected()) return []
 
-  const dbUser = await User.findOne({ providerId: user.id })
-  const raw = dbUser
-    ? await Campaign.find({ $or: [{ gameMasterId: dbUser._id }, { status: 'active' }] }).sort({ createdAt: -1 })
-    : await Campaign.find({ status: 'active' }).sort({ createdAt: -1 })
+    const dbUser = await User.findOne({ providerId: user.id })
+    const raw = dbUser
+      ? await Campaign.find({ $or: [{ gameMasterId: dbUser._id }, { status: 'active' }] }).sort({ createdAt: -1 })
+      : await Campaign.find({ status: 'active' }).sort({ createdAt: -1 })
 
-  const gmId = dbUser ? String(dbUser._id) : undefined
-  return raw.map(c => {
-    const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], gmId)
-    // Redact invite code for non-owners
-    if (!serialized.isOwner) {
-      return { ...serialized, inviteCode: '' }
-    }
-    return serialized
-  })
+    const gmId = dbUser ? String(dbUser._id) : undefined
+    return raw.map(c => {
+      const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], gmId)
+      // Redact invite code for non-owners
+      if (!serialized.isOwner) {
+        return { ...serialized, inviteCode: '' }
+      }
+      return serialized
+    })
+  } catch (e) {
+    serverCaptureException(e, undefined, { action: 'listCampaigns' })
+    throw e
+  }
 })
 
 export const getCampaign = createServerFn({ method: 'GET' })
   .inputValidator(z.object({ id: z.string() }))
   .handler(async ({ data }) => {
-    const user = await getSession()
-    if (!user) throw new Error('Not authenticated')
+    try {
+      const user = await getSession()
+      if (!user) throw new Error('Not authenticated')
 
-    await connectDB()
-    if (!isDBConnected()) throw new Error('Database not available')
+      await connectDB()
+      if (!isDBConnected()) throw new Error('Database not available')
 
-    const dbUser = await User.findOne({ providerId: user.id })
-    const c = await Campaign.findById(data.id)
-    if (!c) return null
+      const dbUser = await User.findOne({ providerId: user.id })
+      const c = await Campaign.findById(data.id)
+      if (!c) return null
 
-    const gmId = dbUser ? String(dbUser._id) : undefined
-    const isOwner = !!gmId && c.gameMasterId != null && String(c.gameMasterId) === gmId
+      const gmId = dbUser ? String(dbUser._id) : undefined
+      const isOwner = !!gmId && c.gameMasterId != null && String(c.gameMasterId) === gmId
 
-    // Non-owners can only see active campaigns
-    if (!isOwner && c.status !== 'active') return null
+      // Non-owners can only see active campaigns
+      if (!isOwner && c.status !== 'active') return null
 
-    const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], gmId)
+      const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], gmId)
 
-    // Redact invite code for non-owners
-    if (!isOwner) {
-      return { ...serialized, inviteCode: '' }
+      // Redact invite code for non-owners
+      if (!isOwner) {
+        return { ...serialized, inviteCode: '' }
+      }
+
+      return serialized
+    } catch (e) {
+      serverCaptureException(e, undefined, { action: 'getCampaign', campaignId: data.id })
+      throw e
     }
-
-    return serialized
   })
 
 const campaignInputShape = {
@@ -175,70 +186,75 @@ export const createCampaign = createServerFn({ method: 'POST' })
   .inputValidator(campaignInputSchema)
   .handler(async ({ data }) => {
     const user = await getSession()
-    if (!user) throw new Error('Not authenticated')
-    if (user.role !== 'gm') throw new Error('Only GMs can create campaigns')
+    try {
+      if (!user) throw new Error('Not authenticated')
+      if (user.role !== 'gm') throw new Error('Only GMs can create campaigns')
 
-    await connectDB()
-    if (!isDBConnected()) throw new Error('Database not available')
+      await connectDB()
+      if (!isDBConnected()) throw new Error('Database not available')
 
-    const { name, description, schedFreq, schedDay, schedTime, schedTz, callUrl, dndBeyondUrl, maxPlayers, imageData, imageMime, imageName } = data
+      const { name, description, schedFreq, schedDay, schedTime, schedTz, callUrl, dndBeyondUrl, maxPlayers, imageData, imageMime, imageName } = data
 
-    if (!name.trim()) throw new Error('Campaign name is required')
+      if (!name.trim()) throw new Error('Campaign name is required')
 
-    const normalizedCallUrl = validateUrl(callUrl)
-    if (normalizedCallUrl === false) throw new Error('callUrl must be a valid http or https URL')
-    const normalizedDndUrl = validateUrl(dndBeyondUrl)
-    if (normalizedDndUrl === false) throw new Error('dndBeyondUrl must be a valid http or https URL')
+      const normalizedCallUrl = validateUrl(callUrl)
+      if (normalizedCallUrl === false) throw new Error('callUrl must be a valid http or https URL')
+      const normalizedDndUrl = validateUrl(dndBeyondUrl)
+      if (normalizedDndUrl === false) throw new Error('dndBeyondUrl must be a valid http or https URL')
 
-    const dbUser = await User.findOne({ providerId: user.id })
-    if (!dbUser) throw new Error('User not found')
+      const dbUser = await User.findOne({ providerId: user.id })
+      if (!dbUser) throw new Error('User not found')
 
-    let imagePath: string | null = null
-    if (imageData && imageMime && imageName) {
-      if (imageData.length > MAX_IMAGE_BASE64_LENGTH) {
-        throw new Error('Image must be under 5MB')
+      let imagePath: string | null = null
+      if (imageData && imageMime && imageName) {
+        if (imageData.length > MAX_IMAGE_BASE64_LENGTH) {
+          throw new Error('Image must be under 5MB')
+        }
+        const buffer = Buffer.from(imageData, 'base64')
+        const file = new File([buffer], imageName, { type: imageMime })
+        imagePath = await saveUploadedFile(file, 'uploads/campaigns')
       }
-      const buffer = Buffer.from(imageData, 'base64')
-      const file = new File([buffer], imageName, { type: imageMime })
-      imagePath = await saveUploadedFile(file, 'uploads/campaigns')
-    }
 
-    let campaign = null
-    let attempts = 0
-    while (attempts < 10 && !campaign) {
-      const inviteCode = generateInviteCode()
-      const inUse = await Campaign.exists({ inviteCode })
-      attempts++
-      if (inUse) continue
-      try {
-        campaign = await Campaign.create({
-          gameMasterId: dbUser._id,
-          name: name.trim(),
-          description: description.trim(),
-          imagePath,
-          schedule: {
-            frequency: schedFreq ?? null,
-            dayOfWeek: schedDay ?? null,
-            time: schedTime ?? null,
-            timezone: schedTz ?? null,
-          },
-          callUrl: normalizedCallUrl,
-          dndBeyondUrl: normalizedDndUrl,
-          maxPlayers: parseMaxPlayers(maxPlayers),
-          inviteCode,
-        })
-      } catch (e: unknown) {
-        if ((e as { code?: number })?.code === 11000) { campaign = null; continue }
-        throw e
+      let campaign = null
+      let attempts = 0
+      while (attempts < 10 && !campaign) {
+        const inviteCode = generateInviteCode()
+        const inUse = await Campaign.exists({ inviteCode })
+        attempts++
+        if (inUse) continue
+        try {
+          campaign = await Campaign.create({
+            gameMasterId: dbUser._id,
+            name: name.trim(),
+            description: description.trim(),
+            imagePath,
+            schedule: {
+              frequency: schedFreq ?? null,
+              dayOfWeek: schedDay ?? null,
+              time: schedTime ?? null,
+              timezone: schedTz ?? null,
+            },
+            callUrl: normalizedCallUrl,
+            dndBeyondUrl: normalizedDndUrl,
+            maxPlayers: parseMaxPlayers(maxPlayers),
+            inviteCode,
+          })
+        } catch (e: unknown) {
+          if ((e as { code?: number })?.code === 11000) { campaign = null; continue }
+          throw e
+        }
       }
-    }
 
-    if (!campaign) throw new Error('Could not generate unique invite code')
+      if (!campaign) throw new Error('Could not generate unique invite code')
 
-    return {
-      success: true,
-      campaignId: String(campaign._id),
-      inviteCode: campaign.inviteCode as string,
+      return {
+        success: true,
+        campaignId: String(campaign._id),
+        inviteCode: campaign.inviteCode as string,
+      }
+    } catch (e) {
+      serverCaptureException(e, user?.id, { action: 'createCampaign' })
+      throw e
     }
   })
 
@@ -246,49 +262,54 @@ export const updateCampaign = createServerFn({ method: 'POST' })
   .inputValidator(z.object({ id: z.string(), ...campaignInputShape }).refine(imageFieldsRefinement, imageFieldsMessage))
   .handler(async ({ data }) => {
     const user = await getSession()
-    if (!user) throw new Error('Not authenticated')
+    try {
+      if (!user) throw new Error('Not authenticated')
 
-    await connectDB()
-    if (!isDBConnected()) throw new Error('Database not available')
+      await connectDB()
+      if (!isDBConnected()) throw new Error('Database not available')
 
-    const dbUser = await User.findOne({ providerId: user.id })
-    if (!dbUser) throw new Error('User not found')
+      const dbUser = await User.findOne({ providerId: user.id })
+      if (!dbUser) throw new Error('User not found')
 
-    const campaign = await Campaign.findById(data.id)
-    if (!campaign) throw new Error('Campaign not found')
-    if (String(campaign.gameMasterId) !== String(dbUser._id)) throw new Error('Forbidden')
+      const campaign = await Campaign.findById(data.id)
+      if (!campaign) throw new Error('Campaign not found')
+      if (String(campaign.gameMasterId) !== String(dbUser._id)) throw new Error('Forbidden')
 
-    const { name, description, schedFreq, schedDay, schedTime, schedTz, callUrl, dndBeyondUrl, maxPlayers, imageData, imageMime, imageName } = data
+      const { name, description, schedFreq, schedDay, schedTime, schedTz, callUrl, dndBeyondUrl, maxPlayers, imageData, imageMime, imageName } = data
 
-    if (!name.trim()) throw new Error('Campaign name is required')
+      if (!name.trim()) throw new Error('Campaign name is required')
 
-    const normalizedCallUrl = validateUrl(callUrl)
-    if (normalizedCallUrl === false) throw new Error('callUrl must be a valid http or https URL')
-    const normalizedDndUrl = validateUrl(dndBeyondUrl)
-    if (normalizedDndUrl === false) throw new Error('dndBeyondUrl must be a valid http or https URL')
+      const normalizedCallUrl = validateUrl(callUrl)
+      if (normalizedCallUrl === false) throw new Error('callUrl must be a valid http or https URL')
+      const normalizedDndUrl = validateUrl(dndBeyondUrl)
+      if (normalizedDndUrl === false) throw new Error('dndBeyondUrl must be a valid http or https URL')
 
-    campaign.name = name.trim()
-    campaign.description = description.trim()
-    campaign.schedule = {
-      frequency: schedFreq ?? null,
-      dayOfWeek: schedDay ?? null,
-      time: schedTime ?? null,
-      timezone: schedTz ?? null,
-    }
-    campaign.callUrl = normalizedCallUrl
-    campaign.dndBeyondUrl = normalizedDndUrl
-    campaign.maxPlayers = parseMaxPlayers(maxPlayers)
-    campaign.updatedAt = new Date()
-
-    if (imageData && imageMime && imageName) {
-      if (imageData.length > MAX_IMAGE_BASE64_LENGTH) {
-        throw new Error('Image must be under 5MB')
+      campaign.name = name.trim()
+      campaign.description = description.trim()
+      campaign.schedule = {
+        frequency: schedFreq ?? null,
+        dayOfWeek: schedDay ?? null,
+        time: schedTime ?? null,
+        timezone: schedTz ?? null,
       }
-      const buffer = Buffer.from(imageData, 'base64')
-      const file = new File([buffer], imageName, { type: imageMime })
-      campaign.imagePath = await saveUploadedFile(file, 'uploads/campaigns')
-    }
+      campaign.callUrl = normalizedCallUrl
+      campaign.dndBeyondUrl = normalizedDndUrl
+      campaign.maxPlayers = parseMaxPlayers(maxPlayers)
+      campaign.updatedAt = new Date()
 
-    await campaign.save()
-    return { success: true, campaignId: String(campaign._id) }
+      if (imageData && imageMime && imageName) {
+        if (imageData.length > MAX_IMAGE_BASE64_LENGTH) {
+          throw new Error('Image must be under 5MB')
+        }
+        const buffer = Buffer.from(imageData, 'base64')
+        const file = new File([buffer], imageName, { type: imageMime })
+        campaign.imagePath = await saveUploadedFile(file, 'uploads/campaigns')
+      }
+
+      await campaign.save()
+      return { success: true, campaignId: String(campaign._id) }
+    } catch (e) {
+      serverCaptureException(e, user?.id, { action: 'updateCampaign', campaignId: data.id })
+      throw e
+    }
   })
