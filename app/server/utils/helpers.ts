@@ -69,14 +69,40 @@ export async function saveUploadedFile(file: File, subdir: string): Promise<stri
   if (!ext) throw new Error('Only PNG, JPEG, GIF, and WebP images are allowed')
   if (file.size > 5 * 1024 * 1024) throw new Error('Image must be under 5MB')
 
-  const { mkdir, writeFile } = await import('node:fs/promises')
-
   const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`
-  const dir = path.join(process.cwd(), 'public', subdir)
-  await mkdir(dir, { recursive: true })
+
+  const cdnUrl = process.env.CDN_URL
+  if (!cdnUrl) {
+    // Dev/local fallback: write to disk
+    const { mkdir, writeFile } = await import('node:fs/promises')
+    const dir = path.join(process.cwd(), 'public', subdir)
+    await mkdir(dir, { recursive: true })
+    const buffer = Buffer.from(await file.arrayBuffer())
+    await writeFile(path.join(dir, filename), buffer)
+    return `/${subdir}/${filename}`
+  }
+
+  const accountId = process.env.R2_ACCOUNT_ID
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY
+  const bucket = process.env.R2_BUCKET
+
+  const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3')
+  const client = new S3Client({
+    region: 'auto',
+    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId: accessKeyId!, secretAccessKey: secretAccessKey! },
+  })
 
   const buffer = Buffer.from(await file.arrayBuffer())
-  await writeFile(path.join(dir, filename), buffer)
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: `${subdir}/${filename}`,
+      Body: buffer,
+      ContentType: file.type,
+    }),
+  )
 
-  return `/${subdir}/${filename}`
+  return `${cdnUrl}/${subdir}/${filename}`
 }
