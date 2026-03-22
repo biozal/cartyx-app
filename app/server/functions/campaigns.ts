@@ -57,7 +57,10 @@ function serializeCampaign(c: {
   const schedule = c.schedule ?? null
   const members = c.members ?? []
   const playerCount = members.filter(m => m.role === 'player').length
-  const isMember = userId ? members.some(m => String(m.userId) === userId) : false
+  // Treat GM as implicit member for legacy campaigns (no members array)
+  const isMember = userId
+    ? members.some(m => String(m.userId) === userId) || String(c.gameMasterId) === userId
+    : false
   return {
     id: String(c._id),
     name: c.name ?? 'Untitled Campaign',

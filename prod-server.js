@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { readFileSync, statSync } from "node:fs";
+import { stat, createReadStream } from "node:fs";
 import { join, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,41 +29,47 @@ const MIME_TYPES = {
 };
 
 function serveStatic(req, res) {
-  const url = new URL(req.url, `http://localhost:${PORT}`);
-  // Use relative path to avoid join ignoring CLIENT_DIR with absolute pathname
-  const filePath = join(CLIENT_DIR, url.pathname.slice(1));
+  return new Promise((resolve) => {
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    // Use relative path to avoid join ignoring CLIENT_DIR with absolute pathname
+    const filePath = join(CLIENT_DIR, url.pathname.slice(1));
 
-  // Security: prevent directory traversal
-  if (!filePath.startsWith(CLIENT_DIR)) return false;
+    // Security: prevent directory traversal
+    if (!filePath.startsWith(CLIENT_DIR)) return resolve(false);
 
-  try {
-    const stat = statSync(filePath);
-    if (!stat.isFile()) return false;
+    stat(filePath, (err, stats) => {
+      if (err || !stats.isFile()) return resolve(false);
 
-    const ext = extname(filePath).toLowerCase();
-    const contentType = MIME_TYPES[ext] || "application/octet-stream";
-    const data = readFileSync(filePath);
+      const ext = extname(filePath).toLowerCase();
+      const contentType = MIME_TYPES[ext] || "application/octet-stream";
 
-    // Cache static assets (hashed filenames) for 1 year
-    const cacheControl = url.pathname.startsWith("/assets/")
-      ? "public, max-age=31536000, immutable"
-      : "public, max-age=3600";
+      // Cache static assets (hashed filenames) for 1 year
+      const cacheControl = url.pathname.startsWith("/assets/")
+        ? "public, max-age=31536000, immutable"
+        : "public, max-age=3600";
 
-    res.writeHead(200, {
-      "Content-Type": contentType,
-      "Content-Length": data.length,
-      "Cache-Control": cacheControl,
+      res.writeHead(200, {
+        "Content-Type": contentType,
+        "Content-Length": stats.size,
+        "Cache-Control": cacheControl,
+      });
+
+      const stream = createReadStream(filePath);
+      stream.pipe(res);
+      stream.on("error", () => {
+        if (!res.headersSent) {
+          res.writeHead(500);
+          res.end();
+        }
+      });
+      resolve(true);
     });
-    res.end(data);
-    return true;
-  } catch {
-    return false;
-  }
+  });
 }
 
 const server = createServer(async (req, res) => {
-  // Try static files first
-  if (serveStatic(req, res)) return;
+  // Try static files first (async I/O to avoid blocking the event loop)
+  if (await serveStatic(req, res)) return;
 
   // Convert Node request to Web Request
   const url = new URL(req.url, `http://localhost:${PORT}`);
