@@ -338,13 +338,13 @@ describe('createCampaign', () => {
 
   it('fires campaign_created analytics event on success', async () => {
     vi.mocked(Campaign.exists).mockResolvedValue(null)
-    vi.mocked(Campaign.create).mockResolvedValue(makeCampaign() as never)
+    vi.mocked(Campaign.create).mockResolvedValue({ ...makeCampaign(), name: 'My Campaign' } as never)
 
     await _createCampaign({ data: { name: 'My Campaign', description: '' } })
 
     expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'campaign_created', {
       campaign_id: 'camp-1',
-      campaign_name: 'Test Campaign',
+      campaign_name: 'My Campaign',
       has_image: false,
       has_schedule: false,
     })
