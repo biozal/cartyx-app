@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { getMe } from '~/server/functions/auth'
-import { captureException } from '~/providers/PostHogProvider'
+import { captureException } from '~/utils/posthog-client'
 
 export interface AuthUser {
   id: string

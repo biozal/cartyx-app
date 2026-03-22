@@ -34,7 +34,20 @@ export async function getSession(): Promise<SessionUser | null> {
     })
     return (payload as { user: SessionUser }).user ?? null
   } catch (e) {
-    serverCaptureException(e, undefined, { action: 'getSession', step: 'jwtVerify' })
+    // Expected JWT errors (expired, invalid signature, bad claims) are high-volume
+    // and not actionable — tag them as handled so they don't trigger alerts.
+    const code = (e as { code?: string })?.code
+    const isExpectedJwtError =
+      code === 'ERR_JWT_EXPIRED' ||
+      code === 'ERR_JWS_INVALID' ||
+      code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED' ||
+      code === 'ERR_JWT_CLAIM_VALIDATION_FAILED'
+
+    serverCaptureException(e, undefined, {
+      action: 'getSession',
+      step: 'jwtVerify',
+      handled: isExpectedJwtError,
+    })
     return null
   }
 }
