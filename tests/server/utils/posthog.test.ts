@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-// The posthog.ts module uses dynamic require() for posthog-node.
-// We need to mock it at the global require level.
+// The posthog.ts module statically imports `posthog-node`.
+// We mock `posthog-node` here so that all imports of `~/server/utils/posthog` use the mocked client.
 const mockCapture = vi.fn()
 const mockShutdown = vi.fn().mockResolvedValue(undefined)
 
