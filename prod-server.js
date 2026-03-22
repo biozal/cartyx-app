@@ -1,9 +1,37 @@
 import { createServer } from "node:http";
-import { stat, createReadStream } from "node:fs";
+import { readFileSync, stat, createReadStream } from "node:fs";
 import { join, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
+
+// Load .env file if present (production: symlinked from /var/www/cartyx-auth/.env).
+// Only sets variables that aren't already in the environment.
+const envPath = join(__dirname, ".env");
+try {
+  const envContent = readFileSync(envPath, "utf8");
+  for (const line of envContent.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIndex = trimmed.indexOf("=");
+    if (eqIndex === -1) continue;
+    const key = trimmed.slice(0, eqIndex).trim();
+    let value = trimmed.slice(eqIndex + 1).trim();
+    // Strip surrounding quotes (single or double)
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (!(key in process.env)) {
+      process.env[key] = value;
+    }
+  }
+} catch {
+  // No .env file — rely on environment variables set externally
+}
+
 const PORT = process.env.PORT || 3001;
 const CLIENT_DIR = join(__dirname, "dist", "client");
 
