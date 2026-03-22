@@ -79,7 +79,7 @@ vi.mock('~/server/db/models/User', () => ({
   User: { findOne: vi.fn(), updateOne: vi.fn() },
 }))
 vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { find: vi.fn(), findById: vi.fn(), findOne: vi.fn(), create: vi.fn(), exists: vi.fn() },
+  Campaign: { find: vi.fn(), findById: vi.fn(), findOne: vi.fn(), findOneAndUpdate: vi.fn(), create: vi.fn(), exists: vi.fn() },
 }))
 vi.mock('~/server/utils/posthog', () => ({ serverCaptureException: vi.fn() }))
 
@@ -140,7 +140,12 @@ describe('listCampaigns', () => {
 
     const result = await _listCampaigns()
 
-    expect(Campaign.find).toHaveBeenCalledWith({ 'members.userId': 'dbuser-1' })
+    expect(Campaign.find).toHaveBeenCalledWith({
+      $or: [
+        { 'members.userId': 'dbuser-1' },
+        { gameMasterId: 'dbuser-1', members: { $in: [null, []] } },
+      ],
+    })
     expect(result).toHaveLength(1)
     expect((result[0] as { id: string }).id).toBe('camp-1')
   })
@@ -218,7 +223,7 @@ describe('getCampaign', () => {
   })
 
   it('returns null for non-members', async () => {
-    const campaign = makeCampaign({ members: [] })
+    const campaign = makeCampaign({ gameMasterId: 'someone-else', members: [{ userId: 'someone-else', role: 'gm' }] })
     vi.mocked(Campaign.findById).mockResolvedValue(campaign)
 
     const result = await _getCampaign({ data: { id: 'camp-1' } })
@@ -253,6 +258,55 @@ describe('getCampaign', () => {
   })
 })
 
+describe('legacy campaigns (no members array)', () => {
+  it('listCampaigns includes legacy campaigns where user is the GM', async () => {
+    const legacyCampaign = makeCampaign({ members: undefined })
+    // The query uses $or, so legacy campaigns with gameMasterId match
+    const mockSort = vi.fn().mockResolvedValue([legacyCampaign])
+    vi.mocked(Campaign.find).mockReturnValue({ sort: mockSort } as never)
+
+    const result = await _listCampaigns()
+
+    expect(Campaign.find).toHaveBeenCalledWith({
+      $or: [
+        { 'members.userId': 'dbuser-1' },
+        { gameMasterId: 'dbuser-1', members: { $in: [null, []] } },
+      ],
+    })
+    expect(result).toHaveLength(1)
+  })
+
+  it('getCampaign returns campaign for GM even without members array', async () => {
+    const legacyCampaign = makeCampaign({ members: undefined })
+    vi.mocked(Campaign.findById).mockResolvedValue(legacyCampaign)
+
+    const result = await _getCampaign({ data: { id: 'camp-1' } })
+
+    expect(result).not.toBeNull()
+    expect((result as { id: string }).id).toBe('camp-1')
+    expect((result as { isOwner: boolean }).isOwner).toBe(true)
+  })
+
+  it('getCampaign returns null for non-GM on legacy campaign without members', async () => {
+    const legacyCampaign = makeCampaign({ gameMasterId: 'someone-else', members: undefined })
+    vi.mocked(Campaign.findById).mockResolvedValue(legacyCampaign)
+
+    const result = await _getCampaign({ data: { id: 'camp-1' } })
+
+    expect(result).toBeNull()
+  })
+
+  it('getCampaign returns campaign for GM on legacy campaign with empty members array', async () => {
+    const legacyCampaign = makeCampaign({ members: [] })
+    vi.mocked(Campaign.findById).mockResolvedValue(legacyCampaign)
+
+    const result = await _getCampaign({ data: { id: 'camp-1' } })
+
+    expect(result).not.toBeNull()
+    expect((result as { isOwner: boolean }).isOwner).toBe(true)
+  })
+})
+
 describe('createCampaign', () => {
   it('auto-adds GM as a member with role gm', async () => {
     vi.mocked(Campaign.exists).mockResolvedValue(null)
@@ -281,18 +335,15 @@ describe('createCampaign', () => {
 
 describe('joinCampaign', () => {
   it('adds user as player member with a valid invite code', async () => {
-    const campaignDoc = {
-      ...makeCampaign({ members: [{ userId: 'gm-user', role: 'gm' }] }),
-      save: vi.fn().mockResolvedValue(undefined),
-    }
+    const campaignDoc = makeCampaign({ members: [{ userId: 'gm-user', role: 'gm' }] })
     vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc)
+    const updatedDoc = { ...campaignDoc, members: [...campaignDoc.members, { userId: 'dbuser-1', role: 'player' }] }
+    vi.mocked(Campaign.findOneAndUpdate).mockResolvedValue(updatedDoc)
 
     const result = await _joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } })
 
     expect(result).toMatchObject({ success: true, campaignId: 'camp-1' })
-    expect(campaignDoc.members).toHaveLength(2)
-    expect(campaignDoc.members[1]).toMatchObject({ userId: 'dbuser-1', role: 'player' })
-    expect(campaignDoc.save).toHaveBeenCalled()
+    expect(Campaign.findOneAndUpdate).toHaveBeenCalled()
     expect(User.updateOne).toHaveBeenCalled()
   })
 
@@ -303,31 +354,24 @@ describe('joinCampaign', () => {
   })
 
   it('throws when already a member', async () => {
-    const campaignDoc = {
-      ...makeCampaign({ members: [{ userId: 'dbuser-1', role: 'player' }] }),
-      save: vi.fn(),
-    }
+    const campaignDoc = makeCampaign({ members: [{ userId: 'dbuser-1', role: 'player' }] })
     vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc)
 
     await expect(_joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } })).rejects.toThrow('Already a member')
   })
 
-  it('throws when campaign is full', async () => {
+  it('throws when campaign is full (findOneAndUpdate returns null)', async () => {
     const players = Array.from({ length: 4 }, (_, i) => ({ userId: `player-${i}`, role: 'player' }))
-    const campaignDoc = {
-      ...makeCampaign({ maxPlayers: 4, members: [{ userId: 'gm-user', role: 'gm' }, ...players] }),
-      save: vi.fn(),
-    }
+    const campaignDoc = makeCampaign({ maxPlayers: 4, members: [{ userId: 'gm-user', role: 'gm' }, ...players] })
     vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc)
+    // findOneAndUpdate returns null when capacity check fails
+    vi.mocked(Campaign.findOneAndUpdate).mockResolvedValue(null)
 
     await expect(_joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } })).rejects.toThrow('Campaign is full')
   })
 
   it('throws when campaign is not active', async () => {
-    const campaignDoc = {
-      ...makeCampaign({ status: 'paused', members: [{ userId: 'gm-user', role: 'gm' }] }),
-      save: vi.fn(),
-    }
+    const campaignDoc = makeCampaign({ status: 'paused', members: [{ userId: 'gm-user', role: 'gm' }] })
     vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc)
 
     await expect(_joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } })).rejects.toThrow('Campaign is not active')

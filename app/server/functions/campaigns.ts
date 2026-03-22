@@ -100,7 +100,13 @@ export const listCampaigns = createServerFn({ method: 'GET' }).handler(async () 
     const dbUser = await User.findOne({ providerId: user.id })
     if (!dbUser) return []
 
-    const raw = await Campaign.find({ 'members.userId': dbUser._id }).sort({ createdAt: -1 })
+    // Include legacy campaigns (pre-members migration) where user is the GM
+    const raw = await Campaign.find({
+      $or: [
+        { 'members.userId': dbUser._id },
+        { gameMasterId: dbUser._id, members: { $in: [null, []] } },
+      ],
+    }).sort({ createdAt: -1 })
 
     const userId = String(dbUser._id)
     return raw.map(c => {
@@ -133,9 +139,11 @@ export const getCampaign = createServerFn({ method: 'GET' })
 
       const userId = dbUser ? String(dbUser._id) : undefined
 
-      // Only members can see campaigns
+      // Only members can see campaigns; treat gameMasterId as implicit member for legacy campaigns
+      const members = c.members ?? []
       const isMember = userId
-        ? (c.members ?? []).some((m: { userId: unknown }) => String(m.userId) === userId)
+        ? members.some((m: { userId: unknown }) => String(m.userId) === userId) ||
+          (members.length === 0 && c.gameMasterId != null && String(c.gameMasterId) === userId)
         : false
       if (!isMember) return null
 

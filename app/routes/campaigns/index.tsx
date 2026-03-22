@@ -201,9 +201,16 @@ function CampaignsListPage() {
       <Toast />
 
       {showJoinForm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="join-campaign-title"
+          onKeyDown={e => { if (e.key === 'Escape') { setShowJoinForm(false); setJoinCode('') } }}
+          onClick={e => { if (e.target === e.currentTarget) { setShowJoinForm(false); setJoinCode('') } }}
+        >
           <div className="bg-[#0D1117] border border-white/[0.07] rounded-2xl p-8 w-full max-w-md mx-4">
-            <h2 className="font-pixel text-[11px] text-white tracking-widest mb-6">JOIN CAMPAIGN</h2>
+            <h2 id="join-campaign-title" className="font-pixel text-[11px] text-white tracking-widest mb-6">JOIN CAMPAIGN</h2>
             <form onSubmit={handleJoin} className="space-y-4">
               <input
                 type="text"
@@ -213,8 +220,9 @@ function CampaignsListPage() {
                 className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.1] text-white text-sm placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
                 disabled={isJoining}
                 autoFocus
+                aria-label="Invite code"
               />
-              {joinError && <p className="text-red-400 text-xs">{joinError}</p>}
+              {joinError && <p className="text-red-400 text-xs" role="alert">{joinError}</p>}
               <div className="flex gap-3">
                 <button
                   type="button"
