@@ -51,8 +51,8 @@ describe('parseMaxPlayers', () => {
     expect(parseMaxPlayers(10)).toBe(10)
   })
 
-  it('defaults to 4 for invalid input', () => {
+  it('defaults to 4 for undefined, clamps NaN to 1', () => {
     expect(parseMaxPlayers(undefined)).toBe(4)
-    expect(parseMaxPlayers('abc')).toBe(1) // parseInt('abc') = NaN → 1
+    expect(parseMaxPlayers('abc')).toBe(1) // parseInt('abc') = NaN → clamps to min 1
   })
 })

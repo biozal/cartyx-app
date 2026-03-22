@@ -1,36 +1,59 @@
-import { useEffect, type ReactNode } from 'react'
-import posthog from 'posthog-js'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { useRouter } from '@tanstack/react-router'
 import { useAuthContext } from './AuthProvider'
 
+let posthogInstance: typeof import('posthog-js').default | null = null
 let initialized = false
 
 function PostHogInit() {
   const { user } = useAuthContext()
+  const router = useRouter()
+  const unsubRef = useRef<(() => void) | null>(null)
 
+  // Initialize PostHog client-side only
   useEffect(() => {
     const key = import.meta.env.VITE_PUBLIC_POSTHOG_KEY
     const host = import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://app.posthog.com'
 
-    if (!key || initialized) return
-    posthog.init(key, {
-      api_host: host,
-      capture_pageview: false, // manual page view tracking
-      persistence: 'localStorage+cookie',
-    })
-    initialized = true
-  }, [])
+    if (!key || initialized || typeof window === 'undefined') return
 
+    import('posthog-js').then(({ default: posthog }) => {
+      posthog.init(key, {
+        api_host: host,
+        capture_pageview: false, // we capture manually on navigation
+        persistence: 'localStorage+cookie',
+      })
+      posthogInstance = posthog
+      initialized = true
+
+      // Capture initial pageview
+      posthog.capture('$pageview', { $current_url: window.location.href })
+
+      // Subscribe to route changes for manual pageview tracking
+      unsubRef.current = router.subscribe('onResolved', (event) => {
+        posthog.capture('$pageview', {
+          $current_url: window.location.origin + event.toLocation.href,
+        })
+      })
+    })
+
+    return () => {
+      unsubRef.current?.()
+    }
+  }, [router])
+
+  // Identify/reset on auth changes
   useEffect(() => {
-    if (!initialized) return
+    if (!initialized || !posthogInstance) return
     if (user) {
-      posthog.identify(user.id, {
+      posthogInstance.identify(user.id, {
         name: user.name,
         email: user.email,
         provider: user.provider,
         role: user.role,
       })
     } else {
-      posthog.reset()
+      posthogInstance.reset()
     }
   }, [user])
 
@@ -47,5 +70,5 @@ export function PostHogProvider({ children }: { children: ReactNode }) {
 }
 
 export function capturePageView(url: string) {
-  if (initialized) posthog.capture('$pageview', { $current_url: url })
+  if (initialized && posthogInstance) posthogInstance.capture('$pageview', { $current_url: url })
 }

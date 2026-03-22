@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 
 interface ToastState {
   message: string
@@ -13,14 +13,26 @@ export function showToast(message: string) {
 
 export function Toast() {
   const [state, setState] = useState<ToastState>({ message: '', visible: false })
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const show = useCallback((message: string) => {
+    // Clear any existing timeout
+    if (timerRef.current) clearTimeout(timerRef.current)
     setState({ message, visible: true })
-    setTimeout(() => setState(s => ({ ...s, visible: false })), 2400)
+    timerRef.current = setTimeout(() => {
+      setState(s => ({ ...s, visible: false }))
+      timerRef.current = null
+    }, 2400)
   }, [])
 
-  // register global handler
-  _showToast = show
+  // Register/cleanup global handler
+  useEffect(() => {
+    _showToast = show
+    return () => {
+      _showToast = null
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [show])
 
   return (
     <div

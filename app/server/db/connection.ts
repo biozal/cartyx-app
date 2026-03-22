@@ -1,9 +1,8 @@
 import mongoose from 'mongoose'
 
-let isConnected = false
-
 export async function connectDB(): Promise<void> {
-  if (isConnected) return
+  // Already connected or connecting — skip
+  if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) return
 
   const uri = process.env.MONGODB_URI
   if (!uri) {
@@ -13,7 +12,6 @@ export async function connectDB(): Promise<void> {
 
   try {
     await mongoose.connect(uri)
-    isConnected = true
     console.warn('✅ MongoDB connected')
   } catch (err) {
     console.error('❌ MongoDB connection error:', err)

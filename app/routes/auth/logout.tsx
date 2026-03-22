@@ -3,7 +3,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { clearSession, getSession } from '~/server/session'
 import { revokeToken } from '~/server/utils/oauth'
 
-const performLogout = createServerFn({ method: 'GET' }).handler(async () => {
+export const performLogout = createServerFn({ method: 'POST' }).handler(async () => {
   const user = await getSession()
   if (user) await revokeToken(user)
   await clearSession()
@@ -11,8 +11,5 @@ const performLogout = createServerFn({ method: 'GET' }).handler(async () => {
 })
 
 export const Route = createFileRoute('/auth/logout')({
-  beforeLoad: async () => {
-    await performLogout()
-  },
   component: () => null,
 })

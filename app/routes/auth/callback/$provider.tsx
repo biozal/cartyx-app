@@ -1,13 +1,23 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
+import { getCookie, deleteCookie } from '@tanstack/react-start/server'
 import { z } from 'zod'
 import { exchangeGoogleCode, exchangeGithubCode, exchangeAppleCode, upsertUser } from '~/server/utils/oauth'
 import { setSession } from '~/server/session'
 
 const handleCallback = createServerFn({ method: 'GET' })
-  .inputValidator(z.object({ provider: z.string(), code: z.string() }))
+  .inputValidator(z.object({ provider: z.string(), code: z.string(), state: z.string() }))
   .handler(async ({ data }) => {
-    const { provider, code } = data
+    const { provider, code, state } = data
+
+    // Verify CSRF state token
+    const storedState = getCookie('oauth_state')
+    deleteCookie('oauth_state', { path: '/' })
+
+    if (!storedState || storedState !== state) {
+      console.error(`OAuth state mismatch for ${provider}`)
+      throw redirect({ to: '/', search: { reason: 'auth_failed' } })
+    }
 
     try {
       let profile
@@ -39,10 +49,10 @@ export const Route = createFileRoute('/auth/callback/$provider')({
     state: z.string().optional(),
   }),
   beforeLoad: async ({ params, search }) => {
-    if (search.error || !search.code) {
+    if (search.error || !search.code || !search.state) {
       throw redirect({ to: '/', search: { reason: 'auth_failed' } })
     }
-    await handleCallback({ data: { provider: params.provider, code: search.code } })
+    await handleCallback({ data: { provider: params.provider, code: search.code, state: search.state } })
   },
   component: () => null,
 })

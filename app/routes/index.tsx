@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
 import { useEffect, useState } from 'react'
 import { useAuth } from '~/hooks/useAuth'
+import { showToast } from '~/components/Toast'
 
 export const Route = createFileRoute('/')({
   validateSearch: z.object({ reason: z.string().optional() }),
@@ -35,7 +36,7 @@ function ProviderButton({
 }
 
 function LandingPage() {
-  const { user, isAuthenticated, isLoading } = useAuth()
+  const { user, isAuthenticated, isLoading, logout } = useAuth()
   const navigate = useNavigate()
   const { reason } = Route.useSearch()
   const [showInvite, setShowInvite] = useState(false)
@@ -50,7 +51,9 @@ function LandingPage() {
 
   function joinWithCode() {
     const code = inviteCode.trim().toUpperCase()
-    if (code) window.location.href = `/join/${code}`
+    if (!code) return
+    // TODO: Implement join route/server function to process invite codes
+    showToast('Invite code joining is coming soon!')
   }
 
   function handleInviteInput(e: React.ChangeEvent<HTMLInputElement>) {
@@ -183,12 +186,13 @@ function LandingPage() {
               </div>
             )}
 
-            <a
-              href="/auth/logout"
+            <button
+              type="button"
+              onClick={() => logout()}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-white/[0.08] text-slate-400 text-sm font-medium hover:border-white/15 hover:text-slate-200 transition-all"
             >
               Sign Out
-            </a>
+            </button>
           </div>
         ) : !isLoading ? (
           /* Logged-out state */

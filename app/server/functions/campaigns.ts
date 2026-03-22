@@ -101,15 +101,30 @@ export const listCampaigns = createServerFn({ method: 'GET' }).handler(async () 
 export const getCampaign = createServerFn({ method: 'GET' })
   .inputValidator(z.object({ id: z.string() }))
   .handler(async ({ data }) => {
+    const user = await getSession()
+    if (!user) throw new Error('Not authenticated')
+
     await connectDB()
     if (!isDBConnected()) throw new Error('Database not available')
 
-    const user = await getSession()
-    const dbUser = user ? await User.findOne({ providerId: user.id }) : null
+    const dbUser = await User.findOne({ providerId: user.id })
     const c = await Campaign.findById(data.id)
     if (!c) return null
 
-    return serializeCampaign(c as Parameters<typeof serializeCampaign>[0], dbUser ? String(dbUser._id) : undefined)
+    const gmId = dbUser ? String(dbUser._id) : undefined
+    const isOwner = !!gmId && c.gameMasterId != null && String(c.gameMasterId) === gmId
+
+    // Non-owners can only see active campaigns
+    if (!isOwner && c.status !== 'active') return null
+
+    const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], gmId)
+
+    // Redact invite code for non-owners
+    if (!isOwner) {
+      return { ...serialized, inviteCode: '' }
+    }
+
+    return serialized
   })
 
 const campaignInputSchema = z.object({

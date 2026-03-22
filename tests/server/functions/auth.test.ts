@@ -69,19 +69,28 @@ describe('OAuth URL builders', () => {
     process.env.BASE_URL = 'https://example.com'
   })
 
-  it('buildGoogleOAuthUrl returns valid URL', async () => {
+  it('buildGoogleOAuthUrl returns valid URL with state', async () => {
     const { buildGoogleOAuthUrl } = await import('~/server/utils/oauth')
-    const url = buildGoogleOAuthUrl()
+    const url = buildGoogleOAuthUrl('test-state-123')
     expect(url).toContain('accounts.google.com')
     expect(url).toContain('client_id=test-google-client-id')
     expect(url).toContain('scope=openid+profile+email')
+    expect(url).toContain('state=test-state-123')
   })
 
-  it('buildGithubOAuthUrl returns valid URL', async () => {
+  it('buildGoogleOAuthUrl works without state', async () => {
+    const { buildGoogleOAuthUrl } = await import('~/server/utils/oauth')
+    const url = buildGoogleOAuthUrl()
+    expect(url).toContain('accounts.google.com')
+    expect(url).not.toContain('state=')
+  })
+
+  it('buildGithubOAuthUrl returns valid URL with state', async () => {
     const { buildGithubOAuthUrl } = await import('~/server/utils/oauth')
-    const url = buildGithubOAuthUrl()
+    const url = buildGithubOAuthUrl('csrf-token')
     expect(url).toContain('github.com/login/oauth/authorize')
     expect(url).toContain('client_id=test-github-client-id')
+    expect(url).toContain('state=csrf-token')
   })
 })
 
