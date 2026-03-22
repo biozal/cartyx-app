@@ -69,10 +69,12 @@ function NewCampaignPage() {
   }
 
   function goTo(n: number) {
+    if (n === step) return
     if (n > step && !validateStep(step)) return
     setStepError('')
-    captureEvent('campaign_wizard_step_changed', { from_step: step, to_step: n })
+    const fromStep = step
     setStep(n)
+    captureEvent('campaign_wizard_step_changed', { from_step: fromStep, to_step: n })
   }
 
   async function handleSubmit() {
