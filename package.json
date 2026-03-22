@@ -17,11 +17,13 @@
     "test:ci": "vitest run --coverage --reporter=verbose"
   },
   "dependencies": {
+    "@posthog/react": "^1.8.2",
     "@tanstack/react-router": "^1.167.2",
     "@tanstack/react-start": "^1.167.2",
     "jose": "^5.10.0",
     "mongoose": "^9.3.1",
     "posthog-js": "^1.244.1",
+    "posthog-node": "^5.28.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "vite": "^7.3.1",

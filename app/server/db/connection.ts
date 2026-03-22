@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { serverCaptureException } from '../utils/posthog'
 
 export async function connectDB(): Promise<void> {
   // Already connected or connecting — skip
@@ -7,7 +8,12 @@ export async function connectDB(): Promise<void> {
   const uri = process.env.MONGODB_URI
   if (!uri) return
 
-  await mongoose.connect(uri)
+  try {
+    await mongoose.connect(uri)
+  } catch (e) {
+    serverCaptureException(e, undefined, { action: 'connectDB' })
+    throw e
+  }
 }
 
 export function isDBConnected(): boolean {

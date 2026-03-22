@@ -6,6 +6,7 @@ import {
   updateCampaign,
   type CampaignData,
 } from '~/server/functions/campaigns'
+import { captureException } from '~/providers/PostHogProvider'
 
 export function useCampaigns() {
   const [campaigns, setCampaigns] = useState<CampaignData[]>([])
@@ -19,6 +20,7 @@ export function useCampaigns() {
       const data = await listCampaigns()
       setCampaigns(data)
     } catch (e) {
+      captureException(e, { action: 'listCampaigns' })
       setError(e instanceof Error ? e.message : 'Failed to load campaigns')
     } finally {
       setIsLoading(false)
@@ -43,7 +45,10 @@ export function useCampaign(id: string) {
     setIsLoading(true)
     getCampaign({ data: { id } })
       .then((data: CampaignData | null) => setCampaign(data))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load campaign'))
+      .catch((e: unknown) => {
+        captureException(e, { action: 'getCampaign', campaignId: id })
+        setError(e instanceof Error ? e.message : 'Failed to load campaign')
+      })
       .finally(() => setIsLoading(false))
   }, [id])
 
@@ -105,6 +110,7 @@ export function useCreateCampaign() {
       })
       return result
     } catch (e) {
+      captureException(e, { action: 'createCampaign' })
       const msg = e instanceof Error ? e.message : 'Failed to create campaign'
       setError(msg)
       return null
@@ -145,6 +151,7 @@ export function useUpdateCampaign() {
       })
       return result
     } catch (e) {
+      captureException(e, { action: 'updateCampaign', campaignId: id })
       const msg = e instanceof Error ? e.message : 'Failed to update campaign'
       setError(msg)
       return null
