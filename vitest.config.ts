@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config'
 import tsConfigPaths from 'vite-tsconfig-paths'
+import path from 'node:path'
 
 export default defineConfig({
   plugins: [tsConfigPaths()],
@@ -19,7 +20,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '~': '/app',
+      '~': path.resolve(__dirname, 'app'),
     },
   },
 })

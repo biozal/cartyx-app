@@ -16,10 +16,17 @@ export interface OAuthProfile {
   tokenIssuedAt: number
 }
 
+function requireBaseUrl(): string {
+  const url = process.env.BASE_URL
+  if (!url) throw new Error('BASE_URL environment variable is required for OAuth')
+  return url
+}
+
 export function buildGoogleOAuthUrl(state?: string): string {
+  const baseUrl = requireBaseUrl()
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
-    redirect_uri: `${process.env.BASE_URL}/auth/callback/google`,
+    redirect_uri: `${baseUrl}/auth/callback/google`,
     response_type: 'code',
     scope: 'openid profile email',
     access_type: 'offline',
@@ -30,9 +37,10 @@ export function buildGoogleOAuthUrl(state?: string): string {
 }
 
 export function buildGithubOAuthUrl(state?: string): string {
+  const baseUrl = requireBaseUrl()
   const params = new URLSearchParams({
     client_id: process.env.GITHUB_CLIENT_ID!,
-    redirect_uri: `${process.env.BASE_URL}/auth/callback/github`,
+    redirect_uri: `${baseUrl}/auth/callback/github`,
     scope: 'user:email',
     ...(state && { state }),
   })
@@ -40,9 +48,10 @@ export function buildGithubOAuthUrl(state?: string): string {
 }
 
 export function buildAppleOAuthUrl(state?: string): string {
+  const baseUrl = requireBaseUrl()
   const params = new URLSearchParams({
     client_id: process.env.APPLE_CLIENT_ID!,
-    redirect_uri: `${process.env.BASE_URL}/auth/callback/apple`,
+    redirect_uri: `${baseUrl}/auth/callback/apple`,
     response_type: 'code',
     scope: 'name email',
     response_mode: 'query',
@@ -52,8 +61,9 @@ export function buildAppleOAuthUrl(state?: string): string {
 }
 
 export async function exchangeAppleCode(code: string): Promise<OAuthProfile> {
-  const { APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY_PATH, BASE_URL } =
+  const { APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY_PATH } =
     process.env
+  const appleBaseUrl = requireBaseUrl()
   if (!APPLE_CLIENT_ID || !APPLE_TEAM_ID || !APPLE_KEY_ID || !APPLE_PRIVATE_KEY_PATH) {
     throw new Error('Apple OAuth not configured')
   }
@@ -80,7 +90,7 @@ export async function exchangeAppleCode(code: string): Promise<OAuthProfile> {
       client_secret: clientSecret,
       code,
       grant_type: 'authorization_code',
-      redirect_uri: `${BASE_URL}/auth/callback/apple`,
+      redirect_uri: `${appleBaseUrl}/auth/callback/apple`,
     }),
   })
 
@@ -120,7 +130,7 @@ export async function exchangeGoogleCode(code: string): Promise<OAuthProfile> {
       code,
       client_id: process.env.GOOGLE_CLIENT_ID!,
       client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-      redirect_uri: `${process.env.BASE_URL}/auth/callback/google`,
+      redirect_uri: `${requireBaseUrl()}/auth/callback/google`,
       grant_type: 'authorization_code',
     }),
   })
@@ -161,7 +171,7 @@ export async function exchangeGithubCode(code: string): Promise<OAuthProfile> {
       client_id: process.env.GITHUB_CLIENT_ID!,
       client_secret: process.env.GITHUB_CLIENT_SECRET!,
       code,
-      redirect_uri: `${process.env.BASE_URL}/auth/callback/github`,
+      redirect_uri: `${requireBaseUrl()}/auth/callback/github`,
     }),
   })
   const tokens = (await tokenRes.json()) as { access_token: string; error?: string }

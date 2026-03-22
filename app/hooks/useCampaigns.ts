@@ -38,6 +38,8 @@ export function useCampaign(id: string) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    setCampaign(null)
+    setError(null)
     setIsLoading(true)
     getCampaign({ data: { id } })
       .then((data: CampaignData | null) => setCampaign(data))
