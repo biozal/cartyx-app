@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { getMe } from '~/server/functions/auth'
 import { Topbar } from '~/components/Topbar'
+import { useAuth } from '~/hooks/useAuth'
 
 export const Route = createFileRoute('/dashboard')({
   beforeLoad: async () => {
@@ -13,6 +14,7 @@ export const Route = createFileRoute('/dashboard')({
 
 function DashboardPage() {
   const { user } = Route.useRouteContext()
+  const { logout } = useAuth()
 
   const expiresIn = null // JWT-based, no server-side session expiry tracker
 
@@ -68,12 +70,13 @@ function DashboardPage() {
             >
               ⚔️ My Campaigns
             </a>
-            <a
-              href="/auth/logout"
+            <button
+              type="button"
+              onClick={() => logout()}
               className="px-6 py-2.5 rounded-xl bg-[#4a2a2a] text-[#e87e7e] border border-[#6a3a3a] text-sm font-medium hover:bg-[#5a3a3a] transition-colors"
             >
               🚪 Sign Out
-            </a>
+            </button>
           </div>
         </div>
       </div>

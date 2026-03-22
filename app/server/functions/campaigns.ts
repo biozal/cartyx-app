@@ -4,7 +4,7 @@ import { getSession } from '../session'
 import { connectDB, isDBConnected } from '../db/connection'
 import { User } from '../db/models/User'
 import { Campaign } from '../db/models/Campaign'
-import { generateInviteCode, validateUrl, parseMaxPlayers, saveUploadedFile } from '../utils/helpers'
+import { generateInviteCode, validateUrl, parseMaxPlayers, saveUploadedFile, MAX_IMAGE_BASE64_LENGTH } from '../utils/helpers'
 
 export interface CampaignData {
   id: string
@@ -95,7 +95,14 @@ export const listCampaigns = createServerFn({ method: 'GET' }).handler(async () 
     : await Campaign.find({ status: 'active' }).sort({ createdAt: -1 })
 
   const gmId = dbUser ? String(dbUser._id) : undefined
-  return raw.map(c => serializeCampaign(c as Parameters<typeof serializeCampaign>[0], gmId))
+  return raw.map(c => {
+    const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], gmId)
+    // Redact invite code for non-owners
+    if (!serialized.isOwner) {
+      return { ...serialized, inviteCode: '' }
+    }
+    return serialized
+  })
 })
 
 export const getCampaign = createServerFn({ method: 'GET' })
@@ -167,6 +174,9 @@ export const createCampaign = createServerFn({ method: 'POST' })
 
     let imagePath: string | null = null
     if (imageData && imageMime && imageName) {
+      if (imageData.length > MAX_IMAGE_BASE64_LENGTH) {
+        throw new Error('Image must be under 5MB')
+      }
       const buffer = Buffer.from(imageData, 'base64')
       const file = new File([buffer], imageName, { type: imageMime })
       imagePath = await saveUploadedFile(file, 'uploads/campaigns')
@@ -250,6 +260,9 @@ export const updateCampaign = createServerFn({ method: 'POST' })
     campaign.updatedAt = new Date()
 
     if (imageData && imageMime && imageName) {
+      if (imageData.length > MAX_IMAGE_BASE64_LENGTH) {
+        throw new Error('Image must be under 5MB')
+      }
       const buffer = Buffer.from(imageData, 'base64')
       const file = new File([buffer], imageName, { type: imageMime })
       campaign.imagePath = await saveUploadedFile(file, 'uploads/campaigns')

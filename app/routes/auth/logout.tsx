@@ -1,15 +1,7 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-import { clearSession, getSession } from '~/server/session'
-import { revokeToken } from '~/server/utils/oauth'
+import { createFileRoute } from '@tanstack/react-router'
 
-export const performLogout = createServerFn({ method: 'POST' }).handler(async () => {
-  const user = await getSession()
-  if (user) await revokeToken(user)
-  await clearSession()
-  throw redirect({ to: '/' })
-})
-
+// Logout is handled via the POST server function `logoutFn` in server/functions/auth.ts.
+// This route exists only as a fallback — it renders nothing.
 export const Route = createFileRoute('/auth/logout')({
   component: () => null,
 })

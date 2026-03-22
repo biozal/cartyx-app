@@ -9,6 +9,7 @@ function PostHogInit() {
   const { user } = useAuthContext()
   const router = useRouter()
   const unsubRef = useRef<(() => void) | null>(null)
+  const cancelledRef = useRef(false)
 
   // Initialize PostHog client-side only
   useEffect(() => {
@@ -17,7 +18,12 @@ function PostHogInit() {
 
     if (!key || initialized || typeof window === 'undefined') return
 
+    cancelledRef.current = false
+
     import('posthog-js').then(({ default: posthog }) => {
+      // Guard against unmount during async import
+      if (cancelledRef.current) return
+
       posthog.init(key, {
         api_host: host,
         capture_pageview: false, // we capture manually on navigation
@@ -38,7 +44,9 @@ function PostHogInit() {
     })
 
     return () => {
+      cancelledRef.current = true
       unsubRef.current?.()
+      unsubRef.current = null
     }
   }, [router])
 

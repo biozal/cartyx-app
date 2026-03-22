@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { useEffect, useState } from 'react'
 import { useAuth } from '~/hooks/useAuth'
 import { showToast } from '~/components/Toast'
+import { formatInviteCode } from '~/utils/helpers'
 
 export const Route = createFileRoute('/')({
   validateSearch: z.object({ reason: z.string().optional() }),
@@ -57,9 +58,7 @@ function LandingPage() {
   }
 
   function handleInviteInput(e: React.ChangeEvent<HTMLInputElement>) {
-    let v = e.target.value.replace(/[^A-Z0-9a-z]/g, '').toUpperCase()
-    if (v.length > 4) v = v.slice(0, 4) + '-' + v.slice(4, 8)
-    setInviteCode(v)
+    setInviteCode(formatInviteCode(e.target.value))
   }
 
   const roleInfo = {

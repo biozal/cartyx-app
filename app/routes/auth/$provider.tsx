@@ -46,7 +46,11 @@ const initiateOAuth = createServerFn({ method: 'GET' })
         break
     }
 
-    throw redirect({ href: url, statusCode: 302 } as never)
+    // Use a proper HTTP redirect Response for external OAuth URLs
+    throw new Response(null, {
+      status: 302,
+      headers: { Location: url },
+    })
   })
 
 export const Route = createFileRoute('/auth/$provider')({
