@@ -31,7 +31,7 @@ describe('Topbar', () => {
 
   it('renders CARTYX brand link when user is present', () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { id: 'g_1', provider: 'google', name: 'Alice', email: 'alice@example.com', avatar: null, role: 'gm', accessToken: null, refreshToken: null, tokenIssuedAt: Date.now() },
+      user: { id: 'g_1', provider: 'google', name: 'Alice', email: 'alice@example.com', avatar: null, role: 'gm' },
       isAuthenticated: true, isLoading: false,
       login: vi.fn(), logout: vi.fn(), refresh: vi.fn(),
     })
@@ -42,7 +42,7 @@ describe('Topbar', () => {
 
   it('shows avatar image when user has avatar', () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { id: 'g_1', provider: 'google', name: 'Bob', email: null, avatar: 'https://example.com/pic.jpg', role: 'player', accessToken: null, refreshToken: null, tokenIssuedAt: Date.now() },
+      user: { id: 'g_1', provider: 'google', name: 'Bob', email: null, avatar: 'https://example.com/pic.jpg', role: 'player' },
       isAuthenticated: true, isLoading: false,
       login: vi.fn(), logout: vi.fn(), refresh: vi.fn(),
     })
@@ -53,7 +53,7 @@ describe('Topbar', () => {
 
   it('shows emoji placeholder when user has no avatar', () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { id: 'g_1', provider: 'google', name: 'Carol', email: null, avatar: null, role: 'gm', accessToken: null, refreshToken: null, tokenIssuedAt: Date.now() },
+      user: { id: 'g_1', provider: 'google', name: 'Carol', email: null, avatar: null, role: 'gm' },
       isAuthenticated: true, isLoading: false,
       login: vi.fn(), logout: vi.fn(), refresh: vi.fn(),
     })
@@ -64,7 +64,7 @@ describe('Topbar', () => {
   it('toggles dropdown menu on button click', () => {
     const logoutMock = vi.fn()
     vi.mocked(useAuth).mockReturnValue({
-      user: { id: 'g_1', provider: 'google', name: 'Dave', email: null, avatar: null, role: 'gm', accessToken: null, refreshToken: null, tokenIssuedAt: Date.now() },
+      user: { id: 'g_1', provider: 'google', name: 'Dave', email: null, avatar: null, role: 'gm' },
       isAuthenticated: true, isLoading: false,
       login: vi.fn(), logout: logoutMock, refresh: vi.fn(),
     })

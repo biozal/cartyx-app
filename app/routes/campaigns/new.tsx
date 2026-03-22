@@ -104,9 +104,8 @@ function NewCampaignPage() {
         <div className="mb-8">
           <div className="flex items-center mb-2.5">
             {STEPS.map((_, i) => (
-              <>
+              <React.Fragment key={i}>
                 <button
-                  key={`dot-${i}`}
                   onClick={() => goTo(i + 1)}
                   className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
                     i + 1 === step
@@ -119,9 +118,9 @@ function NewCampaignPage() {
                   {i + 1}
                 </button>
                 {i < STEPS.length - 1 && (
-                  <div key={`line-${i}`} className={`flex-1 h-0.5 transition-colors ${i + 1 < step ? 'bg-blue-500/40' : 'bg-white/[0.06]'}`} />
+                  <div className={`flex-1 h-0.5 transition-colors ${i + 1 < step ? 'bg-blue-500/40' : 'bg-white/[0.06]'}`} />
                 )}
-              </>
+              </React.Fragment>
             ))}
           </div>
           <div className="flex justify-between">
@@ -198,7 +197,7 @@ function NewCampaignPage() {
                         </>
                       )}
                     </div>
-                    <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+                    <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" onChange={handleImageChange} />
                   </div>
                 </div>
               </>

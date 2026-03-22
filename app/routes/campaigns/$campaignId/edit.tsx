@@ -111,7 +111,7 @@ function EditCampaignPage() {
             className="border-2 border-dashed border-white/10 rounded-xl p-7 text-center cursor-pointer hover:border-blue-500/40 hover:bg-blue-600/[0.04] transition-all relative overflow-hidden"
             onClick={() => fileRef.current?.click()}
           >
-            <input ref={fileRef} type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer w-full" onChange={handleImageChange} />
+            <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="absolute inset-0 opacity-0 cursor-pointer w-full" onChange={handleImageChange} />
             {imagePreview ? (
               <img src={imagePreview} className="max-w-full max-h-44 rounded-xl object-cover mx-auto" alt="Banner" />
             ) : (

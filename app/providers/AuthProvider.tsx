@@ -8,9 +8,6 @@ export interface AuthUser {
   email: string | null
   avatar: string | null
   role: string
-  accessToken: string | null
-  refreshToken: string | null
-  tokenIssuedAt: number
 }
 
 interface AuthContextValue {

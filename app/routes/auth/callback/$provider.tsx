@@ -25,7 +25,8 @@ const handleCallback = createServerFn({ method: 'GET' })
       await setSession(user)
       throw redirect({ to: '/campaigns' })
     } catch (e) {
-      if (e && typeof e === 'object' && 'to' in e) throw e // re-throw redirect
+      // Re-throw redirect responses (TanStack Router throws redirects as special objects)
+      if (e instanceof Response || (e && typeof e === 'object' && ('to' in e || 'href' in e))) throw e
       console.error(`OAuth callback error for ${provider}:`, e)
       throw redirect({ to: '/', search: { reason: 'auth_failed' } })
     }

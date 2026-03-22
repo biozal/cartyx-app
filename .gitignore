@@ -1,6 +1,12 @@
 # Dependencies
 node_modules/
 
+# Build output
+dist/
+.output/
+.vinxi/
+*.tsbuildinfo
+
 # Environment & secrets
 .env
 keys/
@@ -26,3 +32,4 @@ ecosystem.config.js
 # Logs
 *.log
 npm-debug.log*
+app.config.timestamp_*.js
