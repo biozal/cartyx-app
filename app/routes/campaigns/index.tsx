@@ -5,6 +5,7 @@ import { listCampaigns } from '~/server/functions/campaigns'
 import { Topbar } from '~/components/Topbar'
 import { Toast, showToast } from '~/components/Toast'
 import { useJoinCampaign } from '~/hooks/useCampaigns'
+import { formatNextSession } from '~/utils/date'
 import type { CampaignData } from '~/server/functions/campaigns'
 
 export const Route = createFileRoute('/campaigns/')({
@@ -68,7 +69,11 @@ function CampaignCard({ campaign }: { campaign: CampaignData }) {
             <span className="text-xs text-slate-500 font-medium flex-1">Next Session</span>
             <span className="text-xs text-slate-400 font-medium">
               {campaign.nextSession
-                ? `${campaign.nextSession.day} · ${campaign.nextSession.time}`
+                ? formatNextSession(
+                    campaign.nextSession.day,
+                    campaign.schedule.time,
+                    campaign.schedule.timezone
+                  )
                 : <span className="text-slate-600">Not scheduled</span>}
             </span>
           </div>

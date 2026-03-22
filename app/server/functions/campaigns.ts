@@ -6,6 +6,7 @@ import { User } from '../db/models/User'
 import { Campaign } from '../db/models/Campaign'
 import { generateInviteCode, validateUrl, parseMaxPlayers, saveUploadedFile, MAX_IMAGE_BASE64_LENGTH } from '../utils/helpers'
 import { serverCaptureException } from '../utils/posthog'
+import { formatSchedule } from '~/utils/date'
 
 export interface CampaignData {
   id: string
@@ -36,12 +37,7 @@ export function buildScheduleText(schedule: {
   time?: string | null
   timezone?: string | null
 } | null): string {
-  if (!schedule) return 'Not scheduled'
-  return (
-    [schedule.frequency, schedule.dayOfWeek, schedule.time, schedule.timezone]
-      .filter(Boolean)
-      .join(' · ') || 'Not scheduled'
-  )
+  return formatSchedule(schedule)
 }
 
 function serializeCampaign(c: {

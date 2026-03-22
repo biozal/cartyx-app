@@ -41,7 +41,7 @@ describe('Campaign list helpers (production code)', () => {
   it('builds schedule text from parts via production buildScheduleText', () => {
     expect(buildScheduleText({
       frequency: 'weekly', dayOfWeek: 'Sat', time: '19:00', timezone: 'America/Chicago',
-    })).toBe('weekly · Sat · 19:00 · America/Chicago')
+    })).toBe('weekly · Sat · at 7:00 PM · CDT')
 
     expect(buildScheduleText(null)).toBe('Not scheduled')
 
@@ -51,7 +51,7 @@ describe('Campaign list helpers (production code)', () => {
 
     expect(buildScheduleText({
       frequency: 'monthly', dayOfWeek: null, time: '20:00', timezone: null,
-    })).toBe('monthly · 20:00')
+    })).toBe('monthly · at 8:00 PM')
   })
 })
 
