@@ -52,10 +52,18 @@ function NewCampaignPage() {
   const [maxPlayers, setMaxPlayers] = useState(4)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+  const MAX_IMAGE_SIZE = 5 * 1024 * 1024
+
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) { setStepError('Image must be under 5MB'); return }
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setStepError('Only PNG, JPEG, GIF, and WebP images are allowed')
+      return
+    }
+    if (file.size > MAX_IMAGE_SIZE) { setStepError('Image must be under 5MB'); return }
+    setStepError('')
     setImageFile(file)
     const reader = new FileReader()
     reader.onload = ev => setImagePreview(ev.target?.result as string)
@@ -66,6 +74,7 @@ function NewCampaignPage() {
     setStepError('')
     if (n === 1) {
       if (!name.trim()) { setStepError('Campaign name is required.'); return false }
+      // Description is optional (matches server schema: z.string().default(''))
     }
     return true
   }
@@ -164,7 +173,7 @@ function NewCampaignPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
-                      Description <span className="text-red-400">*</span>
+                      Description <span className="text-slate-600 font-normal">(optional)</span>
                     </label>
                     <textarea
                       className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-slate-200 text-sm placeholder-slate-700 focus:outline-none focus:border-blue-500/50 focus:bg-white/[0.06] transition-all resize-y min-h-[110px]"
@@ -294,7 +303,7 @@ function NewCampaignPage() {
                   <div className="flex flex-wrap gap-2.5">
                     {[1,2,3,4,5,6,7,8,9,10].map(n => (
                       <button key={n} type="button" onClick={() => setMaxPlayers(n)}
-                        className={`w-13 h-13 rounded-xl border text-base font-bold transition-all ${
+                        className={`w-12 h-12 rounded-xl border text-base font-bold transition-all ${
                           maxPlayers === n
                             ? 'bg-blue-600/25 border-blue-500/70 text-blue-300 shadow-lg shadow-blue-500/20'
                             : 'bg-white/[0.04] border-white/10 text-slate-500 hover:border-blue-500/30 hover:text-slate-400'

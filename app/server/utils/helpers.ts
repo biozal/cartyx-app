@@ -10,6 +10,9 @@ export function generateInviteCode(): string {
 }
 
 export function providerConfigured(provider: string): boolean {
+  // All providers need BASE_URL for redirect_uri
+  if (!process.env.BASE_URL) return false
+
   switch (provider) {
     case 'google':
       return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET)

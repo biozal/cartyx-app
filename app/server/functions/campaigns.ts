@@ -28,7 +28,7 @@ export interface CampaignData {
   scheduleText: string
 }
 
-function buildScheduleText(schedule: {
+export function buildScheduleText(schedule: {
   frequency?: string | null
   dayOfWeek?: string | null
   time?: string | null
@@ -134,7 +134,7 @@ export const getCampaign = createServerFn({ method: 'GET' })
     return serialized
   })
 
-const campaignInputSchema = z.object({
+export const campaignInputSchema = z.object({
   name: z.string().min(1),
   description: z.string().default(''),
   schedFreq: z.string().optional(),

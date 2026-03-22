@@ -48,19 +48,26 @@ function CampaignSummaryPage() {
             <p className="text-sm text-slate-500 leading-relaxed mb-7">{campaign.description}</p>
           )}
 
-          {/* Invite code */}
-          <div className="text-center px-5 py-7 bg-blue-600/[0.06] border border-blue-500/15 rounded-2xl mb-6">
-            <div className="font-pixel text-[7px] text-blue-500 tracking-widest mb-4">INVITE CODE</div>
-            <div className="font-pixel text-[22px] text-white tracking-[6px] leading-relaxed mb-5">
-              {campaign.inviteCode || '—'}
+          {/* Invite code — only visible to campaign owner */}
+          {campaign.inviteCode ? (
+            <div className="text-center px-5 py-7 bg-blue-600/[0.06] border border-blue-500/15 rounded-2xl mb-6">
+              <div className="font-pixel text-[7px] text-blue-500 tracking-widest mb-4">INVITE CODE</div>
+              <div className="font-pixel text-[22px] text-white tracking-[6px] leading-relaxed mb-5">
+                {campaign.inviteCode}
+              </div>
+              <button
+                onClick={copyCode}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-blue-500/30 bg-blue-600/12 text-blue-400 text-sm font-semibold hover:bg-blue-600/20 hover:border-blue-500/50 transition-all"
+              >
+                📋 Copy Code
+              </button>
             </div>
-            <button
-              onClick={copyCode}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-blue-500/30 bg-blue-600/12 text-blue-400 text-sm font-semibold hover:bg-blue-600/20 hover:border-blue-500/50 transition-all"
-            >
-              📋 Copy Code
-            </button>
-          </div>
+          ) : (
+            <div className="text-center px-5 py-5 bg-white/[0.02] border border-white/[0.06] rounded-2xl mb-6">
+              <div className="font-pixel text-[7px] text-slate-600 tracking-widest mb-2">INVITE CODE</div>
+              <p className="text-xs text-slate-600">Only the campaign owner can view the invite code</p>
+            </div>
+          )}
 
           {/* Meta */}
           <div className="space-y-3 mb-7">

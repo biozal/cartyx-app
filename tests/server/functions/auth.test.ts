@@ -95,6 +95,10 @@ describe('OAuth URL builders', () => {
 })
 
 describe('providerConfigured', () => {
+  beforeEach(() => {
+    process.env.BASE_URL = 'https://example.com'
+  })
+
   it('returns false when env vars missing', async () => {
     delete process.env.GOOGLE_CLIENT_ID
     delete process.env.GOOGLE_CLIENT_SECRET
@@ -112,5 +116,13 @@ describe('providerConfigured', () => {
   it('returns false for unknown provider', async () => {
     const { providerConfigured } = await import('~/server/utils/helpers')
     expect(providerConfigured('facebook')).toBe(false)
+  })
+
+  it('returns false when BASE_URL is missing', async () => {
+    delete process.env.BASE_URL
+    process.env.GOOGLE_CLIENT_ID = 'test-id'
+    process.env.GOOGLE_CLIENT_SECRET = 'test-secret'
+    const { providerConfigured } = await import('~/server/utils/helpers')
+    expect(providerConfigured('google')).toBe(false)
   })
 })

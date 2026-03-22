@@ -51,9 +51,22 @@ function EditCampaignPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(campaign.imagePath)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const [imageError, setImageError] = useState('')
+  const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+  const MAX_IMAGE_SIZE = 5 * 1024 * 1024
+
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setImageError('Only PNG, JPEG, GIF, and WebP images are allowed')
+      return
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      setImageError('Image must be under 5MB')
+      return
+    }
+    setImageError('')
     setImageFile(file)
     const reader = new FileReader()
     reader.onload = ev => setImagePreview(ev.target?.result as string)
@@ -107,6 +120,11 @@ function EditCampaignPage() {
 
         <div className={sectionCls}>
           <div className={headingCls}>Banner Image</div>
+          {imageError && (
+            <div className="mb-3 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+              {imageError}
+            </div>
+          )}
           <div
             className="border-2 border-dashed border-white/10 rounded-xl p-7 text-center cursor-pointer hover:border-blue-500/40 hover:bg-blue-600/[0.04] transition-all relative overflow-hidden"
             onClick={() => fileRef.current?.click()}

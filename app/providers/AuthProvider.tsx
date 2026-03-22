@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { getMe } from '~/server/functions/auth'
 
 export interface AuthUser {
@@ -28,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
       const me = await getMe()
       setUser(me as AuthUser | null)
@@ -37,11 +37,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     refresh()
-  }, [])
+  }, [refresh])
 
   return (
     <AuthContext.Provider

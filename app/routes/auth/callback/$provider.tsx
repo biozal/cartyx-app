@@ -5,8 +5,10 @@ import { z } from 'zod'
 import { exchangeGoogleCode, exchangeGithubCode, exchangeAppleCode, upsertUser } from '~/server/utils/oauth'
 import { setSession } from '~/server/session'
 
+const VALID_PROVIDERS = ['google', 'github', 'apple'] as const
+
 const handleCallback = createServerFn({ method: 'GET' })
-  .inputValidator(z.object({ provider: z.enum(['google', 'github', 'apple']), code: z.string(), state: z.string() }))
+  .inputValidator(z.object({ provider: z.enum(VALID_PROVIDERS), code: z.string(), state: z.string() }))
   .handler(async ({ data }) => {
     const { provider, code, state } = data
 
@@ -52,7 +54,7 @@ export const Route = createFileRoute('/auth/callback/$provider')({
     if (search.error || !search.code || !search.state) {
       throw redirect({ to: '/', search: { reason: 'auth_failed' } })
     }
-    await handleCallback({ data: { provider: params.provider, code: search.code, state: search.state } })
+    await handleCallback({ data: { provider: params.provider as typeof VALID_PROVIDERS[number], code: search.code, state: search.state } })
   },
   component: () => null,
 })

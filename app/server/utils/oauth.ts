@@ -60,10 +60,10 @@ export async function exchangeAppleCode(code: string): Promise<OAuthProfile> {
 
   const { readFileSync } = await import('node:fs')
   const privateKey = readFileSync(APPLE_PRIVATE_KEY_PATH, 'utf8')
-  const { importPKCS8, jwtVerify, createRemoteJWKSet } = await import('jose')
+  const { importPKCS8, jwtVerify, createRemoteJWKSet, SignJWT } = await import('jose')
   const key = await importPKCS8(privateKey, 'ES256')
 
-  const clientSecret = await new (await import('jose')).SignJWT({})
+  const clientSecret = await new SignJWT({})
     .setProtectedHeader({ alg: 'ES256', kid: APPLE_KEY_ID })
     .setIssuer(APPLE_TEAM_ID)
     .setIssuedAt()
@@ -211,15 +211,17 @@ export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
     const stored = await User.findOneAndUpdate(
       { providerId: profile.id },
       {
-        provider: profile.provider,
-        providerId: profile.id,
-        ...(profile.email && { email: profile.email }),
-        ...(profile.name && {
-          firstName: nameParts[0] ?? '',
-          lastName: nameParts.slice(1).join(' ') ?? '',
-        }),
-        ...(profile.avatar && { avatarUrl: profile.avatar }),
-        lastLoginAt: new Date(),
+        $set: {
+          provider: profile.provider,
+          providerId: profile.id,
+          ...(profile.email && { email: profile.email }),
+          ...(profile.name && {
+            firstName: nameParts[0] ?? '',
+            lastName: nameParts.slice(1).join(' ') ?? '',
+          }),
+          ...(profile.avatar && { avatarUrl: profile.avatar }),
+          lastLoginAt: new Date(),
+        },
         $setOnInsert: { createdAt: new Date(), role: 'unknown' },
       },
       { upsert: true, returnDocument: 'after', new: true }
@@ -248,7 +250,7 @@ export async function revokeToken(user: SessionUser): Promise<void> {
         `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(user.accessToken)}`,
         { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
       )
-    } else if (user.provider === 'github' && process.env.GITHUB_CLIENT_ID) {
+    } else if (user.provider === 'github' && process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
       const creds = Buffer.from(
         `${process.env.GITHUB_CLIENT_ID}:${process.env.GITHUB_CLIENT_SECRET}`
       ).toString('base64')
