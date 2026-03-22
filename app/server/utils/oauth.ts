@@ -257,8 +257,7 @@ export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
       avatar: profile.avatar ?? stored?.avatarUrl ?? null,
       role: stored?.role ?? 'unknown',
     }
-  } catch (err) {
-    console.error('upsertUser error:', err)
+  } catch {
     return { ...profile, role: 'unknown' }
   }
 }
@@ -288,7 +287,7 @@ export async function revokeToken(user: SessionUser): Promise<void> {
         }
       )
     }
-  } catch (err) {
-    console.warn('Token revocation error (non-fatal):', err)
+  } catch {
+    // Token revocation failed — non-fatal, will expire naturally
   }
 }

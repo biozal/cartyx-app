@@ -17,7 +17,6 @@ const handleCallback = createServerFn({ method: 'GET' })
     deleteCookie('oauth_state', { path: '/' })
 
     if (!storedState || storedState !== state) {
-      console.error(`OAuth state mismatch for ${provider}`)
       throw redirect({ to: '/', search: { reason: 'auth_failed' } })
     }
 
@@ -39,7 +38,6 @@ const handleCallback = createServerFn({ method: 'GET' })
     } catch (e) {
       // Re-throw redirect responses (TanStack Router throws redirects as special objects)
       if (e instanceof Response || (e && typeof e === 'object' && ('to' in e || 'href' in e))) throw e
-      console.error(`OAuth callback error for ${provider}:`, e)
       throw redirect({ to: '/', search: { reason: 'auth_failed' } })
     }
   })

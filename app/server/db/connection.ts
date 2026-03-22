@@ -5,17 +5,9 @@ export async function connectDB(): Promise<void> {
   if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) return
 
   const uri = process.env.MONGODB_URI
-  if (!uri) {
-    console.warn('⚠️  MONGODB_URI not set — running without database')
-    return
-  }
+  if (!uri) return
 
-  try {
-    await mongoose.connect(uri)
-    console.warn('✅ MongoDB connected')
-  } catch (err) {
-    console.error('❌ MongoDB connection error:', err)
-  }
+  await mongoose.connect(uri)
 }
 
 export function isDBConnected(): boolean {
