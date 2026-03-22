@@ -2,6 +2,7 @@ import { createFileRoute, redirect, Link } from '@tanstack/react-router'
 import { getMe } from '~/server/functions/auth'
 import { getCampaign } from '~/server/functions/campaigns'
 import { Topbar } from '~/components/Topbar'
+import { PixelButton } from '~/components/PixelButton'
 import { Toast, showToast } from '~/components/Toast'
 
 export const Route = createFileRoute('/campaigns/$campaignId/summary')({
@@ -55,12 +56,14 @@ function CampaignSummaryPage() {
               <div className="font-pixel text-[22px] text-white tracking-[6px] leading-relaxed mb-5">
                 {campaign.inviteCode}
               </div>
-              <button
+              <PixelButton
+                variant="secondary"
+                size="md"
+                icon="📋"
                 onClick={copyCode}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-blue-500/30 bg-blue-600/12 text-blue-400 text-sm font-semibold hover:bg-blue-600/20 hover:border-blue-500/50 transition-all"
               >
-                📋 Copy Code
-              </button>
+                Copy Code
+              </PixelButton>
             </div>
           ) : (
             <div className="text-center px-5 py-5 bg-white/[0.02] border border-white/[0.06] rounded-2xl mb-6">
@@ -99,20 +102,26 @@ function CampaignSummaryPage() {
 
           {/* Actions */}
           <div className="flex gap-3 flex-wrap">
-            <Link
+            <PixelButton
+              as="link"
+              variant="primary"
+              size="md"
               to="/campaigns"
-              className="flex-1 min-w-[140px] flex items-center justify-center py-3.5 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white font-bold text-sm hover:-translate-y-px hover:shadow-lg hover:shadow-blue-600/30 transition-all"
+              className="flex-1 min-w-[140px]"
             >
               View All Campaigns
-            </Link>
+            </PixelButton>
             {campaign.isOwner && (
-              <Link
+              <PixelButton
+                as="link"
+                variant="secondary"
+                size="md"
                 to="/campaigns/$campaignId/edit"
                 params={{ campaignId: campaign.id }}
-                className="flex-1 min-w-[140px] flex items-center justify-center py-3.5 rounded-xl border border-white/10 text-slate-400 font-semibold text-sm hover:bg-white/[0.04] hover:text-slate-200 transition-all"
+                className="flex-1 min-w-[140px]"
               >
                 Edit Campaign
-              </Link>
+              </PixelButton>
             )}
           </div>
         </div>

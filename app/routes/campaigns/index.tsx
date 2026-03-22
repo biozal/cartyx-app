@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from 'react'
-import { createFileRoute, redirect, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { getMe } from '~/server/functions/auth'
 import { listCampaigns } from '~/server/functions/campaigns'
 import { Topbar } from '~/components/Topbar'
 import { Toast, showToast } from '~/components/Toast'
+import { PixelButton } from '~/components/PixelButton'
 import { useJoinCampaign } from '~/hooks/useCampaigns'
 import { formatNextSession } from '~/utils/date'
 import type { CampaignData } from '~/server/functions/campaigns'
@@ -96,29 +97,40 @@ function CampaignCard({ campaign }: { campaign: CampaignData }) {
         {/* Actions */}
         {campaign.isOwner && (
           <div className="flex gap-2 mb-2.5">
-            <button
+            <PixelButton
+              variant="secondary"
+              size="sm"
+              icon="📋"
               onClick={copyInviteCode}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-blue-500/20 bg-blue-600/8 text-blue-400 text-xs font-semibold hover:bg-blue-600/15 hover:border-blue-500/40 transition-all"
+              className="flex-1"
             >
-              📋 Copy Invite Code
-            </button>
-            <Link
+              Copy Code
+            </PixelButton>
+            <PixelButton
+              as="link"
+              variant="warning"
+              size="sm"
+              icon="✏️"
               to="/campaigns/$campaignId/edit"
               params={{ campaignId: campaign.id }}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-yellow-500/25 bg-yellow-500/8 text-yellow-400 text-xs font-semibold hover:bg-yellow-500/15 hover:border-yellow-500/40 transition-all"
+              className="flex-1"
             >
-              ✏️ Edit
-            </Link>
+              Edit Camp
+            </PixelButton>
           </div>
         )}
 
-        <Link
+        <PixelButton
+          as="link"
+          variant="primary"
+          size="md"
           to="/campaigns/$campaignId/summary"
           params={{ campaignId: campaign.id }}
-          className="mt-auto flex items-center justify-center py-3 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-bold hover:-translate-y-px hover:shadow-lg hover:shadow-blue-600/30 transition-all"
+          fullWidth
+          className="mt-auto"
         >
-          Enter Campaign
-        </Link>
+          Enter Camp
+        </PixelButton>
       </div>
     </div>
   )
@@ -149,20 +161,25 @@ function CampaignsListPage() {
           <h1 className="font-pixel text-[15px] text-white tracking-widest">MY CAMPAIGNS</h1>
           <div className="flex gap-3">
             {!isGm && (
-              <button
+              <PixelButton
+                variant="primary"
+                size="md"
+                icon="🗝️"
                 onClick={() => setShowJoinForm(true)}
-                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-semibold hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-600/30 transition-all"
               >
-                🗝️ Join Campaign
-              </button>
+                Join Campaign
+              </PixelButton>
             )}
             {isGm && (
-              <Link
+              <PixelButton
+                as="link"
+                variant="primary"
+                size="md"
+                icon="⚔️"
                 to="/campaigns/new"
-                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-semibold hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-600/30 transition-all"
               >
-                ⚔️ Create Campaign
-              </Link>
+                Create Campaign
+              </PixelButton>
             )}
           </div>
         </div>
@@ -186,19 +203,24 @@ function CampaignsListPage() {
                 : 'Ask your GM for an invite code to join a campaign.'}
             </p>
             {isGm ? (
-              <Link
+              <PixelButton
+                as="link"
+                variant="primary"
+                size="lg"
+                icon="⚔️"
                 to="/campaigns/new"
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-semibold hover:shadow-lg hover:shadow-blue-600/30 transition-all"
               >
-                ⚔️ Create Campaign
-              </Link>
+                Create Campaign
+              </PixelButton>
             ) : (
-              <button
+              <PixelButton
+                variant="primary"
+                size="lg"
+                icon="🗝️"
                 onClick={() => setShowJoinForm(true)}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-semibold hover:shadow-lg hover:shadow-blue-600/30 transition-all"
               >
-                🗝️ Join Campaign
-              </button>
+                Join Campaign
+              </PixelButton>
             )}
           </div>
         )}
@@ -229,21 +251,25 @@ function CampaignsListPage() {
               />
               {joinError && <p className="text-red-400 text-xs" role="alert">{joinError}</p>}
               <div className="flex gap-3">
-                <button
-                  type="button"
+                <PixelButton
+                  variant="secondary"
+                  size="md"
                   onClick={() => { setShowJoinForm(false); setJoinCode('') }}
-                  className="flex-1 py-3 rounded-xl border border-white/[0.1] text-slate-400 text-sm font-semibold hover:bg-white/[0.04] transition-all"
                   disabled={isJoining}
+                  className="flex-1"
+                  type="button"
                 >
                   Cancel
-                </button>
-                <button
+                </PixelButton>
+                <PixelButton
+                  variant="primary"
+                  size="md"
                   type="submit"
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-bold hover:-translate-y-px hover:shadow-lg hover:shadow-blue-600/30 transition-all disabled:opacity-50"
                   disabled={isJoining || !joinCode.trim()}
+                  className="flex-1"
                 >
                   {isJoining ? 'Joining...' : 'Join Campaign'}
-                </button>
+                </PixelButton>
               </div>
             </form>
           </div>
