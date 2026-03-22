@@ -26,6 +26,7 @@ export interface CampaignData {
   players: { current: number; max: number }
   nextSession: { day: string; time: string } | null
   isOwner: boolean
+  isMember: boolean
   scheduleText: string
 }
 
@@ -55,8 +56,12 @@ function serializeCampaign(c: {
   maxPlayers?: number
   schedule?: { frequency?: string | null; dayOfWeek?: string | null; time?: string | null; timezone?: string | null } | null
   gameMasterId?: unknown
-}, gmId?: string): CampaignData {
+  members?: Array<{ userId: unknown; role?: string }>
+}, gmId?: string, userId?: string): CampaignData {
   const schedule = c.schedule ?? null
+  const members = c.members ?? []
+  const playerCount = members.filter(m => m.role === 'player').length
+  const isMember = userId ? members.some(m => String(m.userId) === userId) : false
   return {
     id: String(c._id),
     name: c.name ?? 'Untitled Campaign',
@@ -73,12 +78,13 @@ function serializeCampaign(c: {
       time: schedule?.time ?? null,
       timezone: schedule?.timezone ?? null,
     },
-    players: { current: 0, max: c.maxPlayers ?? 4 },
+    players: { current: playerCount, max: c.maxPlayers ?? 4 },
     nextSession:
       schedule?.dayOfWeek
         ? { day: schedule.dayOfWeek, time: schedule.time ?? 'TBD' }
         : null,
     isOwner: !!gmId && String(c.gameMasterId) === gmId,
+    isMember,
     scheduleText: buildScheduleText(schedule),
   }
 }
@@ -92,13 +98,19 @@ export const listCampaigns = createServerFn({ method: 'GET' }).handler(async () 
     if (!isDBConnected()) return []
 
     const dbUser = await User.findOne({ providerId: user.id })
-    const raw = dbUser
-      ? await Campaign.find({ $or: [{ gameMasterId: dbUser._id }, { status: 'active' }] }).sort({ createdAt: -1 })
-      : await Campaign.find({ status: 'active' }).sort({ createdAt: -1 })
+    if (!dbUser) return []
 
-    const gmId = dbUser ? String(dbUser._id) : undefined
+    // Include legacy campaigns (pre-members migration) where user is the GM
+    const raw = await Campaign.find({
+      $or: [
+        { 'members.userId': dbUser._id },
+        { gameMasterId: dbUser._id, members: { $in: [null, []] } },
+      ],
+    }).sort({ createdAt: -1 })
+
+    const userId = String(dbUser._id)
     return raw.map(c => {
-      const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], gmId)
+      const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], userId, userId)
       // Redact invite code for non-owners
       if (!serialized.isOwner) {
         return { ...serialized, inviteCode: '' }
@@ -125,13 +137,18 @@ export const getCampaign = createServerFn({ method: 'GET' })
       const c = await Campaign.findById(data.id)
       if (!c) return null
 
-      const gmId = dbUser ? String(dbUser._id) : undefined
-      const isOwner = !!gmId && c.gameMasterId != null && String(c.gameMasterId) === gmId
+      const userId = dbUser ? String(dbUser._id) : undefined
 
-      // Non-owners can only see active campaigns
-      if (!isOwner && c.status !== 'active') return null
+      // Only members can see campaigns; treat gameMasterId as implicit member for legacy campaigns
+      const members = c.members ?? []
+      const isMember = userId
+        ? members.some((m: { userId: unknown }) => String(m.userId) === userId) ||
+          (members.length === 0 && c.gameMasterId != null && String(c.gameMasterId) === userId)
+        : false
+      if (!isMember) return null
 
-      const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], gmId)
+      const isOwner = !!userId && c.gameMasterId != null && String(c.gameMasterId) === userId
+      const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], userId, userId)
 
       // Redact invite code for non-owners
       if (!isOwner) {
@@ -238,6 +255,7 @@ export const createCampaign = createServerFn({ method: 'POST' })
             dndBeyondUrl: normalizedDndUrl,
             maxPlayers: parseMaxPlayers(maxPlayers),
             inviteCode,
+            members: [{ userId: dbUser._id, role: 'gm', joinedAt: new Date() }],
           })
         } catch (e: unknown) {
           if ((e as { code?: number })?.code === 11000) { campaign = null; continue }
@@ -246,6 +264,12 @@ export const createCampaign = createServerFn({ method: 'POST' })
       }
 
       if (!campaign) throw new Error('Could not generate unique invite code')
+
+      // Sync User.campaigns array
+      await User.updateOne(
+        { _id: dbUser._id },
+        { $push: { campaigns: { campaignId: campaign._id, joinedAt: new Date(), status: 'active' } } }
+      )
 
       return {
         success: true,
@@ -310,6 +334,83 @@ export const updateCampaign = createServerFn({ method: 'POST' })
       return { success: true, campaignId: String(campaign._id) }
     } catch (e) {
       serverCaptureException(e, user?.id, { action: 'updateCampaign', campaignId: data.id })
+      throw e
+    }
+  })
+
+export const joinCampaign = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ inviteCode: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    const user = await getSession()
+    try {
+      if (!user) throw new Error('Not authenticated')
+
+      await connectDB()
+      if (!isDBConnected()) throw new Error('Database not available')
+
+      const dbUser = await User.findOne({ providerId: user.id })
+      if (!dbUser) throw new Error('User not found')
+
+      const normalizedInviteCode = data.inviteCode.trim().toUpperCase()
+      const campaign = await Campaign.findOne({ inviteCode: normalizedInviteCode })
+      if (!campaign) throw new Error('Invalid invite code')
+      if (campaign.status !== 'active') throw new Error('Campaign is not active')
+
+      const alreadyMember = (campaign.members ?? []).some(
+        (m: { userId: unknown }) => String(m.userId) === String(dbUser._id)
+      )
+      if (alreadyMember) throw new Error('Already a member of this campaign')
+
+      const now = new Date()
+
+      const updatedCampaign = await Campaign.findOneAndUpdate(
+        {
+          _id: campaign._id,
+          status: 'active',
+          'members.userId': { $ne: dbUser._id },
+          $expr: {
+            $lt: [
+              {
+                $size: {
+                  $filter: {
+                    input: { $ifNull: ['$members', []] },
+                    as: 'm',
+                    cond: { $eq: ['$$m.role', 'player'] },
+                  },
+                },
+              },
+              '$maxPlayers',
+            ],
+          },
+        },
+        {
+          $addToSet: { members: { userId: dbUser._id, role: 'player' } },
+          $set: { 'members.$[elem].joinedAt': now },
+        },
+        {
+          new: true,
+          arrayFilters: [{ 'elem.userId': dbUser._id }],
+        }
+      )
+
+      if (!updatedCampaign) {
+        throw new Error('Campaign is full')
+      }
+
+      await User.updateOne(
+        { _id: dbUser._id },
+        {
+          $addToSet: { campaigns: { campaignId: updatedCampaign._id, status: 'active' } },
+          $set: { 'campaigns.$[elem].joinedAt': now },
+        },
+        {
+          arrayFilters: [{ 'elem.campaignId': updatedCampaign._id }],
+        }
+      )
+
+      return { success: true, campaignId: String(updatedCampaign._id) }
+    } catch (e) {
+      serverCaptureException(e, user?.id, { action: 'joinCampaign' })
       throw e
     }
   })

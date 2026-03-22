@@ -4,6 +4,7 @@ import {
   getCampaign,
   createCampaign,
   updateCampaign,
+  joinCampaign,
   type CampaignData,
 } from '~/server/functions/campaigns'
 import { captureException } from '~/providers/PostHogProvider'
@@ -161,4 +162,27 @@ export function useUpdateCampaign() {
   }
 
   return { update, isLoading, error }
+}
+
+export function useJoinCampaign() {
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const join = async (inviteCode: string) => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const result = await joinCampaign({ data: { inviteCode } })
+      return result
+    } catch (e) {
+      captureException(e, { action: 'joinCampaign' })
+      const msg = e instanceof Error ? e.message : 'Failed to join campaign'
+      setError(msg)
+      return null
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return { join, isLoading, error }
 }
