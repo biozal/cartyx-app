@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { getCookie, setCookie, deleteCookie } from '@tanstack/react-start/server'
+import { serverCaptureException } from './utils/posthog'
 
 export interface SessionUser {
   id: string
@@ -32,7 +33,8 @@ export async function getSession(): Promise<SessionUser | null> {
       algorithms: ['HS256'],
     })
     return (payload as { user: SessionUser }).user ?? null
-  } catch {
+  } catch (e) {
+    serverCaptureException(e, undefined, { action: 'getSession', step: 'jwtVerify' })
     return null
   }
 }
