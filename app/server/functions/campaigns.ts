@@ -343,7 +343,8 @@ export const joinCampaign = createServerFn({ method: 'POST' })
       const dbUser = await User.findOne({ providerId: user.id })
       if (!dbUser) throw new Error('User not found')
 
-      const campaign = await Campaign.findOne({ inviteCode: data.inviteCode })
+      const normalizedInviteCode = data.inviteCode.trim().toUpperCase()
+      const campaign = await Campaign.findOne({ inviteCode: normalizedInviteCode })
       if (!campaign) throw new Error('Invalid invite code')
       if (campaign.status !== 'active') throw new Error('Campaign is not active')
 
