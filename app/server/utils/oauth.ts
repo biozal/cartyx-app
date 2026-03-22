@@ -134,12 +134,18 @@ export async function exchangeGoogleCode(code: string): Promise<OAuthProfile> {
       grant_type: 'authorization_code',
     }),
   })
+  if (!tokenRes.ok) {
+    const body = await tokenRes.text()
+    throw new Error(`Google token exchange failed (HTTP ${tokenRes.status}): ${body}`)
+  }
   const tokens = (await tokenRes.json()) as {
-    access_token: string
+    access_token?: string
     refresh_token?: string
     error?: string
   }
-  if (tokens.error) throw new Error(`Google token exchange failed: ${tokens.error}`)
+  if (tokens.error || !tokens.access_token) {
+    throw new Error(`Google token exchange failed: ${tokens.error ?? 'no access_token returned'}`)
+  }
 
   const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
@@ -174,8 +180,14 @@ export async function exchangeGithubCode(code: string): Promise<OAuthProfile> {
       redirect_uri: `${requireBaseUrl()}/auth/callback/github`,
     }),
   })
-  const tokens = (await tokenRes.json()) as { access_token: string; error?: string }
-  if (tokens.error) throw new Error(`GitHub token exchange failed: ${tokens.error}`)
+  if (!tokenRes.ok) {
+    const body = await tokenRes.text()
+    throw new Error(`GitHub token exchange failed (HTTP ${tokenRes.status}): ${body}`)
+  }
+  const tokens = (await tokenRes.json()) as { access_token?: string; error?: string }
+  if (tokens.error || !tokens.access_token) {
+    throw new Error(`GitHub token exchange failed: ${tokens.error ?? 'no access_token returned'}`)
+  }
 
   const profileRes = await fetch('https://api.github.com/user', {
     headers: {
@@ -241,8 +253,7 @@ export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
       email: profile.email ?? stored?.email ?? null,
       name:
         profile.name ??
-        `${stored?.firstName ?? ''} ${stored?.lastName ?? ''}`.trim() ??
-        null,
+        (`${stored?.firstName ?? ''} ${stored?.lastName ?? ''}`.trim() || null),
       avatar: profile.avatar ?? stored?.avatarUrl ?? null,
       role: stored?.role ?? 'unknown',
     }

@@ -69,9 +69,12 @@ jobs:
             --exclude 'public/uploads' \
             ./ "$DEPLOY_DIR/"
 
-          # Install production dependencies in deploy directory
+          # Install dependencies and build in deploy directory
           cd "$DEPLOY_DIR"
-          npm ci --omit=dev
+          npm ci
+          npm run build
+          # Remove dev dependencies after build to save disk
+          npm prune --omit=dev
 
           # Ensure uploads directory exists
           mkdir -p public/uploads/campaigns
@@ -130,7 +133,7 @@ jobs:
           if pm2 describe cartyx-app > /dev/null 2>&1; then
             pm2 restart cartyx-app --update-env
           else
-            pm2 start server.js --name cartyx-app
+            pm2 start dist/server/server.js --name cartyx-app
             pm2 save
           fi
 

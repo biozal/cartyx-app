@@ -134,7 +134,7 @@ export const getCampaign = createServerFn({ method: 'GET' })
     return serialized
   })
 
-export const campaignInputSchema = z.object({
+const campaignInputShape = {
   name: z.string().min(1),
   description: z.string().default(''),
   schedFreq: z.string().optional(),
@@ -151,16 +151,24 @@ export const campaignInputSchema = z.object({
     .optional(),
   imageMime: z.string().optional(),
   imageName: z.string().optional(),
-}).refine(
-  (data) =>
+} as const
+
+function imageFieldsRefinement<T extends { imageData?: string; imageMime?: string; imageName?: string }>(data: T): boolean {
+  return (
     (!data.imageData && !data.imageMime && !data.imageName) ||
     (data.imageData !== undefined &&
       data.imageMime !== undefined &&
-      data.imageName !== undefined),
-  {
-    message: 'imageData, imageMime, and imageName must either all be provided or all be omitted',
-    path: ['imageData'],
-  },
+      data.imageName !== undefined)
+  )
+}
+const imageFieldsMessage = {
+  message: 'imageData, imageMime, and imageName must either all be provided or all be omitted',
+  path: ['imageData'] as [string],
+}
+
+export const campaignInputSchema = z.object(campaignInputShape).refine(
+  imageFieldsRefinement,
+  imageFieldsMessage,
 )
 
 export const createCampaign = createServerFn({ method: 'POST' })
@@ -235,7 +243,7 @@ export const createCampaign = createServerFn({ method: 'POST' })
   })
 
 export const updateCampaign = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ id: z.string(), ...campaignInputSchema.shape }))
+  .inputValidator(z.object({ id: z.string(), ...campaignInputShape }).refine(imageFieldsRefinement, imageFieldsMessage))
   .handler(async ({ data }) => {
     const user = await getSession()
     if (!user) throw new Error('Not authenticated')

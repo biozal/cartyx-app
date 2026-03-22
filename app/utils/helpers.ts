@@ -5,6 +5,7 @@ export function escapeHtml(str: string | null | undefined): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 export function formatInviteCode(raw: string): string {

@@ -28,7 +28,9 @@ export async function getSession(): Promise<SessionUser | null> {
   try {
     const token = getCookie(COOKIE_NAME)
     if (!token) return null
-    const { payload } = await jwtVerify(token, getSecret())
+    const { payload } = await jwtVerify(token, getSecret(), {
+      algorithms: ['HS256'],
+    })
     return (payload as { user: SessionUser }).user ?? null
   } catch {
     return null
