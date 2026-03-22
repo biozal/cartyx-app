@@ -12,7 +12,7 @@ export async function connectDB(): Promise<void> {
 
   try {
     await mongoose.connect(uri)
-    console.warn('✅ MongoDB connected')
+    console.info('✅ MongoDB connected')
   } catch (err) {
     console.error('❌ MongoDB connection error:', err)
   }
