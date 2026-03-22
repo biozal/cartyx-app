@@ -104,6 +104,8 @@ export const listCampaigns = createServerFn({ method: 'GET' }).handler(async () 
       $or: [
         { 'members.userId': dbUser._id },
         { gameMasterId: dbUser._id, members: { $in: [null, []] } },
+        // Ensure the GM always sees their campaigns, even if members is non-empty and missing the GM
+        { gameMasterId: dbUser._id },
       ],
     }).sort({ createdAt: -1 })
 
