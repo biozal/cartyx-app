@@ -52,6 +52,7 @@ export default [
       'app/routeTree.gen.ts',
       'src/**',
       'server.cjs',
+      'prod-server.js',
       'jest.config.cjs',
       'scripts/**',
       'tests/unit/**',
