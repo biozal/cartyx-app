@@ -66,7 +66,6 @@ function NewCampaignPage() {
     setStepError('')
     if (n === 1) {
       if (!name.trim()) { setStepError('Campaign name is required.'); return false }
-      if (!desc.trim()) { setStepError('Description is required.'); return false }
     }
     return true
   }
