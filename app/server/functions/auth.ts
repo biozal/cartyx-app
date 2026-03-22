@@ -4,7 +4,7 @@ import { getSession, clearSession } from '../session'
 import { revokeToken } from '../utils/oauth'
 import { connectDB, isDBConnected } from '../db/connection'
 import { User } from '../db/models/User'
-import { serverCaptureException } from '../utils/posthog'
+import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
 
 /** Strip sensitive fields (tokens) before sending session data to the client */
 function toClientUser(user: { id: string; provider: string; name: string | null; email: string | null; avatar: string | null; role: string }) {
@@ -39,7 +39,10 @@ export const getMe = createServerFn({ method: 'GET' }).handler(async () => {
 export const logoutFn = createServerFn({ method: 'POST' }).handler(async () => {
   try {
     const user = await getSession()
-    if (user) await revokeToken(user)
+    if (user) {
+      await serverCaptureEvent(user.id, 'user_logged_out', { provider: user.provider })
+      await revokeToken(user)
+    }
     await clearSession()
     throw redirect({ to: '/' })
   } catch (e) {

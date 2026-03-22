@@ -81,7 +81,7 @@ vi.mock('~/server/db/models/User', () => ({
 vi.mock('~/server/db/models/Campaign', () => ({
   Campaign: { find: vi.fn(), findById: vi.fn(), findOne: vi.fn(), findOneAndUpdate: vi.fn(), create: vi.fn(), exists: vi.fn() },
 }))
-vi.mock('~/server/utils/posthog', () => ({ serverCaptureException: vi.fn() }))
+vi.mock('~/server/utils/posthog', () => ({ serverCaptureException: vi.fn(), serverCaptureEvent: vi.fn() }))
 
 import { getSession } from '~/server/session'
 import { User } from '~/server/db/models/User'

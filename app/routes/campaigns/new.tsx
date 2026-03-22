@@ -5,6 +5,7 @@ import { getMe } from '~/server/functions/auth'
 import { useCreateCampaign } from '~/hooks/useCampaigns'
 import { Topbar } from '~/components/Topbar'
 import { PixelButton } from '~/components/PixelButton'
+import { captureEvent } from '~/utils/posthog-client'
 
 export const Route = createFileRoute('/campaigns/new')({
   beforeLoad: async () => {
@@ -70,10 +71,12 @@ function NewCampaignPage() {
   function goTo(n: number) {
     if (n > step && !validateStep(step)) return
     setStepError('')
+    captureEvent('campaign_wizard_step_changed', { from_step: step, to_step: n })
     setStep(n)
   }
 
   async function handleSubmit() {
+    captureEvent('campaign_wizard_completed', { campaign_name: name })
     const result = await create({
       name, description: desc,
       schedFreq, schedDay, schedTime, schedTz,

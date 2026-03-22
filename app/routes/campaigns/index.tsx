@@ -8,6 +8,7 @@ import { PixelButton } from '~/components/PixelButton'
 import { useJoinCampaign } from '~/hooks/useCampaigns'
 import { formatNextSession } from '~/utils/date'
 import type { CampaignData } from '~/server/functions/campaigns'
+import { captureEvent } from '~/utils/posthog-client'
 
 export const Route = createFileRoute('/campaigns/')({
   beforeLoad: async () => {
@@ -28,6 +29,7 @@ function CampaignCard({ campaign }: { campaign: CampaignData }) {
 
   function copyInviteCode() {
     const code = campaign.inviteCode
+    captureEvent('invite_code_copied', { campaign_id: campaign.id })
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(code).then(() => showToast(`✓ Invite code copied: ${code}`))
     } else {

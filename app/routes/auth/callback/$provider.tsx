@@ -4,7 +4,7 @@ import { getCookie, deleteCookie } from '@tanstack/react-start/server'
 import { z } from 'zod'
 import { exchangeGoogleCode, exchangeGithubCode, exchangeAppleCode, upsertUser } from '~/server/utils/oauth'
 import { setSession } from '~/server/session'
-import { serverCaptureException } from '~/server/utils/posthog'
+import { serverCaptureException, serverCaptureEvent } from '~/server/utils/posthog'
 
 const VALID_PROVIDERS = ['google', 'github', 'apple'] as const
 
@@ -35,6 +35,7 @@ const handleCallback = createServerFn({ method: 'GET' })
 
       const user = await upsertUser(profile)
       await setSession(user)
+      await serverCaptureEvent(user.id, 'user_logged_in', { provider })
       throw redirect({ to: '/campaigns' })
     } catch (e) {
       // Re-throw redirect responses (TanStack Router throws redirects as special objects)
