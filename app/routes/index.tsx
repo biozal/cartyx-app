@@ -131,6 +131,11 @@ function LandingPage() {
             Your session has expired. Please sign in again.
           </div>
         )}
+        {reason === 'provider_not_configured' && (
+          <div className="w-full mb-4 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm text-center">
+            The selected sign-in provider is not configured. Please try another sign-in option or contact support.
+          </div>
+        )}
 
         {!isLoading && isAuthenticated && user ? (
           /* Logged-in state */
