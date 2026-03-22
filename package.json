@@ -3,10 +3,13 @@
   "version": "0.2.0",
   "description": "Cartyx — D&D Campaign Management Platform",
   "type": "module",
+  "engines": {
+    "node": "^20.20.0 || >=22.22.0"
+  },
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "start": "node dist/server/server.js",
+    "start": "node prod-server.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -17,11 +20,14 @@
     "test:ci": "vitest run --coverage --reporter=verbose"
   },
   "dependencies": {
+    "@posthog/react": "^1.8.2",
     "@tanstack/react-router": "^1.167.2",
     "@tanstack/react-start": "^1.167.2",
+    "dayjs": "^1.11.20",
     "jose": "^5.10.0",
     "mongoose": "^9.3.1",
     "posthog-js": "^1.244.1",
+    "posthog-node": "^5.28.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "vite": "^7.3.1",

@@ -20,7 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -47,7 +47,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Deploy to application directory
         run: |
@@ -133,7 +133,7 @@ jobs:
           if pm2 describe cartyx-app > /dev/null 2>&1; then
             pm2 restart cartyx-app --update-env
           else
-            pm2 start dist/server/server.js --name cartyx-app
+            pm2 start prod-server.js --name cartyx-app
             pm2 save
           fi
 

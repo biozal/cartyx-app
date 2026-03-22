@@ -1,7 +1,10 @@
 import React from 'react'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { generateInviteCode, parseMaxPlayers } from '~/server/utils/helpers'
 import { buildScheduleText, campaignInputSchema } from '~/server/functions/campaigns'
+
+// Freeze time to a known DST date so timezone abbreviation tests are deterministic
+const FROZEN_DATE = new Date('2026-06-15T12:00:00-05:00')
 
 // Mock all external deps
 vi.mock('@tanstack/react-router', () => ({
@@ -38,10 +41,19 @@ describe('Campaign list helpers (production code)', () => {
     expect(code.replace('-', '')).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/)
   })
 
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(FROZEN_DATE)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('builds schedule text from parts via production buildScheduleText', () => {
     expect(buildScheduleText({
       frequency: 'weekly', dayOfWeek: 'Sat', time: '19:00', timezone: 'America/Chicago',
-    })).toBe('weekly · Sat · 19:00 · America/Chicago')
+    })).toBe('weekly · Sat · at 7:00 PM · CDT')
 
     expect(buildScheduleText(null)).toBe('Not scheduled')
 
@@ -51,7 +63,7 @@ describe('Campaign list helpers (production code)', () => {
 
     expect(buildScheduleText({
       frequency: 'monthly', dayOfWeek: null, time: '20:00', timezone: null,
-    })).toBe('monthly · 20:00')
+    })).toBe('monthly · at 8:00 PM')
   })
 })
 

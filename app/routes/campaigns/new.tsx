@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { getMe } from '~/server/functions/auth'
 import { useCreateCampaign } from '~/hooks/useCampaigns'
 import { Topbar } from '~/components/Topbar'
+import { PixelButton } from '~/components/PixelButton'
 
 export const Route = createFileRoute('/campaigns/new')({
   beforeLoad: async () => {
@@ -336,32 +337,36 @@ function NewCampaignPage() {
 
           {/* Footer nav */}
           <div className="flex items-center justify-between px-8 py-5 border-t border-white/[0.06]">
-            <button
-              type="button"
+            <PixelButton
+              variant="secondary"
+              size="sm"
               onClick={() => goTo(step - 1)}
               style={{ visibility: step === 1 ? 'hidden' : 'visible' }}
-              className="px-5 py-2.5 rounded-xl border border-white/10 text-slate-500 text-sm font-semibold hover:border-white/20 hover:text-slate-400 transition-all bg-transparent"
+              type="button"
             >
               ← Back
-            </button>
+            </PixelButton>
             <span className="font-pixel text-[9px] text-slate-700">{step} / {STEPS.length}</span>
             {step < STEPS.length ? (
-              <button
-                type="button"
+              <PixelButton
+                variant="primary"
+                size="sm"
                 onClick={() => goTo(step + 1)}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-semibold hover:-translate-y-px hover:shadow-lg hover:shadow-blue-600/30 transition-all border-none"
+                type="button"
               >
                 Continue →
-              </button>
+              </PixelButton>
             ) : (
-              <button
-                type="button"
+              <PixelButton
+                variant="primary"
+                size="sm"
+                icon="⚔"
                 onClick={handleSubmit}
                 disabled={isLoading}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-semibold hover:-translate-y-px hover:shadow-lg hover:shadow-blue-600/30 transition-all border-none disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+                type="button"
               >
-                {isLoading ? 'Creating...' : '⚔ Create Campaign'}
-              </button>
+                {isLoading ? 'Creating...' : 'Create Campaign'}
+              </PixelButton>
             )}
           </div>
         </div>

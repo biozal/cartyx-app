@@ -2,6 +2,7 @@ import { connectDB, isDBConnected } from '../db/connection'
 import { User } from '../db/models/User'
 import type { SessionUser } from '../session'
 import { providerConfigured } from './helpers'
+import { serverCaptureException } from './posthog'
 
 export { providerConfigured }
 
@@ -65,7 +66,9 @@ export async function exchangeAppleCode(code: string): Promise<OAuthProfile> {
     process.env
   const appleBaseUrl = requireBaseUrl()
   if (!APPLE_CLIENT_ID || !APPLE_TEAM_ID || !APPLE_KEY_ID || !APPLE_PRIVATE_KEY_PATH) {
-    throw new Error('Apple OAuth not configured')
+    const err = new Error('Apple OAuth not configured')
+    serverCaptureException(err, undefined, { provider: 'apple', action: 'exchangeCode' })
+    throw err
   }
 
   const { readFileSync } = await import('node:fs')
@@ -96,7 +99,9 @@ export async function exchangeAppleCode(code: string): Promise<OAuthProfile> {
 
   if (!tokenRes.ok) {
     const body = await tokenRes.text().catch(() => 'unknown error')
-    throw new Error(`Apple token exchange failed (HTTP ${tokenRes.status}): ${body}`)
+    const err = new Error(`Apple token exchange failed (HTTP ${tokenRes.status}): ${body}`)
+    serverCaptureException(err, undefined, { provider: 'apple', action: 'tokenExchange', status: tokenRes.status })
+    throw err
   }
   const tokens = (await tokenRes.json()) as {
     id_token?: string
@@ -105,7 +110,9 @@ export async function exchangeAppleCode(code: string): Promise<OAuthProfile> {
     error?: string
   }
   if (tokens.error || !tokens.id_token) {
-    throw new Error(`Apple token exchange failed: ${tokens.error ?? 'no id_token returned'}`)
+    const err = new Error(`Apple token exchange failed: ${tokens.error ?? 'no id_token returned'}`)
+    serverCaptureException(err, undefined, { provider: 'apple', action: 'tokenParse', tokenError: tokens.error })
+    throw err
   }
 
   const JWKS = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'))
@@ -140,7 +147,9 @@ export async function exchangeGoogleCode(code: string): Promise<OAuthProfile> {
   })
   if (!tokenRes.ok) {
     const body = await tokenRes.text()
-    throw new Error(`Google token exchange failed (HTTP ${tokenRes.status}): ${body}`)
+    const err = new Error(`Google token exchange failed (HTTP ${tokenRes.status}): ${body}`)
+    serverCaptureException(err, undefined, { provider: 'google', action: 'tokenExchange', status: tokenRes.status })
+    throw err
   }
   const tokens = (await tokenRes.json()) as {
     access_token?: string
@@ -148,14 +157,18 @@ export async function exchangeGoogleCode(code: string): Promise<OAuthProfile> {
     error?: string
   }
   if (tokens.error || !tokens.access_token) {
-    throw new Error(`Google token exchange failed: ${tokens.error ?? 'no access_token returned'}`)
+    const err = new Error(`Google token exchange failed: ${tokens.error ?? 'no access_token returned'}`)
+    serverCaptureException(err, undefined, { provider: 'google', action: 'tokenParse', tokenError: tokens.error })
+    throw err
   }
 
   const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
   })
   if (!profileRes.ok) {
-    throw new Error(`Google profile fetch failed (HTTP ${profileRes.status})`)
+    const err = new Error(`Google profile fetch failed (HTTP ${profileRes.status})`)
+    serverCaptureException(err, undefined, { provider: 'google', action: 'profileFetch', status: profileRes.status })
+    throw err
   }
   const profile = (await profileRes.json()) as {
     id?: string
@@ -164,7 +177,9 @@ export async function exchangeGoogleCode(code: string): Promise<OAuthProfile> {
     picture?: string
   }
   if (!profile.id) {
-    throw new Error('Google profile missing required id field')
+    const err = new Error('Google profile missing required id field')
+    serverCaptureException(err, undefined, { provider: 'google', action: 'profileParse' })
+    throw err
   }
 
   return {
@@ -192,11 +207,15 @@ export async function exchangeGithubCode(code: string): Promise<OAuthProfile> {
   })
   if (!tokenRes.ok) {
     const body = await tokenRes.text()
-    throw new Error(`GitHub token exchange failed (HTTP ${tokenRes.status}): ${body}`)
+    const err = new Error(`GitHub token exchange failed (HTTP ${tokenRes.status}): ${body}`)
+    serverCaptureException(err, undefined, { provider: 'github', action: 'tokenExchange', status: tokenRes.status })
+    throw err
   }
   const tokens = (await tokenRes.json()) as { access_token?: string; error?: string }
   if (tokens.error || !tokens.access_token) {
-    throw new Error(`GitHub token exchange failed: ${tokens.error ?? 'no access_token returned'}`)
+    const err = new Error(`GitHub token exchange failed: ${tokens.error ?? 'no access_token returned'}`)
+    serverCaptureException(err, undefined, { provider: 'github', action: 'tokenParse', tokenError: tokens.error })
+    throw err
   }
 
   const profileRes = await fetch('https://api.github.com/user', {
@@ -206,7 +225,9 @@ export async function exchangeGithubCode(code: string): Promise<OAuthProfile> {
     },
   })
   if (!profileRes.ok) {
-    throw new Error(`GitHub profile fetch failed (HTTP ${profileRes.status})`)
+    const err = new Error(`GitHub profile fetch failed (HTTP ${profileRes.status})`)
+    serverCaptureException(err, undefined, { provider: 'github', action: 'profileFetch', status: profileRes.status })
+    throw err
   }
   const profile = (await profileRes.json()) as {
     id?: number
@@ -215,7 +236,9 @@ export async function exchangeGithubCode(code: string): Promise<OAuthProfile> {
     avatar_url?: string
   }
   if (!profile.id) {
-    throw new Error('GitHub profile missing required id field')
+    const err = new Error('GitHub profile missing required id field')
+    serverCaptureException(err, undefined, { provider: 'github', action: 'profileParse' })
+    throw err
   }
 
   // Fetch emails if not returned in main profile

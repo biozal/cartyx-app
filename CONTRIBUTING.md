@@ -7,12 +7,20 @@ git clone https://github.com/Cartyx/cartyx-app
 cd cartyx-app
 npm install
 cp .env.example .env   # fill in your credentials
-node server.js
+npm run dev            # http://localhost:3000
 ```
 
 ## Code Quality Standards
 
-This project enforces consistent style via ESLint and Prettier.
+This project enforces consistent style via TypeScript, ESLint, and Prettier.
+
+### Type Checking
+
+```bash
+npm run typecheck      # TypeScript strict mode
+```
+
+All code is TypeScript. Server functions, components, and utilities must be fully typed.
 
 ### Linting
 
@@ -22,9 +30,8 @@ npm run lint:fix    # auto-fix issues
 ```
 
 Rules (see `eslint.config.js`):
-- `'use strict'` at the top of every JS file
-- `const`/`let` only — no `var`
-- `===` always — no `==`
+- React hooks rules enforced
+- TypeScript-specific rules via `@typescript-eslint`
 - Unused variables are warnings (prefix with `_` to suppress)
 
 ### Formatting
@@ -38,43 +45,41 @@ Key settings (see `.prettierrc`): single quotes, 2-space indent, trailing commas
 ## Testing
 
 ```bash
-npm test                # run all tests
+npm test                # run all tests (Vitest)
 npm run test:watch      # watch mode for TDD
 npm run test:coverage   # generate coverage report
-npm run test:ci         # used in CI (--ci flag, exits non-zero on failure)
+npm run test:ci         # used in CI (verbose + coverage)
 ```
 
 Tests live in `tests/`:
 
 ```
 tests/
-  unit/
-    models/      # Mongoose schema validation (no DB required)
-    utils/       # Pure utility function tests
-  integration/   # HTTP-level tests via supertest (no real DB required)
+  setup.ts               # Vitest global setup
+  components/            # React component tests (Testing Library)
+  routes/                # Route-level tests (schemas, server fns)
+  server/
+    functions/           # Server function tests
+    utils/               # Server utility tests
+  utils/                 # Client utility tests
 ```
 
-**Rule:** unit tests must not require a live MongoDB connection. Use `new Model(data).validateSync()` for schema tests.
+**Rule:** Unit tests must not require a live MongoDB connection. Mock database calls where needed.
 
 ## Project Structure
 
-```
-src/
-  app.js            # Express app factory
-  server.js         # Entry point (connects DB, starts server)
-  config/           # Config loader and Passport strategies
-  controllers/      # Route handlers (auth, campaigns)
-  middleware/       # Auth guards, file upload
-  models/           # Mongoose schemas
-  routes/           # Express routers
-  utils/            # Pure helpers
-  views/            # EJS templates
-    campaigns/      # Campaign-specific pages
-    partials/       # Shared fragments (head, topbar)
-```
+See [README.md](README.md#project-structure) for the full directory layout.
+
+### Key Patterns
+
+- **Server Functions:** Use `createServerFn` from TanStack Start for type-safe RPC between client and server
+- **File-Based Routing:** Routes live in `app/routes/` and are auto-generated into `app/routeTree.gen.ts`
+- **Auth:** JWT sessions via JOSE (no Passport.js). OAuth flows are custom-implemented in `app/server/utils/oauth.ts`
+- **Date Formatting:** Use `app/utils/date.ts` (Day.js) for all date/time display. Never use raw `Date` on the client side.
 
 ## Pull Request Checklist
 
+- [ ] `npm run typecheck` passes
 - [ ] `npm run lint` passes with no errors
 - [ ] `npm test` passes
 - [ ] New features include tests
@@ -92,4 +97,15 @@ chore: update dependencies
 docs: improve README setup guide
 test: add Campaign schema validation tests
 refactor: extract campaign helpers
+```
+
+## Branch Naming
+
+Use prefixes that match the work type:
+
+```
+feature/issue-10-dayjs
+fix/session-expiry-bug
+chore/update-deps
+docs/readme-update
 ```

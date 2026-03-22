@@ -5,6 +5,7 @@ import { getMe } from '~/server/functions/auth'
 import { getCampaign } from '~/server/functions/campaigns'
 import { useUpdateCampaign } from '~/hooks/useCampaigns'
 import { Topbar } from '~/components/Topbar'
+import { PixelButton } from '~/components/PixelButton'
 import { TIMEZONES } from '~/constants/timezones'
 
 export const Route = createFileRoute('/campaigns/$campaignId/edit')({
@@ -191,14 +192,16 @@ function EditCampaignPage() {
           </div>
         </div>
 
-        <button
-          type="button"
+        <PixelButton
+          variant="primary"
+          size="lg"
           onClick={handleSubmit}
           disabled={isLoading}
-          className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-800 to-blue-600 text-white font-bold text-[15px] hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-blue-600/40 transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none mt-2"
+          fullWidth
+          className="mt-2"
         >
           {isLoading ? 'Saving…' : 'Save Changes'}
-        </button>
+        </PixelButton>
       </main>
     </div>
   )

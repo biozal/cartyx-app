@@ -4,8 +4,10 @@ import {
   getCampaign,
   createCampaign,
   updateCampaign,
+  joinCampaign,
   type CampaignData,
 } from '~/server/functions/campaigns'
+import { captureException } from '~/providers/PostHogProvider'
 
 export function useCampaigns() {
   const [campaigns, setCampaigns] = useState<CampaignData[]>([])
@@ -19,6 +21,7 @@ export function useCampaigns() {
       const data = await listCampaigns()
       setCampaigns(data)
     } catch (e) {
+      captureException(e, { action: 'listCampaigns' })
       setError(e instanceof Error ? e.message : 'Failed to load campaigns')
     } finally {
       setIsLoading(false)
@@ -43,7 +46,10 @@ export function useCampaign(id: string) {
     setIsLoading(true)
     getCampaign({ data: { id } })
       .then((data: CampaignData | null) => setCampaign(data))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load campaign'))
+      .catch((e: unknown) => {
+        captureException(e, { action: 'getCampaign', campaignId: id })
+        setError(e instanceof Error ? e.message : 'Failed to load campaign')
+      })
       .finally(() => setIsLoading(false))
   }, [id])
 
@@ -105,6 +111,7 @@ export function useCreateCampaign() {
       })
       return result
     } catch (e) {
+      captureException(e, { action: 'createCampaign' })
       const msg = e instanceof Error ? e.message : 'Failed to create campaign'
       setError(msg)
       return null
@@ -145,6 +152,7 @@ export function useUpdateCampaign() {
       })
       return result
     } catch (e) {
+      captureException(e, { action: 'updateCampaign', campaignId: id })
       const msg = e instanceof Error ? e.message : 'Failed to update campaign'
       setError(msg)
       return null
@@ -154,4 +162,27 @@ export function useUpdateCampaign() {
   }
 
   return { update, isLoading, error }
+}
+
+export function useJoinCampaign() {
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const join = async (inviteCode: string) => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const result = await joinCampaign({ data: { inviteCode } })
+      return result
+    } catch (e) {
+      captureException(e, { action: 'joinCampaign' })
+      const msg = e instanceof Error ? e.message : 'Failed to join campaign'
+      setError(msg)
+      return null
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return { join, isLoading, error }
 }

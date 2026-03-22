@@ -1,8 +1,12 @@
-import { createFileRoute, redirect, Link } from '@tanstack/react-router'
+import { useState, type FormEvent } from 'react'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { getMe } from '~/server/functions/auth'
 import { listCampaigns } from '~/server/functions/campaigns'
 import { Topbar } from '~/components/Topbar'
 import { Toast, showToast } from '~/components/Toast'
+import { PixelButton } from '~/components/PixelButton'
+import { useJoinCampaign } from '~/hooks/useCampaigns'
+import { formatNextSession } from '~/utils/date'
 import type { CampaignData } from '~/server/functions/campaigns'
 
 export const Route = createFileRoute('/campaigns/')({
@@ -66,7 +70,11 @@ function CampaignCard({ campaign }: { campaign: CampaignData }) {
             <span className="text-xs text-slate-500 font-medium flex-1">Next Session</span>
             <span className="text-xs text-slate-400 font-medium">
               {campaign.nextSession
-                ? `${campaign.nextSession.day} · ${campaign.nextSession.time}`
+                ? formatNextSession(
+                    campaign.nextSession.day,
+                    campaign.schedule.time,
+                    campaign.schedule.timezone
+                  )
                 : <span className="text-slate-600">Not scheduled</span>}
             </span>
           </div>
@@ -89,29 +97,40 @@ function CampaignCard({ campaign }: { campaign: CampaignData }) {
         {/* Actions */}
         {campaign.isOwner && (
           <div className="flex gap-2 mb-2.5">
-            <button
+            <PixelButton
+              variant="secondary"
+              size="sm"
+              icon="📋"
               onClick={copyInviteCode}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-blue-500/20 bg-blue-600/8 text-blue-400 text-xs font-semibold hover:bg-blue-600/15 hover:border-blue-500/40 transition-all"
+              className="flex-1"
             >
-              📋 Copy Invite Code
-            </button>
-            <Link
+              Copy Code
+            </PixelButton>
+            <PixelButton
+              as="link"
+              variant="warning"
+              size="sm"
+              icon="✏️"
               to="/campaigns/$campaignId/edit"
               params={{ campaignId: campaign.id }}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-yellow-500/25 bg-yellow-500/8 text-yellow-400 text-xs font-semibold hover:bg-yellow-500/15 hover:border-yellow-500/40 transition-all"
+              className="flex-1"
             >
-              ✏️ Edit
-            </Link>
+              Edit Camp
+            </PixelButton>
           </div>
         )}
 
-        <Link
+        <PixelButton
+          as="link"
+          variant="primary"
+          size="md"
           to="/campaigns/$campaignId/summary"
           params={{ campaignId: campaign.id }}
-          className="mt-auto flex items-center justify-center py-3 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-bold hover:-translate-y-px hover:shadow-lg hover:shadow-blue-600/30 transition-all"
+          fullWidth
+          className="mt-auto"
         >
-          Enter Campaign
-        </Link>
+          Enter Camp
+        </PixelButton>
       </div>
     </div>
   )
@@ -121,6 +140,18 @@ function CampaignsListPage() {
   const { user } = Route.useRouteContext()
   const { campaigns } = Route.useLoaderData()
   const isGm = user.role === 'gm'
+  const navigate = useNavigate()
+  const [showJoinForm, setShowJoinForm] = useState(false)
+  const [joinCode, setJoinCode] = useState('')
+  const { join, isLoading: isJoining, error: joinError } = useJoinCampaign()
+
+  async function handleJoin(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const result = await join(joinCode.trim())
+    if (result) {
+      navigate({ to: '/campaigns/$campaignId/summary', params: { campaignId: result.campaignId } })
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#080A12]">
@@ -128,14 +159,29 @@ function CampaignsListPage() {
       <main className="flex-1 w-full max-w-[1160px] mx-auto px-8 py-12">
         <div className="flex items-center justify-between mb-10">
           <h1 className="font-pixel text-[15px] text-white tracking-widest">MY CAMPAIGNS</h1>
-          {isGm && (
-            <Link
-              to="/campaigns/new"
-              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-semibold hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-600/30 transition-all"
-            >
-              ⚔️ Create Campaign
-            </Link>
-          )}
+          <div className="flex gap-3">
+            {!isGm && (
+              <PixelButton
+                variant="primary"
+                size="md"
+                icon="🗝️"
+                onClick={() => setShowJoinForm(true)}
+              >
+                Join Campaign
+              </PixelButton>
+            )}
+            {isGm && (
+              <PixelButton
+                as="link"
+                variant="primary"
+                size="md"
+                icon="⚔️"
+                to="/campaigns/new"
+              >
+                Create Campaign
+              </PixelButton>
+            )}
+          </div>
         </div>
 
         {campaigns.length > 0 ? (
@@ -156,18 +202,79 @@ function CampaignsListPage() {
                 ? 'Create your first campaign to get started.'
                 : 'Ask your GM for an invite code to join a campaign.'}
             </p>
-            {isGm && (
-              <Link
+            {isGm ? (
+              <PixelButton
+                as="link"
+                variant="primary"
+                size="lg"
+                icon="⚔️"
                 to="/campaigns/new"
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-semibold hover:shadow-lg hover:shadow-blue-600/30 transition-all"
               >
-                ⚔️ Create Campaign
-              </Link>
+                Create Campaign
+              </PixelButton>
+            ) : (
+              <PixelButton
+                variant="primary"
+                size="lg"
+                icon="🗝️"
+                onClick={() => setShowJoinForm(true)}
+              >
+                Join Campaign
+              </PixelButton>
             )}
           </div>
         )}
       </main>
       <Toast />
+
+      {showJoinForm && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="join-campaign-title"
+          onKeyDown={e => { if (e.key === 'Escape') { setShowJoinForm(false); setJoinCode('') } }}
+          onClick={e => { if (e.target === e.currentTarget) { setShowJoinForm(false); setJoinCode('') } }}
+        >
+          <div className="bg-[#0D1117] border border-white/[0.07] rounded-2xl p-8 w-full max-w-md mx-4">
+            <h2 id="join-campaign-title" className="font-pixel text-[11px] text-white tracking-widest mb-6">JOIN CAMPAIGN</h2>
+            <form onSubmit={handleJoin} className="space-y-4">
+              <input
+                type="text"
+                value={joinCode}
+                onChange={e => setJoinCode(e.target.value)}
+                placeholder="Enter invite code (e.g. ABCD-EFGH)"
+                className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.1] text-white text-sm placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
+                disabled={isJoining}
+                autoFocus
+                aria-label="Invite code"
+              />
+              {joinError && <p className="text-red-400 text-xs" role="alert">{joinError}</p>}
+              <div className="flex gap-3">
+                <PixelButton
+                  variant="secondary"
+                  size="md"
+                  onClick={() => { setShowJoinForm(false); setJoinCode('') }}
+                  disabled={isJoining}
+                  className="flex-1"
+                  type="button"
+                >
+                  Cancel
+                </PixelButton>
+                <PixelButton
+                  variant="primary"
+                  size="md"
+                  type="submit"
+                  disabled={isJoining || !joinCode.trim()}
+                  className="flex-1"
+                >
+                  {isJoining ? 'Joining...' : 'Join Campaign'}
+                </PixelButton>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
