@@ -94,6 +94,10 @@ export async function exchangeAppleCode(code: string): Promise<OAuthProfile> {
     }),
   })
 
+  if (!tokenRes.ok) {
+    const body = await tokenRes.text().catch(() => 'unknown error')
+    throw new Error(`Apple token exchange failed (HTTP ${tokenRes.status}): ${body}`)
+  }
   const tokens = (await tokenRes.json()) as {
     id_token?: string
     access_token?: string
@@ -101,7 +105,7 @@ export async function exchangeAppleCode(code: string): Promise<OAuthProfile> {
     error?: string
   }
   if (tokens.error || !tokens.id_token) {
-    throw new Error(`Apple token exchange failed: ${tokens.error}`)
+    throw new Error(`Apple token exchange failed: ${tokens.error ?? 'no id_token returned'}`)
   }
 
   const JWKS = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'))
