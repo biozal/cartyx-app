@@ -3,6 +3,9 @@
   "version": "0.2.0",
   "description": "Cartyx — D&D Campaign Management Platform",
   "type": "module",
+  "engines": {
+    "node": ">=20.20.0"
+  },
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
