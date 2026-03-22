@@ -382,7 +382,7 @@ export const joinCampaign = createServerFn({ method: 'POST' })
                   },
                 },
               },
-              '$maxPlayers',
+              { $ifNull: ['$maxPlayers', 4] },
             ],
           },
         },
