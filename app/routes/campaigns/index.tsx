@@ -1,8 +1,10 @@
-import { createFileRoute, redirect, Link } from '@tanstack/react-router'
+import { useState, type FormEvent } from 'react'
+import { createFileRoute, redirect, Link, useNavigate } from '@tanstack/react-router'
 import { getMe } from '~/server/functions/auth'
 import { listCampaigns } from '~/server/functions/campaigns'
 import { Topbar } from '~/components/Topbar'
 import { Toast, showToast } from '~/components/Toast'
+import { useJoinCampaign } from '~/hooks/useCampaigns'
 import type { CampaignData } from '~/server/functions/campaigns'
 
 export const Route = createFileRoute('/campaigns/')({
@@ -121,6 +123,18 @@ function CampaignsListPage() {
   const { user } = Route.useRouteContext()
   const { campaigns } = Route.useLoaderData()
   const isGm = user.role === 'gm'
+  const navigate = useNavigate()
+  const [showJoinForm, setShowJoinForm] = useState(false)
+  const [joinCode, setJoinCode] = useState('')
+  const { join, isLoading: isJoining, error: joinError } = useJoinCampaign()
+
+  async function handleJoin(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const result = await join(joinCode.trim())
+    if (result) {
+      navigate({ to: '/campaigns/$campaignId/summary', params: { campaignId: result.campaignId } })
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#080A12]">
@@ -128,14 +142,24 @@ function CampaignsListPage() {
       <main className="flex-1 w-full max-w-[1160px] mx-auto px-8 py-12">
         <div className="flex items-center justify-between mb-10">
           <h1 className="font-pixel text-[15px] text-white tracking-widest">MY CAMPAIGNS</h1>
-          {isGm && (
-            <Link
-              to="/campaigns/new"
-              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-semibold hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-600/30 transition-all"
-            >
-              ⚔️ Create Campaign
-            </Link>
-          )}
+          <div className="flex gap-3">
+            {!isGm && (
+              <button
+                onClick={() => setShowJoinForm(true)}
+                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-semibold hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-600/30 transition-all"
+              >
+                🗝️ Join Campaign
+              </button>
+            )}
+            {isGm && (
+              <Link
+                to="/campaigns/new"
+                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-semibold hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-600/30 transition-all"
+              >
+                ⚔️ Create Campaign
+              </Link>
+            )}
+          </div>
         </div>
 
         {campaigns.length > 0 ? (
@@ -156,18 +180,62 @@ function CampaignsListPage() {
                 ? 'Create your first campaign to get started.'
                 : 'Ask your GM for an invite code to join a campaign.'}
             </p>
-            {isGm && (
+            {isGm ? (
               <Link
                 to="/campaigns/new"
                 className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-semibold hover:shadow-lg hover:shadow-blue-600/30 transition-all"
               >
                 ⚔️ Create Campaign
               </Link>
+            ) : (
+              <button
+                onClick={() => setShowJoinForm(true)}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-semibold hover:shadow-lg hover:shadow-blue-600/30 transition-all"
+              >
+                🗝️ Join Campaign
+              </button>
             )}
           </div>
         )}
       </main>
       <Toast />
+
+      {showJoinForm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-[#0D1117] border border-white/[0.07] rounded-2xl p-8 w-full max-w-md mx-4">
+            <h2 className="font-pixel text-[11px] text-white tracking-widest mb-6">JOIN CAMPAIGN</h2>
+            <form onSubmit={handleJoin} className="space-y-4">
+              <input
+                type="text"
+                value={joinCode}
+                onChange={e => setJoinCode(e.target.value)}
+                placeholder="Enter invite code (e.g. ABCD-EFGH)"
+                className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.1] text-white text-sm placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
+                disabled={isJoining}
+                autoFocus
+              />
+              {joinError && <p className="text-red-400 text-xs">{joinError}</p>}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowJoinForm(false); setJoinCode('') }}
+                  className="flex-1 py-3 rounded-xl border border-white/[0.1] text-slate-400 text-sm font-semibold hover:bg-white/[0.04] transition-all"
+                  disabled={isJoining}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 text-white text-sm font-bold hover:-translate-y-px hover:shadow-lg hover:shadow-blue-600/30 transition-all disabled:opacity-50"
+                  disabled={isJoining || !joinCode.trim()}
+                >
+                  {isJoining ? 'Joining...' : 'Join Campaign'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
