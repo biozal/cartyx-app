@@ -335,6 +335,30 @@ describe('createCampaign', () => {
       expect.objectContaining({ $push: expect.objectContaining({ campaigns: expect.any(Object) }) })
     )
   })
+
+  it('fires campaign_created analytics event on success', async () => {
+    vi.mocked(Campaign.exists).mockResolvedValue(null)
+    vi.mocked(Campaign.create).mockResolvedValue(makeCampaign() as never)
+
+    await _createCampaign({ data: { name: 'My Campaign', description: '' } })
+
+    expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'campaign_created', {
+      campaign_id: 'camp-1',
+      campaign_name: 'Test Campaign',
+      has_image: false,
+      has_schedule: false,
+    })
+  })
+
+  it('does not fire analytics when not authenticated', async () => {
+    vi.mocked(getSession).mockResolvedValue(null)
+
+    await expect(
+      _createCampaign({ data: { name: 'Test', description: '' } })
+    ).rejects.toThrow('Not authenticated')
+
+    expect(serverCaptureEvent).not.toHaveBeenCalled()
+  })
 })
 
 describe('joinCampaign', () => {

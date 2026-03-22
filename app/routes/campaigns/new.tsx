@@ -78,7 +78,7 @@ function NewCampaignPage() {
   }
 
   async function handleSubmit() {
-    captureEvent('campaign_wizard_completed', { campaign_name: name })
+    captureEvent('campaign_wizard_completed', { campaign_name: name.trim() })
     const result = await create({
       name, description: desc,
       schedFreq, schedDay, schedTime, schedTz,
