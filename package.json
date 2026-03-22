@@ -22,7 +22,7 @@
   "dependencies": {
     "@posthog/react": "^1.8.2",
     "@tanstack/react-router": "^1.167.2",
-    "@tanstack/react-start": "^1.167.2",
+    "@tanstack/react-start": "^1.167.3",
     "dayjs": "^1.11.20",
     "jose": "^5.10.0",
     "mongoose": "^9.3.1",
