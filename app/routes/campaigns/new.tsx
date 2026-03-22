@@ -78,7 +78,6 @@ function NewCampaignPage() {
   }
 
   async function handleSubmit() {
-    captureEvent('campaign_wizard_completed', { campaign_name: name.trim() })
     const result = await create({
       name, description: desc,
       schedFreq, schedDay, schedTime, schedTz,
@@ -86,7 +85,10 @@ function NewCampaignPage() {
       maxPlayers,
       imageFile,
     })
-    if (result) navigate({ to: '/campaigns/$campaignId/summary', params: { campaignId: result.campaignId } })
+    if (result) {
+      captureEvent('campaign_wizard_completed', { campaign_name: name.trim() })
+      navigate({ to: '/campaigns/$campaignId/summary', params: { campaignId: result.campaignId } })
+    }
   }
 
   const freqMap: Record<string, string> = { weekly: 'Weekly', biweekly: 'Bi-weekly', monthly: 'Monthly' }
