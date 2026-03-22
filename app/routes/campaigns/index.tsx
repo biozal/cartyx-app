@@ -29,10 +29,29 @@ function CampaignCard({ campaign }: { campaign: CampaignData }) {
 
   function copyInviteCode() {
     const code = campaign.inviteCode
-    captureEvent('invite_code_copied', { campaign_id: campaign.id })
+
     if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(code).then(() => showToast(`✓ Invite code copied: ${code}`))
+      // Track that a clipboard copy was attempted
+      captureEvent('invite_code_copy_attempted', { campaign_id: campaign.id })
+
+      navigator.clipboard
+        .writeText(code)
+        .then(() => {
+          // Only mark as succeeded after the write completes
+          captureEvent('invite_code_copy_succeeded', { campaign_id: campaign.id })
+          showToast(`✓ Invite code copied: ${code}`)
+        })
+        .catch((error) => {
+          // Track failure and fall back to showing the code directly
+          captureEvent('invite_code_copy_failed', {
+            campaign_id: campaign.id,
+            error_message: error instanceof Error ? error.message : String(error),
+          })
+          showToast(`Code: ${code}`)
+        })
     } else {
+      // Clipboard API not available; show code and track fallback
+      captureEvent('invite_code_copy_fallback_shown', { campaign_id: campaign.id })
       showToast(`Code: ${code}`)
     }
   }
