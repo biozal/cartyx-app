@@ -272,7 +272,7 @@ export const createCampaign = createServerFn({ method: 'POST' })
         { $push: { campaigns: { campaignId: campaign._id, joinedAt: new Date(), status: 'active' } } }
       )
 
-      await serverCaptureEvent(user.id, 'campaign_created', {
+      serverCaptureEvent(user.id, 'campaign_created', {
         campaign_id: String(campaign._id),
         campaign_name: campaign.name as string,
         has_image: imagePath !== null,
@@ -339,7 +339,7 @@ export const updateCampaign = createServerFn({ method: 'POST' })
       }
 
       await campaign.save()
-      await serverCaptureEvent(user.id, 'campaign_updated', { campaign_id: data.id })
+      serverCaptureEvent(user.id, 'campaign_updated', { campaign_id: data.id })
       return { success: true, campaignId: String(campaign._id) }
     } catch (e) {
       serverCaptureException(e, user?.id, { action: 'updateCampaign', campaignId: data.id })
@@ -413,7 +413,7 @@ export const joinCampaign = createServerFn({ method: 'POST' })
         }
       )
 
-      await serverCaptureEvent(user.id, 'campaign_joined', { campaign_id: String(updatedCampaign._id) })
+      serverCaptureEvent(user.id, 'campaign_joined', { campaign_id: String(updatedCampaign._id) })
 
       return { success: true, campaignId: String(updatedCampaign._id) }
     } catch (e) {

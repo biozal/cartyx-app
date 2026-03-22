@@ -35,7 +35,7 @@ const handleCallback = createServerFn({ method: 'GET' })
 
       const user = await upsertUser(profile)
       await setSession(user)
-      await serverCaptureEvent(user.id, 'user_logged_in', { provider })
+      serverCaptureEvent(user.id, 'user_logged_in', { provider })
       throw redirect({ to: '/campaigns' })
     } catch (e) {
       // Re-throw redirect responses (TanStack Router throws redirects as special objects)

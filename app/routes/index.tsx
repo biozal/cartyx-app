@@ -26,7 +26,7 @@ function ProviderButton({
   return (
     <a
       href={`/auth/${provider}`}
-      onClick={() => captureEvent('login_provider_clicked', { provider })}
+      onMouseDown={() => captureEvent('login_provider_clicked', { provider })}
       className={`w-full flex items-center gap-3 px-5 py-3.5 rounded-xl border bg-white/[0.04]
         text-slate-200 text-sm font-medium transition-all duration-200
         hover:-translate-y-px hover:bg-white/[0.08] hover:shadow-lg ${colorClass}`}
