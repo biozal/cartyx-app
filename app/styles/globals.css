@@ -15,27 +15,23 @@
   --color-blue-light: #60A5FA;
 }
 
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+@layer base {
+  html {
+    font-size: 16px;
+  }
 
-html {
-  font-size: 16px;
-}
+  body {
+    min-height: 100vh;
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    display: flex;
+    flex-direction: column;
+  }
 
-body {
-  min-height: 100vh;
-  background: var(--color-bg);
-  color: var(--color-text-primary);
-  font-family: var(--font-sans);
-  display: flex;
-  flex-direction: column;
+  /* ── Pixel-art scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #0D1117; }
+  ::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.3); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(59,130,246,0.5); }
 }
-
-/* ── Pixel-art scrollbar ── */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #0D1117; }
-::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.3); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(59,130,246,0.5); }
