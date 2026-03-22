@@ -16,20 +16,7 @@ export const Route = createFileRoute('/campaigns/new')({
 })
 
 const STEPS = ['THE QUEST', 'THE SCHEDULE', 'THE GATHERING', 'THE ROSTER', 'REVIEW']
-const TIMEZONES = [
-  ['America/New_York', 'ET (New York)'],
-  ['America/Chicago', 'CT (Chicago)'],
-  ['America/Denver', 'MT (Denver)'],
-  ['America/Los_Angeles', 'PT (Los Angeles)'],
-  ['America/Anchorage', 'AKT (Anchorage)'],
-  ['Pacific/Honolulu', 'HST (Honolulu)'],
-  ['Europe/London', 'GMT (London)'],
-  ['Europe/Paris', 'CET (Paris)'],
-  ['Europe/Berlin', 'CET (Berlin)'],
-  ['Asia/Tokyo', 'JST (Tokyo)'],
-  ['Australia/Sydney', 'AEST (Sydney)'],
-  ['UTC', 'UTC'],
-]
+import { TIMEZONES } from '~/constants/timezones'
 
 function NewCampaignPage() {
   const navigate = useNavigate()

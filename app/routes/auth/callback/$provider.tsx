@@ -52,6 +52,9 @@ export const Route = createFileRoute('/auth/callback/$provider')({
     if (search.error || !search.code || !search.state) {
       throw redirect({ to: '/', search: { reason: 'auth_failed' } })
     }
+    if (!VALID_PROVIDERS.includes(params.provider as typeof VALID_PROVIDERS[number])) {
+      throw redirect({ to: '/', search: { reason: 'auth_failed' } })
+    }
     await handleCallback({ data: { provider: params.provider as typeof VALID_PROVIDERS[number], code: search.code, state: search.state } })
   },
   component: () => null,

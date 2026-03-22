@@ -150,11 +150,17 @@ export async function exchangeGoogleCode(code: string): Promise<OAuthProfile> {
   const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
   })
+  if (!profileRes.ok) {
+    throw new Error(`Google profile fetch failed (HTTP ${profileRes.status})`)
+  }
   const profile = (await profileRes.json()) as {
-    id: string
+    id?: string
     name?: string
     email?: string
     picture?: string
+  }
+  if (!profile.id) {
+    throw new Error('Google profile missing required id field')
   }
 
   return {
@@ -195,11 +201,17 @@ export async function exchangeGithubCode(code: string): Promise<OAuthProfile> {
       Accept: 'application/vnd.github+json',
     },
   })
+  if (!profileRes.ok) {
+    throw new Error(`GitHub profile fetch failed (HTTP ${profileRes.status})`)
+  }
   const profile = (await profileRes.json()) as {
-    id: number
+    id?: number
     name?: string
     email?: string
     avatar_url?: string
+  }
+  if (!profile.id) {
+    throw new Error('GitHub profile missing required id field')
   }
 
   // Fetch emails if not returned in main profile

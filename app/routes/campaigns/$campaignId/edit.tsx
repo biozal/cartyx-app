@@ -5,21 +5,7 @@ import { getMe } from '~/server/functions/auth'
 import { getCampaign } from '~/server/functions/campaigns'
 import { useUpdateCampaign } from '~/hooks/useCampaigns'
 import { Topbar } from '~/components/Topbar'
-
-const TIMEZONES = [
-  ['America/New_York', 'ET (New York)'],
-  ['America/Chicago', 'CT (Chicago)'],
-  ['America/Denver', 'MT (Denver)'],
-  ['America/Los_Angeles', 'PT (Los Angeles)'],
-  ['America/Anchorage', 'AKT (Anchorage)'],
-  ['Pacific/Honolulu', 'HST (Honolulu)'],
-  ['Europe/London', 'GMT (London)'],
-  ['Europe/Paris', 'CET (Paris)'],
-  ['Europe/Berlin', 'CET (Berlin)'],
-  ['Asia/Tokyo', 'JST (Tokyo)'],
-  ['Australia/Sydney', 'AEST (Sydney)'],
-  ['UTC', 'UTC'],
-]
+import { TIMEZONES } from '~/constants/timezones'
 
 export const Route = createFileRoute('/campaigns/$campaignId/edit')({
   beforeLoad: async ({ params }) => {
