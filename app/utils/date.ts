@@ -103,7 +103,24 @@ export function formatSchedule(schedule: {
  */
 export function getNextSessionDate(dayOfWeek: string, time?: string | null, tz?: string | null): dayjs.Dayjs | null {
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-  const targetDay = days.indexOf(dayOfWeek.toLowerCase())
+
+  // Normalize dayOfWeek to handle both full names ("Saturday") and common abbreviations ("Sat")
+  const normalizedInput = dayOfWeek.trim().toLowerCase()
+  const dayAliases: Record<string, string> = {
+    sun: 'sunday',
+    mon: 'monday',
+    tue: 'tuesday',
+    tues: 'tuesday',
+    wed: 'wednesday',
+    thu: 'thursday',
+    thur: 'thursday',
+    thurs: 'thursday',
+    fri: 'friday',
+    sat: 'saturday',
+  }
+  const resolvedDay = dayAliases[normalizedInput] ?? normalizedInput
+
+  const targetDay = days.indexOf(resolvedDay)
   if (targetDay === -1) return null
 
   const now = tz ? dayjs().tz(tz) : dayjs()
