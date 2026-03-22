@@ -81,12 +81,13 @@ vi.mock('~/server/db/models/User', () => ({
 vi.mock('~/server/db/models/Campaign', () => ({
   Campaign: { find: vi.fn(), findById: vi.fn(), findOne: vi.fn(), findOneAndUpdate: vi.fn(), create: vi.fn(), exists: vi.fn() },
 }))
-vi.mock('~/server/utils/posthog', () => ({ serverCaptureException: vi.fn() }))
+vi.mock('~/server/utils/posthog', () => ({ serverCaptureException: vi.fn(), serverCaptureEvent: vi.fn() }))
 
 import { getSession } from '~/server/session'
 import { User } from '~/server/db/models/User'
 import { Campaign } from '~/server/db/models/Campaign'
-import { listCampaigns, getCampaign, createCampaign, joinCampaign } from '~/server/functions/campaigns'
+import { listCampaigns, getCampaign, createCampaign, updateCampaign, joinCampaign } from '~/server/functions/campaigns'
+import { serverCaptureEvent } from '~/server/utils/posthog'
 
 const mockSession = {
   id: 'session-user-1',
@@ -130,6 +131,7 @@ beforeEach(() => {
 const _listCampaigns = listCampaigns as unknown as () => Promise<unknown[]>
 const _getCampaign = getCampaign as unknown as (args: { data: { id: string } }) => Promise<unknown>
 const _createCampaign = createCampaign as unknown as (args: { data: Record<string, unknown> }) => Promise<unknown>
+const _updateCampaign = updateCampaign as unknown as (args: { data: Record<string, unknown> }) => Promise<unknown>
 const _joinCampaign = joinCampaign as unknown as (args: { data: { inviteCode: string } }) => Promise<unknown>
 
 describe('listCampaigns', () => {
@@ -333,6 +335,30 @@ describe('createCampaign', () => {
       expect.objectContaining({ $push: expect.objectContaining({ campaigns: expect.any(Object) }) })
     )
   })
+
+  it('fires campaign_created analytics event on success', async () => {
+    vi.mocked(Campaign.exists).mockResolvedValue(null)
+    vi.mocked(Campaign.create).mockResolvedValue({ ...makeCampaign(), name: 'My Campaign' } as never)
+
+    await _createCampaign({ data: { name: 'My Campaign', description: '' } })
+
+    expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'campaign_created', {
+      campaign_id: 'camp-1',
+      campaign_name: 'My Campaign',
+      has_image: false,
+      has_schedule: false,
+    })
+  })
+
+  it('does not fire analytics when not authenticated', async () => {
+    vi.mocked(getSession).mockResolvedValue(null)
+
+    await expect(
+      _createCampaign({ data: { name: 'Test', description: '' } })
+    ).rejects.toThrow('Not authenticated')
+
+    expect(serverCaptureEvent).not.toHaveBeenCalled()
+  })
 })
 
 describe('joinCampaign', () => {
@@ -377,5 +403,50 @@ describe('joinCampaign', () => {
     vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc)
 
     await expect(_joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } })).rejects.toThrow('Campaign is not active')
+  })
+
+  it('fires campaign_joined analytics event on success', async () => {
+    const campaignDoc = makeCampaign({ gameMasterId: 'gm-user', members: [{ userId: 'gm-user', role: 'gm' }] })
+    vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc)
+    const updatedDoc = { ...campaignDoc, members: [...campaignDoc.members, { userId: 'dbuser-1', role: 'player' }] }
+    vi.mocked(Campaign.findOneAndUpdate).mockResolvedValue(updatedDoc)
+
+    await _joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } })
+
+    expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'campaign_joined', { campaign_id: 'camp-1' })
+  })
+})
+
+describe('updateCampaign', () => {
+  it('fires campaign_updated analytics event on success', async () => {
+    const campaign = makeCampaign()
+    const saveMock = vi.fn().mockResolvedValue(campaign)
+    vi.mocked(Campaign.findById).mockResolvedValue({ ...campaign, save: saveMock } as never)
+
+    await _updateCampaign({
+      data: { id: 'camp-1', name: 'Updated Name', description: '' },
+    })
+
+    expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'campaign_updated', { campaign_id: 'camp-1' })
+  })
+
+  it('does not fire analytics on auth failure', async () => {
+    vi.mocked(getSession).mockResolvedValue(null)
+
+    await expect(
+      _updateCampaign({ data: { id: 'camp-1', name: 'Test', description: '' } })
+    ).rejects.toThrow('Not authenticated')
+
+    expect(serverCaptureEvent).not.toHaveBeenCalled()
+  })
+
+  it('does not fire analytics when campaign not found', async () => {
+    vi.mocked(Campaign.findById).mockResolvedValue(null)
+
+    await expect(
+      _updateCampaign({ data: { id: 'nonexistent', name: 'Test', description: '' } })
+    ).rejects.toThrow('Campaign not found')
+
+    expect(serverCaptureEvent).not.toHaveBeenCalled()
   })
 })

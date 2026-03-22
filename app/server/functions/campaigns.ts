@@ -5,7 +5,7 @@ import { connectDB, isDBConnected } from '../db/connection'
 import { User } from '../db/models/User'
 import { Campaign } from '../db/models/Campaign'
 import { generateInviteCode, validateUrl, parseMaxPlayers, saveUploadedFile, MAX_IMAGE_BASE64_LENGTH } from '../utils/helpers'
-import { serverCaptureException } from '../utils/posthog'
+import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
 import { formatSchedule } from '~/utils/date'
 
 export interface CampaignData {
@@ -272,6 +272,13 @@ export const createCampaign = createServerFn({ method: 'POST' })
         { $push: { campaigns: { campaignId: campaign._id, joinedAt: new Date(), status: 'active' } } }
       )
 
+      serverCaptureEvent(user.id, 'campaign_created', {
+        campaign_id: String(campaign._id),
+        campaign_name: campaign.name as string,
+        has_image: imagePath !== null,
+        has_schedule: !!(schedFreq || schedDay || schedTime || schedTz),
+      })
+
       return {
         success: true,
         campaignId: String(campaign._id),
@@ -332,6 +339,7 @@ export const updateCampaign = createServerFn({ method: 'POST' })
       }
 
       await campaign.save()
+      serverCaptureEvent(user.id, 'campaign_updated', { campaign_id: data.id })
       return { success: true, campaignId: String(campaign._id) }
     } catch (e) {
       serverCaptureException(e, user?.id, { action: 'updateCampaign', campaignId: data.id })
@@ -404,6 +412,8 @@ export const joinCampaign = createServerFn({ method: 'POST' })
           $addToSet: { campaigns: { campaignId: updatedCampaign._id, status: 'active', joinedAt: now } },
         }
       )
+
+      serverCaptureEvent(user.id, 'campaign_joined', { campaign_id: String(updatedCampaign._id) })
 
       return { success: true, campaignId: String(updatedCampaign._id) }
     } catch (e) {

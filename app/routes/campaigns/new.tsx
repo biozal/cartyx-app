@@ -5,6 +5,7 @@ import { getMe } from '~/server/functions/auth'
 import { useCreateCampaign } from '~/hooks/useCampaigns'
 import { Topbar } from '~/components/Topbar'
 import { PixelButton } from '~/components/PixelButton'
+import { captureEvent } from '~/utils/posthog-client'
 
 export const Route = createFileRoute('/campaigns/new')({
   beforeLoad: async () => {
@@ -68,9 +69,12 @@ function NewCampaignPage() {
   }
 
   function goTo(n: number) {
+    if (n === step) return
     if (n > step && !validateStep(step)) return
     setStepError('')
+    const fromStep = step
     setStep(n)
+    captureEvent('campaign_wizard_step_changed', { from_step: fromStep, to_step: n })
   }
 
   async function handleSubmit() {
@@ -81,7 +85,10 @@ function NewCampaignPage() {
       maxPlayers,
       imageFile,
     })
-    if (result) navigate({ to: '/campaigns/$campaignId/summary', params: { campaignId: result.campaignId } })
+    if (result) {
+      captureEvent('campaign_wizard_completed', { campaign_name: name.trim() })
+      navigate({ to: '/campaigns/$campaignId/summary', params: { campaignId: result.campaignId } })
+    }
   }
 
   const freqMap: Record<string, string> = { weekly: 'Weekly', biweekly: 'Bi-weekly', monthly: 'Monthly' }
