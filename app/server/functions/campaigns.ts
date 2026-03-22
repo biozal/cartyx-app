@@ -145,10 +145,23 @@ export const campaignInputSchema = z.object({
   dndBeyondUrl: z.string().optional(),
   maxPlayers: z.union([z.string(), z.number()]).optional(),
   // base64 encoded image data (optional)
-  imageData: z.string().optional(),
+  imageData: z
+    .string()
+    .max(MAX_IMAGE_BASE64_LENGTH, 'Image must be under 5MB')
+    .optional(),
   imageMime: z.string().optional(),
   imageName: z.string().optional(),
-})
+}).refine(
+  (data) =>
+    (!data.imageData && !data.imageMime && !data.imageName) ||
+    (data.imageData !== undefined &&
+      data.imageMime !== undefined &&
+      data.imageName !== undefined),
+  {
+    message: 'imageData, imageMime, and imageName must either all be provided or all be omitted',
+    path: ['imageData'],
+  },
+)
 
 export const createCampaign = createServerFn({ method: 'POST' })
   .inputValidator(campaignInputSchema)
