@@ -353,20 +353,54 @@ export const joinCampaign = createServerFn({ method: 'POST' })
       )
       if (alreadyMember) throw new Error('Already a member of this campaign')
 
-      const playerCount = (campaign.members ?? []).filter(
-        (m: { role?: string }) => m.role === 'player'
-      ).length
-      if (playerCount >= campaign.maxPlayers) throw new Error('Campaign is full')
+      const now = new Date()
 
-      campaign.members.push({ userId: dbUser._id, role: 'player', joinedAt: new Date() })
-      await campaign.save()
+      const updatedCampaign = await Campaign.findOneAndUpdate(
+        {
+          _id: campaign._id,
+          status: 'active',
+          'members.userId': { $ne: dbUser._id },
+          $expr: {
+            $lt: [
+              {
+                $size: {
+                  $filter: {
+                    input: { $ifNull: ['$members', []] },
+                    as: 'm',
+                    cond: { $eq: ['$$m.role', 'player'] },
+                  },
+                },
+              },
+              '$maxPlayers',
+            ],
+          },
+        },
+        {
+          $addToSet: { members: { userId: dbUser._id, role: 'player' } },
+          $set: { 'members.$[elem].joinedAt': now },
+        },
+        {
+          new: true,
+          arrayFilters: [{ 'elem.userId': dbUser._id }],
+        }
+      )
+
+      if (!updatedCampaign) {
+        throw new Error('Campaign is full')
+      }
 
       await User.updateOne(
         { _id: dbUser._id },
-        { $push: { campaigns: { campaignId: campaign._id, joinedAt: new Date(), status: 'active' } } }
+        {
+          $addToSet: { campaigns: { campaignId: updatedCampaign._id, status: 'active' } },
+          $set: { 'campaigns.$[elem].joinedAt': now },
+        },
+        {
+          arrayFilters: [{ 'elem.campaignId': updatedCampaign._id }],
+        }
       )
 
-      return { success: true, campaignId: String(campaign._id) }
+      return { success: true, campaignId: String(updatedCampaign._id) }
     } catch (e) {
       serverCaptureException(e, user?.id, { action: 'joinCampaign' })
       throw e
