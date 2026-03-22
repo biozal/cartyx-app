@@ -1,7 +1,10 @@
 import React from 'react'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { generateInviteCode, parseMaxPlayers } from '~/server/utils/helpers'
 import { buildScheduleText, campaignInputSchema } from '~/server/functions/campaigns'
+
+// Freeze time to a known DST date so timezone abbreviation tests are deterministic
+const FROZEN_DATE = new Date('2026-06-15T12:00:00-05:00')
 
 // Mock all external deps
 vi.mock('@tanstack/react-router', () => ({
@@ -36,6 +39,15 @@ describe('Campaign list helpers (production code)', () => {
     expect(code[4]).toBe('-')
     // Verify only allowed characters (no ambiguous 0/O/1/I)
     expect(code.replace('-', '')).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/)
+  })
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(FROZEN_DATE)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('builds schedule text from parts via production buildScheduleText', () => {

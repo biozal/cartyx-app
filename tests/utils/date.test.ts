@@ -1,7 +1,20 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { formatTime, formatDate, formatDateTime, fromNow, formatSchedule, formatNextSession, getNextSessionDate, dayjs } from '~/utils/date'
 
+// Freeze time to a known DST date (June 15, 2026 = a Monday in CDT)
+// so timezone abbreviation tests are deterministic
+const FROZEN_DATE = new Date('2026-06-15T12:00:00-05:00')
+
 describe('Date utilities (Day.js)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(FROZEN_DATE)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   describe('formatTime', () => {
     it('formats 24h time to 12h', () => {
       expect(formatTime('19:00')).toBe('7:00 PM')

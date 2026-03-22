@@ -335,7 +335,7 @@ describe('createCampaign', () => {
 
 describe('joinCampaign', () => {
   it('adds user as player member with a valid invite code', async () => {
-    const campaignDoc = makeCampaign({ members: [{ userId: 'gm-user', role: 'gm' }] })
+    const campaignDoc = makeCampaign({ gameMasterId: 'gm-user', members: [{ userId: 'gm-user', role: 'gm' }] })
     vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc)
     const updatedDoc = { ...campaignDoc, members: [...campaignDoc.members, { userId: 'dbuser-1', role: 'player' }] }
     vi.mocked(Campaign.findOneAndUpdate).mockResolvedValue(updatedDoc)
@@ -362,7 +362,7 @@ describe('joinCampaign', () => {
 
   it('throws when campaign is full (findOneAndUpdate returns null)', async () => {
     const players = Array.from({ length: 4 }, (_, i) => ({ userId: `player-${i}`, role: 'player' }))
-    const campaignDoc = makeCampaign({ maxPlayers: 4, members: [{ userId: 'gm-user', role: 'gm' }, ...players] })
+    const campaignDoc = makeCampaign({ gameMasterId: 'gm-user', maxPlayers: 4, members: [{ userId: 'gm-user', role: 'gm' }, ...players] })
     vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc)
     // findOneAndUpdate returns null when capacity check fails
     vi.mocked(Campaign.findOneAndUpdate).mockResolvedValue(null)

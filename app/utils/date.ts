@@ -80,9 +80,18 @@ export function formatSchedule(schedule: {
   }
 
   if (schedule.timezone) {
-    // Show short timezone abbreviation
-    const abbr = dayjs().tz(schedule.timezone).format('z')
-    parts.push(abbr)
+    // Derive abbreviation based on next session date (DST-aware), not current date
+    try {
+      const baseDate =
+        schedule.dayOfWeek
+          ? getNextSessionDate(schedule.dayOfWeek, schedule.time ?? null, schedule.timezone) ?? dayjs()
+          : dayjs()
+      const abbr = baseDate.tz(schedule.timezone).format('z')
+      parts.push(abbr)
+    } catch {
+      // Fallback: show raw timezone if abbreviation computation fails
+      parts.push(schedule.timezone)
+    }
   }
 
   return parts.length > 0 ? parts.join(' · ') : 'Not scheduled'
@@ -100,15 +109,32 @@ export function getNextSessionDate(dayOfWeek: string, time?: string | null, tz?:
   const now = tz ? dayjs().tz(tz) : dayjs()
   const currentDay = now.day()
   let daysUntil = targetDay - currentDay
-  if (daysUntil <= 0) daysUntil += 7
+
+  // For past days, always go to next week. For same-day, skip only if no time is provided.
+  if (daysUntil < 0 || (daysUntil === 0 && !time)) {
+    daysUntil += 7
+  }
 
   let nextDate = now.add(daysUntil, 'day')
 
-  // If a time is provided, set it
+  // If a time is provided, parse it in the correct timezone
   if (time) {
-    const parsed = dayjs(`${nextDate.format('YYYY-MM-DD')} ${time}`)
+    const dateStr = nextDate.format('YYYY-MM-DD')
+    const parsed = tz
+      ? dayjs.tz(`${dateStr} ${time}`, tz)
+      : dayjs(`${dateStr} ${time}`)
+
     if (parsed.isValid()) {
-      nextDate = parsed
+      // If same day and time already passed, move to next week
+      if (daysUntil === 0 && parsed.isBefore(now)) {
+        const nextWeekStr = now.add(7, 'day').format('YYYY-MM-DD')
+        const nextWeekParsed = tz
+          ? dayjs.tz(`${nextWeekStr} ${time}`, tz)
+          : dayjs(`${nextWeekStr} ${time}`)
+        nextDate = nextWeekParsed.isValid() ? nextWeekParsed : parsed
+      } else {
+        nextDate = parsed
+      }
     }
   }
 
