@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { getMe } from '~/server/functions/auth'
+import { captureException } from '~/utils/posthog-client'
 
 export interface AuthUser {
   id: string
@@ -32,7 +33,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const me = await getMe()
       setUser(me as AuthUser | null)
-    } catch {
+    } catch (e) {
+      captureException(e, { action: 'getMe', component: 'AuthProvider' })
       setUser(null)
     } finally {
       setIsLoading(false)

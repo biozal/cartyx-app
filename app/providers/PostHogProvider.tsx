@@ -1,9 +1,15 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useAuthContext } from './AuthProvider'
+import {
+  setPostHogInstance,
+  isPostHogReady,
+  getPostHogInstance,
+  capturePageView,
+} from '~/utils/posthog-client'
 
-let posthogInstance: typeof import('posthog-js').default | null = null
-let initialized = false
+// Re-export capture helpers so existing imports from PostHogProvider still work
+export { captureException, captureEvent, capturePageView } from '~/utils/posthog-client'
 
 function PostHogInit() {
   const { user } = useAuthContext()
@@ -16,7 +22,7 @@ function PostHogInit() {
     const key = import.meta.env.VITE_PUBLIC_POSTHOG_KEY
     const host = import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://app.posthog.com'
 
-    if (!key || initialized || typeof window === 'undefined') return
+    if (!key || isPostHogReady() || typeof window === 'undefined') return
 
     cancelledRef.current = false
 
@@ -30,17 +36,14 @@ function PostHogInit() {
         persistence: 'localStorage+cookie',
         capture_exceptions: true,
       })
-      posthogInstance = posthog
-      initialized = true
+      setPostHogInstance(posthog)
 
       // Capture initial pageview
-      posthog.capture('$pageview', { $current_url: window.location.href })
+      capturePageView(window.location.href)
 
       // Subscribe to route changes for manual pageview tracking
       unsubRef.current = router.subscribe('onResolved', (event) => {
-        posthog.capture('$pageview', {
-          $current_url: window.location.origin + event.toLocation.href,
-        })
+        capturePageView(window.location.origin + event.toLocation.href)
       })
     })
 
@@ -53,16 +56,17 @@ function PostHogInit() {
 
   // Identify/reset on auth changes
   useEffect(() => {
-    if (!initialized || !posthogInstance) return
+    const ph = getPostHogInstance()
+    if (!isPostHogReady() || !ph) return
     if (user) {
-      posthogInstance.identify(user.id, {
+      ph.identify(user.id, {
         name: user.name,
         email: user.email,
         provider: user.provider,
         role: user.role,
       })
     } else {
-      posthogInstance.reset()
+      ph.reset()
     }
   }, [user])
 
@@ -76,18 +80,4 @@ export function PostHogProvider({ children }: { children: ReactNode }) {
       {children}
     </>
   )
-}
-
-export function capturePageView(url: string) {
-  if (initialized && posthogInstance) posthogInstance.capture('$pageview', { $current_url: url })
-}
-
-export function captureException(error: unknown, additionalProperties?: Record<string, unknown>): void {
-  if (!initialized || !posthogInstance) return
-  posthogInstance.captureException(error instanceof Error ? error : new Error(String(error)), additionalProperties)
-}
-
-export function captureEvent(event: string, properties?: Record<string, unknown>): void {
-  if (!initialized || !posthogInstance) return
-  posthogInstance.capture(event, properties)
 }

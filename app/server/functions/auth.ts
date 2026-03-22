@@ -23,8 +23,8 @@ export const getMe = createServerFn({ method: 'GET' }).handler(async () => {
       try {
         const stored = await User.findOne({ providerId: user.id }).lean()
         if (stored) return toClientUser({ ...user, role: stored.role as string })
-      } catch {
-        // non-fatal
+      } catch (e) {
+        serverCaptureException(e, user.id, { action: 'getMe', step: 'roleSyncFromDB' })
       }
     }
 
