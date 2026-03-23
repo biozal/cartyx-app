@@ -108,11 +108,31 @@ describe('saveUploadedFile', () => {
       expect(mockMkdir).not.toHaveBeenCalled()
       expect(mockWriteFile).not.toHaveBeenCalled()
     })
+
+    it('strips trailing slash from CDN_URL', async () => {
+      process.env.CDN_URL = 'https://cdn.example.com/'
+      const { saveUploadedFile } = await import('~/server/utils/helpers')
+      const file = makeFile('image/png', 100)
+      const result = await saveUploadedFile(file, 'uploads')
+
+      expect(result).toMatch(/^https:\/\/cdn\.example\.com\/uploads\//)
+      // Ensure no double slashes after the protocol
+      expect(result.replace('https://', '')).not.toContain('//')
+    })
+
+    it('throws when R2 env vars are missing', async () => {
+      delete process.env.R2_ACCOUNT_ID
+      const { saveUploadedFile } = await import('~/server/utils/helpers')
+      const file = makeFile('image/png', 100)
+      await expect(saveUploadedFile(file, 'uploads')).rejects.toThrow('R2 configuration incomplete')
+    })
   })
 
   describe('when CDN_URL is not set (local fallback)', () => {
     beforeEach(() => {
       delete process.env.CDN_URL
+      delete process.env.VERCEL
+      process.env.NODE_ENV = 'test'
     })
 
     it('writes file to local filesystem', async () => {
@@ -138,6 +158,24 @@ describe('saveUploadedFile', () => {
       await saveUploadedFile(file, 'uploads')
 
       expect(mockSend).not.toHaveBeenCalled()
+    })
+
+    it('throws in production without CDN_URL', async () => {
+      process.env.NODE_ENV = 'production'
+      const { saveUploadedFile } = await import('~/server/utils/helpers')
+      const file = makeFile('image/png', 100)
+      await expect(saveUploadedFile(file, 'uploads')).rejects.toThrow(
+        'CDN_URL environment variable is required for image uploads in production',
+      )
+    })
+
+    it('throws on Vercel without CDN_URL', async () => {
+      process.env.VERCEL = '1'
+      const { saveUploadedFile } = await import('~/server/utils/helpers')
+      const file = makeFile('image/png', 100)
+      await expect(saveUploadedFile(file, 'uploads')).rejects.toThrow(
+        'CDN_URL environment variable is required for image uploads in production',
+      )
     })
   })
 })

@@ -62,8 +62,8 @@ function CampaignCard({ campaign }: { campaign: CampaignData }) {
       <div
         className="relative h-40 flex items-center justify-center overflow-hidden"
         style={{
-          background: campaign.imagePath && (/^\/uploads\/[a-zA-Z0-9/_.-]+$/.test(campaign.imagePath) || /^https:\/\//.test(campaign.imagePath))
-            ? `url('${campaign.imagePath}') center/cover no-repeat, ${isActive ? 'linear-gradient(135deg, #0F1729 0%, #0D1B3E 50%, #0A1628 100%)' : 'linear-gradient(135deg, #0F1117 0%, #141820 50%, #0C0E14 100%)'}`
+          background: campaign.imagePath && (/^\/uploads\/[a-zA-Z0-9/_.-]+$/.test(campaign.imagePath) || /^https:\/\/cdn[-.][\w.]+\/[\w/._-]+$/.test(campaign.imagePath))
+            ? `url(${JSON.stringify(campaign.imagePath)}) center/cover no-repeat, ${isActive ? 'linear-gradient(135deg, #0F1729 0%, #0D1B3E 50%, #0A1628 100%)' : 'linear-gradient(135deg, #0F1117 0%, #141820 50%, #0C0E14 100%)'}`
             : isActive
             ? 'linear-gradient(135deg, #0F1729 0%, #0D1B3E 50%, #0A1628 100%)'
             : 'linear-gradient(135deg, #0F1117 0%, #141820 50%, #0C0E14 100%)',

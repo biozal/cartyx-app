@@ -73,6 +73,10 @@ export async function saveUploadedFile(file: File, subdir: string): Promise<stri
 
   const cdnUrl = process.env.CDN_URL
   if (!cdnUrl) {
+    // Fail fast in serverless/production — filesystem is read-only
+    if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+      throw new Error('CDN_URL environment variable is required for image uploads in production')
+    }
     // Dev/local fallback: write to disk
     const { mkdir, writeFile } = await import('node:fs/promises')
     const dir = path.join(process.cwd(), 'public', subdir)
@@ -87,11 +91,17 @@ export async function saveUploadedFile(file: File, subdir: string): Promise<stri
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY
   const bucket = process.env.R2_BUCKET
 
+  if (!accountId || !accessKeyId || !secretAccessKey || !bucket) {
+    throw new Error(
+      'R2 configuration incomplete: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET are all required when CDN_URL is set',
+    )
+  }
+
   const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3')
   const client = new S3Client({
     region: 'auto',
     endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-    credentials: { accessKeyId: accessKeyId!, secretAccessKey: secretAccessKey! },
+    credentials: { accessKeyId, secretAccessKey },
   })
 
   const buffer = Buffer.from(await file.arrayBuffer())
@@ -104,5 +114,6 @@ export async function saveUploadedFile(file: File, subdir: string): Promise<stri
     }),
   )
 
-  return `${cdnUrl}/${subdir}/${filename}`
+  const normalizedCdnUrl = cdnUrl.replace(/\/+$/, '')
+  return `${normalizedCdnUrl}/${subdir}/${filename}`
 }
