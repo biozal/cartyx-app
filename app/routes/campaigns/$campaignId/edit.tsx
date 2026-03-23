@@ -75,7 +75,7 @@ function EditCampaignPage() {
 
   const inputCls = "w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-blue-500/50 focus:bg-white/[0.06] transition-all"
   const sectionCls = "bg-[#0D1117] border border-white/[0.07] rounded-2xl p-7 mb-5 shadow-lg"
-  const headingCls = "font-pixel text-[8px] text-blue-500 tracking-widest uppercase mb-5"
+  const headingCls = "font-pixel text-[10px] text-blue-500 tracking-widest uppercase mb-5"
   const labelCls = "block text-xs font-semibold text-slate-400 mb-2 tracking-wide uppercase"
 
   return (

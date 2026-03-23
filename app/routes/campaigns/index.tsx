@@ -72,7 +72,7 @@ function CampaignCard({ campaign }: { campaign: CampaignData }) {
         <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 30% 40%, rgba(37,99,235,0.08) 0%, transparent 60%)' }} />
         <span className="text-5xl opacity-35 drop-shadow-lg">{isActive ? '⚔️' : '🏔️'}</span>
         <span
-          className="absolute top-3.5 right-3.5 font-pixel text-[7px] tracking-wide px-2.5 py-1 rounded-md font-bold"
+          className="absolute top-3.5 right-3.5 font-pixel text-[9px] tracking-wide px-2.5 py-1 rounded-md font-bold"
           style={{ background: isActive ? '#2563EB' : '#334155', color: isActive ? '#fff' : '#CBD5E1' }}
         >
           {isActive ? 'ACTIVE' : 'PAUSED'}
