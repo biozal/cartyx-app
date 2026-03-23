@@ -2,20 +2,38 @@ import { createServerFn } from '@tanstack/react-start'
 import { createFileRoute } from '@tanstack/react-router'
 
 const checkEnv = createServerFn({ method: 'GET' }).handler(async () => {
-  // Check for trailing whitespace/newlines in critical env vars
+  const results: Record<string, string> = {}
+
+  // Check env vars for whitespace
   const vars = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'BASE_URL', 'SESSION_SECRET', 'MONGODB_URI'] as const
-  const issues: Record<string, string> = {}
   for (const v of vars) {
     const val = process.env[v]
     if (!val) {
-      issues[v] = 'NOT SET'
+      results[v] = 'NOT SET'
     } else if (val !== val.trim()) {
-      issues[v] = `HAS WHITESPACE (length: ${val.length}, trimmed: ${val.trim().length})`
+      results[v] = `HAS WHITESPACE (length: ${val.length}, trimmed: ${val.trim().length})`
     } else {
-      issues[v] = 'OK'
+      results[v] = `OK (${val.length} chars)`
     }
   }
-  return issues
+
+  // Test MongoDB connection
+  try {
+    const { connectDB, isDBConnected } = await import('~/server/db/connection')
+    await connectDB()
+    results['MONGODB'] = isDBConnected() ? 'CONNECTED' : 'NOT CONNECTED'
+  } catch (e) {
+    results['MONGODB'] = `ERROR: ${e instanceof Error ? e.message : String(e)}`
+  }
+
+  // Check GOOGLE_CLIENT_SECRET length (should be ~24 chars for Google)
+  const secret = process.env.GOOGLE_CLIENT_SECRET
+  if (secret) {
+    results['GOOGLE_SECRET_PREFIX'] = secret.substring(0, 8) + '...'
+    results['GOOGLE_SECRET_LENGTH'] = String(secret.length)
+  }
+
+  return results
 })
 
 export const Route = createFileRoute('/api/debug-env')({
