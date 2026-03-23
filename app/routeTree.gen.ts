@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as CampaignsIndexRouteImport } from './routes/campaigns/index'
 import { Route as CampaignsNewRouteImport } from './routes/campaigns/new'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout'
@@ -22,6 +24,16 @@ import { Route as AuthCallbackProviderRouteImport } from './routes/auth/callback
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -69,6 +81,8 @@ const AuthCallbackProviderRoute = AuthCallbackProviderRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/terms': typeof TermsRoute
+  '/privacy': typeof PrivacyRoute
   '/auth/$provider': typeof AuthProviderRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/campaigns/new': typeof CampaignsNewRoute
@@ -80,6 +94,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/terms': typeof TermsRoute
+  '/privacy': typeof PrivacyRoute
   '/auth/$provider': typeof AuthProviderRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/campaigns/new': typeof CampaignsNewRoute
@@ -92,6 +108,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/terms': typeof TermsRoute
+  '/privacy': typeof PrivacyRoute
   '/auth/$provider': typeof AuthProviderRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/campaigns/new': typeof CampaignsNewRoute
@@ -105,6 +123,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
+    | '/terms'
+    | '/privacy'
     | '/auth/$provider'
     | '/auth/logout'
     | '/campaigns/new'
@@ -116,6 +136,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/dashboard'
+    | '/terms'
+    | '/privacy'
     | '/auth/$provider'
     | '/auth/logout'
     | '/campaigns/new'
@@ -127,6 +149,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/dashboard'
+    | '/terms'
+    | '/privacy'
     | '/auth/$provider'
     | '/auth/logout'
     | '/campaigns/new'
@@ -139,6 +163,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
+  TermsRoute: typeof TermsRoute
+  PrivacyRoute: typeof PrivacyRoute
   AuthProviderRoute: typeof AuthProviderRoute
   AuthLogoutRoute: typeof AuthLogoutRoute
   CampaignsNewRoute: typeof CampaignsNewRoute
@@ -155,6 +181,20 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -219,6 +259,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
+  TermsRoute: TermsRoute,
+  PrivacyRoute: PrivacyRoute,
   AuthProviderRoute: AuthProviderRoute,
   AuthLogoutRoute: AuthLogoutRoute,
   CampaignsNewRoute: CampaignsNewRoute,
