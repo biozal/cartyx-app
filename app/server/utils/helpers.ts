@@ -73,11 +73,11 @@ export async function saveUploadedFile(file: File, subdir: string): Promise<stri
 
   const cdnUrl = process.env.CDN_URL
   if (!cdnUrl) {
-    // Fail fast in serverless/production — filesystem is read-only
-    if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+    // Fail fast in serverless environments (e.g. Vercel) where the filesystem is read-only
+    if (process.env.VERCEL) {
       throw new Error('CDN_URL environment variable is required for image uploads in production')
     }
-    // Dev/local fallback: write to disk
+    // Dev/local and self-hosted fallback: write to disk
     const { mkdir, writeFile } = await import('node:fs/promises')
     const dir = path.join(process.cwd(), 'public', subdir)
     await mkdir(dir, { recursive: true })
