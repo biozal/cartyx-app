@@ -6,6 +6,7 @@ export function useAuth() {
 
   const logout = async () => {
     await logoutFn()
+    window.location.href = '/'
   }
 
   const login = (provider: 'google' | 'github' | 'apple') => {
