@@ -40,7 +40,11 @@ export const logoutFn = createServerFn({ method: 'POST' }).handler(async () => {
     const user = await getSession()
     if (user) {
       serverCaptureEvent(user.id, 'user_logged_out', { provider: user.provider })
-      await revokeToken(user)
+      try {
+        await revokeToken(user)
+      } catch (revokeError) {
+        serverCaptureException(revokeError, user.id, { action: 'logoutFn', step: 'revokeToken' })
+      }
     }
     await clearSession()
     return { success: true }
