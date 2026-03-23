@@ -42,7 +42,7 @@ function NewCampaignPage() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
-  const MAX_IMAGE_SIZE = 5 * 1024 * 1024
+  const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -51,7 +51,7 @@ function NewCampaignPage() {
       setStepError('Only PNG, JPEG, GIF, and WebP images are allowed')
       return
     }
-    if (file.size > MAX_IMAGE_SIZE) { setStepError('Image must be under 5MB'); return }
+    if (file.size > MAX_IMAGE_SIZE) { setStepError('Image must be under 10MB'); return }
     setStepError('')
     setImageFile(file)
     const reader = new FileReader()
@@ -196,7 +196,7 @@ function NewCampaignPage() {
                         <>
                           <div className="text-3xl mb-2">🖼</div>
                           <div className="text-sm text-slate-500">Click to upload a banner image</div>
-                          <div className="text-xs text-slate-700 mt-1">PNG, JPG, GIF up to 5MB</div>
+                          <div className="text-xs text-slate-700 mt-1">PNG, JPG, GIF, WebP up to 10MB</div>
                         </>
                       )}
                     </div>

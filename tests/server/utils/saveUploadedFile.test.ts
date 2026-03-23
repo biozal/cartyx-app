@@ -55,10 +55,10 @@ describe('saveUploadedFile', () => {
     )
   })
 
-  it('rejects files over 5MB', async () => {
+  it('rejects files over 3MB', async () => {
     const { saveUploadedFile } = await import('~/server/utils/helpers')
-    const file = makeFile('image/png', 5 * 1024 * 1024 + 1)
-    await expect(saveUploadedFile(file, 'uploads')).rejects.toThrow('Image must be under 5MB')
+    const file = makeFile('image/png', 3 * 1024 * 1024 + 1)
+    await expect(saveUploadedFile(file, 'uploads')).rejects.toThrow('Image must be under 3MB')
   })
 
   describe('when CDN_URL is set', () => {

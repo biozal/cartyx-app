@@ -8,6 +8,7 @@ import {
   type CampaignData,
 } from '~/server/functions/campaigns'
 import { captureException } from '~/providers/PostHogProvider'
+import { compressImage } from '~/utils/compressImage'
 
 export function useCampaigns() {
   const [campaigns, setCampaigns] = useState<CampaignData[]>([])
@@ -93,7 +94,8 @@ export function useCreateCampaign() {
     try {
       let imagePayload = {}
       if (input.imageFile) {
-        imagePayload = await encodeImage(input.imageFile)
+        const compressed = await compressImage(input.imageFile)
+        imagePayload = await encodeImage(compressed)
       }
       const result = await createCampaign({
         data: {
@@ -133,7 +135,8 @@ export function useUpdateCampaign() {
     try {
       let imagePayload = {}
       if (input.imageFile) {
-        imagePayload = await encodeImage(input.imageFile)
+        const compressed = await compressImage(input.imageFile)
+        imagePayload = await encodeImage(compressed)
       }
       const result = await updateCampaign({
         data: {
