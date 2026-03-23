@@ -1,11 +1,12 @@
 import React from 'react'
-import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
 import { useEffect, useState } from 'react'
 import { useAuth } from '~/hooks/useAuth'
 import { showToast } from '~/components/Toast'
 import { formatInviteCode } from '~/utils/helpers'
 import { captureEvent } from '~/utils/posthog-client'
+import { LegalFooter } from '~/components/LegalFooter'
 
 export const Route = createFileRoute('/')({
   validateSearch: z.object({ reason: z.string().optional() }),
@@ -279,12 +280,7 @@ function LandingPage() {
               </div>
             )}
 
-            <p className="mt-8 text-[11px] text-slate-600 text-center leading-relaxed">
-              By continuing you agree to our{' '}
-              <Link to="/terms" className="text-slate-500 hover:text-slate-400 underline">Terms of Service</Link>{' '}
-              and{' '}
-              <Link to="/privacy" className="text-slate-500 hover:text-slate-400 underline">Privacy Policy</Link>
-            </p>
+            <LegalFooter />
           </div>
         ) : null}
       </div>

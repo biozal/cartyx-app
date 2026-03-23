@@ -18,6 +18,7 @@ vi.mock('~/hooks/useAuth', () => ({
 // Import components after mocks
 import { TermsPage } from '~/routes/terms'
 import { PrivacyPage } from '~/routes/privacy'
+import { LegalFooter } from '~/components/LegalFooter'
 
 describe('Terms of Service page', () => {
   it('renders the page title', () => {
@@ -115,24 +116,14 @@ describe('Privacy Policy page', () => {
   })
 })
 
-describe('Landing page legal links', () => {
-  it('renders Terms of Service and Privacy Policy links in the sign-in view', () => {
-    // Render a minimal stand-in that matches the landing page's legal footer markup
-    // to verify the link targets are correct
-    const { container } = render(
-      <p>
-        By continuing you agree to our{' '}
-        <a href="/terms" className="text-slate-500 hover:text-slate-400 underline">Terms of Service</a>{' '}
-        and{' '}
-        <a href="/privacy" className="text-slate-500 hover:text-slate-400 underline">Privacy Policy</a>
-      </p>
-    )
-    const links = container.querySelectorAll('a')
-    const hrefs = Array.from(links).map(l => l.getAttribute('href'))
-    expect(hrefs).toContain('/terms')
-    expect(hrefs).toContain('/privacy')
-
+describe('LegalFooter component', () => {
+  it('renders Terms of Service link pointing to /terms', () => {
+    render(<LegalFooter />)
     expect(screen.getByText('Terms of Service').closest('a')).toHaveAttribute('href', '/terms')
+  })
+
+  it('renders Privacy Policy link pointing to /privacy', () => {
+    render(<LegalFooter />)
     expect(screen.getByText('Privacy Policy').closest('a')).toHaveAttribute('href', '/privacy')
   })
 })
