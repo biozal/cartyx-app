@@ -20,12 +20,13 @@ const checkEnv = createServerFn({ method: 'GET' }).handler(async () => {
 })
 
 export const Route = createFileRoute('/api/debug-env')({
-  beforeLoad: async () => {
-    const result = await checkEnv()
-    throw new Response(JSON.stringify(result, null, 2), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
+  loader: async () => {
+    return await checkEnv()
   },
-  component: () => null,
+  component: DebugEnv,
 })
+
+function DebugEnv() {
+  const data = Route.useLoaderData()
+  return <pre>{JSON.stringify(data, null, 2)}</pre>
+}
