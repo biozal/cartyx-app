@@ -18,7 +18,11 @@ const handleCallback = createServerFn({ method: 'GET' })
     deleteCookie('oauth_state', { path: '/' })
 
     if (!storedState || storedState !== state) {
-      console.error('[OAuth] CSRF state mismatch', { hasStoredState: !!storedState, statesMatch: storedState === state })
+      serverCaptureException(
+        new Error('CSRF state mismatch'),
+        undefined,
+        { action: 'handleOAuthCallback', provider, hasStoredState: !!storedState },
+      )
       throw redirect({ to: '/', search: { reason: 'auth_failed_csrf' } })
     }
 
@@ -41,7 +45,6 @@ const handleCallback = createServerFn({ method: 'GET' })
     } catch (e) {
       // Re-throw redirect responses (TanStack Router throws redirects as special objects)
       if (e instanceof Response || (e && typeof e === 'object' && ('to' in e || 'href' in e))) throw e
-      console.error('[OAuth] Callback error:', provider, e instanceof Error ? e.message : e)
       serverCaptureException(e, undefined, { action: 'handleOAuthCallback', provider })
       throw redirect({ to: '/', search: { reason: 'auth_failed' } })
     }
