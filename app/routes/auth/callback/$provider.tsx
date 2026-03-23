@@ -19,7 +19,7 @@ const handleCallback = createServerFn({ method: 'GET' })
 
     if (!storedState || storedState !== state) {
       console.error('[OAuth] CSRF state mismatch', { hasStoredState: !!storedState, statesMatch: storedState === state })
-      throw redirect({ to: '/', search: { reason: 'auth_failed', detail: 'csrf_mismatch' } })
+      throw redirect({ to: '/', search: { reason: 'auth_failed_csrf' } })
     }
 
     try {
@@ -43,7 +43,7 @@ const handleCallback = createServerFn({ method: 'GET' })
       if (e instanceof Response || (e && typeof e === 'object' && ('to' in e || 'href' in e))) throw e
       console.error('[OAuth] Callback error:', provider, e instanceof Error ? e.message : e)
       serverCaptureException(e, undefined, { action: 'handleOAuthCallback', provider })
-      throw redirect({ to: '/', search: { reason: 'auth_failed', detail: 'callback_error' } })
+      throw redirect({ to: '/', search: { reason: 'auth_failed' } })
     }
   })
 
@@ -52,7 +52,6 @@ export const Route = createFileRoute('/auth/callback/$provider')({
     code: z.string().optional(),
     error: z.string().optional(),
     state: z.string().optional(),
-    detail: z.string().optional(),
   }),
   beforeLoad: async ({ params, search }) => {
     if (search.error || !search.code || !search.state) {
