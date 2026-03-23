@@ -19,32 +19,34 @@ export async function compressImage(file: File): Promise<File> {
 
   try {
     const bitmap = await createImageBitmap(file)
-    const { width, height } = scaleDimensions(bitmap.width, bitmap.height, MAX_DIMENSION)
+    try {
+      const { width, height } = scaleDimensions(bitmap.width, bitmap.height, MAX_DIMENSION)
 
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return file
-    ctx.drawImage(bitmap, 0, 0, width, height)
-    bitmap.close()
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return file
+      ctx.drawImage(bitmap, 0, 0, width, height)
 
-    for (const quality of QUALITY_STEPS) {
-      const blob = await canvasToBlob(canvas, 'image/webp', quality)
-      if (blob && blob.size <= MAX_OUTPUT_BYTES) {
-        const webpName = file.name.replace(/\.[^.]+$/, '') + '.webp'
-        return new File([blob], webpName, { type: 'image/webp' })
+      for (const quality of QUALITY_STEPS) {
+        const blob = await canvasToBlob(canvas, 'image/webp', quality)
+        if (blob && blob.size <= MAX_OUTPUT_BYTES) {
+          const webpName = file.name.replace(/\.[^.]+$/, '') + '.webp'
+          return new File([blob], webpName, { type: 'image/webp' })
+        }
       }
-    }
 
-    // Last resort: use the lowest quality blob even if still over 2MB
-    const blob = await canvasToBlob(canvas, 'image/webp', QUALITY_STEPS[QUALITY_STEPS.length - 1])
-    if (blob) {
-      const webpName = file.name.replace(/\.[^.]+$/, '') + '.webp'
-      return new File([blob], webpName, { type: 'image/webp' })
+      // Compression couldn't hit target size — return original and log
+      captureException(new Error('Image compression could not reduce below target size'), {
+        action: 'compressImage',
+        fileName: file.name,
+        originalSize: file.size,
+      })
+      return file
+    } finally {
+      bitmap.close()
     }
-
-    return file
   } catch (e) {
     captureException(e, { action: 'compressImage', fileName: file.name })
     return file

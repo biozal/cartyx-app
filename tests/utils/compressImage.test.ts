@@ -14,9 +14,10 @@ function setupCanvasMock(blobSize = 500 * 1024) {
       cb(new Blob([new Uint8Array(blobSize)], { type: 'image/webp' }))
     }),
   }
+  const originalCreateElement = document.createElement.bind(document)
   vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
     if (tag === 'canvas') return mockCanvas as unknown as HTMLCanvasElement
-    return document.createElement(tag)
+    return originalCreateElement(tag)
   })
   return { mockCanvas, mockCtx }
 }
@@ -122,11 +123,12 @@ describe('compressImage', () => {
 
   it('returns original file if canvas context is unavailable', async () => {
     setupCreateImageBitmapMock(800, 600)
+    const originalCreateElement = document.createElement.bind(document)
     vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
       if (tag === 'canvas') {
         return { width: 0, height: 0, getContext: vi.fn().mockReturnValue(null) } as unknown as HTMLCanvasElement
       }
-      return document.createElement(tag)
+      return originalCreateElement(tag)
     })
     const { compressImage } = await import('~/utils/compressImage')
     const file = makeFile('photo.png', 'image/png', 2 * 1024 * 1024)
