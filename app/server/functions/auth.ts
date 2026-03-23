@@ -36,8 +36,10 @@ export const getMe = createServerFn({ method: 'GET' }).handler(async () => {
 })
 
 export const logoutFn = createServerFn({ method: 'POST' }).handler(async () => {
+  let userId: string | undefined
   try {
     const user = await getSession()
+    userId = user?.id
     if (user) {
       serverCaptureEvent(user.id, 'user_logged_out', { provider: user.provider })
       try {
@@ -49,7 +51,7 @@ export const logoutFn = createServerFn({ method: 'POST' }).handler(async () => {
     await clearSession()
     return { success: true }
   } catch (e) {
-    serverCaptureException(e, undefined, { action: 'logoutFn' })
+    serverCaptureException(e, userId, { action: 'logoutFn' })
     return { success: false }
   }
 })

@@ -91,7 +91,7 @@ describe('logoutFn', () => {
     expect(result.success).toBe(false)
     expect(mockServerCaptureException).toHaveBeenCalledWith(
       expect.any(Error),
-      undefined,
+      'user1',
       expect.objectContaining({ action: 'logoutFn' }),
     )
   })
