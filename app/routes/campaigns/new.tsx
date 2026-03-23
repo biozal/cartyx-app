@@ -324,7 +324,7 @@ function NewCampaignPage() {
                     { title: 'THE ROSTER', rows: [['Max Players', `${maxPlayers} players`]] },
                   ].map(section => (
                     <div key={section.title}>
-                      <div className="font-pixel text-[8px] text-slate-500 tracking-widest mb-2">{section.title}</div>
+                      <div className="font-pixel text-[10px] text-slate-500 tracking-widest mb-2">{section.title}</div>
                       <div className="bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-1">
                         {section.rows.map(([label, value]) => (
                           <div key={label} className="flex justify-between items-start py-1.5 border-b border-white/[0.04] last:border-0">

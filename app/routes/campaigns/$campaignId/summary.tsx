@@ -52,7 +52,7 @@ function CampaignSummaryPage() {
           {/* Invite code — only visible to campaign owner */}
           {campaign.inviteCode ? (
             <div className="text-center px-5 py-7 bg-blue-600/[0.06] border border-blue-500/15 rounded-2xl mb-6">
-              <div className="font-pixel text-[7px] text-blue-500 tracking-widest mb-4">INVITE CODE</div>
+              <div className="font-pixel text-[9px] text-blue-500 tracking-widest mb-4">INVITE CODE</div>
               <div className="font-pixel text-[22px] text-white tracking-[6px] leading-relaxed mb-5">
                 {campaign.inviteCode}
               </div>
@@ -67,7 +67,7 @@ function CampaignSummaryPage() {
             </div>
           ) : (
             <div className="text-center px-5 py-5 bg-white/[0.02] border border-white/[0.06] rounded-2xl mb-6">
-              <div className="font-pixel text-[7px] text-slate-600 tracking-widest mb-2">INVITE CODE</div>
+              <div className="font-pixel text-[9px] text-slate-600 tracking-widest mb-2">INVITE CODE</div>
               <p className="text-xs text-slate-600">Only the campaign owner can view the invite code</p>
             </div>
           )}
