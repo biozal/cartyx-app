@@ -1,5 +1,5 @@
 import React from 'react'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
 import { z } from 'zod'
 import { useEffect, useState } from 'react'
 import { useAuth } from '~/hooks/useAuth'
@@ -281,9 +281,9 @@ function LandingPage() {
 
             <p className="mt-8 text-[11px] text-slate-600 text-center leading-relaxed">
               By continuing you agree to our{' '}
-              <span className="text-slate-500 hover:text-slate-400">Terms of Service</span>{' '}
+              <Link to="/terms" className="text-slate-500 hover:text-slate-400 underline">Terms of Service</Link>{' '}
               and{' '}
-              <span className="text-slate-500 hover:text-slate-400">Privacy Policy</span>
+              <Link to="/privacy" className="text-slate-500 hover:text-slate-400 underline">Privacy Policy</Link>
             </p>
           </div>
         ) : null}
