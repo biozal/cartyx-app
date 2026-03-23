@@ -16,10 +16,10 @@ Complete guide to setting up Cartyx infrastructure from scratch.
                     ┌───────────────┼───────────────┐
                     ▼               ▼               ▼
               ┌──────────┐   ┌──────────┐   ┌──────────────┐
-              │  Vercel   │   │  Vercel   │   │ Cloudflare   │
-              │   Prod    │   │   Dev     │   │     R2       │
-              │  (main)   │   │  (dev)    │   │  (images)    │
-              └─────┬─────┘   └─────┬─────┘   └──────────────┘
+              │  Vercel   │   │  Vercel   │   │ Cloudflare   │◄── Browser
+              │   Prod    │   │   Dev     │   │     R2       │  (direct PUT
+              │  (main)   │   │  (dev)    │   │  (images)    │  via presigned
+              └─────┬─────┘   └─────┬─────┘   └──────────────┘     URL)
                     │               │
                     └───────┬───────┘
                             ▼
@@ -28,6 +28,8 @@ Complete guide to setting up Cartyx infrastructure from scratch.
                     │  (prod/dev)   │
                     └──────────────┘
 ```
+
+> **Image uploads:** In production, the browser uploads images directly to R2 via a presigned PUT URL (Vercel only handles the presign request, never the image bytes). In local dev without `CDN_URL`, images fall back to a server-side base64 path saved to `public/uploads/`.
 
 ## Table of Contents
 
@@ -188,6 +190,38 @@ For each bucket:
    - Production bucket: `cdn.cartyx.io`
    - Dev bucket: `cdn-dev.cartyx.io`
 3. Cloudflare automatically creates the DNS records (orange cloud / proxied)
+
+### Configure R2 CORS Policy
+
+Direct browser uploads require CORS to allow PUT requests from your app domain.
+
+For each bucket, go to **R2 bucket → Settings → CORS Policy → Add CORS policy** and add:
+
+**Production bucket (`cartyx-production`):**
+```json
+[
+  {
+    "AllowedOrigins": ["https://app.cartyx.io"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+**Dev bucket (`cartyx-dev`):**
+```json
+[
+  {
+    "AllowedOrigins": ["https://dev.cartyx.io", "http://localhost:3000"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
 
 ### Create R2 API Token
 
@@ -406,6 +440,8 @@ All DNS is managed in Cloudflare. Required records:
 
 - **"Access Denied" from R2** — Check `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and that the API token has write access to the target bucket.
 - **Images don't display** — Check `CDN_URL` matches the R2 custom domain. Verify the custom domain is active in Cloudflare R2 settings.
+- **CORS error on image upload** — Check the R2 bucket CORS policy includes your app's domain. See [Configure R2 CORS Policy](#configure-r2-cors-policy) above.
+- **"Direct uploads require CDN_URL configuration"** — Set the `CDN_URL` environment variable to your R2 custom domain. For local dev without `CDN_URL`, images fall back to the local filesystem upload path automatically.
 
 ### Vercel Build Failures
 

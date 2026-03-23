@@ -55,9 +55,18 @@ export function parseMaxPlayers(value: string | number | undefined): number {
   return n
 }
 
-/** Maximum base64-encoded image payload size (generous for compressed WebP output as base64) */
+/**
+ * Maximum base64-encoded image payload size.
+ * Used only for the local dev base64 fallback path — in production, images upload
+ * directly from the browser to R2 via presigned URLs (see app/server/functions/uploads.ts).
+ */
 export const MAX_IMAGE_BASE64_LENGTH = 4 * 1024 * 1024
 
+/**
+ * Saves an uploaded image file to R2 (production) or local disk (local dev fallback).
+ * Used only for the base64 upload path. In production, images are uploaded directly
+ * from the browser via presigned URLs and this function is not called.
+ */
 export async function saveUploadedFile(file: File, subdir: string): Promise<string> {
   const ALLOWED = new Map([
     ['image/png', '.png'],

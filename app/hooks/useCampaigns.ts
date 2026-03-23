@@ -9,6 +9,7 @@ import {
 } from '~/server/functions/campaigns'
 import { captureException } from '~/providers/PostHogProvider'
 import { compressImage } from '~/utils/compressImage'
+import { uploadToR2 } from '~/utils/uploadToR2'
 
 /** Max file size after compression that the server will accept (3MB decoded → ~4MB base64) */
 const MAX_POST_COMPRESSION_SIZE = 3 * 1024 * 1024
@@ -98,10 +99,17 @@ export function useCreateCampaign() {
       let imagePayload = {}
       if (input.imageFile) {
         const compressed = await compressImage(input.imageFile)
-        if (compressed.size > MAX_POST_COMPRESSION_SIZE) {
-          throw new Error('Image is too large even after compression. Try a smaller file or a non-GIF format.')
+        try {
+          // Try direct R2 upload first (production)
+          const { publicUrl } = await uploadToR2(compressed)
+          imagePayload = { imagePath: publicUrl }
+        } catch {
+          // Fallback to base64 for local dev (when CDN_URL is not set)
+          if (compressed.size > MAX_POST_COMPRESSION_SIZE) {
+            throw new Error('Image is too large even after compression. Try a smaller file or a non-GIF format.')
+          }
+          imagePayload = await encodeImage(compressed)
         }
-        imagePayload = await encodeImage(compressed)
       }
       const result = await createCampaign({
         data: {
@@ -142,10 +150,17 @@ export function useUpdateCampaign() {
       let imagePayload = {}
       if (input.imageFile) {
         const compressed = await compressImage(input.imageFile)
-        if (compressed.size > MAX_POST_COMPRESSION_SIZE) {
-          throw new Error('Image is too large even after compression. Try a smaller file or a non-GIF format.')
+        try {
+          // Try direct R2 upload first (production)
+          const { publicUrl } = await uploadToR2(compressed)
+          imagePayload = { imagePath: publicUrl }
+        } catch {
+          // Fallback to base64 for local dev (when CDN_URL is not set)
+          if (compressed.size > MAX_POST_COMPRESSION_SIZE) {
+            throw new Error('Image is too large even after compression. Try a smaller file or a non-GIF format.')
+          }
+          imagePayload = await encodeImage(compressed)
         }
-        imagePayload = await encodeImage(compressed)
       }
       const result = await updateCampaign({
         data: {
