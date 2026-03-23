@@ -176,7 +176,7 @@ const campaignInputShape = {
   // base64 encoded image data (optional)
   imageData: z
     .string()
-    .max(MAX_IMAGE_BASE64_LENGTH, 'Image must be under 5MB')
+    .max(MAX_IMAGE_BASE64_LENGTH, 'Image must be under 3MB after compression')
     .optional(),
   imageMime: z.string().optional(),
   imageName: z.string().optional(),
@@ -226,7 +226,7 @@ export const createCampaign = createServerFn({ method: 'POST' })
       let imagePath: string | null = null
       if (imageData && imageMime && imageName) {
         if (imageData.length > MAX_IMAGE_BASE64_LENGTH) {
-          throw new Error('Image must be under 5MB')
+          throw new Error('Image must be under 3MB after compression')
         }
         const buffer = Buffer.from(imageData, 'base64')
         const file = new File([buffer], imageName, { type: imageMime })
@@ -331,7 +331,7 @@ export const updateCampaign = createServerFn({ method: 'POST' })
 
       if (imageData && imageMime && imageName) {
         if (imageData.length > MAX_IMAGE_BASE64_LENGTH) {
-          throw new Error('Image must be under 5MB')
+          throw new Error('Image must be under 3MB after compression')
         }
         const buffer = Buffer.from(imageData, 'base64')
         const file = new File([buffer], imageName, { type: imageMime })

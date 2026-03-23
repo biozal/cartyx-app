@@ -40,7 +40,8 @@ function EditCampaignPage() {
 
   const [imageError, setImageError] = useState('')
   const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
-  const MAX_IMAGE_SIZE = 5 * 1024 * 1024
+  const MAX_IMAGE_SIZE = 10 * 1024 * 1024
+  const MAX_GIF_SIZE = 3 * 1024 * 1024
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -49,8 +50,12 @@ function EditCampaignPage() {
       setImageError('Only PNG, JPEG, GIF, and WebP images are allowed')
       return
     }
+    if (file.type === 'image/gif' && file.size > MAX_GIF_SIZE) {
+      setImageError('GIFs must be under 3MB')
+      return
+    }
     if (file.size > MAX_IMAGE_SIZE) {
-      setImageError('Image must be under 5MB')
+      setImageError('Image must be under 10MB')
       return
     }
     setImageError('')
@@ -123,7 +128,7 @@ function EditCampaignPage() {
               <>
                 <div className="text-3xl mb-2">🖼️</div>
                 <div className="text-sm text-slate-500">Drop an image here or <span className="text-blue-400">browse</span></div>
-                <div className="text-xs text-slate-700 mt-1">PNG, JPG, WEBP · max 5MB</div>
+                <div className="text-xs text-slate-700 mt-1">PNG, JPG, WebP up to 10MB · GIF up to 3MB</div>
               </>
             )}
           </div>

@@ -55,8 +55,8 @@ export function parseMaxPlayers(value: string | number | undefined): number {
   return n
 }
 
-/** Maximum base64-encoded image payload size (approx 5MB decoded → ~6.7MB base64) */
-export const MAX_IMAGE_BASE64_LENGTH = 7 * 1024 * 1024
+/** Maximum base64-encoded image payload size (generous for compressed WebP output as base64) */
+export const MAX_IMAGE_BASE64_LENGTH = 4 * 1024 * 1024
 
 export async function saveUploadedFile(file: File, subdir: string): Promise<string> {
   const ALLOWED = new Map([
@@ -67,7 +67,7 @@ export async function saveUploadedFile(file: File, subdir: string): Promise<stri
   ])
   const ext = ALLOWED.get(file.type)
   if (!ext) throw new Error('Only PNG, JPEG, GIF, and WebP images are allowed')
-  if (file.size > 5 * 1024 * 1024) throw new Error('Image must be under 5MB')
+  if (file.size > 3 * 1024 * 1024) throw new Error('Image must be under 3MB')
 
   const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`
 

@@ -8,6 +8,10 @@ import {
   type CampaignData,
 } from '~/server/functions/campaigns'
 import { captureException } from '~/providers/PostHogProvider'
+import { compressImage } from '~/utils/compressImage'
+
+/** Max file size after compression that the server will accept (3MB decoded → ~4MB base64) */
+const MAX_POST_COMPRESSION_SIZE = 3 * 1024 * 1024
 
 export function useCampaigns() {
   const [campaigns, setCampaigns] = useState<CampaignData[]>([])
@@ -93,7 +97,11 @@ export function useCreateCampaign() {
     try {
       let imagePayload = {}
       if (input.imageFile) {
-        imagePayload = await encodeImage(input.imageFile)
+        const compressed = await compressImage(input.imageFile)
+        if (compressed.size > MAX_POST_COMPRESSION_SIZE) {
+          throw new Error('Image is too large even after compression. Try a smaller file or a non-GIF format.')
+        }
+        imagePayload = await encodeImage(compressed)
       }
       const result = await createCampaign({
         data: {
@@ -133,7 +141,11 @@ export function useUpdateCampaign() {
     try {
       let imagePayload = {}
       if (input.imageFile) {
-        imagePayload = await encodeImage(input.imageFile)
+        const compressed = await compressImage(input.imageFile)
+        if (compressed.size > MAX_POST_COMPRESSION_SIZE) {
+          throw new Error('Image is too large even after compression. Try a smaller file or a non-GIF format.')
+        }
+        imagePayload = await encodeImage(compressed)
       }
       const result = await updateCampaign({
         data: {
