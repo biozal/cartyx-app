@@ -521,7 +521,7 @@ describe('createCampaign with imagePath (direct R2 upload)', () => {
     expect(createCall.imagePath).toBe('https://cdn.example.com/uploads/campaigns/img.webp')
   })
 
-  it('throws when imagePath does not start with CDN_URL', async () => {
+  it('throws when imagePath origin does not match CDN_URL', async () => {
     await expect(
       _createCampaign({
         data: {
@@ -597,7 +597,7 @@ describe('updateCampaign with imagePath (direct R2 upload)', () => {
     expect(savedCampaign.imagePath).toBe('https://cdn.example.com/uploads/campaigns/img.webp')
   })
 
-  it('throws when imagePath does not start with CDN_URL', async () => {
+  it('throws when imagePath origin does not match CDN_URL', async () => {
     const campaign = makeCampaign()
     const saveMock = vi.fn().mockResolvedValue(campaign)
     vi.mocked(Campaign.findById).mockResolvedValue({ ...campaign, save: saveMock } as never)
