@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { getMe } from '~/server/functions/auth'
 import { listCampaigns } from '~/server/functions/campaigns'
+import { queryClient } from '~/providers/QueryProvider'
+import { queryKeys } from '~/utils/queryKeys'
 import { Topbar } from '~/components/Topbar'
 import { Toast, showToast } from '~/components/Toast'
 import { PixelButton } from '~/components/PixelButton'
@@ -17,7 +19,10 @@ export const Route = createFileRoute('/campaigns/')({
     return { user }
   },
   loader: async () => {
-    const campaigns = await listCampaigns()
+    const campaigns = await queryClient.ensureQueryData({
+      queryKey: queryKeys.campaigns.list(),
+      queryFn: () => listCampaigns(),
+    })
     return { campaigns }
   },
   component: CampaignsListPage,

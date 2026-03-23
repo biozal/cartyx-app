@@ -8,6 +8,7 @@ import {
 import { Component, type ReactNode, type ErrorInfo } from 'react'
 import { AuthProvider } from '~/providers/AuthProvider'
 import { PostHogProvider, captureException } from '~/providers/PostHogProvider'
+import { QueryProvider } from '~/providers/QueryProvider'
 import '~/styles/globals.css'
 
 class ErrorBoundary extends Component<
@@ -70,14 +71,16 @@ function RootComponent() {
         <HeadContent />
       </head>
       <body>
-        <AuthProvider>
-          <PostHogProvider>
-            <ErrorBoundary>
-              <ScrollRestoration />
-              <Outlet />
-            </ErrorBoundary>
-          </PostHogProvider>
-        </AuthProvider>
+        <QueryProvider>
+          <AuthProvider>
+            <PostHogProvider>
+              <ErrorBoundary>
+                <ScrollRestoration />
+                <Outlet />
+              </ErrorBoundary>
+            </PostHogProvider>
+          </AuthProvider>
+        </QueryProvider>
         <Scripts />
       </body>
     </html>
