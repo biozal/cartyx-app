@@ -234,9 +234,15 @@ export const createCampaign = createServerFn({ method: 'POST' })
 
       let imagePath: string | null = null
       if (imagePathInput) {
-        // Direct upload path: validate the URL belongs to our CDN
+        // Direct upload path: validate the URL origin matches our CDN
         const cdnUrl = process.env.CDN_URL
-        if (!cdnUrl || !imagePathInput.startsWith(cdnUrl.replace(/\/+$/, ''))) {
+        if (!cdnUrl) throw new Error('Invalid image path')
+        try {
+          const cdnOrigin = new URL(cdnUrl)
+          const imageUrl = new URL(imagePathInput)
+          if (imageUrl.origin !== cdnOrigin.origin) throw new Error('Invalid image path')
+          if (!imageUrl.pathname.startsWith('/uploads/')) throw new Error('Invalid image path')
+        } catch {
           throw new Error('Invalid image path')
         }
         imagePath = imagePathInput
@@ -347,9 +353,15 @@ export const updateCampaign = createServerFn({ method: 'POST' })
       campaign.updatedAt = new Date()
 
       if (imagePathInput) {
-        // Direct upload path: validate the URL belongs to our CDN
+        // Direct upload path: validate the URL origin matches our CDN
         const cdnUrl = process.env.CDN_URL
-        if (!cdnUrl || !imagePathInput.startsWith(cdnUrl.replace(/\/+$/, ''))) {
+        if (!cdnUrl) throw new Error('Invalid image path')
+        try {
+          const cdnOrigin = new URL(cdnUrl)
+          const imageUrl = new URL(imagePathInput)
+          if (imageUrl.origin !== cdnOrigin.origin) throw new Error('Invalid image path')
+          if (!imageUrl.pathname.startsWith('/uploads/')) throw new Error('Invalid image path')
+        } catch {
           throw new Error('Invalid image path')
         }
         campaign.imagePath = imagePathInput

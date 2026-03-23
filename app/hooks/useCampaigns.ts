@@ -103,8 +103,13 @@ export function useCreateCampaign() {
           // Try direct R2 upload first (production)
           const { publicUrl } = await uploadToR2(compressed)
           imagePayload = { imagePath: publicUrl }
-        } catch {
-          // Fallback to base64 for local dev (when CDN_URL is not set)
+        } catch (err) {
+          // Only fall back to base64 for local dev (CDN_URL not configured)
+          const msg = err instanceof Error ? err.message : ''
+          if (!msg.includes('CDN_URL')) {
+            throw err // Surface real upload errors in production
+          }
+          // Local dev fallback: base64 via server
           if (compressed.size > MAX_POST_COMPRESSION_SIZE) {
             throw new Error('Image is too large even after compression. Try a smaller file or a non-GIF format.')
           }
@@ -154,8 +159,13 @@ export function useUpdateCampaign() {
           // Try direct R2 upload first (production)
           const { publicUrl } = await uploadToR2(compressed)
           imagePayload = { imagePath: publicUrl }
-        } catch {
-          // Fallback to base64 for local dev (when CDN_URL is not set)
+        } catch (err) {
+          // Only fall back to base64 for local dev (CDN_URL not configured)
+          const msg = err instanceof Error ? err.message : ''
+          if (!msg.includes('CDN_URL')) {
+            throw err // Surface real upload errors in production
+          }
+          // Local dev fallback: base64 via server
           if (compressed.size > MAX_POST_COMPRESSION_SIZE) {
             throw new Error('Image is too large even after compression. Try a smaller file or a non-GIF format.')
           }
