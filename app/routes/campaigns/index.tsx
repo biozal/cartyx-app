@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { getMe } from '~/server/functions/auth'
 import { listCampaigns } from '~/server/functions/campaigns'
-import { queryClient } from '~/providers/QueryProvider'
+import { getQueryClient } from '~/providers/QueryProvider'
 import { queryKeys } from '~/utils/queryKeys'
 import { Topbar } from '~/components/Topbar'
 import { Toast, showToast } from '~/components/Toast'
@@ -19,7 +19,7 @@ export const Route = createFileRoute('/campaigns/')({
     return { user }
   },
   loader: async () => {
-    const campaigns = await queryClient.ensureQueryData({
+    const campaigns = await getQueryClient().ensureQueryData({
       queryKey: queryKeys.campaigns.list(),
       queryFn: () => listCampaigns(),
     })
