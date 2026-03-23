@@ -188,11 +188,17 @@ function imageFieldsRefinement<
   T extends { imageData?: string; imageMime?: string; imageName?: string; imagePath?: string },
 >(data: T): boolean {
   // imagePath (direct upload) and imageData (base64) are mutually exclusive
-  if (data.imagePath) {
-    return !data.imageData && !data.imageMime && !data.imageName
+  if (data.imagePath !== undefined) {
+    return (
+      data.imageData === undefined &&
+      data.imageMime === undefined &&
+      data.imageName === undefined
+    )
   }
   return (
-    (!data.imageData && !data.imageMime && !data.imageName) ||
+    (data.imageData === undefined &&
+      data.imageMime === undefined &&
+      data.imageName === undefined) ||
     (data.imageData !== undefined &&
       data.imageMime !== undefined &&
       data.imageName !== undefined)
