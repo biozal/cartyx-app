@@ -56,9 +56,9 @@ export async function compressImage(file: File): Promise<File> {
 function scaleDimensions(w: number, h: number, max: number): { width: number; height: number } {
   if (w <= max && h <= max) return { width: w, height: h }
   if (w >= h) {
-    return { width: max, height: Math.round((h / w) * max) }
+    return { width: max, height: Math.max(1, Math.round((h / w) * max)) }
   }
-  return { width: Math.round((w / h) * max), height: max }
+  return { width: Math.max(1, Math.round((w / h) * max)), height: max }
 }
 
 function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob | null> {
