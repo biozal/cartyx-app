@@ -77,7 +77,7 @@ describe('server posthog utilities', () => {
       expect(mockCapture).toHaveBeenCalledWith({
         distinctId: 'user_123',
         event: 'campaign_created',
-        properties: { name: 'Test' },
+        properties: expect.objectContaining({ name: 'Test', environment: expect.any(String) }),
       })
     })
   })
