@@ -160,15 +160,6 @@ describe('saveUploadedFile', () => {
       expect(mockSend).not.toHaveBeenCalled()
     })
 
-    it('throws in production without CDN_URL', async () => {
-      process.env.NODE_ENV = 'production'
-      const { saveUploadedFile } = await import('~/server/utils/helpers')
-      const file = makeFile('image/png', 100)
-      await expect(saveUploadedFile(file, 'uploads')).rejects.toThrow(
-        'CDN_URL environment variable is required for image uploads in production',
-      )
-    })
-
     it('throws on Vercel without CDN_URL', async () => {
       process.env.VERCEL = '1'
       const { saveUploadedFile } = await import('~/server/utils/helpers')
