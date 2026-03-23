@@ -173,7 +173,9 @@ const campaignInputShape = {
   callUrl: z.string().optional(),
   dndBeyondUrl: z.string().optional(),
   maxPlayers: z.union([z.string(), z.number()]).optional(),
-  // base64 encoded image data (optional)
+  // Direct R2 upload path (production): full CDN URL returned by getUploadUrl
+  imagePath: z.string().url().optional(),
+  // base64 encoded image data (local dev fallback)
   imageData: z
     .string()
     .max(MAX_IMAGE_BASE64_LENGTH, 'Image must be under 3MB after compression')
@@ -182,16 +184,29 @@ const campaignInputShape = {
   imageName: z.string().optional(),
 } as const
 
-function imageFieldsRefinement<T extends { imageData?: string; imageMime?: string; imageName?: string }>(data: T): boolean {
+function imageFieldsRefinement<
+  T extends { imageData?: string; imageMime?: string; imageName?: string; imagePath?: string },
+>(data: T): boolean {
+  // imagePath (direct upload) and imageData (base64) are mutually exclusive
+  if (data.imagePath !== undefined) {
+    return (
+      data.imageData === undefined &&
+      data.imageMime === undefined &&
+      data.imageName === undefined
+    )
+  }
   return (
-    (!data.imageData && !data.imageMime && !data.imageName) ||
+    (data.imageData === undefined &&
+      data.imageMime === undefined &&
+      data.imageName === undefined) ||
     (data.imageData !== undefined &&
       data.imageMime !== undefined &&
       data.imageName !== undefined)
   )
 }
 const imageFieldsMessage = {
-  message: 'imageData, imageMime, and imageName must either all be provided or all be omitted',
+  message:
+    'imageData, imageMime, and imageName must either all be provided or all be omitted, and cannot be combined with imagePath',
   path: ['imageData'] as [string],
 }
 
@@ -211,7 +226,7 @@ export const createCampaign = createServerFn({ method: 'POST' })
       await connectDB()
       if (!isDBConnected()) throw new Error('Database not available')
 
-      const { name, description, schedFreq, schedDay, schedTime, schedTz, callUrl, dndBeyondUrl, maxPlayers, imageData, imageMime, imageName } = data
+      const { name, description, schedFreq, schedDay, schedTime, schedTz, callUrl, dndBeyondUrl, maxPlayers, imageData, imageMime, imageName, imagePath: imagePathInput } = data
 
       if (!name.trim()) throw new Error('Campaign name is required')
 
@@ -224,7 +239,21 @@ export const createCampaign = createServerFn({ method: 'POST' })
       if (!dbUser) throw new Error('User not found')
 
       let imagePath: string | null = null
-      if (imageData && imageMime && imageName) {
+      if (imagePathInput) {
+        // Direct upload path: validate the URL origin matches our CDN
+        const cdnUrl = process.env.CDN_URL
+        if (!cdnUrl) throw new Error('Invalid image path')
+        try {
+          const cdnOrigin = new URL(cdnUrl)
+          const imageUrl = new URL(imagePathInput)
+          if (imageUrl.origin !== cdnOrigin.origin) throw new Error('Invalid image path')
+          if (!imageUrl.pathname.startsWith('/uploads/')) throw new Error('Invalid image path')
+        } catch {
+          throw new Error('Invalid image path')
+        }
+        imagePath = imagePathInput
+      } else if (imageData && imageMime && imageName) {
+        // Local dev fallback: base64 → save via server
         if (imageData.length > MAX_IMAGE_BASE64_LENGTH) {
           throw new Error('Image must be under 3MB after compression')
         }
@@ -307,7 +336,7 @@ export const updateCampaign = createServerFn({ method: 'POST' })
       if (!campaign) throw new Error('Campaign not found')
       if (String(campaign.gameMasterId) !== String(dbUser._id)) throw new Error('Forbidden')
 
-      const { name, description, schedFreq, schedDay, schedTime, schedTz, callUrl, dndBeyondUrl, maxPlayers, imageData, imageMime, imageName } = data
+      const { name, description, schedFreq, schedDay, schedTime, schedTz, callUrl, dndBeyondUrl, maxPlayers, imageData, imageMime, imageName, imagePath: imagePathInput } = data
 
       if (!name.trim()) throw new Error('Campaign name is required')
 
@@ -329,7 +358,21 @@ export const updateCampaign = createServerFn({ method: 'POST' })
       campaign.maxPlayers = parseMaxPlayers(maxPlayers)
       campaign.updatedAt = new Date()
 
-      if (imageData && imageMime && imageName) {
+      if (imagePathInput) {
+        // Direct upload path: validate the URL origin matches our CDN
+        const cdnUrl = process.env.CDN_URL
+        if (!cdnUrl) throw new Error('Invalid image path')
+        try {
+          const cdnOrigin = new URL(cdnUrl)
+          const imageUrl = new URL(imagePathInput)
+          if (imageUrl.origin !== cdnOrigin.origin) throw new Error('Invalid image path')
+          if (!imageUrl.pathname.startsWith('/uploads/')) throw new Error('Invalid image path')
+        } catch {
+          throw new Error('Invalid image path')
+        }
+        campaign.imagePath = imagePathInput
+      } else if (imageData && imageMime && imageName) {
+        // Local dev fallback: base64 → save via server
         if (imageData.length > MAX_IMAGE_BASE64_LENGTH) {
           throw new Error('Image must be under 3MB after compression')
         }
