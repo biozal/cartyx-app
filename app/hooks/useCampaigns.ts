@@ -1,60 +1,18 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   listCampaigns,
   getCampaign,
   createCampaign,
   updateCampaign,
   joinCampaign,
-  type CampaignData,
 } from '~/server/functions/campaigns'
 import { captureException } from '~/providers/PostHogProvider'
+import { compressImage } from '~/utils/compressImage'
+import { uploadToR2 } from '~/utils/uploadToR2'
+import { queryKeys } from '~/utils/queryKeys'
 
-export function useCampaigns() {
-  const [campaigns, setCampaigns] = useState<CampaignData[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const data = await listCampaigns()
-      setCampaigns(data)
-    } catch (e) {
-      captureException(e, { action: 'listCampaigns' })
-      setError(e instanceof Error ? e.message : 'Failed to load campaigns')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    load()
-  }, [load])
-
-  return { campaigns, isLoading, error, refresh: load }
-}
-
-export function useCampaign(id: string) {
-  const [campaign, setCampaign] = useState<CampaignData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setCampaign(null)
-    setError(null)
-    setIsLoading(true)
-    getCampaign({ data: { id } })
-      .then((data: CampaignData | null) => setCampaign(data))
-      .catch((e: unknown) => {
-        captureException(e, { action: 'getCampaign', campaignId: id })
-        setError(e instanceof Error ? e.message : 'Failed to load campaign')
-      })
-      .finally(() => setIsLoading(false))
-  }, [id])
-
-  return { campaign, isLoading, error }
-}
+/** Max file size after compression that the server will accept (3MB decoded → ~4MB base64) */
+const MAX_POST_COMPRESSION_SIZE = 3 * 1024 * 1024
 
 interface CreateCampaignInput {
   name: string
@@ -83,19 +41,63 @@ async function encodeImage(file: File): Promise<{ imageData: string; imageMime: 
   })
 }
 
-export function useCreateCampaign() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+async function buildImagePayload(imageFile: File): Promise<Record<string, string>> {
+  const compressed = await compressImage(imageFile)
+  try {
+    // Try direct R2 upload first (production)
+    const { publicUrl } = await uploadToR2(compressed)
+    return { imagePath: publicUrl }
+  } catch (err) {
+    // Only fall back to base64 for local dev (CDN_URL not configured)
+    const msg = err instanceof Error ? err.message : ''
+    if (!msg.includes('CDN_URL')) {
+      throw err // Surface real upload errors in production
+    }
+    // Local dev fallback: base64 via server
+    if (compressed.size > MAX_POST_COMPRESSION_SIZE) {
+      throw new Error('Image is too large even after compression. Try a smaller file or a non-GIF format.')
+    }
+    return encodeImage(compressed)
+  }
+}
 
-  const create = async (input: CreateCampaignInput) => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      let imagePayload = {}
-      if (input.imageFile) {
-        imagePayload = await encodeImage(input.imageFile)
-      }
-      const result = await createCampaign({
+export function useCampaigns() {
+  const queryClient = useQueryClient()
+  const { data: campaigns = [], isLoading, error } = useQuery({
+    queryKey: queryKeys.campaigns.list(),
+    queryFn: () => listCampaigns(),
+  })
+
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.list() })
+  }
+
+  return {
+    campaigns,
+    isLoading,
+    error: error instanceof Error ? error.message : error ? String(error) : null,
+    refresh,
+  }
+}
+
+export function useCampaign(id: string) {
+  const { data: campaign = null, isLoading, error } = useQuery({
+    queryKey: queryKeys.campaigns.detail(id),
+    queryFn: () => getCampaign({ data: { id } }),
+  })
+  return {
+    campaign,
+    isLoading,
+    error: error instanceof Error ? error.message : error ? String(error) : null,
+  }
+}
+
+export function useCreateCampaign() {
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: async (input: CreateCampaignInput) => {
+      const imagePayload = input.imageFile ? await buildImagePayload(input.imageFile) : {}
+      return createCampaign({
         data: {
           name: input.name,
           description: input.description,
@@ -109,33 +111,36 @@ export function useCreateCampaign() {
           ...imagePayload,
         },
       })
-      return result
-    } catch (e) {
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.all })
+    },
+    onError: (e) => {
       captureException(e, { action: 'createCampaign' })
-      const msg = e instanceof Error ? e.message : 'Failed to create campaign'
-      setError(msg)
+    },
+  })
+
+  const create = async (input: CreateCampaignInput) => {
+    try {
+      return await mutation.mutateAsync(input)
+    } catch {
       return null
-    } finally {
-      setIsLoading(false)
     }
   }
 
-  return { create, isLoading, error }
+  return {
+    create,
+    isLoading: mutation.isPending,
+    error: mutation.error instanceof Error ? mutation.error.message : mutation.error ? String(mutation.error) : null,
+  }
 }
 
 export function useUpdateCampaign() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const update = async (id: string, input: CreateCampaignInput) => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      let imagePayload = {}
-      if (input.imageFile) {
-        imagePayload = await encodeImage(input.imageFile)
-      }
-      const result = await updateCampaign({
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: CreateCampaignInput }) => {
+      const imagePayload = input.imageFile ? await buildImagePayload(input.imageFile) : {}
+      return updateCampaign({
         data: {
           id,
           name: input.name,
@@ -150,39 +155,54 @@ export function useUpdateCampaign() {
           ...imagePayload,
         },
       })
-      return result
-    } catch (e) {
+    },
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(id) })
+    },
+    onError: (e, { id }) => {
       captureException(e, { action: 'updateCampaign', campaignId: id })
-      const msg = e instanceof Error ? e.message : 'Failed to update campaign'
-      setError(msg)
+    },
+  })
+
+  const update = async (id: string, input: CreateCampaignInput) => {
+    try {
+      return await mutation.mutateAsync({ id, input })
+    } catch {
       return null
-    } finally {
-      setIsLoading(false)
     }
   }
 
-  return { update, isLoading, error }
+  return {
+    update,
+    isLoading: mutation.isPending,
+    error: mutation.error instanceof Error ? mutation.error.message : mutation.error ? String(mutation.error) : null,
+  }
 }
 
 export function useJoinCampaign() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: (inviteCode: string) => joinCampaign({ data: { inviteCode } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.all })
+    },
+    onError: (e) => {
+      captureException(e, { action: 'joinCampaign' })
+    },
+  })
 
   const join = async (inviteCode: string) => {
-    setIsLoading(true)
-    setError(null)
     try {
-      const result = await joinCampaign({ data: { inviteCode } })
-      return result
-    } catch (e) {
-      captureException(e, { action: 'joinCampaign' })
-      const msg = e instanceof Error ? e.message : 'Failed to join campaign'
-      setError(msg)
+      return await mutation.mutateAsync(inviteCode)
+    } catch {
       return null
-    } finally {
-      setIsLoading(false)
     }
   }
 
-  return { join, isLoading, error }
+  return {
+    join,
+    isLoading: mutation.isPending,
+    error: mutation.error instanceof Error ? mutation.error.message : mutation.error ? String(mutation.error) : null,
+  }
 }

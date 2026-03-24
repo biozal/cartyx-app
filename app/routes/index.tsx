@@ -6,6 +6,7 @@ import { useAuth } from '~/hooks/useAuth'
 import { showToast } from '~/components/Toast'
 import { formatInviteCode } from '~/utils/helpers'
 import { captureEvent } from '~/utils/posthog-client'
+import { LegalFooter } from '~/components/LegalFooter'
 
 export const Route = createFileRoute('/')({
   validateSearch: z.object({ reason: z.string().optional() }),
@@ -279,12 +280,7 @@ function LandingPage() {
               </div>
             )}
 
-            <p className="mt-8 text-[11px] text-slate-600 text-center leading-relaxed">
-              By continuing you agree to our{' '}
-              <span className="text-slate-500 hover:text-slate-400">Terms of Service</span>{' '}
-              and{' '}
-              <span className="text-slate-500 hover:text-slate-400">Privacy Policy</span>
-            </p>
+            <LegalFooter />
           </div>
         ) : null}
       </div>

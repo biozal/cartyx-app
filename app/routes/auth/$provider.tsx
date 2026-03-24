@@ -46,11 +46,8 @@ const initiateOAuth = createServerFn({ method: 'GET' })
         break
     }
 
-    // Use a proper HTTP redirect Response for external OAuth URLs
-    throw new Response(null, {
-      status: 302,
-      headers: { Location: url },
-    })
+    // Use TanStack's redirect with href for external OAuth URLs
+    throw redirect({ href: url })
   })
 
 export const Route = createFileRoute('/auth/$provider')({

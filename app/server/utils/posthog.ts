@@ -2,6 +2,12 @@ import { PostHog } from 'posthog-node'
 
 let client: PostHog | null = null
 
+function getEnvironment(): string {
+  if (process.env.VERCEL_ENV) return process.env.VERCEL_ENV // 'production', 'preview', 'development'
+  if (process.env.VERCEL) return 'vercel'
+  return process.env.NODE_ENV ?? 'unknown'
+}
+
 function getClient(): PostHog | null {
   if (client) return client
 
@@ -32,6 +38,8 @@ export function serverCaptureException(
       $exception_message: err.message,
       $exception_type: err.constructor.name,
       $exception_stack_trace_raw: err.stack,
+      environment: getEnvironment(),
+      base_url: process.env.BASE_URL ?? 'unknown',
       ...properties,
     },
   })
@@ -44,7 +52,15 @@ export function serverCaptureEvent(
 ): void {
   const ph = getClient()
   if (!ph) return
-  ph.capture({ distinctId, event, properties })
+  ph.capture({
+    distinctId,
+    event,
+    properties: {
+      environment: getEnvironment(),
+      base_url: process.env.BASE_URL ?? 'unknown',
+      ...properties,
+    },
+  })
 }
 
 export async function shutdownPostHog(): Promise<void> {

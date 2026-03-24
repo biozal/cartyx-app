@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Unit tests for campaign utility functions (not requiring DB)
 import { generateInviteCode, validateUrl, parseMaxPlayers } from '~/server/utils/helpers'
@@ -86,7 +86,7 @@ vi.mock('~/server/utils/posthog', () => ({ serverCaptureException: vi.fn(), serv
 import { getSession } from '~/server/session'
 import { User } from '~/server/db/models/User'
 import { Campaign } from '~/server/db/models/Campaign'
-import { listCampaigns, getCampaign, createCampaign, updateCampaign, joinCampaign } from '~/server/functions/campaigns'
+import { listCampaigns, getCampaign, createCampaign, updateCampaign, joinCampaign, campaignInputSchema } from '~/server/functions/campaigns'
 import { serverCaptureEvent } from '~/server/utils/posthog'
 
 const mockSession = {
@@ -448,5 +448,169 @@ describe('updateCampaign', () => {
     ).rejects.toThrow('Campaign not found')
 
     expect(serverCaptureEvent).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// campaignInputSchema — imagePath refinement
+// ---------------------------------------------------------------------------
+
+describe('campaignInputSchema', () => {
+  it('accepts imagePath alone (direct upload)', () => {
+    const result = campaignInputSchema.safeParse({
+      name: 'test',
+      imagePath: 'https://cdn.example.com/uploads/campaigns/img.webp',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts imageData fields alone (base64 fallback)', () => {
+    const result = campaignInputSchema.safeParse({
+      name: 'test',
+      imageData: 'a'.repeat(100),
+      imageMime: 'image/webp',
+      imageName: 'img.webp',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects both imagePath and imageData together', () => {
+    const result = campaignInputSchema.safeParse({
+      name: 'test',
+      imagePath: 'https://cdn.example.com/uploads/campaigns/img.webp',
+      imageData: 'base64data',
+      imageMime: 'image/webp',
+      imageName: 'img.webp',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts neither imagePath nor imageData (no image)', () => {
+    const result = campaignInputSchema.safeParse({ name: 'test' })
+    expect(result.success).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// createCampaign — imagePath (direct R2 upload)
+// ---------------------------------------------------------------------------
+
+describe('createCampaign with imagePath (direct R2 upload)', () => {
+  const originalEnv = { ...process.env }
+
+  beforeEach(() => {
+    process.env.CDN_URL = 'https://cdn.example.com'
+    vi.mocked(Campaign.exists).mockResolvedValue(null)
+    vi.mocked(Campaign.create).mockResolvedValue(makeCampaign() as never)
+  })
+
+  afterEach(() => {
+    process.env = { ...originalEnv }
+  })
+
+  it('accepts imagePath and stores it on the campaign', async () => {
+    await _createCampaign({
+      data: {
+        name: 'My Campaign',
+        description: '',
+        imagePath: 'https://cdn.example.com/uploads/campaigns/img.webp',
+      },
+    })
+
+    const createCall = vi.mocked(Campaign.create).mock.calls[0][0] as { imagePath: string }
+    expect(createCall.imagePath).toBe('https://cdn.example.com/uploads/campaigns/img.webp')
+  })
+
+  it('throws when imagePath origin does not match CDN_URL', async () => {
+    await expect(
+      _createCampaign({
+        data: {
+          name: 'My Campaign',
+          description: '',
+          imagePath: 'https://evil.com/malicious.jpg',
+        },
+      }),
+    ).rejects.toThrow('Invalid image path')
+  })
+
+  it('throws when CDN_URL is not set but imagePath is provided', async () => {
+    delete process.env.CDN_URL
+
+    await expect(
+      _createCampaign({
+        data: {
+          name: 'My Campaign',
+          description: '',
+          imagePath: 'https://cdn.example.com/uploads/campaigns/img.webp',
+        },
+      }),
+    ).rejects.toThrow('Invalid image path')
+  })
+
+  it('has_image is true when imagePath is provided', async () => {
+    await _createCampaign({
+      data: {
+        name: 'My Campaign',
+        description: '',
+        imagePath: 'https://cdn.example.com/uploads/campaigns/img.webp',
+      },
+    })
+
+    expect(serverCaptureEvent).toHaveBeenCalledWith(
+      'session-user-1',
+      'campaign_created',
+      expect.objectContaining({ has_image: true }),
+    )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// updateCampaign — imagePath (direct R2 upload)
+// ---------------------------------------------------------------------------
+
+describe('updateCampaign with imagePath (direct R2 upload)', () => {
+  const originalEnv = { ...process.env }
+
+  beforeEach(() => {
+    process.env.CDN_URL = 'https://cdn.example.com'
+  })
+
+  afterEach(() => {
+    process.env = { ...originalEnv }
+  })
+
+  it('accepts imagePath and sets it on the campaign', async () => {
+    const campaign = makeCampaign()
+    const saveMock = vi.fn().mockResolvedValue(campaign)
+    vi.mocked(Campaign.findById).mockResolvedValue({ ...campaign, save: saveMock } as never)
+
+    await _updateCampaign({
+      data: {
+        id: 'camp-1',
+        name: 'Updated Name',
+        description: '',
+        imagePath: 'https://cdn.example.com/uploads/campaigns/img.webp',
+      },
+    })
+
+    const savedCampaign = saveMock.mock.instances[0] as { imagePath: string }
+    expect(savedCampaign.imagePath).toBe('https://cdn.example.com/uploads/campaigns/img.webp')
+  })
+
+  it('throws when imagePath origin does not match CDN_URL', async () => {
+    const campaign = makeCampaign()
+    const saveMock = vi.fn().mockResolvedValue(campaign)
+    vi.mocked(Campaign.findById).mockResolvedValue({ ...campaign, save: saveMock } as never)
+
+    await expect(
+      _updateCampaign({
+        data: {
+          id: 'camp-1',
+          name: 'Updated Name',
+          description: '',
+          imagePath: 'https://evil.com/malicious.jpg',
+        },
+      }),
+    ).rejects.toThrow('Invalid image path')
   })
 })

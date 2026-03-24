@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { getMe } from '~/server/functions/auth'
 import { listCampaigns } from '~/server/functions/campaigns'
+import { getQueryClient } from '~/providers/QueryProvider'
+import { queryKeys } from '~/utils/queryKeys'
 import { Topbar } from '~/components/Topbar'
 import { Toast, showToast } from '~/components/Toast'
 import { PixelButton } from '~/components/PixelButton'
@@ -17,7 +19,10 @@ export const Route = createFileRoute('/campaigns/')({
     return { user }
   },
   loader: async () => {
-    const campaigns = await listCampaigns()
+    const campaigns = await getQueryClient().ensureQueryData({
+      queryKey: queryKeys.campaigns.list(),
+      queryFn: () => listCampaigns(),
+    })
     return { campaigns }
   },
   component: CampaignsListPage,
@@ -62,8 +67,8 @@ function CampaignCard({ campaign }: { campaign: CampaignData }) {
       <div
         className="relative h-40 flex items-center justify-center overflow-hidden"
         style={{
-          background: campaign.imagePath && /^\/uploads\/[a-zA-Z0-9/_.-]+$/.test(campaign.imagePath)
-            ? `url('${campaign.imagePath}') center/cover no-repeat, ${isActive ? 'linear-gradient(135deg, #0F1729 0%, #0D1B3E 50%, #0A1628 100%)' : 'linear-gradient(135deg, #0F1117 0%, #141820 50%, #0C0E14 100%)'}`
+          background: campaign.imagePath && (/^\/uploads\/[a-zA-Z0-9/_.-]+$/.test(campaign.imagePath) || /^https:\/\/cdn[-.][\w.]+\/[\w/._-]+$/.test(campaign.imagePath))
+            ? `url(${JSON.stringify(campaign.imagePath)}) center/cover no-repeat, ${isActive ? 'linear-gradient(135deg, #0F1729 0%, #0D1B3E 50%, #0A1628 100%)' : 'linear-gradient(135deg, #0F1117 0%, #141820 50%, #0C0E14 100%)'}`
             : isActive
             ? 'linear-gradient(135deg, #0F1729 0%, #0D1B3E 50%, #0A1628 100%)'
             : 'linear-gradient(135deg, #0F1117 0%, #141820 50%, #0C0E14 100%)',
@@ -72,7 +77,7 @@ function CampaignCard({ campaign }: { campaign: CampaignData }) {
         <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 30% 40%, rgba(37,99,235,0.08) 0%, transparent 60%)' }} />
         <span className="text-5xl opacity-35 drop-shadow-lg">{isActive ? '⚔️' : '🏔️'}</span>
         <span
-          className="absolute top-3.5 right-3.5 font-pixel text-[7px] tracking-wide px-2.5 py-1 rounded-md font-bold"
+          className="absolute top-3.5 right-3.5 font-pixel text-[9px] tracking-wide px-2.5 py-1 rounded-md font-bold"
           style={{ background: isActive ? '#2563EB' : '#334155', color: isActive ? '#fff' : '#CBD5E1' }}
         >
           {isActive ? 'ACTIVE' : 'PAUSED'}

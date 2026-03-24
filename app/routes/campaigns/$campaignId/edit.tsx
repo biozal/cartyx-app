@@ -3,6 +3,8 @@ import { createFileRoute, redirect, useNavigate, Link } from '@tanstack/react-ro
 import { useState, useRef } from 'react'
 import { getMe } from '~/server/functions/auth'
 import { getCampaign } from '~/server/functions/campaigns'
+import { getQueryClient } from '~/providers/QueryProvider'
+import { queryKeys } from '~/utils/queryKeys'
 import { useUpdateCampaign } from '~/hooks/useCampaigns'
 import { Topbar } from '~/components/Topbar'
 import { PixelButton } from '~/components/PixelButton'
@@ -12,7 +14,10 @@ export const Route = createFileRoute('/campaigns/$campaignId/edit')({
   beforeLoad: async ({ params }) => {
     const user = await getMe()
     if (!user) throw redirect({ to: '/', search: { reason: 'session_expired' } })
-    const campaign = await getCampaign({ data: { id: params.campaignId } })
+    const campaign = await getQueryClient().ensureQueryData({
+      queryKey: queryKeys.campaigns.detail(params.campaignId),
+      queryFn: () => getCampaign({ data: { id: params.campaignId } }),
+    })
     if (!campaign) throw redirect({ to: '/campaigns' })
     if (!campaign.isOwner) throw redirect({ to: '/campaigns' })
     return { user, campaign }
@@ -40,7 +45,8 @@ function EditCampaignPage() {
 
   const [imageError, setImageError] = useState('')
   const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
-  const MAX_IMAGE_SIZE = 5 * 1024 * 1024
+  const MAX_IMAGE_SIZE = 10 * 1024 * 1024
+  const MAX_GIF_SIZE = 3 * 1024 * 1024
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -49,8 +55,12 @@ function EditCampaignPage() {
       setImageError('Only PNG, JPEG, GIF, and WebP images are allowed')
       return
     }
+    if (file.type === 'image/gif' && file.size > MAX_GIF_SIZE) {
+      setImageError('GIFs must be under 3MB')
+      return
+    }
     if (file.size > MAX_IMAGE_SIZE) {
-      setImageError('Image must be under 5MB')
+      setImageError('Image must be under 10MB')
       return
     }
     setImageError('')
@@ -75,7 +85,7 @@ function EditCampaignPage() {
 
   const inputCls = "w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-blue-500/50 focus:bg-white/[0.06] transition-all"
   const sectionCls = "bg-[#0D1117] border border-white/[0.07] rounded-2xl p-7 mb-5 shadow-lg"
-  const headingCls = "font-pixel text-[8px] text-blue-500 tracking-widest uppercase mb-5"
+  const headingCls = "font-pixel text-[10px] text-blue-500 tracking-widest uppercase mb-5"
   const labelCls = "block text-xs font-semibold text-slate-400 mb-2 tracking-wide uppercase"
 
   return (
@@ -123,7 +133,7 @@ function EditCampaignPage() {
               <>
                 <div className="text-3xl mb-2">🖼️</div>
                 <div className="text-sm text-slate-500">Drop an image here or <span className="text-blue-400">browse</span></div>
-                <div className="text-xs text-slate-700 mt-1">PNG, JPG, WEBP · max 5MB</div>
+                <div className="text-xs text-slate-700 mt-1">PNG, JPG, WebP up to 10MB · GIF up to 3MB</div>
               </>
             )}
           </div>

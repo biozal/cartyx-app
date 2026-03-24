@@ -29,12 +29,27 @@ export function capturePageView(url: string): void {
   if (initialized && posthogInstance) posthogInstance.capture('$pageview', { $current_url: url })
 }
 
+function getClientEnvironment(): string {
+  const url = window.location.hostname
+  if (url.includes('dev.cartyx.io')) return 'preview'
+  if (url.includes('cartyx.io')) return 'production'
+  if (url.includes('vercel.app')) return 'preview'
+  if (url.includes('localhost')) return 'development'
+  return 'unknown'
+}
+
 export function captureException(error: unknown, additionalProperties?: Record<string, unknown>): void {
   if (!initialized || !posthogInstance) return
-  posthogInstance.captureException(error instanceof Error ? error : new Error(String(error)), additionalProperties)
+  posthogInstance.captureException(error instanceof Error ? error : new Error(String(error)), {
+    environment: getClientEnvironment(),
+    ...additionalProperties,
+  })
 }
 
 export function captureEvent(event: string, properties?: Record<string, unknown>): void {
   if (!initialized || !posthogInstance) return
-  posthogInstance.capture(event, properties)
+  posthogInstance.capture(event, {
+    environment: getClientEnvironment(),
+    ...properties,
+  })
 }

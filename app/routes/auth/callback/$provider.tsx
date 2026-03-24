@@ -18,7 +18,12 @@ const handleCallback = createServerFn({ method: 'GET' })
     deleteCookie('oauth_state', { path: '/' })
 
     if (!storedState || storedState !== state) {
-      throw redirect({ to: '/', search: { reason: 'auth_failed' } })
+      serverCaptureException(
+        new Error('CSRF state mismatch'),
+        undefined,
+        { action: 'handleOAuthCallback', provider, hasStoredState: !!storedState },
+      )
+      throw redirect({ to: '/', search: { reason: 'auth_failed_csrf' } })
     }
 
     try {

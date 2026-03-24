@@ -33,3 +33,4 @@ ecosystem.config.js
 *.log
 npm-debug.log*
 app.config.timestamp_*.js
+storybook-static/

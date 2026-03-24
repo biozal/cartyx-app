@@ -3,7 +3,7 @@
 ## Development Setup
 
 ```bash
-git clone https://github.com/Cartyx/cartyx-app
+git clone https://github.com/biozal/cartyx-app
 cd cartyx-app
 npm install
 cp .env.example .env   # fill in your credentials

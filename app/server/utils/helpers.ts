@@ -55,9 +55,23 @@ export function parseMaxPlayers(value: string | number | undefined): number {
   return n
 }
 
-/** Maximum base64-encoded image payload size (approx 5MB decoded → ~6.7MB base64) */
-export const MAX_IMAGE_BASE64_LENGTH = 7 * 1024 * 1024
+/**
+ * Maximum base64-encoded image payload size.
+ * Used for the server-side base64 upload path, which is primarily a local-dev and
+ * fallback mechanism. In the normal production flow, images upload directly from
+ * the browser to R2 via presigned URLs (see app/server/functions/uploads.ts).
+ */
+export const MAX_IMAGE_BASE64_LENGTH = 4 * 1024 * 1024
 
+/**
+ * Saves an uploaded image file to R2 (when CDN_URL/R2 are configured) or local disk
+ * (when running without CDN_URL/R2, e.g. local dev).
+ *
+ * This is used by the server-side base64 upload path. In the typical production
+ * configuration, images are uploaded directly from the browser to R2 via presigned
+ * URLs, but this function may still be invoked as a fallback when the client sends
+ * an image payload as base64.
+ */
 export async function saveUploadedFile(file: File, subdir: string): Promise<string> {
   const ALLOWED = new Map([
     ['image/png', '.png'],
@@ -67,16 +81,53 @@ export async function saveUploadedFile(file: File, subdir: string): Promise<stri
   ])
   const ext = ALLOWED.get(file.type)
   if (!ext) throw new Error('Only PNG, JPEG, GIF, and WebP images are allowed')
-  if (file.size > 5 * 1024 * 1024) throw new Error('Image must be under 5MB')
-
-  const { mkdir, writeFile } = await import('node:fs/promises')
+  if (file.size > 3 * 1024 * 1024) throw new Error('Image must be under 3MB')
 
   const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`
-  const dir = path.join(process.cwd(), 'public', subdir)
-  await mkdir(dir, { recursive: true })
+
+  const cdnUrl = process.env.CDN_URL
+  if (!cdnUrl) {
+    // Fail fast in serverless environments (e.g. Vercel) where the filesystem is read-only
+    if (process.env.VERCEL) {
+      throw new Error('CDN_URL environment variable is required for image uploads in production')
+    }
+    // Dev/local and self-hosted fallback: write to disk
+    const { mkdir, writeFile } = await import('node:fs/promises')
+    const dir = path.join(process.cwd(), 'public', subdir)
+    await mkdir(dir, { recursive: true })
+    const buffer = Buffer.from(await file.arrayBuffer())
+    await writeFile(path.join(dir, filename), buffer)
+    return `/${subdir}/${filename}`
+  }
+
+  const accountId = process.env.R2_ACCOUNT_ID
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY
+  const bucket = process.env.R2_BUCKET
+
+  if (!accountId || !accessKeyId || !secretAccessKey || !bucket) {
+    throw new Error(
+      'R2 configuration incomplete: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET are all required when CDN_URL is set',
+    )
+  }
+
+  const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3')
+  const client = new S3Client({
+    region: 'auto',
+    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId, secretAccessKey },
+  })
 
   const buffer = Buffer.from(await file.arrayBuffer())
-  await writeFile(path.join(dir, filename), buffer)
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: `${subdir}/${filename}`,
+      Body: buffer,
+      ContentType: file.type,
+    }),
+  )
 
-  return `/${subdir}/${filename}`
+  const normalizedCdnUrl = cdnUrl.replace(/\/+$/, '')
+  return `${normalizedCdnUrl}/${subdir}/${filename}`
 }

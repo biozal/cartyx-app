@@ -1,5 +1,4 @@
 import { createServerFn } from '@tanstack/react-start'
-import { redirect } from '@tanstack/react-router'
 import { getSession, clearSession } from '../session'
 import { revokeToken } from '../utils/oauth'
 import { connectDB, isDBConnected } from '../db/connection'
@@ -37,17 +36,22 @@ export const getMe = createServerFn({ method: 'GET' }).handler(async () => {
 })
 
 export const logoutFn = createServerFn({ method: 'POST' }).handler(async () => {
+  let userId: string | undefined
   try {
     const user = await getSession()
+    userId = user?.id
     if (user) {
       serverCaptureEvent(user.id, 'user_logged_out', { provider: user.provider })
-      await revokeToken(user)
+      try {
+        await revokeToken(user)
+      } catch (revokeError) {
+        serverCaptureException(revokeError, user.id, { action: 'logoutFn', step: 'revokeToken' })
+      }
     }
     await clearSession()
-    throw redirect({ to: '/' })
+    return { success: true }
   } catch (e) {
-    if (e instanceof Response || (e && typeof e === 'object' && ('to' in e || 'href' in e))) throw e
-    serverCaptureException(e, undefined, { action: 'logoutFn' })
-    throw e
+    serverCaptureException(e, userId, { action: 'logoutFn' })
+    return { success: false }
   }
 })
