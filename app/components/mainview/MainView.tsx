@@ -25,14 +25,16 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
             : 'w-0'
         }`}
       >
-        <div className={toolbarCollapsed ? 'w-8 h-full' : 'w-14 h-full'}>
-          <ToolBar
-            activeTool={activeTool}
-            onToolChange={setActiveTool}
-            collapsed={toolbarCollapsed}
-            onToggleCollapse={() => setToolbarCollapsed(c => !c)}
-          />
-        </div>
+        {showToolbar && (
+          <div className={toolbarCollapsed ? 'w-8 h-full' : 'w-14 h-full'}>
+            <ToolBar
+              activeTool={activeTool}
+              onToolChange={setActiveTool}
+              collapsed={toolbarCollapsed}
+              onToggleCollapse={() => setToolbarCollapsed(c => !c)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Center column — Content */}

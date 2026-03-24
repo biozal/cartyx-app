@@ -70,7 +70,10 @@ export function ToolBar({ activeTool, onToolChange, collapsed, onToggleCollapse 
         data-testid="toolbar-toggle"
         onClick={onToggleCollapse}
         title={collapsed ? 'Expand toolbar' : 'Collapse toolbar'}
-        className="flex items-center justify-center w-10 h-10 rounded text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors mt-auto"
+        className={[
+          'flex items-center justify-center h-10 rounded text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors mt-auto',
+          collapsed ? 'w-8' : 'w-10',
+        ].join(' ')}
       >
         {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>

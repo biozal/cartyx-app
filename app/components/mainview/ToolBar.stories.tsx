@@ -11,13 +11,16 @@ const meta: Meta<typeof ToolBar> = {
     layout: 'fullscreen',
   },
   decorators: [
-    (Story) => (
-      <div className="h-screen bg-[#080A12] flex">
-        <div className="w-14 h-full border-r border-white/[0.07]">
-          <Story />
+    (Story, context) => {
+      const isCollapsed = context.args?.collapsed ?? false
+      return (
+        <div className="h-screen bg-[#080A12] flex">
+          <div className={`${isCollapsed ? 'w-8' : 'w-14'} h-full border-r border-white/[0.07]`}>
+            <Story />
+          </div>
         </div>
-      </div>
-    ),
+      )
+    },
   ],
 }
 export default meta
