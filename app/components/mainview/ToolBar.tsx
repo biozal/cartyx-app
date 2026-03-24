@@ -9,7 +9,6 @@ import {
   Stamp,
   Layers,
   ChevronLeft,
-  ChevronRight,
 } from 'lucide-react'
 
 export type ToolType = 'pointer' | 'hand' | 'drawing' | 'text' | 'ruler' | 'dice' | 'stamp' | 'layer'
