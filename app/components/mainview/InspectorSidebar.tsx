@@ -18,6 +18,7 @@ export function InspectorSidebar({ defaultTab = 'chat' }: InspectorSidebarProps)
   const tablistRef = useRef<HTMLDivElement>(null)
 
   const activeTabLabel = tabs.find((t) => t.id === activeTab)?.label ?? ''
+  const panelId = `inspector-panel-${activeTab}`
 
   function handleKeyDown(e: React.KeyboardEvent) {
     const currentIndex = tabs.findIndex(t => t.id === activeTab)
@@ -56,15 +57,18 @@ export function InspectorSidebar({ defaultTab = 'chat' }: InspectorSidebarProps)
       >
         {tabs.map((tab) => {
           const isActive = tab.id === activeTab
+          const tabId = `inspector-tab-${tab.id}`
           return (
             <button
               key={tab.id}
+              id={tabId}
               type="button"
               role="tab"
               aria-selected={isActive}
+              aria-controls={panelId}
               aria-label={tab.label}
               tabIndex={isActive ? 0 : -1}
-              data-testid={`inspector-tab-${tab.id}`}
+              data-testid={tabId}
               onClick={() => setActiveTab(tab.id)}
               className={[
                 'flex flex-1 items-center justify-center text-base transition-colors relative',
@@ -81,9 +85,10 @@ export function InspectorSidebar({ defaultTab = 'chat' }: InspectorSidebarProps)
 
       {/* Panel content */}
       <div
+        id={panelId}
         data-testid="inspector-panel"
         role="tabpanel"
-        aria-label={activeTabLabel}
+        aria-labelledby={`inspector-tab-${activeTab}`}
         className="flex flex-1 items-center justify-center"
       >
         <span className="font-pixel text-xs text-slate-600">
