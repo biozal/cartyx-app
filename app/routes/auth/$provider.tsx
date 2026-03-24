@@ -46,8 +46,12 @@ const initiateOAuth = createServerFn({ method: 'GET' })
         break
     }
 
-    // Use TanStack's redirect with href for external OAuth URLs
-    throw redirect({ href: url })
+    // Use a proper HTTP redirect Response for external OAuth URLs
+    // redirect({ href }) doesn't work in createServerFn handlers on Nitro/Vercel
+    throw new Response(null, {
+      status: 302,
+      headers: { Location: url },
+    })
   })
 
 export const Route = createFileRoute('/auth/$provider')({
