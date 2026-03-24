@@ -1,6 +1,8 @@
 import { createFileRoute, redirect, Link } from '@tanstack/react-router'
 import { getMe } from '~/server/functions/auth'
 import { getCampaign } from '~/server/functions/campaigns'
+import { getQueryClient } from '~/providers/QueryProvider'
+import { queryKeys } from '~/utils/queryKeys'
 import { Topbar } from '~/components/Topbar'
 import { PixelButton } from '~/components/PixelButton'
 import { Toast, showToast } from '~/components/Toast'
@@ -12,7 +14,10 @@ export const Route = createFileRoute('/campaigns/$campaignId/summary')({
     return { user }
   },
   loader: async ({ params }) => {
-    const campaign = await getCampaign({ data: { id: params.campaignId } })
+    const campaign = await getQueryClient().ensureQueryData({
+      queryKey: queryKeys.campaigns.detail(params.campaignId),
+      queryFn: () => getCampaign({ data: { id: params.campaignId } }),
+    })
     if (!campaign) throw redirect({ to: '/campaigns' })
     return { campaign }
   },

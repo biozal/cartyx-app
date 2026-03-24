@@ -3,6 +3,8 @@ import { createFileRoute, redirect, useNavigate, Link } from '@tanstack/react-ro
 import { useState, useRef } from 'react'
 import { getMe } from '~/server/functions/auth'
 import { getCampaign } from '~/server/functions/campaigns'
+import { getQueryClient } from '~/providers/QueryProvider'
+import { queryKeys } from '~/utils/queryKeys'
 import { useUpdateCampaign } from '~/hooks/useCampaigns'
 import { Topbar } from '~/components/Topbar'
 import { PixelButton } from '~/components/PixelButton'
@@ -12,7 +14,10 @@ export const Route = createFileRoute('/campaigns/$campaignId/edit')({
   beforeLoad: async ({ params }) => {
     const user = await getMe()
     if (!user) throw redirect({ to: '/', search: { reason: 'session_expired' } })
-    const campaign = await getCampaign({ data: { id: params.campaignId } })
+    const campaign = await getQueryClient().ensureQueryData({
+      queryKey: queryKeys.campaigns.detail(params.campaignId),
+      queryFn: () => getCampaign({ data: { id: params.campaignId } }),
+    })
     if (!campaign) throw redirect({ to: '/campaigns' })
     if (!campaign.isOwner) throw redirect({ to: '/campaigns' })
     return { user, campaign }

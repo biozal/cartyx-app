@@ -1,6 +1,8 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useCallback, type ReactNode } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getMe } from '~/server/functions/auth'
 import { captureException } from '~/utils/posthog-client'
+import { queryKeys } from '~/utils/queryKeys'
 
 export interface AuthUser {
   id: string
@@ -26,29 +28,27 @@ const AuthContext = createContext<AuthContextValue>({
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const { data: user = null, isLoading } = useQuery({
+    queryKey: queryKeys.auth.me,
+    queryFn: async () => {
+      try {
+        const me = await getMe()
+        return (me as AuthUser | null) ?? null
+      } catch (e) {
+        captureException(e, { action: 'getMe', component: 'AuthProvider' })
+        return null
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  })
 
   const refresh = useCallback(async () => {
-    try {
-      const me = await getMe()
-      setUser(me as AuthUser | null)
-    } catch (e) {
-      captureException(e, { action: 'getMe', component: 'AuthProvider' })
-      setUser(null)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    refresh()
-  }, [refresh])
+    await queryClient.invalidateQueries({ queryKey: queryKeys.auth.me })
+  }, [queryClient])
 
   return (
-    <AuthContext.Provider
-      value={{ user, isAuthenticated: !!user, isLoading, refresh }}
-    >
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, refresh }}>
       {children}
     </AuthContext.Provider>
   )
