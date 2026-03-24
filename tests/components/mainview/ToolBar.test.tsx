@@ -41,6 +41,7 @@ describe('ToolBar', () => {
     const onToolChange = vi.fn()
     renderToolBar({ onToolChange })
     await user.click(screen.getByTestId('tool-ruler'))
+    expect(onToolChange).toHaveBeenCalledTimes(1)
     expect(onToolChange).toHaveBeenCalledWith('ruler')
   })
 
@@ -50,8 +51,11 @@ describe('ToolBar', () => {
     renderToolBar({ onToolChange })
     for (const tool of allTools) {
       await user.click(screen.getByTestId(`tool-${tool}`))
-      expect(onToolChange).toHaveBeenCalledWith(tool)
     }
+    expect(onToolChange).toHaveBeenCalledTimes(allTools.length)
+    allTools.forEach((tool, index) => {
+      expect(onToolChange).toHaveBeenNthCalledWith(index + 1, tool)
+    })
   })
 
   it('renders collapse toggle button', () => {

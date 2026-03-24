@@ -10,6 +10,10 @@ const meta: Meta<typeof ToolBar> = {
   parameters: {
     layout: 'fullscreen',
   },
+  args: {
+    activeTool: 'pointer',
+    collapsed: false,
+  },
   decorators: [
     (Story, context) => {
       const isCollapsed = context.args?.collapsed ?? false
@@ -40,13 +44,16 @@ function ControlledToolBar(props: Partial<React.ComponentProps<typeof ToolBar>>)
 }
 
 export const Expanded: Story = {
-  render: () => <ControlledToolBar />,
+  args: { collapsed: false },
+  render: (args) => <ControlledToolBar {...args} />,
 }
 
 export const Collapsed: Story = {
-  render: () => <ControlledToolBar collapsed />,
+  args: { collapsed: true },
+  render: (args) => <ControlledToolBar {...args} />,
 }
 
 export const HandActive: Story = {
-  render: () => <ControlledToolBar activeTool="hand" />,
+  args: { activeTool: 'hand', collapsed: false },
+  render: (args) => <ControlledToolBar {...args} />,
 }
