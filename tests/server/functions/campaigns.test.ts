@@ -82,7 +82,11 @@ vi.mock('~/server/db/models/Campaign', () => ({
   Campaign: { find: vi.fn(), findById: vi.fn(), findOne: vi.fn(), findOneAndUpdate: vi.fn(), create: vi.fn(), exists: vi.fn() },
 }))
 vi.mock('~/server/db/models/Player', () => ({
-  Player: { find: vi.fn(), create: vi.fn() },
+  Player: {
+    find: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+    create: vi.fn(),
+    updateOne: vi.fn(),
+  },
 }))
 vi.mock('~/server/utils/posthog', () => ({ serverCaptureException: vi.fn(), serverCaptureEvent: vi.fn() }))
 
@@ -128,8 +132,9 @@ beforeEach(() => {
   vi.mocked(getSession).mockResolvedValue(mockSession)
   vi.mocked(User.findOne).mockResolvedValue(mockDbUser)
   vi.mocked(User.updateOne).mockResolvedValue({} as never)
-  vi.mocked(Player.find).mockResolvedValue([])
+  vi.mocked(Player.find).mockReturnValue({ lean: vi.fn().mockResolvedValue([]) } as never)
   vi.mocked(Player.create).mockResolvedValue({} as never)
+  vi.mocked(Player.updateOne).mockResolvedValue({} as never)
 })
 
 // Cast server functions to callable handler signatures
@@ -221,9 +226,9 @@ describe('listCampaigns', () => {
   it('includes partyMembers in returned campaigns', async () => {
     const campaign = makeCampaign()
     vi.mocked(Campaign.find).mockReturnValue({ sort: vi.fn().mockResolvedValue([campaign]) } as never)
-    vi.mocked(Player.find).mockResolvedValue([
+    vi.mocked(Player.find).mockReturnValue({ lean: vi.fn().mockResolvedValue([
       { _id: 'p-1', campaignId: 'camp-1', userId: 'dbuser-2', characterName: 'Aragorn', characterClass: 'Ranger', avatar: null },
-    ] as never)
+    ]) } as never)
 
     const result = await _listCampaigns()
 
@@ -290,9 +295,9 @@ describe('getCampaign', () => {
   it('includes partyMembers from Player collection', async () => {
     const campaign = makeCampaign()
     vi.mocked(Campaign.findById).mockResolvedValue(campaign)
-    vi.mocked(Player.find).mockResolvedValue([
+    vi.mocked(Player.find).mockReturnValue({ lean: vi.fn().mockResolvedValue([
       { _id: 'p-1', campaignId: 'camp-1', userId: 'dbuser-2', characterName: 'Gandalf', characterClass: 'Wizard', avatar: null },
-    ] as never)
+    ]) } as never)
 
     const result = await _getCampaign({ data: { id: 'camp-1' } })
 
@@ -432,12 +437,16 @@ describe('joinCampaign', () => {
 
     await _joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } })
 
-    expect(Player.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        campaignId: 'camp-1',
-        userId: 'dbuser-1',
-        characterClass: 'Adventurer',
-      })
+    expect(Player.updateOne).toHaveBeenCalledWith(
+      { campaignId: 'camp-1', userId: 'dbuser-1' },
+      {
+        $setOnInsert: expect.objectContaining({
+          campaignId: 'camp-1',
+          userId: 'dbuser-1',
+          characterClass: 'Adventurer',
+        }),
+      },
+      { upsert: true }
     )
   })
 

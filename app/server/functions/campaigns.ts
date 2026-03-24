@@ -110,8 +110,14 @@ export const listCampaigns = createServerFn({ method: 'GET' }).handler(async () 
     }).sort({ createdAt: -1 })
 
     const campaignIds = raw.map(c => c._id)
-    const allPlayers = await Player.find({ campaignId: { $in: campaignIds } })
-    const playersByCampaignId = allPlayers.reduce((acc, p) => {
+    let playersByCampaignId: Record<string, Array<{ id: string; characterName: string; characterClass: string; avatar: string | null; userId: string }>> = {}
+
+    if (campaignIds.length > 0) {
+    const allPlayers = await Player.find(
+      { campaignId: { $in: campaignIds } },
+      '_id campaignId userId characterName characterClass avatar'
+    ).lean()
+    playersByCampaignId = allPlayers.reduce((acc, p) => {
       const key = String(p.campaignId)
       if (!acc[key]) acc[key] = []
       acc[key].push({
@@ -123,6 +129,7 @@ export const listCampaigns = createServerFn({ method: 'GET' }).handler(async () 
       })
       return acc
     }, {} as Record<string, Array<{ id: string; characterName: string; characterClass: string; avatar: string | null; userId: string }>>)
+    }
 
     const userId = String(dbUser._id)
     return raw.map(c => {
@@ -166,7 +173,10 @@ export const getCampaign = createServerFn({ method: 'GET' })
 
       const isOwner = !!userId && c.gameMasterId != null && String(c.gameMasterId) === userId
 
-      const playerDocs = await Player.find({ campaignId: c._id })
+      const playerDocs = await Player.find(
+        { campaignId: c._id },
+        '_id campaignId userId characterName characterClass avatar'
+      ).lean()
       const partyMembers = playerDocs.map((p: { _id: unknown; characterName: unknown; characterClass: unknown; avatar: unknown; userId: unknown }) => ({
         id: String(p._id),
         characterName: p.characterName as string,
