@@ -46,12 +46,7 @@ const initiateOAuth = createServerFn({ method: 'GET' })
         break
     }
 
-    // Use a proper HTTP redirect Response for external OAuth URLs
-    // redirect({ href }) doesn't work in createServerFn handlers on Nitro/Vercel
-    throw new Response(null, {
-      status: 302,
-      headers: { Location: url },
-    })
+    return { redirectUrl: url }
   })
 
 export const Route = createFileRoute('/auth/$provider')({
@@ -60,7 +55,10 @@ export const Route = createFileRoute('/auth/$provider')({
     if (!VALID_PROVIDERS.includes(provider as typeof VALID_PROVIDERS[number])) {
       throw redirect({ to: '/' })
     }
-    await initiateOAuth({ data: { provider: provider as typeof VALID_PROVIDERS[number] } })
+    const result = await initiateOAuth({ data: { provider: provider as typeof VALID_PROVIDERS[number] } })
+    if (result?.redirectUrl) {
+      throw redirect({ href: result.redirectUrl })
+    }
   },
   component: () => null,
 })
