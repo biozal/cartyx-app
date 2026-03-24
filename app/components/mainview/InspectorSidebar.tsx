@@ -13,12 +13,17 @@ const tabs: { id: InspectorTab; icon: string; label: string }[] = [
   { id: 'settings', icon: '⚙️', label: 'Settings' },
 ]
 
+function tabId(id: InspectorTab) {
+  return `inspector-tab-${id}`
+}
+
+function panelId(id: InspectorTab) {
+  return `inspector-panel-${id}`
+}
+
 export function InspectorSidebar({ defaultTab = 'chat' }: InspectorSidebarProps) {
   const [activeTab, setActiveTab] = useState<InspectorTab>(defaultTab)
   const tablistRef = useRef<HTMLDivElement>(null)
-
-  const activeTabLabel = tabs.find((t) => t.id === activeTab)?.label ?? ''
-  const panelId = `inspector-panel-${activeTab}`
 
   function handleKeyDown(e: React.KeyboardEvent) {
     const currentIndex = tabs.findIndex(t => t.id === activeTab)
@@ -57,18 +62,17 @@ export function InspectorSidebar({ defaultTab = 'chat' }: InspectorSidebarProps)
       >
         {tabs.map((tab) => {
           const isActive = tab.id === activeTab
-          const tabId = `inspector-tab-${tab.id}`
           return (
             <button
               key={tab.id}
-              id={tabId}
+              id={tabId(tab.id)}
               type="button"
               role="tab"
               aria-selected={isActive}
-              aria-controls={panelId}
+              aria-controls={panelId(tab.id)}
               aria-label={tab.label}
               tabIndex={isActive ? 0 : -1}
-              data-testid={tabId}
+              data-testid={tabId(tab.id)}
               onClick={() => setActiveTab(tab.id)}
               className={[
                 'flex flex-1 items-center justify-center text-base transition-colors relative',
@@ -83,18 +87,25 @@ export function InspectorSidebar({ defaultTab = 'chat' }: InspectorSidebarProps)
         })}
       </div>
 
-      {/* Panel content */}
-      <div
-        id={panelId}
-        data-testid="inspector-panel"
-        role="tabpanel"
-        aria-labelledby={`inspector-tab-${activeTab}`}
-        className="flex flex-1 items-center justify-center"
-      >
-        <span className="font-pixel text-xs text-slate-600">
-          {activeTabLabel} — Coming Soon
-        </span>
-      </div>
+      {/* Tab panels — one per tab, only active is visible */}
+      {tabs.map((tab) => {
+        const isActive = tab.id === activeTab
+        return (
+          <div
+            key={tab.id}
+            id={panelId(tab.id)}
+            data-testid={isActive ? 'inspector-panel' : undefined}
+            role="tabpanel"
+            aria-labelledby={tabId(tab.id)}
+            hidden={!isActive}
+            className="flex flex-1 items-center justify-center"
+          >
+            <span className="font-pixel text-xs text-slate-600">
+              {tab.label} — Coming Soon
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }
