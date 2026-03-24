@@ -42,7 +42,7 @@ export function StepWizard({ steps, currentStep, onStepClick }: StepWizardProps)
       <div className="flex justify-between">
         {steps.map((label, i) => (
           <span
-            key={label}
+            key={`${label}-${i}`}
             className={`font-pixel text-[5px] w-8 text-center leading-relaxed transition-colors ${
               i + 1 === currentStep
                 ? 'text-blue-400'

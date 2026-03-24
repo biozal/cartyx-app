@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useId } from 'react'
 
 /** A single option in the select dropdown. */
 export interface SelectOption {
@@ -8,8 +8,8 @@ export interface SelectOption {
 
 /** Props for the FormSelect component. */
 export interface FormSelectProps {
-  /** Label text rendered above the select. */
-  label?: string
+  /** Label content rendered above the select. */
+  label?: React.ReactNode
   /** Controlled selected value. */
   value: string
   /** Change handler. */
@@ -30,6 +30,8 @@ export function FormSelect({
   disabled = false,
   className = '',
 }: FormSelectProps) {
+  const generatedId = useId()
+  const selectId = `form-select-${generatedId}`
   const selectCls = [
     'w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-slate-200 text-sm',
     'focus:outline-none focus:border-blue-500/50 transition-all appearance-none cursor-pointer',
@@ -41,11 +43,12 @@ export function FormSelect({
   return (
     <div className={className}>
       {label && (
-        <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+        <label htmlFor={selectId} className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
           {label}
         </label>
       )}
       <select
+        id={selectId}
         value={value}
         onChange={onChange}
         disabled={disabled}

@@ -19,14 +19,14 @@ const meta: Meta<typeof StepWizard> = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const Step1Of4: Story = {
+export const Step1Of5: Story = {
   args: {
     steps: STEPS,
     currentStep: 1,
   },
 }
 
-export const Step3Of4: Story = {
+export const Step3Of5: Story = {
   args: {
     steps: STEPS,
     currentStep: 3,

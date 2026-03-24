@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useId } from 'react'
 
 /** Props for the FormInput component. */
 export interface FormInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
@@ -14,6 +14,8 @@ export interface FormInputProps extends Omit<React.InputHTMLAttributes<HTMLInput
   error?: string
   /** Optional helper text rendered below input (e.g. character count). */
   hint?: string
+  /** Align hint text. Defaults to "left". */
+  hintAlign?: 'left' | 'right'
   /** Additional CSS classes applied to the wrapper div. */
   className?: string
 }
@@ -27,9 +29,12 @@ export function FormInput({
   disabled = false,
   error,
   hint,
+  hintAlign = 'left',
   className = '',
   ...rest
 }: FormInputProps) {
+  const generatedId = useId()
+  const inputId = rest.id ?? generatedId
   const inputCls = [
     'w-full bg-white/[0.04] border rounded-xl px-4 py-3 text-slate-200 text-sm',
     'placeholder-slate-700 focus:outline-none focus:bg-white/[0.06] transition-all',
@@ -44,24 +49,27 @@ export function FormInput({
   return (
     <div className={className}>
       {label && (
-        <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+        <label htmlFor={inputId} className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
           {label}
         </label>
       )}
       <input
+        id={inputId}
         type={type}
         value={value}
         onChange={onChange}
         placeholder={placeholder}
         disabled={disabled}
         className={inputCls}
+        aria-describedby={error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined}
+        aria-invalid={error ? true : undefined}
         {...rest}
       />
       {error && (
-        <p className="text-xs text-red-400 mt-1.5">{error}</p>
+        <p id={`${inputId}-error`} className="text-xs text-red-400 mt-1.5" role="alert">{error}</p>
       )}
       {!error && hint && (
-        <p className="text-xs text-slate-700 mt-1.5">{hint}</p>
+        <p id={`${inputId}-hint`} className={`text-xs text-slate-700 mt-1.5${hintAlign === 'right' ? ' text-right' : ''}`}>{hint}</p>
       )}
     </div>
   )

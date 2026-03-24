@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { FormInput } from '~/components/FormInput'
 
 describe('FormInput', () => {
@@ -43,9 +43,14 @@ describe('FormInput', () => {
   it('calls onChange when value changes', () => {
     const onChange = vi.fn()
     render(<FormInput value="" onChange={onChange} />)
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'hello' } })
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
+  it('associates label with input via htmlFor', () => {
+    render(<FormInput label="Name" value="" onChange={vi.fn()} />)
+    const label = screen.getByText('Name')
     const input = screen.getByRole('textbox')
-    input.dispatchEvent(new Event('change', { bubbles: true }))
-    // onChange is wired correctly if input responds to events
-    expect(onChange).toBeDefined()
+    expect(label).toHaveAttribute('for', input.id)
   })
 })

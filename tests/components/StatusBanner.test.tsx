@@ -9,9 +9,18 @@ describe('StatusBanner', () => {
     expect(screen.getByText('Something went wrong.')).toBeInTheDocument()
   })
 
-  it('has role="alert"', () => {
-    render(<StatusBanner variant="info" message="Info message." />)
+  it('uses role="alert" for error and warning variants', () => {
+    const { rerender } = render(<StatusBanner variant="error" message="Error." />)
     expect(screen.getByRole('alert')).toBeInTheDocument()
+    rerender(<StatusBanner variant="warning" message="Warning." />)
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+  })
+
+  it('uses role="status" for info and success variants', () => {
+    const { rerender } = render(<StatusBanner variant="info" message="Info." />)
+    expect(screen.getByRole('status')).toBeInTheDocument()
+    rerender(<StatusBanner variant="success" message="Success." />)
+    expect(screen.getByRole('status')).toBeInTheDocument()
   })
 
   it('applies error styles for error variant', () => {
@@ -26,12 +35,12 @@ describe('StatusBanner', () => {
 
   it('applies info styles for info variant', () => {
     render(<StatusBanner variant="info" message="Info." />)
-    expect(screen.getByRole('alert').className).toMatch(/blue/)
+    expect(screen.getByRole('status').className).toMatch(/blue/)
   })
 
   it('applies success styles for success variant', () => {
     render(<StatusBanner variant="success" message="Success." />)
-    expect(screen.getByRole('alert').className).toMatch(/green/)
+    expect(screen.getByRole('status').className).toMatch(/green/)
   })
 
   it('does not render dismiss button when dismissible is false', () => {

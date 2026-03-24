@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useId } from 'react'
 
 /** Props for the FormTextarea component. */
 export interface FormTextareaProps {
@@ -32,7 +32,10 @@ export function FormTextarea({
   disabled = false,
   error,
   className = '',
-}: FormTextareaProps) {
+  ...rest
+}: FormTextareaProps & { id?: string }) {
+  const generatedId = useId()
+  const textareaId = rest.id ?? generatedId
   const nearLimit = maxLength !== undefined && value.length > maxLength * 0.9
 
   const textareaCls = [
@@ -49,11 +52,12 @@ export function FormTextarea({
   return (
     <div className={className}>
       {label && (
-        <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+        <label htmlFor={textareaId} className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
           {label}
         </label>
       )}
       <textarea
+        id={textareaId}
         value={value}
         onChange={onChange}
         placeholder={placeholder}
@@ -61,9 +65,11 @@ export function FormTextarea({
         maxLength={maxLength}
         disabled={disabled}
         className={textareaCls}
+        aria-describedby={error ? `${textareaId}-error` : undefined}
+        aria-invalid={error ? true : undefined}
       />
       {error && (
-        <p className="text-xs text-red-400 mt-1.5">{error}</p>
+        <p id={`${textareaId}-error`} className="text-xs text-red-400 mt-1.5" role="alert">{error}</p>
       )}
       {!error && maxLength !== undefined && (
         <p className={`text-xs mt-1.5 text-right ${nearLimit ? 'text-amber-500' : 'text-slate-700'}`}>

@@ -9,9 +9,9 @@ export interface StatusBannerProps {
   variant: StatusBannerVariant
   /** The message to display. */
   message: string
-  /** When true, renders a dismiss button. */
+  /** When true and onDismiss is provided, renders a dismiss button. */
   dismissible?: boolean
-  /** Called when the dismiss button is clicked. */
+  /** Called when the dismiss button is clicked. Required when dismissible is true. */
   onDismiss?: () => void
   /** Additional CSS classes applied to the banner. */
   className?: string
@@ -34,7 +34,7 @@ export function StatusBanner({
   return (
     <div
       className={`px-4 py-3 rounded-xl border text-sm flex items-start justify-between gap-3 ${variantStyles[variant]} ${className}`}
-      role="alert"
+      role={variant === 'error' || variant === 'warning' ? 'alert' : 'status'}
     >
       <span>{message}</span>
       {dismissible && onDismiss && (
