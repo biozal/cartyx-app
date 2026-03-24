@@ -9,7 +9,7 @@ interface CampaignHeroBannerProps {
 function isValidImagePath(path: string): boolean {
   return (
     /^\/uploads\/[a-zA-Z0-9/_.-]+$/.test(path) ||
-    /^https:\/\/cdn[-.][\w.]+\/[\w/._-]+$/.test(path)
+    /^https:\/\/[^/]+\/uploads\/[\w/._-]+$/.test(path)
   )
 }
 

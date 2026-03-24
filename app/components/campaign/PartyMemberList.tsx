@@ -15,7 +15,9 @@ interface PartyMemberListProps {
 
 export function PartyMemberList({ members, maxPlayers }: PartyMemberListProps) {
   const capped = members.slice(0, 10)
-  const openSlots = Math.max(0, maxPlayers - capped.length)
+  const remainingOpenSlots = Math.max(0, maxPlayers - members.length)
+  const availableVisualSlots = Math.max(0, 10 - capped.length)
+  const openSlots = Math.min(remainingOpenSlots, availableVisualSlots)
 
   if (capped.length === 0 && openSlots === 0) return null
 

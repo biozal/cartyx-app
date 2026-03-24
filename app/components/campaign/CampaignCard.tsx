@@ -6,40 +6,12 @@ import { PartyMemberList } from './PartyMemberList'
 import { InviteCodeField } from './InviteCodeField'
 import { ExternalLinkList } from './ExternalLinkList'
 import { PixelButton } from '~/components/PixelButton'
+import type { CampaignData } from '~/server/functions/campaigns'
 
-// Mirrors CampaignData from ~/server/functions/campaigns — kept local to avoid
-// bundling server modules (mongoose, @tanstack/react-start) in browser builds.
-export interface CampaignCardData {
-  id: string
-  name: string
-  description: string
-  status: string
-  inviteCode: string
-  imagePath: string | null
-  links: Array<{ name: string; url: string }>
-  maxPlayers: number
-  schedule: {
-    frequency: string | null
-    dayOfWeek: string | null
-    time: string | null
-    timezone: string | null
-  }
-  players: { current: number; max: number }
-  partyMembers: Array<{
-    id: string
-    characterName: string
-    characterClass: string
-    avatar: string | null
-    userId: string
-  }>
-  nextSession: { day: string; time: string } | null
-  isOwner: boolean
-  isMember: boolean
-  scheduleText: string
-}
+export type { CampaignData }
 
 interface CampaignCardProps {
-  campaign: CampaignCardData
+  campaign: CampaignData
 }
 
 export function CampaignCard({ campaign }: CampaignCardProps) {

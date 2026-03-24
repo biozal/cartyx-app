@@ -1,9 +1,9 @@
 import React from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { CampaignCard, type CampaignCardData } from './CampaignCard'
+import { CampaignCard, type CampaignData } from './CampaignCard'
 import { Toast } from '~/components/Toast'
 
-const baseCampaign: CampaignCardData = {
+const baseCampaign: CampaignData = {
   id: 'camp-1',
   name: 'The Lost Mines of Phandelver',
   description:

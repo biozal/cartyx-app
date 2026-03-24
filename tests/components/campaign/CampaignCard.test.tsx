@@ -17,9 +17,9 @@ vi.mock('~/components/Toast', () => ({
   Toast: () => null,
 }))
 
-import { CampaignCard, type CampaignCardData } from '~/components/campaign/CampaignCard'
+import { CampaignCard, type CampaignData } from '~/components/campaign/CampaignCard'
 
-const baseCampaign: CampaignCardData = {
+const baseCampaign: CampaignData = {
   id: 'camp-1',
   name: 'The Lost Mines of Phandelver',
   description: 'A classic D&D adventure in the Forgotten Realms.',

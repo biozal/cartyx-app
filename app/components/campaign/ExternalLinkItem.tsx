@@ -5,7 +5,18 @@ interface ExternalLinkItemProps {
   url: string
 }
 
+function isSafeUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return ['http:', 'https:', 'mailto:'].includes(parsed.protocol)
+  } catch {
+    return false
+  }
+}
+
 export function ExternalLinkItem({ name, url }: ExternalLinkItemProps) {
+  if (!isSafeUrl(url)) return null
+
   return (
     <a
       href={url}
