@@ -92,7 +92,7 @@ export const FullWidth: Story = {
 
 export const AsAnchor: Story = {
   render: () => (
-    <PixelButton as="a" href="https://example.com" target="_blank">
+    <PixelButton as="a" href="https://example.com" target="_blank" rel="noopener noreferrer">
       External Link
     </PixelButton>
   ),
