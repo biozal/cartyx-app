@@ -1,0 +1,68 @@
+import React from 'react'
+
+/** Props for the FormInput component. */
+export interface FormInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
+  /** Label content rendered above the input. */
+  label?: React.ReactNode
+  /** HTML input type (text, url, email, time, etc.). Defaults to "text". */
+  type?: string
+  /** Controlled value. */
+  value: string
+  /** Change handler. */
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  /** Error message — renders red border and text below input. */
+  error?: string
+  /** Optional helper text rendered below input (e.g. character count). */
+  hint?: string
+  /** Additional CSS classes applied to the wrapper div. */
+  className?: string
+}
+
+export function FormInput({
+  label,
+  type = 'text',
+  value,
+  onChange,
+  placeholder,
+  disabled = false,
+  error,
+  hint,
+  className = '',
+  ...rest
+}: FormInputProps) {
+  const inputCls = [
+    'w-full bg-white/[0.04] border rounded-xl px-4 py-3 text-slate-200 text-sm',
+    'placeholder-slate-700 focus:outline-none focus:bg-white/[0.06] transition-all',
+    error
+      ? 'border-red-500/50 focus:border-red-500/70'
+      : 'border-white/10 focus:border-blue-500/50',
+    disabled ? 'opacity-50 cursor-not-allowed' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  return (
+    <div className={className}>
+      {label && (
+        <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+          {label}
+        </label>
+      )}
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        disabled={disabled}
+        className={inputCls}
+        {...rest}
+      />
+      {error && (
+        <p className="text-xs text-red-400 mt-1.5">{error}</p>
+      )}
+      {!error && hint && (
+        <p className="text-xs text-slate-700 mt-1.5">{hint}</p>
+      )}
+    </div>
+  )
+}
