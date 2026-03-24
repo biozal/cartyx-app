@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useRef } from 'react'
 import { Link } from '@tanstack/react-router'
-import { useAuth } from '~/hooks/useAuth'
+import { UserMenu } from '~/components/shared/UserMenu'
 
 export interface CampaignHeaderProps {
-  campaignId: string
+  campaignId?: string
   sessionNumber?: number
   activeTab: 'dashboard' | 'tabletop'
   onTabChange: (tab: 'dashboard' | 'tabletop') => void
@@ -14,20 +14,33 @@ const TABS = [
   { id: 'tabletop' as const, label: 'Tabletop' },
 ]
 
-export function CampaignHeader({ campaignId: _campaignId, sessionNumber, activeTab, onTabChange }: CampaignHeaderProps) {
-  const { user, logout } = useAuth()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
+export function CampaignHeader({ sessionNumber, activeTab, onTabChange }: CampaignHeaderProps) {
+  const tablistRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false)
-      }
+  function handleKeyDown(e: React.KeyboardEvent) {
+    const currentIndex = TABS.findIndex(t => t.id === activeTab)
+    let nextIndex = currentIndex
+
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      nextIndex = (currentIndex + 1) % TABS.length
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      nextIndex = (currentIndex - 1 + TABS.length) % TABS.length
+    } else if (e.key === 'Home') {
+      e.preventDefault()
+      nextIndex = 0
+    } else if (e.key === 'End') {
+      e.preventDefault()
+      nextIndex = TABS.length - 1
+    } else {
+      return
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+
+    onTabChange(TABS[nextIndex].id)
+    const buttons = tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    buttons?.[nextIndex]?.focus()
+  }
 
   return (
     <nav className="flex items-center h-14 px-4 bg-[#0D1117] border-b border-white/[0.07] sticky top-0 z-50 gap-4">
@@ -48,7 +61,13 @@ export function CampaignHeader({ campaignId: _campaignId, sessionNumber, activeT
       )}
 
       {/* Center: Tab bar */}
-      <div className="flex-1 flex items-center justify-center gap-1" role="tablist">
+      <div
+        className="flex-1 flex items-center justify-center gap-1"
+        role="tablist"
+        aria-label="MainView navigation"
+        ref={tablistRef}
+        onKeyDown={handleKeyDown}
+      >
         {TABS.map((tab) => {
           const isActive = activeTab === tab.id
           return (
@@ -57,6 +76,7 @@ export function CampaignHeader({ campaignId: _campaignId, sessionNumber, activeT
               type="button"
               role="tab"
               aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
               onClick={() => onTabChange(tab.id)}
               className={`font-pixel text-xs px-4 h-14 border-b-2 transition-colors ${
                 isActive
@@ -80,52 +100,7 @@ export function CampaignHeader({ campaignId: _campaignId, sessionNumber, activeT
           🔔
         </button>
 
-        {user && (
-          <div className="flex items-center gap-3" ref={menuRef}>
-            {user.avatar ? (
-              <img
-                src={user.avatar}
-                alt={`${user.name ?? 'User'} avatar`}
-                className="w-8 h-8 rounded-full border-2 border-white/20 object-cover"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full border-2 border-white/20 bg-blue-900/40 flex items-center justify-center text-sm">
-                🧙
-              </div>
-            )}
-
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setMenuOpen(v => !v)}
-                aria-expanded={menuOpen}
-                className="flex items-center gap-1.5 text-sm text-slate-300 hover:text-white transition-colors"
-              >
-                <span className="max-w-[140px] truncate">{user.name ?? ''}</span>
-                <span className="text-[10px] text-slate-500">▼</span>
-              </button>
-
-              {menuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-44 bg-[#0D1117] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50">
-                  <Link
-                    to="/dashboard"
-                    className="flex items-center gap-2 px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.04] hover:text-white transition-colors"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    ⚙️ Dashboard
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => { setMenuOpen(false); logout() }}
-                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-red-400 hover:bg-white/[0.04] transition-colors"
-                  >
-                    🚪 Sign Out
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        <UserMenu />
       </div>
     </nav>
   )
