@@ -48,8 +48,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test
+      - name: Unit tests
         run: npm run test:ci
+        env:
+          SESSION_SECRET: ci-test-secret-at-least-32-characters-long
+          NODE_ENV: test
+
+      - name: Storybook tests
+        run: npm run test:storybook
         env:
           SESSION_SECRET: ci-test-secret-at-least-32-characters-long
           NODE_ENV: test
