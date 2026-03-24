@@ -4,7 +4,8 @@ import { getSession } from '../session'
 import { connectDB, isDBConnected } from '../db/connection'
 import { User } from '../db/models/User'
 import { Campaign } from '../db/models/Campaign'
-import { generateInviteCode, validateUrl, parseMaxPlayers, saveUploadedFile, MAX_IMAGE_BASE64_LENGTH } from '../utils/helpers'
+import { Player } from '../db/models/Player'
+import { generateInviteCode, parseMaxPlayers, saveUploadedFile, MAX_IMAGE_BASE64_LENGTH } from '../utils/helpers'
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
 import { formatSchedule } from '~/utils/date'
 
@@ -15,8 +16,7 @@ export interface CampaignData {
   status: string
   inviteCode: string
   imagePath: string | null
-  callUrl: string | null
-  dndBeyondUrl: string | null
+  links: Array<{ name: string; url: string }>
   maxPlayers: number
   schedule: {
     frequency: string | null
@@ -25,6 +25,7 @@ export interface CampaignData {
     timezone: string | null
   }
   players: { current: number; max: number }
+  partyMembers: Array<{ id: string; characterName: string; characterClass: string; avatar: string | null; userId: string }>
   nextSession: { day: string; time: string } | null
   isOwner: boolean
   isMember: boolean
@@ -47,13 +48,12 @@ function serializeCampaign(c: {
   status?: string
   inviteCode?: string
   imagePath?: string | null
-  callUrl?: string | null
-  dndBeyondUrl?: string | null
+  links?: Array<{ name?: string; url?: string }> | null
   maxPlayers?: number
   schedule?: { frequency?: string | null; dayOfWeek?: string | null; time?: string | null; timezone?: string | null } | null
   gameMasterId?: unknown
   members?: Array<{ userId: unknown; role?: string }>
-}, gmId?: string, userId?: string): CampaignData {
+}, gmId?: string, userId?: string, partyMembers: Array<{ id: string; characterName: string; characterClass: string; avatar: string | null; userId: string }> = []): CampaignData {
   const schedule = c.schedule ?? null
   const members = c.members ?? []
   const playerCount = members.filter(m => m.role === 'player').length
@@ -68,8 +68,7 @@ function serializeCampaign(c: {
     status: c.status ?? 'active',
     inviteCode: c.inviteCode ?? '',
     imagePath: c.imagePath ?? null,
-    callUrl: c.callUrl ?? null,
-    dndBeyondUrl: c.dndBeyondUrl ?? null,
+    links: (c.links ?? []).map(l => ({ name: l.name ?? '', url: l.url ?? '' })),
     maxPlayers: c.maxPlayers ?? 4,
     schedule: {
       frequency: schedule?.frequency ?? null,
@@ -78,6 +77,7 @@ function serializeCampaign(c: {
       timezone: schedule?.timezone ?? null,
     },
     players: { current: playerCount, max: c.maxPlayers ?? 4 },
+    partyMembers,
     nextSession:
       schedule?.dayOfWeek
         ? { day: schedule.dayOfWeek, time: schedule.time ?? 'TBD' }
@@ -109,9 +109,32 @@ export const listCampaigns = createServerFn({ method: 'GET' }).handler(async () 
       ],
     }).sort({ createdAt: -1 })
 
+    const campaignIds = raw.map(c => c._id)
+    let playersByCampaignId: Record<string, Array<{ id: string; characterName: string; characterClass: string; avatar: string | null; userId: string }>> = {}
+
+    if (campaignIds.length > 0) {
+    const allPlayers = await Player.find(
+      { campaignId: { $in: campaignIds } },
+      '_id campaignId userId characterName characterClass avatar'
+    ).lean()
+    playersByCampaignId = allPlayers.reduce((acc, p) => {
+      const key = String(p.campaignId)
+      if (!acc[key]) acc[key] = []
+      acc[key].push({
+        id: String(p._id),
+        characterName: p.characterName as string,
+        characterClass: p.characterClass as string,
+        avatar: (p.avatar as string | undefined) ?? null,
+        userId: String(p.userId),
+      })
+      return acc
+    }, {} as Record<string, Array<{ id: string; characterName: string; characterClass: string; avatar: string | null; userId: string }>>)
+    }
+
     const userId = String(dbUser._id)
     return raw.map(c => {
-      const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], userId, userId)
+      const partyMembers = playersByCampaignId[String(c._id)] ?? []
+      const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], userId, userId, partyMembers)
       // Redact invite code for non-owners
       if (!serialized.isOwner) {
         return { ...serialized, inviteCode: '' }
@@ -149,7 +172,20 @@ export const getCampaign = createServerFn({ method: 'GET' })
       if (!isMember) return null
 
       const isOwner = !!userId && c.gameMasterId != null && String(c.gameMasterId) === userId
-      const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], userId, userId)
+
+      const playerDocs = await Player.find(
+        { campaignId: c._id },
+        '_id campaignId userId characterName characterClass avatar'
+      ).lean()
+      const partyMembers = playerDocs.map((p: { _id: unknown; characterName: unknown; characterClass: unknown; avatar: unknown; userId: unknown }) => ({
+        id: String(p._id),
+        characterName: p.characterName as string,
+        characterClass: p.characterClass as string,
+        avatar: (p.avatar as string | undefined) ?? null,
+        userId: String(p.userId),
+      }))
+
+      const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], userId, userId, partyMembers)
 
       // Redact invite code for non-owners
       if (!isOwner) {
@@ -170,8 +206,7 @@ const campaignInputShape = {
   schedDay: z.string().optional(),
   schedTime: z.string().optional(),
   schedTz: z.string().optional(),
-  callUrl: z.string().optional(),
-  dndBeyondUrl: z.string().optional(),
+  links: z.array(z.object({ name: z.string(), url: z.string() })).optional().default([]),
   maxPlayers: z.union([z.string(), z.number()]).optional(),
   // Direct R2 upload path (production): full CDN URL returned by getUploadUrl
   imagePath: z.string().url().optional(),
@@ -226,14 +261,9 @@ export const createCampaign = createServerFn({ method: 'POST' })
       await connectDB()
       if (!isDBConnected()) throw new Error('Database not available')
 
-      const { name, description, schedFreq, schedDay, schedTime, schedTz, callUrl, dndBeyondUrl, maxPlayers, imageData, imageMime, imageName, imagePath: imagePathInput } = data
+      const { name, description, schedFreq, schedDay, schedTime, schedTz, links, maxPlayers, imageData, imageMime, imageName, imagePath: imagePathInput } = data
 
       if (!name.trim()) throw new Error('Campaign name is required')
-
-      const normalizedCallUrl = validateUrl(callUrl)
-      if (normalizedCallUrl === false) throw new Error('callUrl must be a valid http or https URL')
-      const normalizedDndUrl = validateUrl(dndBeyondUrl)
-      if (normalizedDndUrl === false) throw new Error('dndBeyondUrl must be a valid http or https URL')
 
       const dbUser = await User.findOne({ providerId: user.id })
       if (!dbUser) throw new Error('User not found')
@@ -281,8 +311,7 @@ export const createCampaign = createServerFn({ method: 'POST' })
               time: schedTime ?? null,
               timezone: schedTz ?? null,
             },
-            callUrl: normalizedCallUrl,
-            dndBeyondUrl: normalizedDndUrl,
+            links: links ?? [],
             maxPlayers: parseMaxPlayers(maxPlayers),
             inviteCode,
             members: [{ userId: dbUser._id, role: 'gm', joinedAt: new Date() }],
@@ -336,14 +365,9 @@ export const updateCampaign = createServerFn({ method: 'POST' })
       if (!campaign) throw new Error('Campaign not found')
       if (String(campaign.gameMasterId) !== String(dbUser._id)) throw new Error('Forbidden')
 
-      const { name, description, schedFreq, schedDay, schedTime, schedTz, callUrl, dndBeyondUrl, maxPlayers, imageData, imageMime, imageName, imagePath: imagePathInput } = data
+      const { name, description, schedFreq, schedDay, schedTime, schedTz, links, maxPlayers, imageData, imageMime, imageName, imagePath: imagePathInput } = data
 
       if (!name.trim()) throw new Error('Campaign name is required')
-
-      const normalizedCallUrl = validateUrl(callUrl)
-      if (normalizedCallUrl === false) throw new Error('callUrl must be a valid http or https URL')
-      const normalizedDndUrl = validateUrl(dndBeyondUrl)
-      if (normalizedDndUrl === false) throw new Error('dndBeyondUrl must be a valid http or https URL')
 
       campaign.name = name.trim()
       campaign.description = description.trim()
@@ -353,8 +377,7 @@ export const updateCampaign = createServerFn({ method: 'POST' })
         time: schedTime ?? null,
         timezone: schedTz ?? null,
       }
-      campaign.callUrl = normalizedCallUrl
-      campaign.dndBeyondUrl = normalizedDndUrl
+      campaign.links = links ?? []
       campaign.maxPlayers = parseMaxPlayers(maxPlayers)
       campaign.updatedAt = new Date()
 
@@ -454,6 +477,28 @@ export const joinCampaign = createServerFn({ method: 'POST' })
         {
           $addToSet: { campaigns: { campaignId: updatedCampaign._id, status: 'active', joinedAt: now } },
         }
+      )
+
+      // Create placeholder Player document (can be edited later)
+      const displayName = [dbUser.firstName as string | undefined, dbUser.lastName as string | undefined]
+        .filter(Boolean)
+        .join(' ')
+        .trim()
+      await Player.updateOne(
+        {
+          campaignId: updatedCampaign._id,
+          userId: dbUser._id,
+        },
+        {
+          $setOnInsert: {
+            campaignId: updatedCampaign._id,
+            userId: dbUser._id,
+            characterName: displayName || 'Adventurer',
+            characterClass: 'Adventurer',
+            joinedAt: now,
+          },
+        },
+        { upsert: true }
       )
 
       serverCaptureEvent(user.id, 'campaign_joined', { campaign_id: String(updatedCampaign._id) })

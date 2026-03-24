@@ -21,8 +21,7 @@ interface CreateCampaignInput {
   schedDay?: string
   schedTime?: string
   schedTz?: string
-  callUrl?: string
-  dndBeyondUrl?: string
+  links?: Array<{ name: string; url: string }>
   maxPlayers?: number
   imageFile?: File | null
 }
@@ -105,8 +104,7 @@ export function useCreateCampaign() {
           schedDay: input.schedDay,
           schedTime: input.schedTime,
           schedTz: input.schedTz,
-          callUrl: input.callUrl,
-          dndBeyondUrl: input.dndBeyondUrl,
+          links: input.links,
           maxPlayers: input.maxPlayers,
           ...imagePayload,
         },
@@ -149,8 +147,7 @@ export function useUpdateCampaign() {
           schedDay: input.schedDay,
           schedTime: input.schedTime,
           schedTz: input.schedTz,
-          callUrl: input.callUrl,
-          dndBeyondUrl: input.dndBeyondUrl,
+          links: input.links,
           maxPlayers: input.maxPlayers,
           ...imagePayload,
         },
