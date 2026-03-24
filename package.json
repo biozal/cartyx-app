@@ -46,7 +46,6 @@
     "@storybook/addon-onboarding": "^10.3.3",
     "@storybook/addon-vitest": "^10.3.3",
     "@storybook/react-vite": "^10.3.3",
-    "@storybook/test": "^8.6.15",
     "@tailwindcss/vite": "^4.2.2",
     "@tanstack/react-query-devtools": "^5.95.2",
     "@testing-library/jest-dom": "^6.6.3",
