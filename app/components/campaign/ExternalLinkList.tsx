@@ -6,13 +6,17 @@ interface ExternalLinkListProps {
 }
 
 export function ExternalLinkList({ links }: ExternalLinkListProps) {
-  if (!links.length) return null
+  const renderableLinks = links.filter(
+    (link) => typeof link.url === 'string' && link.url.trim() !== ''
+  )
+
+  if (!renderableLinks.length) return null
 
   return (
     <div>
       <div className="text-[10px] font-pixel text-slate-500 tracking-wide mb-2">LINKS</div>
       <div className="flex flex-col gap-1">
-        {links.map((link, i) => (
+        {renderableLinks.map((link, i) => (
           <ExternalLinkItem key={`${link.name}:${link.url}`} name={link.name} url={link.url} />
         ))}
       </div>
