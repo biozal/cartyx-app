@@ -1,0 +1,55 @@
+import { Widget } from '~/components/mainview/Widget'
+import { getKeyAllies, type KeyAlly } from '~/services/mocks/keyAlliesService'
+
+export interface KeyAlliesWidgetProps {
+  allies?: KeyAlly[]
+  className?: string
+}
+
+function getInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('')
+}
+
+export function KeyAlliesWidget({
+  allies = getKeyAllies(),
+  className = '',
+}: KeyAlliesWidgetProps) {
+  return (
+    <Widget title="Key Allies" className={className}>
+      {allies.length === 0 ? (
+        <p className="font-pixel text-xs text-slate-500">No allies found</p>
+      ) : (
+        <div className="space-y-3">
+          {allies.map((ally) => (
+            <div
+              key={ally.id}
+              className="flex items-center gap-3 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/[0.07] bg-slate-800 font-pixel text-xs text-white">
+                {ally.avatarUrl ? (
+                  <img
+                    src={ally.avatarUrl}
+                    alt={ally.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span aria-hidden="true">{getInitials(ally.name)}</span>
+                )}
+              </div>
+
+              <div className="min-w-0">
+                <p className="truncate font-pixel text-xs text-white">{ally.name}</p>
+                <p className="truncate font-pixel text-xs text-slate-400">{ally.location}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Widget>
+  )
+}
