@@ -49,12 +49,9 @@ export default [js.configs.recommended, {
     'dist',
     'coverage',
     'app/routeTree.gen.ts',
-    'src/**',
     'server.cjs',
     'prod-server.js',
     'jest.config.cjs',
     'scripts/**',
-    'tests/unit/**',
-    'tests/integration/**',
   ],
 }, ...storybook.configs["flat/recommended"]];
