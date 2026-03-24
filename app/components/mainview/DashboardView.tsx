@@ -2,17 +2,18 @@ import { Children, type ReactNode } from 'react'
 import { WidgetSlot } from './WidgetSlot'
 
 export interface DashboardWidgetConfig {
-  id?: string
+  id: string
   title: string
   content: ReactNode
   className?: string
 }
 
-export interface DashboardViewProps {
-  children?: ReactNode
-  widgets?: DashboardWidgetConfig[]
+export type DashboardViewProps = {
   className?: string
-}
+} & (
+  | { children: ReactNode; widgets?: never }
+  | { children?: never; widgets?: DashboardWidgetConfig[] }
+)
 
 export function DashboardView({ children, widgets = [], className = '' }: DashboardViewProps) {
   const childItems = Children.toArray(children)
@@ -35,9 +36,9 @@ export function DashboardView({ children, widgets = [], className = '' }: Dashbo
       >
         {hasChildren
           ? childItems
-          : widgets.map((widget, index) => (
+          : widgets.map((widget) => (
             <WidgetSlot
-              key={widget.id ?? `${widget.title}-${index}`}
+              key={widget.id}
               title={widget.title}
               className={widget.className}
             >

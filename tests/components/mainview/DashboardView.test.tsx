@@ -8,8 +8,8 @@ describe('DashboardView', () => {
     render(
       <DashboardView
         widgets={[
-          { title: 'Widget One', content: <div>One</div> },
-          { title: 'Widget Two', content: <div>Two</div> },
+          { id: 'w1', title: 'Widget One', content: <div>One</div> },
+          { id: 'w2', title: 'Widget Two', content: <div>Two</div> },
         ]}
       />
     )
