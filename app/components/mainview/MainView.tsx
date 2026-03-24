@@ -4,11 +4,12 @@ interface MainViewProps {
   showToolbar?: boolean
   showInspector?: boolean
   children: ReactNode
+  className?: string
 }
 
-export function MainView({ showToolbar = false, showInspector = true, children }: MainViewProps) {
+export function MainView({ showToolbar = false, showInspector = true, children, className = '' }: MainViewProps) {
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] bg-[#080A12] overflow-hidden">
+    <div className={`flex h-full bg-[#080A12] overflow-hidden ${className}`}>
       {/* Left column — Toolbar */}
       <div
         data-testid="mainview-toolbar"
