@@ -89,20 +89,13 @@ function CampaignSummaryPage() {
               <span className="text-xs text-slate-500 font-medium flex-1">Max Players</span>
               <span className="text-sm text-slate-400 font-medium">{campaign.maxPlayers}</span>
             </div>
-            {campaign.callUrl && (
-              <div className="flex items-center gap-2.5">
-                <span className="text-sm w-6 text-center">💬</span>
-                <span className="text-xs text-slate-500 font-medium flex-1">Communication</span>
-                <a href={campaign.callUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-400 font-medium hover:text-blue-300">Link</a>
+            {campaign.links.map((link, i) => (
+              <div key={i} className="flex items-center gap-2.5">
+                <span className="text-sm w-6 text-center">🔗</span>
+                <span className="text-xs text-slate-500 font-medium flex-1">{link.name || 'Link'}</span>
+                <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-400 font-medium hover:text-blue-300">Visit</a>
               </div>
-            )}
-            {campaign.dndBeyondUrl && (
-              <div className="flex items-center gap-2.5">
-                <span className="text-sm w-6 text-center">📖</span>
-                <span className="text-xs text-slate-500 font-medium flex-1">D&amp;D Beyond</span>
-                <a href={campaign.dndBeyondUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-400 font-medium hover:text-blue-300">Link</a>
-              </div>
-            )}
+            ))}
           </div>
 
           {/* Actions */}

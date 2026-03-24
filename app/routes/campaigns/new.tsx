@@ -36,8 +36,7 @@ function NewCampaignPage() {
   const [schedDay, setSchedDay] = useState('Sat')
   const [schedTime, setSchedTime] = useState('19:00')
   const [schedTz, setSchedTz] = useState('America/Chicago')
-  const [callUrl, setCallUrl] = useState('')
-  const [dndUrl, setDndUrl] = useState('')
+  const [links, setLinks] = useState([{ name: '', url: '' }])
   const [maxPlayers, setMaxPlayers] = useState(4)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -83,7 +82,7 @@ function NewCampaignPage() {
     const result = await create({
       name, description: desc,
       schedFreq, schedDay, schedTime, schedTz,
-      callUrl, dndBeyondUrl: dndUrl,
+      links: links.filter(l => l.name.trim() || l.url.trim()),
       maxPlayers,
       imageFile,
     })
@@ -271,23 +270,43 @@ function NewCampaignPage() {
             {step === 3 && (
               <>
                 <div className="font-pixel text-[10px] text-blue-400 tracking-[3px] mb-7">THE GATHERING</div>
-                <div className="space-y-5">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
-                      Communication Link <span className="text-slate-600 font-normal">(optional)</span>
-                    </label>
-                    <input type="url" value={callUrl} onChange={e => setCallUrl(e.target.value)}
-                      placeholder="https://discord.gg/... or https://zoom.us/..."
-                      className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-slate-200 text-sm placeholder-slate-700 focus:outline-none focus:border-blue-500/50 transition-all" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
-                      D&amp;D Beyond Campaign URL <span className="text-slate-600 font-normal">(optional)</span>
-                    </label>
-                    <input type="url" value={dndUrl} onChange={e => setDndUrl(e.target.value)}
-                      placeholder="https://www.dndbeyond.com/campaigns/..."
-                      className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-slate-200 text-sm placeholder-slate-700 focus:outline-none focus:border-blue-500/50 transition-all" />
-                  </div>
+                <div className="space-y-3">
+                  <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+                    Links <span className="text-slate-600 font-normal">(optional)</span>
+                  </label>
+                  {links.map((link, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        value={link.name}
+                        onChange={e => setLinks(links.map((l, j) => j === i ? { ...l, name: e.target.value } : l))}
+                        placeholder="Name (e.g. Discord)"
+                        className="w-32 bg-white/[0.04] border border-white/10 rounded-xl px-3 py-3 text-slate-200 text-sm placeholder-slate-700 focus:outline-none focus:border-blue-500/50 transition-all"
+                      />
+                      <input
+                        type="url"
+                        value={link.url}
+                        onChange={e => setLinks(links.map((l, j) => j === i ? { ...l, url: e.target.value } : l))}
+                        placeholder="https://..."
+                        className="flex-1 bg-white/[0.04] border border-white/10 rounded-xl px-3 py-3 text-slate-200 text-sm placeholder-slate-700 focus:outline-none focus:border-blue-500/50 transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setLinks(links.filter((_, j) => j !== i))}
+                        className="text-slate-600 hover:text-red-400 transition-colors text-lg leading-none px-1"
+                        aria-label="Remove link"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setLinks([...links, { name: '', url: '' }])}
+                    className="text-xs text-blue-500 hover:text-blue-400 transition-colors font-medium mt-1"
+                  >
+                    + Add Link
+                  </button>
                 </div>
               </>
             )}
@@ -322,7 +341,7 @@ function NewCampaignPage() {
                   {[
                     { title: 'THE QUEST', rows: [['Name', name], ['Description', descShort]] },
                     { title: 'THE SCHEDULE', rows: [['Frequency', freqMap[schedFreq] ?? schedFreq], ['Day', schedDay || 'Not set'], ['Time', schedTime ? `${schedTime} ${schedTz}` : 'Not set']] },
-                    { title: 'THE GATHERING', rows: [['Communication', callUrl || 'None'], ['D&D Beyond', dndUrl || 'None']] },
+                    { title: 'THE GATHERING', rows: links.filter(l => l.name.trim() || l.url.trim()).length > 0 ? links.filter(l => l.name.trim() || l.url.trim()).map(l => [l.name || '(unnamed)', l.url || 'None']) : [['Links', 'None']] },
                     { title: 'THE ROSTER', rows: [['Max Players', `${maxPlayers} players`]] },
                   ].map(section => (
                     <div key={section.title}>

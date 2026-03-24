@@ -81,11 +81,19 @@ vi.mock('~/server/db/models/User', () => ({
 vi.mock('~/server/db/models/Campaign', () => ({
   Campaign: { find: vi.fn(), findById: vi.fn(), findOne: vi.fn(), findOneAndUpdate: vi.fn(), create: vi.fn(), exists: vi.fn() },
 }))
+vi.mock('~/server/db/models/Player', () => ({
+  Player: {
+    find: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+    create: vi.fn(),
+    updateOne: vi.fn(),
+  },
+}))
 vi.mock('~/server/utils/posthog', () => ({ serverCaptureException: vi.fn(), serverCaptureEvent: vi.fn() }))
 
 import { getSession } from '~/server/session'
 import { User } from '~/server/db/models/User'
 import { Campaign } from '~/server/db/models/Campaign'
+import { Player } from '~/server/db/models/Player'
 import { listCampaigns, getCampaign, createCampaign, updateCampaign, joinCampaign, campaignInputSchema } from '~/server/functions/campaigns'
 import { serverCaptureEvent } from '~/server/utils/posthog'
 
@@ -100,7 +108,7 @@ const mockSession = {
   refreshToken: null,
   tokenIssuedAt: 0,
 }
-const mockDbUser = { _id: 'dbuser-1' }
+const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' }
 
 function makeCampaign(overrides: Record<string, unknown> = {}) {
   return {
@@ -111,8 +119,7 @@ function makeCampaign(overrides: Record<string, unknown> = {}) {
     status: 'active',
     inviteCode: 'ABCD-EFGH',
     imagePath: null,
-    callUrl: null,
-    dndBeyondUrl: null,
+    links: [],
     maxPlayers: 4,
     schedule: null,
     members: [{ userId: 'dbuser-1', role: 'gm' }],
@@ -125,6 +132,9 @@ beforeEach(() => {
   vi.mocked(getSession).mockResolvedValue(mockSession)
   vi.mocked(User.findOne).mockResolvedValue(mockDbUser)
   vi.mocked(User.updateOne).mockResolvedValue({} as never)
+  vi.mocked(Player.find).mockReturnValue({ lean: vi.fn().mockResolvedValue([]) } as never)
+  vi.mocked(Player.create).mockResolvedValue({} as never)
+  vi.mocked(Player.updateOne).mockResolvedValue({} as never)
 })
 
 // Cast server functions to callable handler signatures
@@ -212,6 +222,28 @@ describe('listCampaigns', () => {
 
     expect((result[0] as { players: { current: number } }).players.current).toBe(2)
   })
+
+  it('includes partyMembers in returned campaigns', async () => {
+    const campaign = makeCampaign()
+    vi.mocked(Campaign.find).mockReturnValue({ sort: vi.fn().mockResolvedValue([campaign]) } as never)
+    vi.mocked(Player.find).mockReturnValue({ lean: vi.fn().mockResolvedValue([
+      { _id: 'p-1', campaignId: 'camp-1', userId: 'dbuser-2', characterName: 'Aragorn', characterClass: 'Ranger', avatar: null },
+    ]) } as never)
+
+    const result = await _listCampaigns()
+
+    expect((result[0] as { partyMembers: unknown[] }).partyMembers).toHaveLength(1)
+    expect((result[0] as { partyMembers: Array<{ characterName: string }> }).partyMembers[0].characterName).toBe('Aragorn')
+  })
+
+  it('includes links in returned campaigns', async () => {
+    const campaign = makeCampaign({ links: [{ name: 'Discord', url: 'https://discord.gg/test' }] })
+    vi.mocked(Campaign.find).mockReturnValue({ sort: vi.fn().mockResolvedValue([campaign]) } as never)
+
+    const result = await _listCampaigns()
+
+    expect((result[0] as { links: Array<{ name: string }> }).links[0].name).toBe('Discord')
+  })
 })
 
 describe('getCampaign', () => {
@@ -258,6 +290,18 @@ describe('getCampaign', () => {
     const result = await _getCampaign({ data: { id: 'camp-1' } })
 
     expect((result as { inviteCode: string }).inviteCode).toBe('')
+  })
+
+  it('includes partyMembers from Player collection', async () => {
+    const campaign = makeCampaign()
+    vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    vi.mocked(Player.find).mockReturnValue({ lean: vi.fn().mockResolvedValue([
+      { _id: 'p-1', campaignId: 'camp-1', userId: 'dbuser-2', characterName: 'Gandalf', characterClass: 'Wizard', avatar: null },
+    ]) } as never)
+
+    const result = await _getCampaign({ data: { id: 'camp-1' } })
+
+    expect((result as { partyMembers: Array<{ characterName: string }> }).partyMembers[0].characterName).toBe('Gandalf')
   })
 })
 
@@ -324,6 +368,16 @@ describe('createCampaign', () => {
     expect(createCall.members[0].role).toBe('gm')
   })
 
+  it('stores links on the campaign', async () => {
+    vi.mocked(Campaign.exists).mockResolvedValue(null)
+    vi.mocked(Campaign.create).mockResolvedValue(makeCampaign() as never)
+
+    await _createCampaign({ data: { name: 'My Campaign', description: '', links: [{ name: 'Discord', url: 'https://discord.gg/test' }] } })
+
+    const createCall = vi.mocked(Campaign.create).mock.calls[0][0] as { links: Array<{ name: string; url: string }> }
+    expect(createCall.links).toEqual([{ name: 'Discord', url: 'https://discord.gg/test' }])
+  })
+
   it('syncs User.campaigns after creation', async () => {
     vi.mocked(Campaign.exists).mockResolvedValue(null)
     vi.mocked(Campaign.create).mockResolvedValue(makeCampaign() as never)
@@ -373,6 +427,27 @@ describe('joinCampaign', () => {
     expect(result).toMatchObject({ success: true, campaignId: 'camp-1' })
     expect(Campaign.findOneAndUpdate).toHaveBeenCalled()
     expect(User.updateOne).toHaveBeenCalled()
+  })
+
+  it('creates a Player document with placeholder info on join', async () => {
+    const campaignDoc = makeCampaign({ gameMasterId: 'gm-user', members: [{ userId: 'gm-user', role: 'gm' }] })
+    vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc)
+    const updatedDoc = { ...campaignDoc, members: [...campaignDoc.members, { userId: 'dbuser-1', role: 'player' }] }
+    vi.mocked(Campaign.findOneAndUpdate).mockResolvedValue(updatedDoc)
+
+    await _joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } })
+
+    expect(Player.updateOne).toHaveBeenCalledWith(
+      { campaignId: 'camp-1', userId: 'dbuser-1' },
+      {
+        $setOnInsert: expect.objectContaining({
+          campaignId: 'camp-1',
+          userId: 'dbuser-1',
+          characterClass: 'Adventurer',
+        }),
+      },
+      { upsert: true }
+    )
   })
 
   it('throws for invalid invite code', async () => {
@@ -428,6 +503,19 @@ describe('updateCampaign', () => {
     })
 
     expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'campaign_updated', { campaign_id: 'camp-1' })
+  })
+
+  it('stores updated links on the campaign', async () => {
+    const campaign = makeCampaign()
+    const saveMock = vi.fn().mockResolvedValue(campaign)
+    const campaignObj = { ...campaign, save: saveMock }
+    vi.mocked(Campaign.findById).mockResolvedValue(campaignObj as never)
+
+    await _updateCampaign({
+      data: { id: 'camp-1', name: 'Updated Name', description: '', links: [{ name: 'D&D Beyond', url: 'https://dndbeyond.com' }] },
+    })
+
+    expect(campaignObj.links).toEqual([{ name: 'D&D Beyond', url: 'https://dndbeyond.com' }])
   })
 
   it('does not fire analytics on auth failure', async () => {
@@ -487,6 +575,14 @@ describe('campaignInputSchema', () => {
 
   it('accepts neither imagePath nor imageData (no image)', () => {
     const result = campaignInputSchema.safeParse({ name: 'test' })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts a links array', () => {
+    const result = campaignInputSchema.safeParse({
+      name: 'test',
+      links: [{ name: 'Discord', url: 'https://discord.gg/test' }],
+    })
     expect(result.success).toBe(true)
   })
 })
