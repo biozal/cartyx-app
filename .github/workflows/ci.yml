@@ -57,7 +57,7 @@ jobs:
       - name: Storybook tests
         run: npm run test:storybook
         timeout-minutes: 5
-        continue-on-error: true
+        continue-on-error: ${{ github.event_name == 'push' }}
         env:
           SESSION_SECRET: ci-test-secret-at-least-32-characters-long
           NODE_ENV: test
