@@ -65,12 +65,16 @@ describe('ToolBar', () => {
 
   it('collapse toggle has correct aria-label when expanded', () => {
     renderToolBar({ collapsed: false })
-    expect(screen.getByTestId('toolbar-toggle')).toHaveAttribute('aria-label', 'Collapse toolbar')
+    const toggle = screen.getByTestId('toolbar-toggle')
+    expect(toggle).toHaveAttribute('aria-label', 'Collapse toolbar')
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('collapse toggle has correct aria-label when collapsed', () => {
     renderToolBar({ collapsed: true })
-    expect(screen.getByTestId('toolbar-toggle')).toHaveAttribute('aria-label', 'Expand toolbar')
+    const toggle = screen.getByTestId('toolbar-toggle')
+    expect(toggle).toHaveAttribute('aria-label', 'Expand toolbar')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('calls onToggleCollapse when toggle is clicked', async () => {

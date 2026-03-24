@@ -36,7 +36,7 @@ export function ToolBar({ activeTool, onToolChange, collapsed, onToggleCollapse 
   return (
     <div className="flex flex-col items-center h-full py-2 bg-[#080A12]">
       {!collapsed && (
-        <div className="flex flex-col items-center gap-1 flex-1">
+        <div id="toolbar-tools" className="flex flex-col items-center gap-1 flex-1">
           {tools.map(({ id, icon: Icon, label }) => {
             const isActive = id === activeTool
             return (
@@ -67,6 +67,8 @@ export function ToolBar({ activeTool, onToolChange, collapsed, onToggleCollapse 
       <button
         type="button"
         aria-label={collapsed ? 'Expand toolbar' : 'Collapse toolbar'}
+        aria-expanded={!collapsed}
+        aria-controls="toolbar-tools"
         data-testid="toolbar-toggle"
         onClick={onToggleCollapse}
         title={collapsed ? 'Expand toolbar' : 'Collapse toolbar'}
@@ -75,7 +77,9 @@ export function ToolBar({ activeTool, onToolChange, collapsed, onToggleCollapse 
           collapsed ? 'w-8' : 'w-10',
         ].join(' ')}
       >
-        {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        <span className={`inline-flex transition-transform duration-200 ${collapsed ? 'rotate-180' : 'rotate-0'}`}>
+          <ChevronLeft size={16} />
+        </span>
       </button>
     </div>
   )
