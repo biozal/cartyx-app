@@ -36,8 +36,9 @@ function EditCampaignPage() {
   const [schedDay, setSchedDay] = useState(campaign.schedule.dayOfWeek ?? '')
   const [schedTime, setSchedTime] = useState(campaign.schedule.time ?? '')
   const [schedTz, setSchedTz] = useState(campaign.schedule.timezone ?? 'America/New_York')
-  const [callUrl, setCallUrl] = useState(campaign.callUrl ?? '')
-  const [dndUrl, setDndUrl] = useState(campaign.dndBeyondUrl ?? '')
+  const [links, setLinks] = useState(
+    campaign.links && campaign.links.length > 0 ? campaign.links : [{ name: '', url: '' }]
+  )
   const [maxPlayers, setMaxPlayers] = useState(campaign.maxPlayers)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(campaign.imagePath)
@@ -74,7 +75,7 @@ function EditCampaignPage() {
     const result = await update(campaign.id, {
       name, description: desc,
       schedFreq, schedDay, schedTime, schedTz,
-      callUrl, dndBeyondUrl: dndUrl,
+      links: links.filter(l => l.name.trim() || l.url.trim()),
       maxPlayers,
       imageFile,
     })
@@ -179,13 +180,40 @@ function EditCampaignPage() {
 
         <div className={sectionCls}>
           <div className={headingCls}>Links</div>
-          <div className="mb-5">
-            <label className={labelCls}>Communication URL</label>
-            <input className={inputCls} value={callUrl} onChange={e => setCallUrl(e.target.value)} placeholder="Discord invite or Zoom link" />
-          </div>
-          <div>
-            <label className={labelCls}>D&amp;D Beyond URL</label>
-            <input className={inputCls} value={dndUrl} onChange={e => setDndUrl(e.target.value)} placeholder="D&D Beyond campaign link" />
+          <div className="space-y-3">
+            {links.map((link, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={link.name}
+                  onChange={e => setLinks(links.map((l, j) => j === i ? { ...l, name: e.target.value } : l))}
+                  placeholder="Name (e.g. Discord)"
+                  className="w-36 bg-white/[0.04] border border-white/10 rounded-xl px-3 py-3 text-slate-200 text-sm placeholder-slate-700 focus:outline-none focus:border-blue-500/50 focus:bg-white/[0.06] transition-all"
+                />
+                <input
+                  type="url"
+                  value={link.url}
+                  onChange={e => setLinks(links.map((l, j) => j === i ? { ...l, url: e.target.value } : l))}
+                  placeholder="https://..."
+                  className="flex-1 bg-white/[0.04] border border-white/10 rounded-xl px-3 py-3 text-slate-200 text-sm placeholder-slate-700 focus:outline-none focus:border-blue-500/50 focus:bg-white/[0.06] transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setLinks(links.filter((_, j) => j !== i))}
+                  className="text-slate-600 hover:text-red-400 transition-colors text-lg leading-none px-1"
+                  aria-label="Remove link"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setLinks([...links, { name: '', url: '' }])}
+              className="text-xs text-blue-500 hover:text-blue-400 transition-colors font-medium mt-1"
+            >
+              + Add Link
+            </button>
           </div>
         </div>
 
