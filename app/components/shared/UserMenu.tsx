@@ -38,7 +38,7 @@ export function UserMenu() {
           type="button"
           onClick={() => setMenuOpen(v => !v)}
           aria-expanded={menuOpen}
-          aria-label="User menu"
+          aria-label={`User menu for ${user.name ?? 'user'}`}
           className="flex items-center gap-1.5 text-sm text-slate-300 hover:text-white transition-colors"
         >
           <span className="max-w-[140px] truncate">{user.name ?? ''}</span>

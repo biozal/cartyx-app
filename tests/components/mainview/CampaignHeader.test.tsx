@@ -126,7 +126,7 @@ describe('CampaignHeader', () => {
     render(
       <CampaignHeader activeTab="dashboard" onTabChange={vi.fn()} />
     )
-    const menuButton = screen.getByRole('button', { name: 'User menu' })
+    const menuButton = screen.getByRole('button', { name: /User menu for/ })
     expect(menuButton).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(menuButton)
@@ -141,7 +141,7 @@ describe('CampaignHeader', () => {
     render(
       <CampaignHeader activeTab="dashboard" onTabChange={vi.fn()} />
     )
-    fireEvent.click(screen.getByRole('button', { name: 'User menu' }))
+    fireEvent.click(screen.getByRole('button', { name: /User menu for/ }))
     fireEvent.click(screen.getByText('🚪 Sign Out'))
     expect(mockLogout).toHaveBeenCalled()
   })
