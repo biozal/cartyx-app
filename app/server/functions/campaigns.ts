@@ -474,13 +474,22 @@ export const joinCampaign = createServerFn({ method: 'POST' })
         .filter(Boolean)
         .join(' ')
         .trim()
-      await Player.create({
-        campaignId: updatedCampaign._id,
-        userId: dbUser._id,
-        characterName: displayName || 'Adventurer',
-        characterClass: 'Adventurer',
-        joinedAt: now,
-      })
+      await Player.updateOne(
+        {
+          campaignId: updatedCampaign._id,
+          userId: dbUser._id,
+        },
+        {
+          $setOnInsert: {
+            campaignId: updatedCampaign._id,
+            userId: dbUser._id,
+            characterName: displayName || 'Adventurer',
+            characterClass: 'Adventurer',
+            joinedAt: now,
+          },
+        },
+        { upsert: true }
+      )
 
       serverCaptureEvent(user.id, 'campaign_joined', { campaign_id: String(updatedCampaign._id) })
 
