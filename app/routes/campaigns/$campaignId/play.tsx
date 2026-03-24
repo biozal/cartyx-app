@@ -1,16 +1,16 @@
+import { z } from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { getMe } from '~/server/functions/auth'
 import { CampaignHeader } from '~/components/mainview/CampaignHeader'
 import { MainView } from '~/components/mainview/MainView'
+import type { TabId } from '~/components/mainview/TabNavigation'
 
-type TabId = 'dashboard' | 'tabletop'
+export const playSearchSchema = z.object({
+  tab: z.enum(['dashboard', 'tabletop']).catch('dashboard'),
+})
 
 export const Route = createFileRoute('/campaigns/$campaignId/play')({
-  validateSearch: (search: Record<string, unknown>) => ({
-    tab: (['dashboard', 'tabletop'].includes(search.tab as string)
-      ? (search.tab as TabId)
-      : 'dashboard') as TabId,
-  }),
+  validateSearch: (search: Record<string, unknown>) => playSearchSchema.parse(search),
   beforeLoad: async () => {
     const user = await getMe()
     if (!user) throw redirect({ to: '/', search: { reason: 'session_expired' } })
