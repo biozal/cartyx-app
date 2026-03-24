@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState, useRef } from 'react'
 
 export type InspectorTab = 'chat' | 'wiki' | 'notepad' | 'settings'
 
@@ -15,25 +15,61 @@ const tabs: { id: InspectorTab; icon: string; label: string }[] = [
 
 export function InspectorSidebar({ defaultTab = 'chat' }: InspectorSidebarProps) {
   const [activeTab, setActiveTab] = useState<InspectorTab>(defaultTab)
+  const tablistRef = useRef<HTMLDivElement>(null)
 
   const activeTabLabel = tabs.find((t) => t.id === activeTab)?.label ?? ''
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    const currentIndex = tabs.findIndex(t => t.id === activeTab)
+    let nextIndex = currentIndex
+
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      nextIndex = (currentIndex + 1) % tabs.length
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      nextIndex = (currentIndex - 1 + tabs.length) % tabs.length
+    } else if (e.key === 'Home') {
+      e.preventDefault()
+      nextIndex = 0
+    } else if (e.key === 'End') {
+      e.preventDefault()
+      nextIndex = tabs.length - 1
+    } else {
+      return
+    }
+
+    setActiveTab(tabs[nextIndex].id)
+    const buttons = tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    buttons?.[nextIndex]?.focus()
+  }
 
   return (
     <div className="flex flex-col h-full bg-[#0D1117]">
       {/* Tab bar */}
-      <div className="flex h-12 border-b border-white/[0.07] flex-shrink-0">
+      <div
+        className="flex h-12 border-b border-white/[0.07] flex-shrink-0"
+        role="tablist"
+        aria-label="Inspector panels"
+        ref={tablistRef}
+        onKeyDown={handleKeyDown}
+      >
         {tabs.map((tab) => {
           const isActive = tab.id === activeTab
           return (
             <button
               key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-label={tab.label}
+              tabIndex={isActive ? 0 : -1}
               data-testid={`inspector-tab-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
-              aria-label={tab.label}
               className={[
                 'flex flex-1 items-center justify-center text-base transition-colors relative',
                 isActive
-                  ? 'text-[#60A5FA] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-[#60A5FA]'
+                  ? "text-[#60A5FA] after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-[#60A5FA]"
                   : 'text-slate-500 hover:text-slate-300',
               ].join(' ')}
             >
@@ -46,6 +82,8 @@ export function InspectorSidebar({ defaultTab = 'chat' }: InspectorSidebarProps)
       {/* Panel content */}
       <div
         data-testid="inspector-panel"
+        role="tabpanel"
+        aria-label={activeTabLabel}
         className="flex flex-1 items-center justify-center"
       >
         <span className="font-pixel text-xs text-slate-600">

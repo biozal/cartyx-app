@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InspectorSidebar } from '~/components/mainview/InspectorSidebar'
 
@@ -44,9 +44,35 @@ describe('InspectorSidebar', () => {
     expect(screen.getByTestId('inspector-panel')).toHaveTextContent('Notepad — Coming Soon')
   })
 
-  it('active tab has active styling class', () => {
+  it('active tab has aria-selected=true', () => {
     render(<InspectorSidebar defaultTab="chat" />)
-    expect(screen.getByTestId('inspector-tab-chat')).toHaveClass('text-[#60A5FA]')
-    expect(screen.getByTestId('inspector-tab-wiki')).toHaveClass('text-slate-500')
+    expect(screen.getByTestId('inspector-tab-chat')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('inspector-tab-wiki')).toHaveAttribute('aria-selected', 'false')
+  })
+
+  it('only active tab is tabbable (roving tabindex)', () => {
+    render(<InspectorSidebar defaultTab="chat" />)
+    expect(screen.getByTestId('inspector-tab-chat')).toHaveAttribute('tabindex', '0')
+    expect(screen.getByTestId('inspector-tab-wiki')).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('has proper tablist role', () => {
+    render(<InspectorSidebar />)
+    expect(screen.getByRole('tablist', { name: 'Inspector panels' })).toBeInTheDocument()
+  })
+
+  it('arrow keys navigate between tabs', () => {
+    render(<InspectorSidebar defaultTab="chat" />)
+    const chatTab = screen.getByTestId('inspector-tab-chat')
+    fireEvent.keyDown(chatTab, { key: 'ArrowRight' })
+    expect(screen.getByTestId('inspector-panel')).toHaveTextContent('Wiki — Coming Soon')
+  })
+
+  it('tab buttons have type=button', () => {
+    render(<InspectorSidebar />)
+    const buttons = screen.getAllByRole('tab')
+    buttons.forEach(btn => {
+      expect(btn).toHaveAttribute('type', 'button')
+    })
   })
 })
