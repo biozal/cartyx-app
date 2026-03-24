@@ -1,0 +1,79 @@
+import React from 'react'
+import {
+  MousePointer2,
+  Hand,
+  Pencil,
+  Type,
+  Ruler,
+  Dices,
+  Stamp,
+  Layers,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react'
+
+export type ToolType = 'pointer' | 'hand' | 'drawing' | 'text' | 'ruler' | 'dice' | 'stamp' | 'layer'
+
+export interface ToolBarProps {
+  activeTool: ToolType
+  onToolChange: (tool: ToolType) => void
+  collapsed: boolean
+  onToggleCollapse: () => void
+}
+
+const tools: { id: ToolType; icon: React.ElementType; label: string }[] = [
+  { id: 'pointer', icon: MousePointer2, label: 'Pointer' },
+  { id: 'hand', icon: Hand, label: 'Hand' },
+  { id: 'drawing', icon: Pencil, label: 'Drawing' },
+  { id: 'text', icon: Type, label: 'Text' },
+  { id: 'ruler', icon: Ruler, label: 'Ruler' },
+  { id: 'dice', icon: Dices, label: 'Dice' },
+  { id: 'stamp', icon: Stamp, label: 'Stamp' },
+  { id: 'layer', icon: Layers, label: 'Layer' },
+]
+
+export function ToolBar({ activeTool, onToolChange, collapsed, onToggleCollapse }: ToolBarProps) {
+  return (
+    <div className="flex flex-col items-center h-full py-2 bg-[#080A12]">
+      {!collapsed && (
+        <div className="flex flex-col items-center gap-1 flex-1">
+          {tools.map(({ id, icon: Icon, label }) => {
+            const isActive = id === activeTool
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-label={label}
+                aria-pressed={isActive}
+                data-testid={`tool-${id}`}
+                onClick={() => onToolChange(id)}
+                title={label}
+                className={[
+                  'flex items-center justify-center w-10 h-10 rounded transition-colors',
+                  isActive
+                    ? 'bg-white/10 text-[#2563EB]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5',
+                ].join(' ')}
+              >
+                <Icon size={18} />
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {collapsed && <div className="flex-1" />}
+
+      <button
+        type="button"
+        aria-label={collapsed ? 'Expand toolbar' : 'Collapse toolbar'}
+        data-testid="toolbar-toggle"
+        onClick={onToggleCollapse}
+        title={collapsed ? 'Expand toolbar' : 'Collapse toolbar'}
+        className="flex items-center justify-center w-10 h-10 rounded text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors mt-auto"
+      >
+        {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+      </button>
+    </div>
+  )
+}

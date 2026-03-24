@@ -1,4 +1,7 @@
+import React, { useState } from 'react'
 import type { ReactNode } from 'react'
+import { ToolBar } from './ToolBar'
+import type { ToolType } from './ToolBar'
 
 interface MainViewProps {
   showToolbar?: boolean
@@ -8,16 +11,28 @@ interface MainViewProps {
 }
 
 export function MainView({ showToolbar = false, showInspector = true, children, className = '' }: MainViewProps) {
+  const [activeTool, setActiveTool] = useState<ToolType>('pointer')
+  const [toolbarCollapsed, setToolbarCollapsed] = useState(false)
+
   return (
     <div className={`flex h-full bg-[#080A12] overflow-hidden ${className}`}>
       {/* Left column — Toolbar */}
       <div
         data-testid="mainview-toolbar"
         className={`flex-shrink-0 overflow-hidden transition-all duration-200 ${
-          showToolbar ? 'w-14 border-r border-white/[0.07]' : 'w-0'
+          showToolbar
+            ? `${toolbarCollapsed ? 'w-8' : 'w-14'} border-r border-white/[0.07]`
+            : 'w-0'
         }`}
       >
-        <div className="w-14 h-full" />
+        <div className={toolbarCollapsed ? 'w-8 h-full' : 'w-14 h-full'}>
+          <ToolBar
+            activeTool={activeTool}
+            onToolChange={setActiveTool}
+            collapsed={toolbarCollapsed}
+            onToggleCollapse={() => setToolbarCollapsed(c => !c)}
+          />
+        </div>
       </div>
 
       {/* Center column — Content */}
