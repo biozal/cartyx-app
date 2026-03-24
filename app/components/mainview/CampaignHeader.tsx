@@ -1,46 +1,18 @@
 import React, { useRef } from 'react'
 import { Link } from '@tanstack/react-router'
 import { UserMenu } from '~/components/shared/UserMenu'
+import { TABS, handleTabsKeyDown } from './TabNavigation'
+import type { TabId } from './TabNavigation'
 
 export interface CampaignHeaderProps {
   campaignId?: string
   sessionNumber?: number
-  activeTab: 'dashboard' | 'tabletop'
-  onTabChange: (tab: 'dashboard' | 'tabletop') => void
+  activeTab: TabId
+  onTabChange: (tab: TabId) => void
 }
-
-const TABS = [
-  { id: 'dashboard' as const, label: 'Dashboard' },
-  { id: 'tabletop' as const, label: 'Tabletop' },
-]
 
 export function CampaignHeader({ sessionNumber, activeTab, onTabChange }: CampaignHeaderProps) {
   const tablistRef = useRef<HTMLDivElement>(null)
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    const currentIndex = TABS.findIndex(t => t.id === activeTab)
-    let nextIndex = currentIndex
-
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-      e.preventDefault()
-      nextIndex = (currentIndex + 1) % TABS.length
-    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-      e.preventDefault()
-      nextIndex = (currentIndex - 1 + TABS.length) % TABS.length
-    } else if (e.key === 'Home') {
-      e.preventDefault()
-      nextIndex = 0
-    } else if (e.key === 'End') {
-      e.preventDefault()
-      nextIndex = TABS.length - 1
-    } else {
-      return
-    }
-
-    onTabChange(TABS[nextIndex].id)
-    const buttons = tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
-    buttons?.[nextIndex]?.focus()
-  }
 
   return (
     <nav className="flex items-center h-14 px-4 bg-[#0D1117] border-b border-white/[0.07] sticky top-0 z-50 gap-4">
@@ -66,16 +38,18 @@ export function CampaignHeader({ sessionNumber, activeTab, onTabChange }: Campai
         role="tablist"
         aria-label="MainView navigation"
         ref={tablistRef}
-        onKeyDown={handleKeyDown}
+        onKeyDown={(e) => handleTabsKeyDown(e, activeTab, onTabChange, tablistRef)}
       >
         {TABS.map((tab) => {
           const isActive = activeTab === tab.id
           return (
             <button
               key={tab.id}
+              id={`tab-${tab.id}`}
               type="button"
               role="tab"
               aria-selected={isActive}
+              aria-controls={`tab-panel-${tab.id}`}
               tabIndex={isActive ? 0 : -1}
               onClick={() => onTabChange(tab.id)}
               className={`font-pixel text-xs px-4 h-14 border-b-2 transition-colors ${

@@ -32,25 +32,24 @@ function PlayPage() {
       <CampaignHeader activeTab={activeTab} onTabChange={handleTabChange} />
       <div className="flex-1 overflow-hidden">
         <MainView showToolbar={activeTab === 'tabletop'}>
-          {activeTab === 'dashboard' ? (
-            <div
-              className="flex items-center justify-center h-full text-slate-400 font-pixel text-xs"
-              role="tabpanel"
-              id="tab-panel-dashboard"
-              aria-labelledby="tab-dashboard"
-            >
-              Dashboard View
-            </div>
-          ) : (
-            <div
-              className="flex items-center justify-center h-full text-slate-400 font-pixel text-xs"
-              role="tabpanel"
-              id="tab-panel-tabletop"
-              aria-labelledby="tab-tabletop"
-            >
-              Tabletop View - Coming Soon
-            </div>
-          )}
+          <div
+            className="flex items-center justify-center h-full text-slate-400 font-pixel text-xs"
+            role="tabpanel"
+            id="tab-panel-dashboard"
+            aria-labelledby="tab-dashboard"
+            hidden={activeTab !== 'dashboard'}
+          >
+            Dashboard View
+          </div>
+          <div
+            className="flex items-center justify-center h-full text-slate-400 font-pixel text-xs"
+            role="tabpanel"
+            id="tab-panel-tabletop"
+            aria-labelledby="tab-tabletop"
+            hidden={activeTab !== 'tabletop'}
+          >
+            Tabletop View - Coming Soon
+          </div>
         </MainView>
       </div>
     </div>
