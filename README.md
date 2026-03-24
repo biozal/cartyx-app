@@ -42,6 +42,29 @@ npm run dev            # http://localhost:3000
 | **Hosting** | [Vercel](https://vercel.com) (serverless) |
 | **CDN** | [Cloudflare](https://cloudflare.com) (DNS + R2 CDN) |
 
+## Project Structure
+
+All application code lives in `app/`:
+
+```
+app/
+├── components/      # React components + Storybook stories
+├── hooks/           # Custom React hooks (useAuth, useCampaigns)
+├── routes/          # TanStack Router file-based routes
+├── server/
+│   ├── functions/   # Server functions (auth, campaigns, uploads)
+│   ├── models/      # Mongoose models
+│   └── utils/       # Server utilities (OAuth, PostHog, helpers)
+├── styles/          # Global CSS (Tailwind)
+├── utils/           # Client utilities (date, image compression)
+├── client.tsx       # Client entry point
+├── router.tsx       # TanStack Router config
+└── ssr.tsx          # SSR entry point
+
+tests/               # Vitest test files (mirrors app/ structure)
+.storybook/          # Storybook configuration and mocks
+```
+
 ## Development
 
 ```bash
