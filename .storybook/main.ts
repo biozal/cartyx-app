@@ -19,11 +19,20 @@ const config: StorybookConfig = {
     config.plugins = config.plugins ?? []
     config.plugins.push(tsconfigPaths())
     config.resolve = config.resolve ?? {}
-    config.resolve.alias = {
-      ...(config.resolve.alias as Record<string, string>),
-      '@tanstack/react-router': path.resolve(__dirname, './mocks/router.tsx'),
-      '~/hooks/useAuth': path.resolve(__dirname, './mocks/useAuth.ts'),
-    }
+    // Use array format for aliases so we can use exact-match regex.
+    // A plain string alias for '@tanstack/react-router' also catches
+    // subpath imports like '@tanstack/react-router/ssr/server', breaking
+    // TanStack Start internals. The regex anchors with $ to match only
+    // the bare specifier.
+    const existingAlias = config.resolve.alias ?? {}
+    const aliasArray = Array.isArray(existingAlias)
+      ? existingAlias
+      : Object.entries(existingAlias).map(([find, replacement]) => ({ find, replacement }))
+    aliasArray.push(
+      { find: /^@tanstack\/react-router$/, replacement: path.resolve(__dirname, './mocks/router.tsx') },
+      { find: '~/hooks/useAuth', replacement: path.resolve(__dirname, './mocks/useAuth.ts') },
+    )
+    config.resolve.alias = aliasArray
     return config
   },
 }

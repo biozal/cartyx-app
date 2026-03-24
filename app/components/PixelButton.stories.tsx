@@ -1,5 +1,6 @@
 import React from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { expect, within, userEvent, fn } from 'storybook/test'
 import { PixelButton } from './PixelButton'
 
 // PixelButton has a discriminated union prop type (button | anchor | router-link).
@@ -11,6 +12,7 @@ type ButtonStoryProps = {
   fullWidth?: boolean
   disabled?: boolean
   children?: React.ReactNode
+  onClick?: (...args: unknown[]) => unknown
 }
 
 const meta: Meta<ButtonStoryProps> = {
@@ -96,4 +98,17 @@ export const AsAnchor: Story = {
       External Link
     </PixelButton>
   ),
+}
+
+export const Clickable: Story = {
+  args: {
+    children: 'Click Me',
+    onClick: fn(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const button = canvas.getByRole('button', { name: /click me/i })
+    await userEvent.click(button)
+    expect(args.onClick).toHaveBeenCalledOnce()
+  },
 }

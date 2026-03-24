@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { expect, within, userEvent } from 'storybook/test'
 import { Toast, showToast } from './Toast'
 
 const meta: Meta<typeof Toast> = {
@@ -21,6 +22,13 @@ export const Default: Story = {
       </button>
     </div>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const button = canvas.getByRole('button', { name: /show toast/i })
+    await userEvent.click(button)
+    const toast = await canvas.findByText('Quest accepted! 🗡️')
+    expect(toast).toBeInTheDocument()
+  },
 }
 
 export const LongMessage: Story = {
