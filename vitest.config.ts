@@ -20,7 +20,7 @@ export default defineConfig({
       include: ['app/**/*.{ts,tsx}'],
       exclude: ['app/routes/__root.tsx', 'app/client.tsx', 'app/ssr.tsx', 'app/router.tsx'],
     },
-    workspace: [
+    projects: [
       {
         extends: true,
         test: {
