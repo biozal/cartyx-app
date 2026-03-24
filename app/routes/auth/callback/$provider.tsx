@@ -10,7 +10,7 @@ const VALID_PROVIDERS = ['google', 'github', 'apple'] as const
 
 const handleCallback = createServerFn({ method: 'GET' })
   .inputValidator(z.object({ provider: z.enum(VALID_PROVIDERS), code: z.string(), state: z.string() }))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<{ redirectTo: string; redirectSearch?: Record<string, string> }> => {
     const { provider, code, state } = data
 
     // Verify CSRF state token
@@ -23,7 +23,7 @@ const handleCallback = createServerFn({ method: 'GET' })
         undefined,
         { action: 'handleOAuthCallback', provider, hasStoredState: !!storedState },
       )
-      throw redirect({ to: '/', search: { reason: 'auth_failed_csrf' } })
+      return { redirectTo: '/', redirectSearch: { reason: 'auth_failed_csrf' } }
     }
 
     try {
@@ -41,12 +41,10 @@ const handleCallback = createServerFn({ method: 'GET' })
       const user = await upsertUser(profile)
       await setSession(user)
       serverCaptureEvent(user.id, 'user_logged_in', { provider })
-      throw redirect({ to: '/campaigns' })
+      return { redirectTo: '/campaigns' }
     } catch (e) {
-      // Re-throw redirect responses (TanStack Router throws redirects as special objects)
-      if (e instanceof Response || (e && typeof e === 'object' && ('to' in e || 'href' in e))) throw e
       serverCaptureException(e, undefined, { action: 'handleOAuthCallback', provider })
-      throw redirect({ to: '/', search: { reason: 'auth_failed' } })
+      return { redirectTo: '/', redirectSearch: { reason: 'auth_failed' } }
     }
   })
 
@@ -63,7 +61,8 @@ export const Route = createFileRoute('/auth/callback/$provider')({
     if (!VALID_PROVIDERS.includes(params.provider as typeof VALID_PROVIDERS[number])) {
       throw redirect({ to: '/', search: { reason: 'auth_failed' } })
     }
-    await handleCallback({ data: { provider: params.provider as typeof VALID_PROVIDERS[number], code: search.code, state: search.state } })
+    const result = await handleCallback({ data: { provider: params.provider as typeof VALID_PROVIDERS[number], code: search.code, state: search.state } })
+    throw redirect({ to: result.redirectTo, search: result.redirectSearch })
   },
   component: () => null,
 })
