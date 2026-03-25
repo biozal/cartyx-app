@@ -95,6 +95,8 @@ export function FloatingWindow({
   const windowRef = useRef<HTMLDivElement | null>(null)
   const dragStateRef = useRef<DragState | null>(null)
   const resizeStateRef = useRef<ResizeState | null>(null)
+  const positionRef = useRef<FloatingWindowPosition>(initialPosition)
+  const sizeRef = useRef<FloatingWindowSize>(initialSize)
   const titleId = useId()
 
   useEffect(() => {
@@ -171,10 +173,10 @@ export function FloatingWindow({
           x: event.clientX - dragStateRef.current.offsetX,
           y: event.clientY - dragStateRef.current.offsetY,
         },
-        size,
+        sizeRef.current,
         parent,
       )
-
+      positionRef.current = nextPosition
       setPosition(nextPosition)
       return
     }
@@ -190,11 +192,13 @@ export function FloatingWindow({
           resizeStateRef.current.startHeight + (event.clientY - resizeStateRef.current.startY),
         ),
       }
-
+      sizeRef.current = nextSize
+      const nextPosition = clampPosition(positionRef.current, nextSize, parent)
+      positionRef.current = nextPosition
       setSize(nextSize)
-      setPosition(currentPosition => clampPosition(currentPosition, nextSize, parent))
+      setPosition(nextPosition)
     }
-  }, [size])
+  }, []) // stable — reads from refs, not state
 
   const handleDocumentMouseUp = useCallback(() => {
     dragStateRef.current = null
@@ -227,8 +231,6 @@ export function FloatingWindow({
     <div
       ref={windowRef}
       role="dialog"
-      aria-modal="true"
-      aria-label={title}
       aria-labelledby={titleId}
       data-window-id={id}
       tabIndex={0}

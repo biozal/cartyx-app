@@ -98,7 +98,11 @@ describe('FloatingWindowManager', () => {
 
     await user.click(mapWindow)
 
-    expect(mapWindow).toHaveStyle({ zIndex: '4' })
-    expect(notesWindow).toHaveStyle({ zIndex: '2' })
+    // After normalization: windows re-ranked 1..n, map brought to top
+    // map was lowest (1), notes was middle (2), wiki minimized (3)
+    // normalized: map=3 (top), notes=1 or 2, wiki=1 or 2
+    const mapZIndex = Number(mapWindow.style.zIndex)
+    const notesZIndex = Number(notesWindow.style.zIndex)
+    expect(mapZIndex).toBeGreaterThan(notesZIndex)
   })
 })

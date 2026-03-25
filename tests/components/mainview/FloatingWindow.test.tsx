@@ -114,8 +114,10 @@ describe('FloatingWindow', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Wiki Entry' })
 
-    expect(dialog).toHaveAttribute('aria-modal', 'true')
-    expect(dialog).toHaveAttribute('aria-label', 'Wiki Entry')
+    // Non-modal dialog — aria-modal removed per a11y guidance (content behind is interactive)
+    expect(dialog).not.toHaveAttribute('aria-modal')
+    // aria-label removed — aria-labelledby is sufficient (avoids redundant labeling)
+    expect(dialog).not.toHaveAttribute('aria-label')
     expect(dialog).toHaveAttribute('aria-labelledby')
   })
 })

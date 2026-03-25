@@ -37,13 +37,18 @@ export function FloatingWindowManager({
 
   const handleFocus = (id: string) => {
     const highestZIndex = getHighestZIndex(windows)
+    const focused = windows.find(w => w.id === id)
+
+    // Short-circuit if already at the top
+    if (focused?.zIndex === highestZIndex) return
+
+    // Normalize all z-indexes to keep values small (re-rank from 1)
+    const sorted = [...windows].sort((a, b) => a.zIndex - b.zIndex)
+    const normalized = sorted.map((w, i) => ({ ...w, zIndex: i + 1 }))
+    const focusedRank = normalized.length // highest rank = top
 
     onWindowsChange(
-      windows.map(window => (
-        window.id === id
-          ? { ...window, zIndex: highestZIndex + 1 }
-          : window
-      )),
+      normalized.map(w => w.id === id ? { ...w, zIndex: focusedRank } : w)
     )
   }
 
