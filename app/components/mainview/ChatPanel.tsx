@@ -44,11 +44,10 @@ export function ChatPanel() {
     <div className="flex h-full flex-col bg-[#080A12]">
       <div className="border-b border-white/[0.07] p-3">
         <label htmlFor="chat-session-selector" className="sr-only">
-          Select chat session
+          Session selector
         </label>
         <select
           id="chat-session-selector"
-          aria-label="Session selector"
           defaultValue="Session 14"
           className="w-full rounded border border-white/[0.07] bg-[#080A12] px-3 py-2 font-pixel text-xs text-white outline-none"
         >
@@ -101,14 +100,18 @@ export function ChatPanel() {
         </button>
       </div>
 
-      <div
-        id={`${tabsId}-${activeChannel}-panel`}
-        role="tabpanel"
-        aria-labelledby={`${tabsId}-${activeChannel}-tab`}
-        className="flex flex-1 items-center justify-center overflow-y-auto p-4"
-      >
-        <span className="font-pixel text-xs text-slate-500">Coming Soon</span>
-      </div>
+      {CHANNELS.map((channel) => (
+        <div
+          key={channel.id}
+          id={`${tabsId}-${channel.id}-panel`}
+          role="tabpanel"
+          aria-labelledby={`${tabsId}-${channel.id}-tab`}
+          hidden={channel.id !== activeChannel}
+          className="flex flex-1 items-center justify-center overflow-y-auto p-4"
+        >
+          <span className="font-pixel text-xs text-slate-500">Coming Soon</span>
+        </div>
+      ))}
 
       <div className="border-t border-white/[0.07] p-3">
         <div className="flex items-center gap-2">
