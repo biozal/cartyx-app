@@ -51,6 +51,11 @@ describe('SessionsListWidget', () => {
     expect(screen.getByText('No sessions recorded')).toBeInTheDocument()
   })
 
+  it('uses service data when sessions prop is omitted', async () => {
+    render(<SessionsListWidget />)
+    expect(await screen.findByText('Ashes at Emberfall')).toBeInTheDocument()
+  })
+
   it('mock service returns a defensive copy (new array and new objects)', async () => {
     const a = await getSessions()
     const b = await getSessions()

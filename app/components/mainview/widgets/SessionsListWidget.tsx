@@ -6,9 +6,10 @@ export type { Session }
 
 export interface SessionsListWidgetProps {
   sessions?: ReadonlyArray<Readonly<Session>>
+  className?: string
 }
 
-export function SessionsListWidget({ sessions }: SessionsListWidgetProps) {
+export function SessionsListWidget({ sessions, className = '' }: SessionsListWidgetProps) {
   const [resolvedSessions, setResolvedSessions] = useState<Session[] | null>(
     sessions ? sessions.map((session) => ({ ...session })) : null,
   )
@@ -44,7 +45,7 @@ export function SessionsListWidget({ sessions }: SessionsListWidgetProps) {
   }, [sessions])
 
   return (
-    <Widget title="Sessions">
+    <Widget title="Sessions" className={className}>
       {resolvedSessions === null ? (
         <p className="font-pixel text-xs text-slate-500">Loading sessions...</p>
       ) : error ? (

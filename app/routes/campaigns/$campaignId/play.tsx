@@ -2,9 +2,15 @@ import { z } from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { getMe } from '~/server/functions/auth'
 import { CampaignHeader } from '~/components/mainview/CampaignHeader'
+import { DashboardView } from '~/components/mainview/DashboardView'
 import { MainView } from '~/components/mainview/MainView'
 import { TabletopView } from '~/components/mainview/TabletopView'
 import type { TabId } from '~/components/mainview/TabNavigation'
+import { CatchUpWidget } from '~/components/mainview/widgets/CatchUpWidget'
+import { CampaignTimelineWidget } from '~/components/mainview/widgets/CampaignTimelineWidget'
+import { KeyAlliesWidget } from '~/components/mainview/widgets/KeyAlliesWidget'
+import { PartyMembersWidget } from '~/components/mainview/widgets/PartyMembersWidget'
+import { SessionsListWidget } from '~/components/mainview/widgets/SessionsListWidget'
 
 export const playSearchSchema = z.object({
   tab: z.enum(['dashboard', 'tabletop']).catch('dashboard'),
@@ -34,13 +40,19 @@ function PlayPage() {
       <div className="flex-1 overflow-hidden">
         <MainView showToolbar={activeTab === 'tabletop'}>
           <div
-            className="flex items-center justify-center h-full text-slate-400 font-pixel text-xs"
+            className="h-full overflow-y-auto"
             role="tabpanel"
             id="tab-panel-dashboard"
             aria-labelledby="tab-dashboard"
             hidden={activeTab !== 'dashboard'}
           >
-            Dashboard View
+            <DashboardView className="h-full">
+              <CatchUpWidget />
+              <PartyMembersWidget />
+              <KeyAlliesWidget />
+              <SessionsListWidget className="xl:col-span-2" />
+              <CampaignTimelineWidget className="xl:col-span-2" />
+            </DashboardView>
           </div>
           <div
             className="flex items-center justify-center h-full text-slate-400 font-pixel text-xs"
