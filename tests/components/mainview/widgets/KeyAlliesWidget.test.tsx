@@ -4,7 +4,7 @@ import { KeyAlliesWidget } from '~/components/mainview/widgets/KeyAlliesWidget'
 
 describe('KeyAlliesWidget', () => {
   it('renders the widget title', () => {
-    render(<KeyAlliesWidget />)
+    render(<KeyAlliesWidget allies={[]} />)
 
     expect(screen.getByText('Key Allies')).toBeInTheDocument()
   })
