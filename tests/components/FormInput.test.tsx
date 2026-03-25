@@ -30,6 +30,11 @@ describe('FormInput', () => {
     expect(screen.getByText('2/60')).toBeInTheDocument()
   })
 
+  it('applies right alignment to hint text when requested', () => {
+    render(<FormInput value="hi" onChange={vi.fn()} hint="2/60" hintAlign="right" />)
+    expect(screen.getByText('2/60').className).toMatch(/text-right/)
+  })
+
   it('does not render hint when error is present', () => {
     render(<FormInput value="" onChange={vi.fn()} error="Required" hint="0/60" />)
     expect(screen.queryByText('0/60')).not.toBeInTheDocument()
@@ -52,5 +57,10 @@ describe('FormInput', () => {
     const label = screen.getByText('Name')
     const input = screen.getByRole('textbox')
     expect(label).toHaveAttribute('for', input.id)
+  })
+
+  it('applies additional classes to the label', () => {
+    render(<FormInput label="Name" labelClassName="uppercase" value="" onChange={vi.fn()} />)
+    expect(screen.getByText('Name').className).toMatch(/uppercase/)
   })
 })

@@ -111,6 +111,7 @@ function EditCampaignPage() {
           <SectionHeader tracking="tracking-widest" className="mb-5">Basic Info</SectionHeader>
           <FormInput
             label="Campaign Name *"
+            labelClassName="uppercase"
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="The Lost Mines of Phandelver"
@@ -118,6 +119,7 @@ function EditCampaignPage() {
           />
           <FormTextarea
             label="Description"
+            labelClassName="uppercase"
             value={desc}
             onChange={e => setDesc(e.target.value)}
             placeholder="Tell your players what awaits them..."
@@ -173,12 +175,14 @@ function EditCampaignPage() {
           <div className="grid grid-cols-2 gap-4">
             <FormInput
               label="Time"
+              labelClassName="uppercase"
               type="time"
               value={schedTime}
               onChange={e => setSchedTime(e.target.value)}
             />
             <FormSelect
               label="Timezone"
+              labelClassName="uppercase"
               value={schedTz}
               onChange={e => setSchedTz(e.target.value)}
               options={timezoneOptions}

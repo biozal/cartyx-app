@@ -16,6 +16,8 @@ export interface FormInputProps extends Omit<React.InputHTMLAttributes<HTMLInput
   hint?: string
   /** Align hint text. Defaults to "left". */
   hintAlign?: 'left' | 'right'
+  /** Additional CSS classes applied to the label. */
+  labelClassName?: string
   /** Additional CSS classes applied to the wrapper div. */
   className?: string
 }
@@ -30,6 +32,7 @@ export function FormInput({
   error,
   hint,
   hintAlign = 'left',
+  labelClassName = '',
   className = '',
   ...rest
 }: FormInputProps) {
@@ -49,7 +52,7 @@ export function FormInput({
   return (
     <div className={className}>
       {label && (
-        <label htmlFor={inputId} className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+        <label htmlFor={inputId} className={`block text-xs font-semibold text-slate-400 mb-2 tracking-wide ${labelClassName}`.trim()}>
           {label}
         </label>
       )}

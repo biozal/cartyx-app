@@ -18,6 +18,8 @@ export interface FormTextareaProps {
   disabled?: boolean
   /** Error message — renders red border and text below textarea. */
   error?: string
+  /** Additional CSS classes applied to the label. */
+  labelClassName?: string
   /** Additional CSS classes applied to the wrapper. */
   className?: string
 }
@@ -31,6 +33,7 @@ export function FormTextarea({
   maxLength,
   disabled = false,
   error,
+  labelClassName = '',
   className = '',
   ...rest
 }: FormTextareaProps & { id?: string }) {
@@ -52,7 +55,7 @@ export function FormTextarea({
   return (
     <div className={className}>
       {label && (
-        <label htmlFor={textareaId} className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+        <label htmlFor={textareaId} className={`block text-xs font-semibold text-slate-400 mb-2 tracking-wide ${labelClassName}`.trim()}>
           {label}
         </label>
       )}

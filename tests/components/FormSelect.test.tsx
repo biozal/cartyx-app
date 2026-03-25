@@ -19,6 +19,11 @@ describe('FormSelect', () => {
     expect(screen.getByText('Timezone')).toBeInTheDocument()
   })
 
+  it('applies additional classes to the label', () => {
+    render(<FormSelect label="Timezone" labelClassName="uppercase" value="America/Chicago" onChange={vi.fn()} options={options} />)
+    expect(screen.getByText('Timezone').className).toMatch(/uppercase/)
+  })
+
   it('renders all options', () => {
     render(<FormSelect value="America/Chicago" onChange={vi.fn()} options={options} />)
     expect(screen.getByText('Central Time (CT)')).toBeInTheDocument()

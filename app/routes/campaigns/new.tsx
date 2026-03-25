@@ -136,6 +136,7 @@ function NewCampaignPage() {
                     placeholder="Enter campaign name..."
                     maxLength={60}
                     hint={`${name.length}/60`}
+                    hintAlign="right"
                   />
                   <FormTextarea
                     label={<>Description <span className="text-slate-600 font-normal">(optional)</span></>}

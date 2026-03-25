@@ -18,6 +18,8 @@ export interface FormSelectProps {
   options: SelectOption[]
   /** Whether the select is disabled. */
   disabled?: boolean
+  /** Additional CSS classes applied to the label. */
+  labelClassName?: string
   /** Additional CSS classes applied to the wrapper. */
   className?: string
 }
@@ -28,6 +30,7 @@ export function FormSelect({
   onChange,
   options,
   disabled = false,
+  labelClassName = '',
   className = '',
 }: FormSelectProps) {
   const generatedId = useId()
@@ -43,7 +46,7 @@ export function FormSelect({
   return (
     <div className={className}>
       {label && (
-        <label htmlFor={selectId} className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+        <label htmlFor={selectId} className={`block text-xs font-semibold text-slate-400 mb-2 tracking-wide ${labelClassName}`.trim()}>
           {label}
         </label>
       )}

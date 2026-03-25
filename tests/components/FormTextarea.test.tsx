@@ -14,6 +14,11 @@ describe('FormTextarea', () => {
     expect(screen.getByText('Description')).toBeInTheDocument()
   })
 
+  it('applies additional classes to the label', () => {
+    render(<FormTextarea label="Description" labelClassName="uppercase" value="" onChange={vi.fn()} />)
+    expect(screen.getByText('Description').className).toMatch(/uppercase/)
+  })
+
   it('renders error message', () => {
     render(<FormTextarea value="" onChange={vi.fn()} error="Too long." />)
     expect(screen.getByText('Too long.')).toBeInTheDocument()
