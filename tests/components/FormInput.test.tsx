@@ -1,0 +1,66 @@
+import React from 'react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
+import { FormInput } from '~/components/FormInput'
+
+describe('FormInput', () => {
+  it('renders an input element', () => {
+    render(<FormInput value="" onChange={vi.fn()} />)
+    expect(screen.getByRole('textbox')).toBeInTheDocument()
+  })
+
+  it('renders the label when provided', () => {
+    render(<FormInput label="Campaign Name" value="" onChange={vi.fn()} />)
+    expect(screen.getByText('Campaign Name')).toBeInTheDocument()
+  })
+
+  it('renders the placeholder', () => {
+    render(<FormInput value="" onChange={vi.fn()} placeholder="Enter name..." />)
+    expect(screen.getByPlaceholderText('Enter name...')).toBeInTheDocument()
+  })
+
+  it('renders error message and applies red border class', () => {
+    render(<FormInput value="" onChange={vi.fn()} error="Name is required." />)
+    expect(screen.getByText('Name is required.')).toBeInTheDocument()
+    expect(screen.getByRole('textbox').className).toMatch(/red/)
+  })
+
+  it('renders hint text when no error', () => {
+    render(<FormInput value="hi" onChange={vi.fn()} hint="2/60" />)
+    expect(screen.getByText('2/60')).toBeInTheDocument()
+  })
+
+  it('applies right alignment to hint text when requested', () => {
+    render(<FormInput value="hi" onChange={vi.fn()} hint="2/60" hintAlign="right" />)
+    expect(screen.getByText('2/60').className).toMatch(/text-right/)
+  })
+
+  it('does not render hint when error is present', () => {
+    render(<FormInput value="" onChange={vi.fn()} error="Required" hint="0/60" />)
+    expect(screen.queryByText('0/60')).not.toBeInTheDocument()
+  })
+
+  it('disables the input when disabled=true', () => {
+    render(<FormInput value="" onChange={vi.fn()} disabled />)
+    expect(screen.getByRole('textbox')).toBeDisabled()
+  })
+
+  it('calls onChange when value changes', () => {
+    const onChange = vi.fn()
+    render(<FormInput value="" onChange={onChange} />)
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'hello' } })
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
+  it('associates label with input via htmlFor', () => {
+    render(<FormInput label="Name" value="" onChange={vi.fn()} />)
+    const label = screen.getByText('Name')
+    const input = screen.getByRole('textbox')
+    expect(label).toHaveAttribute('for', input.id)
+  })
+
+  it('applies additional classes to the label', () => {
+    render(<FormInput label="Name" labelClassName="uppercase" value="" onChange={vi.fn()} />)
+    expect(screen.getByText('Name').className).toMatch(/uppercase/)
+  })
+})
