@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Widget } from '~/components/mainview/Widget'
 import { getKeyAllies, type KeyAlly } from '~/services/mocks/keyAlliesService'
 
@@ -16,16 +17,37 @@ function getInitials(name: string) {
 }
 
 export function KeyAlliesWidget({
-  allies = getKeyAllies(),
+  allies,
   className = '',
 }: KeyAlliesWidgetProps) {
+  const [resolvedAllies, setResolvedAllies] = useState<KeyAlly[]>(allies ?? [])
+
+  useEffect(() => {
+    if (allies) {
+      setResolvedAllies(allies)
+      return
+    }
+
+    let isMounted = true
+
+    void getKeyAllies().then((nextAllies) => {
+      if (isMounted) {
+        setResolvedAllies(nextAllies)
+      }
+    })
+
+    return () => {
+      isMounted = false
+    }
+  }, [allies])
+
   return (
     <Widget title="Key Allies" className={className}>
-      {allies.length === 0 ? (
+      {resolvedAllies.length === 0 ? (
         <p className="font-pixel text-xs text-slate-500">No allies found</p>
       ) : (
         <div className="space-y-3">
-          {allies.map((ally) => (
+          {resolvedAllies.map((ally) => (
             <div
               key={ally.id}
               className="flex items-center gap-3 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2"
@@ -44,7 +66,7 @@ export function KeyAlliesWidget({
 
               <div className="min-w-0">
                 <p className="truncate font-pixel text-xs text-white">{ally.name}</p>
-                <p className="truncate font-pixel text-xs text-slate-400">{ally.location}</p>
+                <p className="truncate font-pixel text-xs text-slate-400">{ally.town}</p>
               </div>
             </div>
           ))}

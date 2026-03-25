@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { CampaignTimelineWidget } from './CampaignTimelineWidget'
-import { getTimelineEvents } from '~/services/mocks/timelineService'
 
 const meta: Meta<typeof CampaignTimelineWidget> = {
   title: 'Components/MainView/Widgets/CampaignTimelineWidget',
@@ -21,9 +20,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
-  args: {
-    events: getTimelineEvents(),
-  },
+  args: {},
 }
 
 export const Empty: Story = {

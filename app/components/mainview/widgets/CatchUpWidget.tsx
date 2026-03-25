@@ -1,10 +1,39 @@
+import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Widget } from '~/components/mainview/Widget'
-import { getCatchUpContent } from '~/services/mocks/catchUpService'
+import { getCatchUpContent, type CatchUpContent } from '~/services/mocks/catchUpService'
 
-export function CatchUpWidget({ className = '' }: { className?: string }) {
-  const { title, content } = getCatchUpContent()
+export function CatchUpWidget({
+  className = '',
+  content,
+}: {
+  className?: string
+  content?: CatchUpContent
+}) {
+  const [resolvedContent, setResolvedContent] = useState<CatchUpContent | null>(content ?? null)
+
+  useEffect(() => {
+    if (content) {
+      setResolvedContent(content)
+      return
+    }
+
+    let isMounted = true
+
+    void getCatchUpContent().then((nextContent) => {
+      if (isMounted) {
+        setResolvedContent(nextContent)
+      }
+    })
+
+    return () => {
+      isMounted = false
+    }
+  }, [content])
+
+  const title = resolvedContent?.title ?? 'Session Catch-Up'
+  const markdownContent = resolvedContent?.content ?? ''
 
   return (
     <Widget title={title} className={`${className} col-span-full`}>
@@ -33,7 +62,7 @@ export function CatchUpWidget({ className = '' }: { className?: string }) {
               h3: ({ node: _node, ...props }) => <h5 {...props} />,
             }}
           >
-            {content}
+            {markdownContent}
           </ReactMarkdown>
         </div>
       </div>

@@ -1,12 +1,7 @@
-export interface Session {
-  id: string
-  number: number
-  name: string
-  summary: string
-  date: string
-}
+import type { Session } from '~/services/mocks/types'
+import { resolveMockData } from '~/services/mocks/utils'
 
-const sessions: Session[] = [
+const SESSIONS: Session[] = [
   {
     id: 'session-14',
     number: 14,
@@ -65,6 +60,18 @@ const sessions: Session[] = [
   },
 ]
 
-export function getSessions(): Session[] {
-  return sessions.map(session => ({ ...session }))
+export interface SessionsService {
+  getSessions: () => Promise<Session[]>
 }
+
+export const mockSessionsService: SessionsService = {
+  async getSessions() {
+    return resolveMockData(SESSIONS)
+  },
+}
+
+export async function getSessions(): Promise<Session[]> {
+  return mockSessionsService.getSessions()
+}
+
+export type { Session }

@@ -11,15 +11,15 @@ describe('KeyAlliesWidget', () => {
 
   it('renders all ally names and locations', () => {
     const allies = [
-      { id: 'ally-1', name: 'Elder Morvain', location: 'Thornhollow' },
-      { id: 'ally-2', name: 'Mira Quickstep', location: 'Goldmeadow' },
+      { id: 'ally-1', name: 'Elder Morvain', town: 'Thornhollow' },
+      { id: 'ally-2', name: 'Mira Quickstep', town: 'Goldmeadow' },
     ]
 
     render(<KeyAlliesWidget allies={allies} />)
 
     for (const ally of allies) {
       expect(screen.getByText(ally.name)).toBeInTheDocument()
-      expect(screen.getByText(ally.location)).toBeInTheDocument()
+      expect(screen.getByText(ally.town)).toBeInTheDocument()
     }
   })
 
@@ -30,13 +30,13 @@ describe('KeyAlliesWidget', () => {
   })
 
   it('renders initials fallback when no avatarUrl', () => {
-    render(<KeyAlliesWidget allies={[{ id: 'a1', name: 'Elder Morvain', location: 'Thornhollow' }]} />)
+    render(<KeyAlliesWidget allies={[{ id: 'a1', name: 'Elder Morvain', town: 'Thornhollow' }]} />)
     // "Elder Morvain" → initials "EM"
     expect(screen.getByText('EM')).toBeInTheDocument()
   })
 
   it('renders img when avatarUrl is provided', () => {
-    render(<KeyAlliesWidget allies={[{ id: 'a1', name: 'Elder Morvain', location: 'Thornhollow', avatarUrl: 'https://example.com/avatar.jpg' }]} />)
+    render(<KeyAlliesWidget allies={[{ id: 'a1', name: 'Elder Morvain', town: 'Thornhollow', avatarUrl: 'https://example.com/avatar.jpg' }]} />)
     const img = screen.getByRole('img', { name: 'Elder Morvain' })
     expect(img).toHaveAttribute('src', 'https://example.com/avatar.jpg')
   })

@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { DashboardView } from '~/components/mainview/DashboardView'
 import { KeyAlliesWidget } from '~/components/mainview/widgets/KeyAlliesWidget'
-import { getKeyAllies } from '~/services/mocks/keyAlliesService'
 
 const meta: Meta<typeof KeyAlliesWidget> = {
   title: 'Components/MainView/Widgets/KeyAlliesWidget',
@@ -22,9 +21,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
-  args: {
-    allies: getKeyAllies(),
-  },
+  args: {},
 }
 
 export const Empty: Story = {

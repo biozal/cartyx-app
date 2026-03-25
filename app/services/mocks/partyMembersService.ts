@@ -1,10 +1,5 @@
-export type PartyMember = {
-  id: string
-  name: string
-  characterClass: string
-  race: string
-  avatarUrl?: string
-}
+import type { PartyMember } from '~/services/mocks/types'
+import { resolveMockData } from '~/services/mocks/utils'
 
 const PARTY_MEMBERS: PartyMember[] = [
   {
@@ -39,6 +34,18 @@ const PARTY_MEMBERS: PartyMember[] = [
   },
 ]
 
-export function getPartyMembers(): PartyMember[] {
-  return [...PARTY_MEMBERS]
+export interface PartyMembersService {
+  getPartyMembers: () => Promise<PartyMember[]>
 }
+
+export const mockPartyMembersService: PartyMembersService = {
+  async getPartyMembers() {
+    return resolveMockData(PARTY_MEMBERS)
+  },
+}
+
+export async function getPartyMembers(): Promise<PartyMember[]> {
+  return mockPartyMembersService.getPartyMembers()
+}
+
+export type { PartyMember }
