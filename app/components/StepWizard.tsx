@@ -14,11 +14,13 @@ export function StepWizard({ steps, currentStep, onStepClick }: StepWizardProps)
   return (
     <div className="mb-8">
       <div className="flex items-center mb-2.5">
-        {steps.map((_, i) => (
+        {steps.map((label, i) => (
           <React.Fragment key={i}>
             <button
               type="button"
               onClick={() => onStepClick?.(i + 1)}
+              aria-label={`Go to Step ${i + 1}: ${label}`}
+              aria-current={i + 1 === currentStep ? 'step' : undefined}
               className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
                 i + 1 === currentStep
                   ? 'bg-gradient-to-br from-blue-700 to-blue-500 text-white shadow-lg shadow-blue-500/40'

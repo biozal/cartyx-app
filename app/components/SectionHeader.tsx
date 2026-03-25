@@ -1,7 +1,7 @@
 import React from 'react'
 
 /** Font size variant for SectionHeader. */
-export type SectionHeaderSize = 'sm' | 'md' | 'lg'
+export type SectionHeaderSize = 'xs' | 'sm' | 'md' | 'lg'
 
 /** Color variant for SectionHeader. */
 export type SectionHeaderColor = 'blue' | 'white' | 'muted'
@@ -10,7 +10,7 @@ export type SectionHeaderColor = 'blue' | 'white' | 'muted'
 export interface SectionHeaderProps {
   /** Content rendered inside the header. */
   children: React.ReactNode
-  /** Controls the font size. sm=9px, md=11px, lg=14px. Defaults to md. */
+  /** Controls the font size. xs=10px, sm=9px, md=11px, lg=14px. Defaults to md. */
   size?: SectionHeaderSize
   /** Controls the text color. Defaults to blue. */
   color?: SectionHeaderColor
@@ -21,6 +21,7 @@ export interface SectionHeaderProps {
 }
 
 const sizeStyles: Record<SectionHeaderSize, string> = {
+  xs: 'text-[10px]',
   sm: 'text-[9px]',
   md: 'text-[11px]',
   lg: 'text-[14px]',

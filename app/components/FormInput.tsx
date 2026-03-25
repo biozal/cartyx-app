@@ -19,7 +19,9 @@ export interface FormInputProps extends Omit<React.InputHTMLAttributes<HTMLInput
   /** Additional CSS classes applied to the label. */
   labelClassName?: string
   /** Additional CSS classes applied to the wrapper div. */
-  className?: string
+  wrapperClassName?: string
+  /** Additional CSS classes applied to the input element. */
+  inputClassName?: string
 }
 
 export function FormInput({
@@ -33,7 +35,8 @@ export function FormInput({
   hint,
   hintAlign = 'left',
   labelClassName = '',
-  className = '',
+  wrapperClassName = '',
+  inputClassName = '',
   ...rest
 }: FormInputProps) {
   const generatedId = useId()
@@ -45,12 +48,13 @@ export function FormInput({
       ? 'border-red-500/50 focus:border-red-500/70'
       : 'border-white/10 focus:border-blue-500/50',
     disabled ? 'opacity-50 cursor-not-allowed' : '',
+    inputClassName,
   ]
     .filter(Boolean)
     .join(' ')
 
   return (
-    <div className={className}>
+    <div className={wrapperClassName}>
       {label && (
         <label htmlFor={inputId} className={`block text-xs font-semibold text-slate-400 mb-2 tracking-wide ${labelClassName}`.trim()}>
           {label}

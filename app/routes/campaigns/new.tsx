@@ -127,7 +127,7 @@ function NewCampaignPage() {
           <div className="p-8 pb-6">
             {step === 1 && (
               <>
-                <SectionHeader size="sm" tracking="tracking-[3px]" className="mb-7">THE QUEST</SectionHeader>
+                <SectionHeader size="xs" tracking="tracking-[3px]" className="mb-7">THE QUEST</SectionHeader>
                 <div className="space-y-5">
                   <FormInput
                     label={<>Campaign Name <span className="text-red-400">*</span></>}
@@ -145,6 +145,7 @@ function NewCampaignPage() {
                     placeholder="Describe your campaign..."
                     maxLength={500}
                     rows={4}
+                    textareaClassName="min-h-[100px]"
                   />
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
@@ -172,7 +173,7 @@ function NewCampaignPage() {
 
             {step === 2 && (
               <>
-                <SectionHeader size="sm" tracking="tracking-[3px]" className="mb-7">THE SCHEDULE</SectionHeader>
+                <SectionHeader size="xs" tracking="tracking-[3px]" className="mb-7">THE SCHEDULE</SectionHeader>
                 <div className="space-y-5">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">Frequency</label>
@@ -232,7 +233,7 @@ function NewCampaignPage() {
 
             {step === 3 && (
               <>
-                <SectionHeader size="sm" tracking="tracking-[3px]" className="mb-7">THE GATHERING</SectionHeader>
+                <SectionHeader size="xs" tracking="tracking-[3px]" className="mb-7">THE GATHERING</SectionHeader>
                 <div className="space-y-3">
                   <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
                     Links <span className="text-slate-600 font-normal">(optional)</span>
@@ -276,7 +277,7 @@ function NewCampaignPage() {
 
             {step === 4 && (
               <>
-                <SectionHeader size="sm" tracking="tracking-[3px]" className="mb-7">THE ROSTER</SectionHeader>
+                <SectionHeader size="xs" tracking="tracking-[3px]" className="mb-7">THE ROSTER</SectionHeader>
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 mb-3 tracking-wide">Max Player Slots</label>
                   <div className="flex flex-wrap gap-2.5">
@@ -299,7 +300,7 @@ function NewCampaignPage() {
 
             {step === 5 && (
               <>
-                <SectionHeader size="sm" tracking="tracking-[3px]" className="mb-7">REVIEW</SectionHeader>
+                <SectionHeader size="xs" tracking="tracking-[3px]" className="mb-7">REVIEW</SectionHeader>
                 <div className="space-y-4">
                   {[
                     { title: 'THE QUEST', rows: [['Name', name], ['Description', descShort]] },

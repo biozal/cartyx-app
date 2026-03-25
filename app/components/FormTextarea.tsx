@@ -22,6 +22,8 @@ export interface FormTextareaProps {
   labelClassName?: string
   /** Additional CSS classes applied to the wrapper. */
   className?: string
+  /** Additional CSS classes applied to the textarea element. */
+  textareaClassName?: string
 }
 
 export function FormTextarea({
@@ -35,10 +37,12 @@ export function FormTextarea({
   error,
   labelClassName = '',
   className = '',
+  textareaClassName = '',
   ...rest
 }: FormTextareaProps & { id?: string }) {
   const generatedId = useId()
   const textareaId = rest.id ?? generatedId
+  const counterId = `${textareaId}-counter`
   const nearLimit = maxLength !== undefined && value.length > maxLength * 0.9
 
   const textareaCls = [
@@ -48,6 +52,7 @@ export function FormTextarea({
       ? 'border-red-500/50 focus:border-red-500/70'
       : 'border-white/10 focus:border-blue-500/50',
     disabled ? 'opacity-50 cursor-not-allowed' : '',
+    textareaClassName,
   ]
     .filter(Boolean)
     .join(' ')
@@ -68,14 +73,15 @@ export function FormTextarea({
         maxLength={maxLength}
         disabled={disabled}
         className={textareaCls}
-        aria-describedby={error ? `${textareaId}-error` : undefined}
+        aria-describedby={error ? `${textareaId}-error` : maxLength !== undefined ? counterId : undefined}
         aria-invalid={error ? true : undefined}
+        {...rest}
       />
       {error && (
         <p id={`${textareaId}-error`} className="text-xs text-red-400 mt-1.5" role="alert">{error}</p>
       )}
       {!error && maxLength !== undefined && (
-        <p className={`text-xs mt-1.5 text-right ${nearLimit ? 'text-amber-500' : 'text-slate-700'}`}>
+        <p id={counterId} className={`text-xs mt-1.5 text-right ${nearLimit ? 'text-amber-500' : 'text-slate-700'}`}>
           {value.length}/{maxLength}
         </p>
       )}

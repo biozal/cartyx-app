@@ -25,6 +25,14 @@ export const SmallBlue: Story = {
   },
 }
 
+export const ExtraSmallBlue: Story = {
+  args: {
+    children: 'THE QUEST',
+    size: 'xs',
+    color: 'blue',
+  },
+}
+
 export const MediumBlue: Story = {
   args: {
     children: 'THE SCHEDULE',

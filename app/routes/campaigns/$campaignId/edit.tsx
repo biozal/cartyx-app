@@ -108,14 +108,14 @@ function EditCampaignPage() {
         )}
 
         <div className={sectionCls}>
-          <SectionHeader tracking="tracking-widest" className="mb-5">Basic Info</SectionHeader>
+          <SectionHeader size="xs" tracking="tracking-widest" className="mb-5">Basic Info</SectionHeader>
           <FormInput
             label="Campaign Name *"
             labelClassName="uppercase"
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="The Lost Mines of Phandelver"
-            className="mb-5"
+            wrapperClassName="mb-5"
           />
           <FormTextarea
             label="Description"
@@ -123,11 +123,12 @@ function EditCampaignPage() {
             value={desc}
             onChange={e => setDesc(e.target.value)}
             placeholder="Tell your players what awaits them..."
+            textareaClassName="min-h-[100px]"
           />
         </div>
 
         <div className={sectionCls}>
-          <SectionHeader tracking="tracking-widest" className="mb-5">Banner Image</SectionHeader>
+          <SectionHeader size="xs" tracking="tracking-widest" className="mb-5">Banner Image</SectionHeader>
           {imageError && (
             <StatusBanner variant="error" message={imageError} className="mb-3" />
           )}
@@ -149,7 +150,7 @@ function EditCampaignPage() {
         </div>
 
         <div className={sectionCls}>
-          <SectionHeader tracking="tracking-widest" className="mb-5">Schedule</SectionHeader>
+          <SectionHeader size="xs" tracking="tracking-widest" className="mb-5">Schedule</SectionHeader>
           <div className="mb-5">
             <label className={labelCls}>Frequency</label>
             <div className="flex flex-wrap gap-2">
@@ -191,7 +192,7 @@ function EditCampaignPage() {
         </div>
 
         <div className={sectionCls}>
-          <SectionHeader tracking="tracking-widest" className="mb-5">Links</SectionHeader>
+          <SectionHeader size="xs" tracking="tracking-widest" className="mb-5">Links</SectionHeader>
           <div className="space-y-3">
             {links.map((link, i) => (
               <div key={i} className="flex gap-2 items-center">
@@ -230,7 +231,7 @@ function EditCampaignPage() {
         </div>
 
         <div className={sectionCls}>
-          <SectionHeader tracking="tracking-widest" className="mb-5">Players</SectionHeader>
+          <SectionHeader size="xs" tracking="tracking-widest" className="mb-5">Players</SectionHeader>
           <label className={labelCls}>Max Players</label>
           <div className="flex flex-wrap gap-2">
             {[1,2,3,4,5,6,7,8,9,10].map(n => (
