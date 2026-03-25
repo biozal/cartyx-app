@@ -5,19 +5,24 @@ import { getSessions, type Session } from '~/services/mocks/sessionsService'
 export type { Session }
 
 export interface SessionsListWidgetProps {
-  sessions?: Session[]
+  sessions?: ReadonlyArray<Readonly<Session>>
 }
 
 export function SessionsListWidget({ sessions }: SessionsListWidgetProps) {
-  const [resolvedSessions, setResolvedSessions] = useState<Session[] | null>(sessions ?? null)
+  const [resolvedSessions, setResolvedSessions] = useState<Session[] | null>(
+    sessions ? sessions.map((session) => ({ ...session })) : null,
+  )
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (sessions) {
-      setResolvedSessions(sessions)
+      setResolvedSessions(sessions.map((session) => ({ ...session })))
+      setError(null)
       return
     }
 
     let isMounted = true
+    setError(null)
 
     void getSessions()
       .then((nextSessions) => {
@@ -27,6 +32,10 @@ export function SessionsListWidget({ sessions }: SessionsListWidgetProps) {
       })
       .catch((error) => {
         console.error(error)
+        if (isMounted) {
+          setError('Unable to load sessions.')
+          setResolvedSessions([])
+        }
       })
 
     return () => {
@@ -38,6 +47,8 @@ export function SessionsListWidget({ sessions }: SessionsListWidgetProps) {
     <Widget title="Sessions">
       {resolvedSessions === null ? (
         <p className="font-pixel text-xs text-slate-500">Loading sessions...</p>
+      ) : error ? (
+        <p className="font-pixel text-xs text-rose-400">{error}</p>
       ) : resolvedSessions.length === 0 ? (
         <p className="font-pixel text-xs text-slate-500">No sessions recorded</p>
       ) : (

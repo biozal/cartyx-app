@@ -1,7 +1,7 @@
 import type { CatchUpContent } from '~/services/mocks/types'
 import { resolveMockData } from '~/services/mocks/utils'
 
-export const mockCatchUpContent: CatchUpContent = {
+export const mockCatchUpContent: Readonly<CatchUpContent> = Object.freeze({
   title: 'Session Catch-Up',
   lastUpdated: '2026-03-22',
   content: `# Session 14 — The Shattered Vault
@@ -49,7 +49,7 @@ Wards in the vault activated when Theron touched the phylactery. The party fled 
 
 > *"The Compact doesn't seal things away to protect them. They seal things away to protect themselves from them."*
 > — Mira, after reading the correspondence`,
-}
+})
 
 export interface CatchUpService {
   getCatchUpContent: () => Promise<CatchUpContent>
@@ -57,7 +57,7 @@ export interface CatchUpService {
 
 export const mockCatchUpService: CatchUpService = {
   async getCatchUpContent() {
-    return resolveMockData(mockCatchUpContent)
+    return resolveMockData({ ...mockCatchUpContent })
   },
 }
 

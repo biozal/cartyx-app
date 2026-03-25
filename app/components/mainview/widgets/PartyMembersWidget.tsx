@@ -3,7 +3,7 @@ import { Widget } from '../Widget'
 import { getPartyMembers, type PartyMember } from '~/services/mocks/partyMembersService'
 
 export interface PartyMembersWidgetProps {
-  members?: PartyMember[]
+  members?: ReadonlyArray<Readonly<PartyMember>>
   className?: string
 }
 
@@ -11,15 +11,20 @@ export function PartyMembersWidget({
   members,
   className = '',
 }: PartyMembersWidgetProps) {
-  const [resolvedMembers, setResolvedMembers] = useState<PartyMember[] | null>(members ?? null)
+  const [resolvedMembers, setResolvedMembers] = useState<PartyMember[] | null>(
+    members ? members.map((member) => ({ ...member })) : null,
+  )
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (members) {
-      setResolvedMembers(members)
+      setResolvedMembers(members.map((member) => ({ ...member })))
+      setError(null)
       return
     }
 
     let isMounted = true
+    setError(null)
 
     void getPartyMembers()
       .then((nextMembers) => {
@@ -29,6 +34,10 @@ export function PartyMembersWidget({
       })
       .catch((error) => {
         console.error(error)
+        if (isMounted) {
+          setError('Unable to load party members.')
+          setResolvedMembers([])
+        }
       })
 
     return () => {
@@ -41,6 +50,10 @@ export function PartyMembersWidget({
       {resolvedMembers === null ? (
         <div className="flex items-center justify-center py-8">
           <p className="font-pixel text-xs text-slate-500">Loading party members...</p>
+        </div>
+      ) : error ? (
+        <div className="flex items-center justify-center py-8">
+          <p className="font-pixel text-xs text-rose-400">{error}</p>
         </div>
       ) : resolvedMembers.length === 0 ? (
         <div className="flex items-center justify-center py-8">

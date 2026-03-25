@@ -1,7 +1,7 @@
 import type { RecentlyUpdatedItem } from '~/services/mocks/types'
 import { resolveMockData } from '~/services/mocks/utils'
 
-const RECENTLY_UPDATED_ITEMS: RecentlyUpdatedItem[] = [
+export const mockRecentlyUpdatedItems: RecentlyUpdatedItem[] = [
   {
     id: 'wiki-thornhollow-catacombs',
     title: 'Thornhollow Catacombs',
@@ -45,7 +45,7 @@ export interface RecentlyUpdatedService {
 
 export const mockRecentlyUpdatedService: RecentlyUpdatedService = {
   async getRecentlyUpdatedItems() {
-    return resolveMockData(RECENTLY_UPDATED_ITEMS)
+    return resolveMockData(mockRecentlyUpdatedItems)
   },
 }
 

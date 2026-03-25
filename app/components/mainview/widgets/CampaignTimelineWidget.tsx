@@ -8,7 +8,7 @@ import {
 export type { TimelineEvent }
 
 export interface CampaignTimelineWidgetProps {
-  events?: TimelineEvent[]
+  events?: ReadonlyArray<Readonly<TimelineEvent>>
   className?: string
 }
 
@@ -16,15 +16,20 @@ export function CampaignTimelineWidget({
   events,
   className = '',
 }: CampaignTimelineWidgetProps) {
-  const [resolvedEvents, setResolvedEvents] = useState<TimelineEvent[] | null>(events ?? null)
+  const [resolvedEvents, setResolvedEvents] = useState<TimelineEvent[] | null>(
+    events ? events.map((event) => ({ ...event })) : null,
+  )
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (events) {
-      setResolvedEvents(events)
+      setResolvedEvents(events.map((event) => ({ ...event })))
+      setError(null)
       return
     }
 
     let isMounted = true
+    setError(null)
 
     void getTimelineEvents()
       .then((nextEvents) => {
@@ -34,6 +39,10 @@ export function CampaignTimelineWidget({
       })
       .catch((error) => {
         console.error(error)
+        if (isMounted) {
+          setError('Unable to load timeline.')
+          setResolvedEvents([])
+        }
       })
 
     return () => {
@@ -46,6 +55,10 @@ export function CampaignTimelineWidget({
       {resolvedEvents === null ? (
         <div className="flex items-center justify-center py-8">
           <p className="font-pixel text-xs text-slate-500">Loading timeline...</p>
+        </div>
+      ) : error ? (
+        <div className="flex items-center justify-center py-8">
+          <p className="font-pixel text-xs text-rose-400">{error}</p>
         </div>
       ) : resolvedEvents.length === 0 ? (
         <div className="flex items-center justify-center py-8">

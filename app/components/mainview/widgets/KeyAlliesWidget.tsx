@@ -3,7 +3,7 @@ import { Widget } from '~/components/mainview/Widget'
 import { getKeyAllies, type KeyAlly } from '~/services/mocks/keyAlliesService'
 
 export interface KeyAlliesWidgetProps {
-  allies?: KeyAlly[]
+  allies?: ReadonlyArray<Readonly<KeyAlly>>
   className?: string
 }
 
@@ -20,15 +20,20 @@ export function KeyAlliesWidget({
   allies,
   className = '',
 }: KeyAlliesWidgetProps) {
-  const [resolvedAllies, setResolvedAllies] = useState<KeyAlly[] | null>(allies ?? null)
+  const [resolvedAllies, setResolvedAllies] = useState<KeyAlly[] | null>(
+    allies ? allies.map((ally) => ({ ...ally })) : null,
+  )
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (allies) {
-      setResolvedAllies(allies)
+      setResolvedAllies(allies.map((ally) => ({ ...ally })))
+      setError(null)
       return
     }
 
     let isMounted = true
+    setError(null)
 
     void getKeyAllies()
       .then((nextAllies) => {
@@ -38,6 +43,10 @@ export function KeyAlliesWidget({
       })
       .catch((error) => {
         console.error(error)
+        if (isMounted) {
+          setError('Unable to load allies.')
+          setResolvedAllies([])
+        }
       })
 
     return () => {
@@ -49,6 +58,8 @@ export function KeyAlliesWidget({
     <Widget title="Key Allies" className={className}>
       {resolvedAllies === null ? (
         <p className="font-pixel text-xs text-slate-500">Loading allies...</p>
+      ) : error ? (
+        <p className="font-pixel text-xs text-rose-400">{error}</p>
       ) : resolvedAllies.length === 0 ? (
         <p className="font-pixel text-xs text-slate-500">No allies found</p>
       ) : (
