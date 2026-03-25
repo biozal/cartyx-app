@@ -6,17 +6,19 @@ const { mockUseLoaderData } = vi.hoisted(() => ({
   mockUseLoaderData: vi.fn(),
 }))
 
-function resolveToHref(to: string, params?: Record<string, string>) {
-  if (!params) return to
-  return Object.entries(params).reduce(
-    (path, [key, value]) => path.replace(`$${key}`, value),
-    to,
-  )
+function resolveToHref(to: string, params?: Record<string, string>, search?: Record<string, string>) {
+  let path = params
+    ? Object.entries(params).reduce((p, [key, value]) => p.replace(`$${key}`, value), to)
+    : to
+  if (search && Object.keys(search).length > 0) {
+    path += '?' + new URLSearchParams(search).toString()
+  }
+  return path
 }
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, to, params, ...props }: { children: React.ReactNode; to: string; params?: Record<string, string> }) => (
-    <a href={resolveToHref(to, params)} {...props}>{children}</a>
+  Link: ({ children, to, params, search, ...props }: { children: React.ReactNode; to: string; params?: Record<string, string>; search?: Record<string, string> }) => (
+    <a href={resolveToHref(to, params, search)} {...props}>{children}</a>
   ),
   createFileRoute: vi.fn(() => vi.fn(() => ({ useLoaderData: mockUseLoaderData }))),
   redirect: vi.fn(),
@@ -53,6 +55,6 @@ describe('CampaignSummaryPage', () => {
   it('renders an Enter Campaign button to the play route', () => {
     render(<CampaignSummaryPage />)
 
-    expect(screen.getByText('Enter Campaign').closest('a')).toHaveAttribute('href', '/campaigns/camp-1/play')
+    expect(screen.getByText('Enter Campaign').closest('a')).toHaveAttribute('href', '/campaigns/camp-1/play?tab=dashboard')
   })
 })

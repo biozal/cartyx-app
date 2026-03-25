@@ -72,9 +72,10 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
               to="/campaigns/$campaignId/play"
               params={{ campaignId: campaign.id }}
               search={{ tab: 'dashboard' }}
+              aria-label={`Enter campaign: ${campaign.name}`}
               className="font-pixel text-xs text-[#2563EB] hover:text-white transition-colors text-center"
             >
-              Enter →
+              <span aria-hidden="true">Enter →</span>
             </Link>
           </div>
         </div>

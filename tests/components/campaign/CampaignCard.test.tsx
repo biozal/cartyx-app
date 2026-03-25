@@ -2,17 +2,19 @@ import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
-function resolveToHref(to: string, params?: Record<string, string>) {
-  if (!params) return to
-  return Object.entries(params).reduce(
-    (path, [key, value]) => path.replace(`$${key}`, value),
-    to,
-  )
+function resolveToHref(to: string, params?: Record<string, string>, search?: Record<string, string>) {
+  let path = params
+    ? Object.entries(params).reduce((p, [key, value]) => p.replace(`$${key}`, value), to)
+    : to
+  if (search && Object.keys(search).length > 0) {
+    path += '?' + new URLSearchParams(search).toString()
+  }
+  return path
 }
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, to, params, ...props }: { children: React.ReactNode; to: string; params?: Record<string, string> }) => (
-    <a href={resolveToHref(to, params)} {...props}>{children}</a>
+  Link: ({ children, to, params, search, ...props }: { children: React.ReactNode; to: string; params?: Record<string, string>; search?: Record<string, string> }) => (
+    <a href={resolveToHref(to, params, search)} {...props}>{children}</a>
   ),
 }))
 
@@ -93,7 +95,7 @@ describe('CampaignCard', () => {
   it('shows summary and play route actions', () => {
     render(<CampaignCard campaign={{ ...baseCampaign, isOwner: false, inviteCode: '' }} />)
     expect(screen.getByText(/view summary/i).closest('a')).toHaveAttribute('href', '/campaigns/camp-1/summary')
-    expect(screen.getByText('Enter →').closest('a')).toHaveAttribute('href', '/campaigns/camp-1/play')
+    expect(screen.getByRole('link', { name: /enter campaign/i }).closest('a')).toHaveAttribute('href', '/campaigns/camp-1/play?tab=dashboard')
   })
 
   it('renders external links', () => {
