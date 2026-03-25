@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Widget } from '~/components/mainview/Widget'
 import { getCatchUpContent } from '~/services/mocks/catchUpService'
 
@@ -6,7 +7,7 @@ export function CatchUpWidget({ className = '' }: { className?: string }) {
   const { title, content } = getCatchUpContent()
 
   return (
-    <Widget title={title} className={`col-span-full ${className}`}>
+    <Widget title={title} className={`${className} col-span-full`}>
       <div
         data-testid="catchup-scroll"
         className="max-h-[400px] overflow-y-auto"
@@ -24,7 +25,7 @@ export function CatchUpWidget({ className = '' }: { className?: string }) {
             prose-code:text-slate-300
             text-xs"
         >
-          <ReactMarkdown>{content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
         </div>
       </div>
     </Widget>

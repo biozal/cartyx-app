@@ -16,6 +16,14 @@ describe('CatchUpWidget', () => {
     expect(heading).toBeInTheDocument()
   })
 
+  it('renders GFM table from markdown', () => {
+    render(<CatchUpWidget />)
+    // The party status table should render as an HTML table
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Character' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'HP' })).toBeInTheDocument()
+  })
+
   it('scrollable container has max-h-[400px] class', () => {
     render(<CatchUpWidget />)
     const scrollContainer = screen.getByTestId('catchup-scroll')
