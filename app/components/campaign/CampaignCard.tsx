@@ -17,7 +17,7 @@ interface CampaignCardProps {
 
 export function CampaignCard({ campaign }: CampaignCardProps) {
   return (
-    <div className="group bg-[#0D1117] border-l-4 border-l-blue-600 border border-white/[0.07] rounded-2xl overflow-hidden hover:border-blue-500/25 hover:shadow-2xl transition-all duration-200">
+    <div className="group w-full bg-[#0D1117] border-l-4 border-l-blue-600 border border-white/[0.07] rounded-2xl overflow-hidden hover:border-blue-500/25 hover:shadow-2xl transition-all duration-200">
       <CampaignHeroBanner
         name={campaign.name}
         imagePath={campaign.imagePath}
