@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { ChatPanel } from './ChatPanel'
 import { NotepadPanel } from './NotepadPanel'
+import { SettingsPanel } from './SettingsPanel'
 import { WikiPanel } from './WikiPanel'
 
 export type InspectorTab = 'chat' | 'wiki' | 'notepad' | 'settings'
@@ -109,6 +110,8 @@ export function InspectorSidebar({ defaultTab = 'chat' }: InspectorSidebarProps)
               <WikiPanel />
             ) : tab.id === 'notepad' ? (
               <NotepadPanel />
+            ) : tab.id === 'settings' ? (
+              <SettingsPanel />
             ) : (
               <div className="flex flex-1 items-center justify-center">
                 <span className="font-pixel text-xs text-slate-600">

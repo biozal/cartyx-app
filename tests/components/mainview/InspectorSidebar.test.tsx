@@ -44,7 +44,11 @@ describe('InspectorSidebar', () => {
     const user = userEvent.setup()
     render(<InspectorSidebar />)
     await user.click(screen.getByTestId('inspector-tab-settings'))
-    expect(screen.getByTestId('inspector-panel')).toHaveTextContent('Settings — Coming Soon')
+    expect(screen.getByTestId('inspector-panel')).toContainElement(
+      screen.getByTestId('settings-panel')
+    )
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument()
+    expect(screen.getByTestId('settings-panel')).toHaveTextContent('Coming Soon')
   })
 
   it('respects defaultTab prop', () => {
