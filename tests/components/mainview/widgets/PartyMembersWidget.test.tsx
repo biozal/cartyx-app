@@ -32,7 +32,7 @@ describe('PartyMembersWidget', () => {
     }
   })
 
-  it('shows the empty state when no members are provided', () => {
+  it('shows the empty state when members is empty', () => {
     render(<PartyMembersWidget members={[]} />)
 
     expect(screen.getByText('No party members found')).toBeInTheDocument()

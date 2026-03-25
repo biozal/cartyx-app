@@ -40,5 +40,5 @@ const PARTY_MEMBERS: PartyMember[] = [
 ]
 
 export function getPartyMembers(): PartyMember[] {
-  return PARTY_MEMBERS
+  return [...PARTY_MEMBERS]
 }

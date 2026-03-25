@@ -13,7 +13,7 @@ export function PartyMembersWidget({
   return (
     <Widget title="Party Members" className={className}>
       {members.length === 0 ? (
-        <div className="flex min-h-[168px] items-center justify-center">
+        <div className="flex items-center justify-center py-8">
           <p className="font-pixel text-xs text-slate-500">No party members found</p>
         </div>
       ) : (
