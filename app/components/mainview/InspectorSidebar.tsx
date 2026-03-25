@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react'
+import { ChatPanel } from './ChatPanel'
 
 export type InspectorTab = 'chat' | 'wiki' | 'notepad' | 'settings'
 
@@ -98,11 +99,17 @@ export function InspectorSidebar({ defaultTab = 'chat' }: InspectorSidebarProps)
             role="tabpanel"
             aria-labelledby={tabId(tab.id)}
             hidden={!isActive}
-            className="flex flex-1 items-center justify-center"
+            className="flex flex-1"
           >
-            <span className="font-pixel text-xs text-slate-600">
-              {tab.label} — Coming Soon
-            </span>
+            {tab.id === 'chat' ? (
+              <ChatPanel />
+            ) : (
+              <div className="flex flex-1 items-center justify-center">
+                <span className="font-pixel text-xs text-slate-600">
+                  {tab.label} — Coming Soon
+                </span>
+              </div>
+            )}
           </div>
         )
       })}

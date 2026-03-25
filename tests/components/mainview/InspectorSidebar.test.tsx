@@ -7,7 +7,9 @@ import { InspectorSidebar } from '~/components/mainview/InspectorSidebar'
 describe('InspectorSidebar', () => {
   it('defaults to the chat tab', () => {
     render(<InspectorSidebar />)
-    expect(screen.getByTestId('inspector-panel')).toHaveTextContent('Chat — Coming Soon')
+    expect(screen.getByTestId('inspector-panel')).toContainElement(
+      screen.getByRole('combobox', { name: 'Session selector' })
+    )
   })
 
   it('renders all 4 tab buttons', () => {
