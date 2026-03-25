@@ -31,7 +31,11 @@ describe('InspectorSidebar', () => {
     const user = userEvent.setup()
     render(<InspectorSidebar />)
     await user.click(screen.getByTestId('inspector-tab-notepad'))
-    expect(screen.getByTestId('inspector-panel')).toHaveTextContent('Notepad — Coming Soon')
+    expect(screen.getByTestId('inspector-panel')).toContainElement(
+      screen.getByTestId('notepad-panel')
+    )
+    expect(screen.getByRole('heading', { name: 'Notepad' })).toBeInTheDocument()
+    expect(screen.getByTestId('notepad-panel')).toHaveTextContent('Coming Soon')
   })
 
   it('switches to settings panel when settings tab is clicked', async () => {
@@ -43,7 +47,9 @@ describe('InspectorSidebar', () => {
 
   it('respects defaultTab prop', () => {
     render(<InspectorSidebar defaultTab="notepad" />)
-    expect(screen.getByTestId('inspector-panel')).toHaveTextContent('Notepad — Coming Soon')
+    expect(screen.getByTestId('inspector-panel')).toContainElement(
+      screen.getByTestId('notepad-panel')
+    )
   })
 
   it('active tab has aria-selected=true', () => {
