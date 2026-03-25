@@ -7,13 +7,13 @@ import { getTimelineEvents } from '~/services/mocks/timelineService'
 const mockEvents = [
   {
     id: 'timeline-1',
-    inGameDate: '14th of Ashfall, Year 3',
+    calendarDate: '14th of Ashfall, Year 3',
     sessionName: 'Ashes at Emberfall',
     summary: 'The party sealed the kiln gate and bound the cinder spirit.',
   },
   {
     id: 'timeline-2',
-    inGameDate: '2nd of Frostmark, Year 3',
+    calendarDate: '2nd of Frostmark, Year 3',
     sessionName: 'The Bell Beneath the Chapel',
     summary: 'A reliquary opened beneath the chapel after the second toll.',
   },
@@ -30,7 +30,7 @@ describe('CampaignTimelineWidget', () => {
     render(<CampaignTimelineWidget events={mockEvents} />)
 
     for (const event of mockEvents) {
-      expect(screen.getByText(event.inGameDate)).toBeInTheDocument()
+      expect(screen.getByText(event.calendarDate)).toBeInTheDocument()
       expect(screen.getByText(event.sessionName)).toBeInTheDocument()
     }
   })
@@ -60,12 +60,12 @@ describe('CampaignTimelineWidget', () => {
     expect(scroll).toHaveClass('overflow-y-auto')
   })
 
-  it('mock service returns defensive copies (new array and new objects)', () => {
-    const a = getTimelineEvents()
-    const b = getTimelineEvents()
+  it('mock service returns defensive copies (new array and new objects)', async () => {
+    const a = await getTimelineEvents()
+    const b = await getTimelineEvents()
     expect(a).not.toBe(b)
     expect(a[0]).not.toBe(b[0])
     a[0].sessionName = 'MUTATED'
-    expect(getTimelineEvents()[0].sessionName).not.toBe('MUTATED')
+    expect((await getTimelineEvents())[0].sessionName).not.toBe('MUTATED')
   })
 })
