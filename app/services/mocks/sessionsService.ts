@@ -66,5 +66,5 @@ const sessions: Session[] = [
 ]
 
 export function getSessions(): Session[] {
-  return [...sessions]
+  return sessions.map(session => ({ ...session }))
 }

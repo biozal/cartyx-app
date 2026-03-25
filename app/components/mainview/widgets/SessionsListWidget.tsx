@@ -1,12 +1,7 @@
 import { Widget } from '~/components/mainview/Widget'
+import type { Session } from '~/services/mocks/sessionsService'
 
-export interface Session {
-  id: string
-  number: number
-  name: string
-  summary: string
-  date: string
-}
+export type { Session }
 
 export interface SessionsListWidgetProps {
   sessions: Session[]
