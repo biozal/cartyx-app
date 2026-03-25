@@ -1,15 +1,19 @@
 import { Widget } from '~/components/mainview/Widget'
-import type { Session } from '~/services/mocks/sessionsService'
+import { getSessions, type Session } from '~/services/mocks/sessionsService'
 
 export type { Session }
 
 export interface SessionsListWidgetProps {
-  sessions: Session[]
+  sessions?: Session[]
+  className?: string
 }
 
-export function SessionsListWidget({ sessions }: SessionsListWidgetProps) {
+export function SessionsListWidget({
+  sessions = getSessions(),
+  className = '',
+}: SessionsListWidgetProps) {
   return (
-    <Widget title="Sessions">
+    <Widget title="Sessions" className={className}>
       {sessions.length === 0 ? (
         <p className="font-pixel text-xs text-slate-500">No sessions recorded</p>
       ) : (

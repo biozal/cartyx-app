@@ -11,7 +11,6 @@ import { CampaignTimelineWidget } from '~/components/mainview/widgets/CampaignTi
 import { KeyAlliesWidget } from '~/components/mainview/widgets/KeyAlliesWidget'
 import { PartyMembersWidget } from '~/components/mainview/widgets/PartyMembersWidget'
 import { SessionsListWidget } from '~/components/mainview/widgets/SessionsListWidget'
-import { getSessions } from '~/services/mocks/sessionsService'
 
 export const playSearchSchema = z.object({
   tab: z.enum(['dashboard', 'tabletop']).catch('dashboard'),
@@ -30,36 +29,6 @@ export const Route = createFileRoute('/campaigns/$campaignId/play')({
 function PlayPage() {
   const { tab: activeTab } = Route.useSearch()
   const navigate = Route.useNavigate()
-  const dashboardWidgets = [
-    {
-      id: 'catch-up',
-      title: 'Catch Up',
-      className: 'lg:col-span-2',
-      content: <CatchUpWidget />,
-    },
-    {
-      id: 'party-members',
-      title: 'Party Members',
-      content: <PartyMembersWidget />,
-    },
-    {
-      id: 'key-allies',
-      title: 'Key Allies',
-      content: <KeyAlliesWidget />,
-    },
-    {
-      id: 'sessions',
-      title: 'Sessions',
-      className: 'xl:col-span-2',
-      content: <SessionsListWidget sessions={getSessions()} />,
-    },
-    {
-      id: 'campaign-timeline',
-      title: 'Campaign Timeline',
-      className: 'xl:col-span-2',
-      content: <CampaignTimelineWidget />,
-    },
-  ]
 
   function handleTabChange(tab: TabId) {
     navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, tab }) })
@@ -77,7 +46,13 @@ function PlayPage() {
             aria-labelledby="tab-dashboard"
             hidden={activeTab !== 'dashboard'}
           >
-            <DashboardView className="h-full" widgets={dashboardWidgets} />
+            <DashboardView className="h-full">
+              <CatchUpWidget />
+              <PartyMembersWidget />
+              <KeyAlliesWidget />
+              <SessionsListWidget className="xl:col-span-2" />
+              <CampaignTimelineWidget className="xl:col-span-2" />
+            </DashboardView>
           </div>
           <div
             className="flex items-center justify-center h-full text-slate-400 font-pixel text-xs"
