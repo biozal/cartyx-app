@@ -14,5 +14,5 @@ const KEY_ALLIES: KeyAlly[] = [
 ]
 
 export function getKeyAllies(): KeyAlly[] {
-  return KEY_ALLIES
+  return [...KEY_ALLIES]
 }

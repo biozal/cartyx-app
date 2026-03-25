@@ -23,9 +23,21 @@ describe('KeyAlliesWidget', () => {
     }
   })
 
-  it('renders the empty state when no allies are provided', () => {
+  it('renders the empty state when allies is empty', () => {
     render(<KeyAlliesWidget allies={[]} />)
 
     expect(screen.getByText('No allies found')).toBeInTheDocument()
+  })
+
+  it('renders initials fallback when no avatarUrl', () => {
+    render(<KeyAlliesWidget allies={[{ id: 'a1', name: 'Elder Morvain', location: 'Thornhollow' }]} />)
+    // "Elder Morvain" → initials "EM"
+    expect(screen.getByText('EM')).toBeInTheDocument()
+  })
+
+  it('renders img when avatarUrl is provided', () => {
+    render(<KeyAlliesWidget allies={[{ id: 'a1', name: 'Elder Morvain', location: 'Thornhollow', avatarUrl: 'https://example.com/avatar.jpg' }]} />)
+    const img = screen.getByRole('img', { name: 'Elder Morvain' })
+    expect(img).toHaveAttribute('src', 'https://example.com/avatar.jpg')
   })
 })
