@@ -2,9 +2,17 @@ import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
+function resolveToHref(to: string, params?: Record<string, string>) {
+  if (!params) return to
+  return Object.entries(params).reduce(
+    (path, [key, value]) => path.replace(`$${key}`, value),
+    to,
+  )
+}
+
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, to, params: _params, ...props }: { children: React.ReactNode; to: string; params?: unknown }) => (
-    <a href={to} {...props}>{children}</a>
+  Link: ({ children, to, params, ...props }: { children: React.ReactNode; to: string; params?: Record<string, string> }) => (
+    <a href={resolveToHref(to, params)} {...props}>{children}</a>
   ),
 }))
 
@@ -82,9 +90,10 @@ describe('CampaignCard', () => {
     expect(screen.queryByText(/edit campaign/i)).not.toBeInTheDocument()
   })
 
-  it('always shows Enter Campaign button', () => {
+  it('shows summary and play route actions', () => {
     render(<CampaignCard campaign={{ ...baseCampaign, isOwner: false, inviteCode: '' }} />)
-    expect(screen.getByText(/enter campaign/i)).toBeInTheDocument()
+    expect(screen.getByText(/view summary/i).closest('a')).toHaveAttribute('href', '/campaigns/camp-1/summary')
+    expect(screen.getByText('Enter →').closest('a')).toHaveAttribute('href', '/campaigns/camp-1/play')
   })
 
   it('renders external links', () => {

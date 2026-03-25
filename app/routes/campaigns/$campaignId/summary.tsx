@@ -24,7 +24,7 @@ export const Route = createFileRoute('/campaigns/$campaignId/summary')({
   component: CampaignSummaryPage,
 })
 
-function CampaignSummaryPage() {
+export function CampaignSummaryPage() {
   const { campaign } = Route.useLoaderData()
 
   function copyCode() {
@@ -40,9 +40,22 @@ function CampaignSummaryPage() {
     <div className="min-h-screen flex flex-col bg-[#080A12]">
       <Topbar />
       <main className="flex-1 w-full max-w-[640px] mx-auto px-8 py-12">
-        <Link to="/campaigns" className="inline-flex items-center gap-1.5 text-slate-500 text-sm hover:text-slate-400 transition-colors mb-8">
-          ← Back to Campaigns
-        </Link>
+        <div className="flex flex-col gap-4 mb-8 sm:flex-row sm:items-center sm:justify-between">
+          <Link to="/campaigns" className="inline-flex items-center gap-1.5 text-slate-500 text-sm hover:text-slate-400 transition-colors">
+            ← Back to Campaigns
+          </Link>
+          <PixelButton
+            as="link"
+            variant="primary"
+            size="lg"
+            to="/campaigns/$campaignId/play"
+            params={{ campaignId: campaign.id }}
+            search={{ tab: 'dashboard' }}
+            className="w-full sm:w-auto"
+          >
+            Enter Campaign
+          </PixelButton>
+        </div>
 
         <div className="bg-[#0D1117] border border-white/[0.07] rounded-2xl p-9 shadow-2xl">
           {campaign.imagePath && (

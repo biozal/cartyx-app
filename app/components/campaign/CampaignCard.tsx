@@ -1,4 +1,5 @@
 import React from 'react'
+import { Link } from '@tanstack/react-router'
 import { CampaignHeroBanner } from './CampaignHeroBanner'
 import { CampaignDescription } from './CampaignDescription'
 import { NextSessionBadge } from './NextSessionBadge'
@@ -52,7 +53,7 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
               params={{ campaignId: campaign.id }}
               fullWidth
             >
-              Enter Campaign
+              View Summary
             </PixelButton>
             {campaign.isOwner && (
               <PixelButton
@@ -67,6 +68,14 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
                 Edit Campaign
               </PixelButton>
             )}
+            <Link
+              to="/campaigns/$campaignId/play"
+              params={{ campaignId: campaign.id }}
+              search={{ tab: 'dashboard' }}
+              className="font-pixel text-xs text-[#2563EB] hover:text-white transition-colors text-center"
+            >
+              Enter →
+            </Link>
           </div>
         </div>
       </div>
