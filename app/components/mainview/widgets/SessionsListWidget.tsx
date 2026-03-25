@@ -1,19 +1,24 @@
 import { Widget } from '~/components/mainview/Widget'
-import { getSessions, type Session } from '~/services/mocks/sessionsService'
 
-export interface SessionsListWidgetProps {
-  sessions?: Session[]
+export interface Session {
+  id: string
+  number: number
+  name: string
+  summary: string
+  date: string
 }
 
-export function SessionsListWidget({
-  sessions = getSessions(),
-}: SessionsListWidgetProps) {
+export interface SessionsListWidgetProps {
+  sessions: Session[]
+}
+
+export function SessionsListWidget({ sessions }: SessionsListWidgetProps) {
   return (
     <Widget title="Sessions">
       {sessions.length === 0 ? (
         <p className="font-pixel text-xs text-slate-500">No sessions recorded</p>
       ) : (
-        <div className="max-h-[400px] overflow-y-auto">
+        <div data-testid="sessions-scroll" className="max-h-[400px] overflow-y-auto">
           {sessions.map((session) => (
             <article
               key={session.id}

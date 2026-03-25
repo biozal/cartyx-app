@@ -56,8 +56,15 @@ const sessions: Session[] = [
     summary: 'A white drake stalked the caravan road and forced a midnight ambush.',
     date: '2026-02-07',
   },
+  {
+    id: 'session-7',
+    number: 7,
+    name: 'The Cartographer\'s Debt',
+    summary: 'An old map led the party into a collapsed vault beneath the crossroads inn.',
+    date: '2026-01-31',
+  },
 ]
 
 export function getSessions(): Session[] {
-  return sessions
+  return [...sessions]
 }

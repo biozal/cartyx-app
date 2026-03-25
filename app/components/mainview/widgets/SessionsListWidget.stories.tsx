@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { SessionsListWidget } from './SessionsListWidget'
+import { getSessions } from '~/services/mocks/sessionsService'
 
 const meta: Meta<typeof SessionsListWidget> = {
   title: 'Components/MainView/Widgets/SessionsListWidget',
@@ -19,7 +20,11 @@ const meta: Meta<typeof SessionsListWidget> = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const Default: Story = {}
+export const Default: Story = {
+  args: {
+    sessions: getSessions(),
+  },
+}
 
 export const Empty: Story = {
   args: {
