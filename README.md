@@ -79,6 +79,12 @@ npm run test:watch     # TDD watch mode
 npm run test:coverage  # Coverage report
 ```
 
+## Component Library
+
+The published Storybook is available at [https://biozal.github.io/cartyx-app](https://biozal.github.io/cartyx-app).
+
+For contributor setup, story-writing patterns, interaction tests, and Storybook-specific project conventions, see [docs/STORYBOOK.md](docs/STORYBOOK.md).
+
 ## Environments
 
 | Environment | URL | Branch | Database |
