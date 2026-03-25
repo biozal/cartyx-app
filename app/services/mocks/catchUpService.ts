@@ -1,14 +1,10 @@
-export interface CatchUpContent {
-  title: string
-  content: string
-  lastUpdated: string
-}
+import type { CatchUpContent } from '~/services/mocks/types'
+import { resolveMockData } from '~/services/mocks/utils'
 
-export function getCatchUpContent(): CatchUpContent {
-  return {
-    title: 'Session Catch-Up',
-    lastUpdated: '2026-03-22',
-    content: `# Session 14 — The Shattered Vault
+export const mockCatchUpContent: Readonly<CatchUpContent> = Object.freeze({
+  title: 'Session Catch-Up',
+  lastUpdated: '2026-03-22',
+  content: `# Session 14 — The Shattered Vault
 
 ## Where We Left Off
 
@@ -53,5 +49,20 @@ Wards in the vault activated when Theron touched the phylactery. The party fled 
 
 > *"The Compact doesn't seal things away to protect them. They seal things away to protect themselves from them."*
 > — Mira, after reading the correspondence`,
-  }
+})
+
+export interface CatchUpService {
+  getCatchUpContent: () => Promise<CatchUpContent>
 }
+
+export const mockCatchUpService: CatchUpService = {
+  async getCatchUpContent() {
+    return resolveMockData({ ...mockCatchUpContent })
+  },
+}
+
+export async function getCatchUpContent(): Promise<CatchUpContent> {
+  return mockCatchUpService.getCatchUpContent()
+}
+
+export type { CatchUpContent }

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { DashboardView } from '~/components/mainview/DashboardView'
 import { KeyAlliesWidget } from '~/components/mainview/widgets/KeyAlliesWidget'
-import { getKeyAllies } from '~/services/mocks/keyAlliesService'
+import { mockKeyAllies } from '~/services/mocks/keyAlliesService'
 
 const meta: Meta<typeof KeyAlliesWidget> = {
   title: 'Components/MainView/Widgets/KeyAlliesWidget',
@@ -23,7 +23,7 @@ type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
   args: {
-    allies: getKeyAllies(),
+    allies: mockKeyAllies,
   },
 }
 
@@ -37,7 +37,7 @@ export const InDashboardGrid: Story = {
   render: () => (
     <div className="min-h-screen bg-[#080A12]">
       <DashboardView>
-        <KeyAlliesWidget />
+        <KeyAlliesWidget allies={mockKeyAllies} />
       </DashboardView>
     </div>
   ),

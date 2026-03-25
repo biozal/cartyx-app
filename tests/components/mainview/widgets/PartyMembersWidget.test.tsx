@@ -6,13 +6,13 @@ import { getPartyMembers } from '~/services/mocks/partyMembersService'
 
 describe('PartyMembersWidget', () => {
   it('renders the widget title', () => {
-    render(<PartyMembersWidget />)
+    render(<PartyMembersWidget members={[]} />)
 
     expect(screen.getByText('Party Members')).toBeInTheDocument()
   })
 
-  it('renders all party member names', () => {
-    const members = getPartyMembers()
+  it('renders all party member names', async () => {
+    const members = await getPartyMembers()
 
     render(<PartyMembersWidget members={members} />)
 
@@ -21,8 +21,8 @@ describe('PartyMembersWidget', () => {
     }
   })
 
-  it('shows class and race for each member', () => {
-    const members = getPartyMembers()
+  it('shows class and race for each member', async () => {
+    const members = await getPartyMembers()
 
     render(<PartyMembersWidget members={members} />)
 

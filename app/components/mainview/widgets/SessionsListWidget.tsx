@@ -1,24 +1,60 @@
+import { useEffect, useState } from 'react'
 import { Widget } from '~/components/mainview/Widget'
 import { getSessions, type Session } from '~/services/mocks/sessionsService'
 
 export type { Session }
 
 export interface SessionsListWidgetProps {
-  sessions?: Session[]
+  sessions?: ReadonlyArray<Readonly<Session>>
   className?: string
 }
 
-export function SessionsListWidget({
-  sessions = getSessions(),
-  className = '',
-}: SessionsListWidgetProps) {
+export function SessionsListWidget({ sessions, className = '' }: SessionsListWidgetProps) {
+  const [resolvedSessions, setResolvedSessions] = useState<Session[] | null>(
+    sessions ? sessions.map((session) => ({ ...session })) : null,
+  )
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (sessions) {
+      setResolvedSessions(sessions.map((session) => ({ ...session })))
+      setError(null)
+      return
+    }
+
+    let isMounted = true
+    setError(null)
+
+    void getSessions()
+      .then((nextSessions) => {
+        if (isMounted) {
+          setResolvedSessions(nextSessions)
+        }
+      })
+      .catch((error) => {
+        console.error(error)
+        if (isMounted) {
+          setError('Unable to load sessions.')
+          setResolvedSessions([])
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [sessions])
+
   return (
     <Widget title="Sessions" className={className}>
-      {sessions.length === 0 ? (
+      {resolvedSessions === null ? (
+        <p className="font-pixel text-xs text-slate-500">Loading sessions...</p>
+      ) : error ? (
+        <p className="font-pixel text-xs text-rose-400">{error}</p>
+      ) : resolvedSessions.length === 0 ? (
         <p className="font-pixel text-xs text-slate-500">No sessions recorded</p>
       ) : (
         <div data-testid="sessions-scroll" className="max-h-[400px] overflow-y-auto">
-          {sessions.map((session) => (
+          {resolvedSessions.map((session) => (
             <article
               key={session.id}
               className="border-b border-white/[0.07] py-3 last:border-b-0 first:pt-0 last:pb-0"

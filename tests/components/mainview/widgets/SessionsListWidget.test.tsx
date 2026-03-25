@@ -51,20 +51,20 @@ describe('SessionsListWidget', () => {
     expect(screen.getByText('No sessions recorded')).toBeInTheDocument()
   })
 
-  it('uses service data when sessions prop is omitted', () => {
+  it('uses service data when sessions prop is omitted', async () => {
     render(<SessionsListWidget />)
-    expect(screen.getByText('Ashes at Emberfall')).toBeInTheDocument()
+    expect(await screen.findByText('Ashes at Emberfall')).toBeInTheDocument()
   })
 
-  it('mock service returns a defensive copy (new array and new objects)', () => {
-    const a = getSessions()
-    const b = getSessions()
+  it('mock service returns a defensive copy (new array and new objects)', async () => {
+    const a = await getSessions()
+    const b = await getSessions()
     // Array reference is different
     expect(a).not.toBe(b)
     // Object references inside are also different (deep copy)
     expect(a[0]).not.toBe(b[0])
     // Mutating a copy does not affect subsequent calls
     a[0].name = 'MUTATED'
-    expect(getSessions()[0].name).not.toBe('MUTATED')
+    expect((await getSessions())[0].name).not.toBe('MUTATED')
   })
 })
