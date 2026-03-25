@@ -1,7 +1,7 @@
 import type { CatchUpContent } from '~/services/mocks/types'
 import { resolveMockData } from '~/services/mocks/utils'
 
-const CATCH_UP_CONTENT: CatchUpContent = {
+export const mockCatchUpContent: CatchUpContent = {
   title: 'Session Catch-Up',
   lastUpdated: '2026-03-22',
   content: `# Session 14 — The Shattered Vault
@@ -57,7 +57,7 @@ export interface CatchUpService {
 
 export const mockCatchUpService: CatchUpService = {
   async getCatchUpContent() {
-    return resolveMockData(CATCH_UP_CONTENT)
+    return resolveMockData(mockCatchUpContent)
   },
 }
 

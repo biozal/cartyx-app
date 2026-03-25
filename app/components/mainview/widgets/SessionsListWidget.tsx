@@ -9,7 +9,7 @@ export interface SessionsListWidgetProps {
 }
 
 export function SessionsListWidget({ sessions }: SessionsListWidgetProps) {
-  const [resolvedSessions, setResolvedSessions] = useState<Session[]>(sessions ?? [])
+  const [resolvedSessions, setResolvedSessions] = useState<Session[] | null>(sessions ?? null)
 
   useEffect(() => {
     if (sessions) {
@@ -19,11 +19,15 @@ export function SessionsListWidget({ sessions }: SessionsListWidgetProps) {
 
     let isMounted = true
 
-    void getSessions().then((nextSessions) => {
-      if (isMounted) {
-        setResolvedSessions(nextSessions)
-      }
-    })
+    void getSessions()
+      .then((nextSessions) => {
+        if (isMounted) {
+          setResolvedSessions(nextSessions)
+        }
+      })
+      .catch((error) => {
+        console.error(error)
+      })
 
     return () => {
       isMounted = false
@@ -32,7 +36,9 @@ export function SessionsListWidget({ sessions }: SessionsListWidgetProps) {
 
   return (
     <Widget title="Sessions">
-      {resolvedSessions.length === 0 ? (
+      {resolvedSessions === null ? (
+        <p className="font-pixel text-xs text-slate-500">Loading sessions...</p>
+      ) : resolvedSessions.length === 0 ? (
         <p className="font-pixel text-xs text-slate-500">No sessions recorded</p>
       ) : (
         <div data-testid="sessions-scroll" className="max-h-[400px] overflow-y-auto">

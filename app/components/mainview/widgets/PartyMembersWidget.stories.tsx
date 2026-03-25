@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { DashboardView } from '../DashboardView'
 import { WidgetSlot } from '../WidgetSlot'
 import { PartyMembersWidget } from './PartyMembersWidget'
+import { mockPartyMembers } from '~/services/mocks/partyMembersService'
 
 const meta: Meta<typeof PartyMembersWidget> = {
   title: 'Components/MainView/Widgets/PartyMembersWidget',
@@ -24,7 +25,9 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
-  args: {},
+  args: {
+    members: mockPartyMembers,
+  },
 }
 
 export const EmptyState: Story = {
@@ -36,7 +39,7 @@ export const EmptyState: Story = {
 export const InDashboardGrid: Story = {
   render: () => (
     <DashboardView>
-      <PartyMembersWidget />
+      <PartyMembersWidget members={mockPartyMembers} />
 
       <WidgetSlot title="Quest Log">
         <div className="space-y-2 font-pixel text-xs text-slate-400">

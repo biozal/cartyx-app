@@ -1,7 +1,7 @@
 import type { Session } from '~/services/mocks/types'
 import { resolveMockData } from '~/services/mocks/utils'
 
-const SESSIONS: Session[] = [
+export const mockSessions: Session[] = [
   {
     id: 'session-14',
     number: 14,
@@ -66,7 +66,7 @@ export interface SessionsService {
 
 export const mockSessionsService: SessionsService = {
   async getSessions() {
-    return resolveMockData(SESSIONS)
+    return resolveMockData(mockSessions)
   },
 }
 

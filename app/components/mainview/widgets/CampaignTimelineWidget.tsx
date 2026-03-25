@@ -16,7 +16,7 @@ export function CampaignTimelineWidget({
   events,
   className = '',
 }: CampaignTimelineWidgetProps) {
-  const [resolvedEvents, setResolvedEvents] = useState<TimelineEvent[]>(events ?? [])
+  const [resolvedEvents, setResolvedEvents] = useState<TimelineEvent[] | null>(events ?? null)
 
   useEffect(() => {
     if (events) {
@@ -26,11 +26,15 @@ export function CampaignTimelineWidget({
 
     let isMounted = true
 
-    void getTimelineEvents().then((nextEvents) => {
-      if (isMounted) {
-        setResolvedEvents(nextEvents)
-      }
-    })
+    void getTimelineEvents()
+      .then((nextEvents) => {
+        if (isMounted) {
+          setResolvedEvents(nextEvents)
+        }
+      })
+      .catch((error) => {
+        console.error(error)
+      })
 
     return () => {
       isMounted = false
@@ -39,7 +43,11 @@ export function CampaignTimelineWidget({
 
   return (
     <Widget title="Campaign Timeline" className={className}>
-      {resolvedEvents.length === 0 ? (
+      {resolvedEvents === null ? (
+        <div className="flex items-center justify-center py-8">
+          <p className="font-pixel text-xs text-slate-500">Loading timeline...</p>
+        </div>
+      ) : resolvedEvents.length === 0 ? (
         <div className="flex items-center justify-center py-8">
           <p className="font-pixel text-xs text-slate-500">No timeline events</p>
         </div>

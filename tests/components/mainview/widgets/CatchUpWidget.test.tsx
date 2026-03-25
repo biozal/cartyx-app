@@ -2,21 +2,7 @@ import React from 'react'
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { CatchUpWidget } from '~/components/mainview/widgets/CatchUpWidget'
-import type { CatchUpContent } from '~/services/mocks/catchUpService'
-
-const mockCatchUpContent: CatchUpContent = {
-  title: 'Session Catch-Up',
-  lastUpdated: '2026-03-22',
-  content: `# Session 14 — The Shattered Vault
-
-## Where We Left Off
-
-The party descended into the Sunken District.
-
-| Character | HP | Conditions |
-|-----------|----|------------|
-| Theron | 24/40 | Exhausted (1) |`,
-}
+import { mockCatchUpContent } from '~/services/mocks/catchUpService'
 
 describe('CatchUpWidget', () => {
   it('renders the widget title', () => {
@@ -25,7 +11,7 @@ describe('CatchUpWidget', () => {
   })
 
   it('renders markdown content as HTML', async () => {
-    render(<CatchUpWidget />)
+    render(<CatchUpWidget content={mockCatchUpContent} />)
     // h1 in markdown is remapped to h3 to avoid heading hierarchy issues
     const heading = await screen.findByRole('heading', { name: /Session 14/ })
     expect(heading).toBeInTheDocument()
@@ -33,7 +19,7 @@ describe('CatchUpWidget', () => {
   })
 
   it('renders GFM table from markdown', async () => {
-    render(<CatchUpWidget />)
+    render(<CatchUpWidget content={mockCatchUpContent} />)
     // The party status table should render as an HTML table
     expect(await screen.findByRole('table')).toBeInTheDocument()
     expect(await screen.findByRole('columnheader', { name: 'Character' })).toBeInTheDocument()

@@ -11,7 +11,7 @@ export function PartyMembersWidget({
   members,
   className = '',
 }: PartyMembersWidgetProps) {
-  const [resolvedMembers, setResolvedMembers] = useState<PartyMember[]>(members ?? [])
+  const [resolvedMembers, setResolvedMembers] = useState<PartyMember[] | null>(members ?? null)
 
   useEffect(() => {
     if (members) {
@@ -21,11 +21,15 @@ export function PartyMembersWidget({
 
     let isMounted = true
 
-    void getPartyMembers().then((nextMembers) => {
-      if (isMounted) {
-        setResolvedMembers(nextMembers)
-      }
-    })
+    void getPartyMembers()
+      .then((nextMembers) => {
+        if (isMounted) {
+          setResolvedMembers(nextMembers)
+        }
+      })
+      .catch((error) => {
+        console.error(error)
+      })
 
     return () => {
       isMounted = false
@@ -34,7 +38,11 @@ export function PartyMembersWidget({
 
   return (
     <Widget title="Party Members" className={className}>
-      {resolvedMembers.length === 0 ? (
+      {resolvedMembers === null ? (
+        <div className="flex items-center justify-center py-8">
+          <p className="font-pixel text-xs text-slate-500">Loading party members...</p>
+        </div>
+      ) : resolvedMembers.length === 0 ? (
         <div className="flex items-center justify-center py-8">
           <p className="font-pixel text-xs text-slate-500">No party members found</p>
         </div>

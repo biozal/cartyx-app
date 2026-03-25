@@ -2,7 +2,7 @@ import type { TimelineEvent } from '~/services/mocks/types'
 import { resolveMockData } from '~/services/mocks/utils'
 
 // Ordered most-recent first (newest at top of timeline)
-const TIMELINE_EVENTS: TimelineEvent[] = [
+export const mockTimelineEvents: TimelineEvent[] = [
   {
     id: 'timeline-2',
     calendarDate: '2nd of Frostmark, Year 3',
@@ -47,7 +47,7 @@ export interface TimelineService {
 
 export const mockTimelineService: TimelineService = {
   async getTimelineEvents() {
-    return resolveMockData(TIMELINE_EVENTS)
+    return resolveMockData(mockTimelineEvents)
   },
 }
 

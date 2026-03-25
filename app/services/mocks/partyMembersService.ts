@@ -1,7 +1,7 @@
 import type { PartyMember } from '~/services/mocks/types'
 import { resolveMockData } from '~/services/mocks/utils'
 
-const PARTY_MEMBERS: PartyMember[] = [
+export const mockPartyMembers: PartyMember[] = [
   {
     id: 'thorne-ironheart',
     name: 'Thorne Ironheart',
@@ -40,7 +40,7 @@ export interface PartyMembersService {
 
 export const mockPartyMembersService: PartyMembersService = {
   async getPartyMembers() {
-    return resolveMockData(PARTY_MEMBERS)
+    return resolveMockData(mockPartyMembers)
   },
 }
 

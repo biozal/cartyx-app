@@ -20,7 +20,7 @@ export function KeyAlliesWidget({
   allies,
   className = '',
 }: KeyAlliesWidgetProps) {
-  const [resolvedAllies, setResolvedAllies] = useState<KeyAlly[]>(allies ?? [])
+  const [resolvedAllies, setResolvedAllies] = useState<KeyAlly[] | null>(allies ?? null)
 
   useEffect(() => {
     if (allies) {
@@ -30,11 +30,15 @@ export function KeyAlliesWidget({
 
     let isMounted = true
 
-    void getKeyAllies().then((nextAllies) => {
-      if (isMounted) {
-        setResolvedAllies(nextAllies)
-      }
-    })
+    void getKeyAllies()
+      .then((nextAllies) => {
+        if (isMounted) {
+          setResolvedAllies(nextAllies)
+        }
+      })
+      .catch((error) => {
+        console.error(error)
+      })
 
     return () => {
       isMounted = false
@@ -43,7 +47,9 @@ export function KeyAlliesWidget({
 
   return (
     <Widget title="Key Allies" className={className}>
-      {resolvedAllies.length === 0 ? (
+      {resolvedAllies === null ? (
+        <p className="font-pixel text-xs text-slate-500">Loading allies...</p>
+      ) : resolvedAllies.length === 0 ? (
         <p className="font-pixel text-xs text-slate-500">No allies found</p>
       ) : (
         <div className="space-y-3">

@@ -14,5 +14,18 @@ describe('mockCatchUpService', () => {
   it('uses the consistent service interface', async () => {
     await expect(mockCatchUpService.getCatchUpContent()).resolves.toEqual(await getCatchUpContent())
   })
-})
 
+  it('returns defensive copies', async () => {
+    const first = await getCatchUpContent()
+    const second = await getCatchUpContent()
+
+    expect(first).not.toBe(second)
+
+    first.title = 'Mutated'
+    first.content = 'Mutated'
+
+    const fresh = await getCatchUpContent()
+    expect(fresh.title).toBe('Session Catch-Up')
+    expect(fresh.content).toContain('# Session 14')
+  })
+})
