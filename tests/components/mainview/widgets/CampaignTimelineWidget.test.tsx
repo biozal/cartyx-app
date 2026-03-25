@@ -2,6 +2,7 @@ import React from 'react'
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { CampaignTimelineWidget } from '~/components/mainview/widgets/CampaignTimelineWidget'
+import { getTimelineEvents } from '~/services/mocks/timelineService'
 
 const mockEvents = [
   {
@@ -57,5 +58,14 @@ describe('CampaignTimelineWidget', () => {
     const scroll = screen.getByTestId('timeline-scroll')
     expect(scroll).toHaveClass('max-h-[500px]')
     expect(scroll).toHaveClass('overflow-y-auto')
+  })
+
+  it('mock service returns defensive copies (new array and new objects)', () => {
+    const a = getTimelineEvents()
+    const b = getTimelineEvents()
+    expect(a).not.toBe(b)
+    expect(a[0]).not.toBe(b[0])
+    a[0].sessionName = 'MUTATED'
+    expect(getTimelineEvents()[0].sessionName).not.toBe('MUTATED')
   })
 })

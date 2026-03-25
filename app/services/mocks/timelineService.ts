@@ -5,18 +5,19 @@ export interface TimelineEvent {
   summary: string
 }
 
+// Ordered most-recent first (newest at top of timeline)
 const timelineEvents: TimelineEvent[] = [
-  {
-    id: 'timeline-1',
-    inGameDate: '14th of Ashfall, Year 3',
-    sessionName: 'Ashes at Emberfall',
-    summary: 'The party sealed the kiln gate and bound the cinder spirit beneath the forge district.',
-  },
   {
     id: 'timeline-2',
     inGameDate: '2nd of Frostmark, Year 3',
     sessionName: 'The Bell Beneath the Chapel',
     summary: 'A hidden reliquary opened under Emberfall Chapel when the black bell tolled at dawn.',
+  },
+  {
+    id: 'timeline-1',
+    inGameDate: '14th of Ashfall, Year 3',
+    sessionName: 'Ashes at Emberfall',
+    summary: 'The party sealed the kiln gate and bound the cinder spirit beneath the forge district.',
   },
   {
     id: 'timeline-3',
