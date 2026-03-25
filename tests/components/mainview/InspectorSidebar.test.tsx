@@ -24,7 +24,9 @@ describe('InspectorSidebar', () => {
     const user = userEvent.setup()
     render(<InspectorSidebar />)
     await user.click(screen.getByTestId('inspector-tab-wiki'))
-    expect(screen.getByTestId('inspector-panel')).toHaveTextContent('Wiki — Coming Soon')
+    expect(screen.getByTestId('inspector-panel')).toContainElement(
+      screen.getByRole('button', { name: 'Characters' })
+    )
   })
 
   it('switches to notepad panel when notepad tab is clicked', async () => {
@@ -67,7 +69,9 @@ describe('InspectorSidebar', () => {
     render(<InspectorSidebar defaultTab="chat" />)
     const chatTab = screen.getByTestId('inspector-tab-chat')
     fireEvent.keyDown(chatTab, { key: 'ArrowRight' })
-    expect(screen.getByTestId('inspector-panel')).toHaveTextContent('Wiki — Coming Soon')
+    expect(screen.getByTestId('inspector-panel')).toContainElement(
+      screen.getByRole('button', { name: 'Characters' })
+    )
   })
 
   it('tab buttons have type=button', () => {
