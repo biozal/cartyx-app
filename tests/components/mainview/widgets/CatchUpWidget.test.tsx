@@ -11,9 +11,10 @@ describe('CatchUpWidget', () => {
 
   it('renders markdown content as HTML', () => {
     render(<CatchUpWidget />)
-    // The markdown heading "# Session 14 — The Shattered Vault" should render as an <h1>
+    // h1 in markdown is remapped to h3 to avoid heading hierarchy issues
     const heading = screen.getByRole('heading', { name: /Session 14/ })
     expect(heading).toBeInTheDocument()
+    expect(heading.tagName).toBe('H3')
   })
 
   it('renders GFM table from markdown', () => {
@@ -33,9 +34,9 @@ describe('CatchUpWidget', () => {
 
   it('applies col-span-full for full-width layout', () => {
     const { container } = render(<CatchUpWidget />)
-    // The Widget renders a <section> as its root element
     const section = container.querySelector('section')
-    expect(section).toHaveClass('col-span-full')
+    expect(section).not.toBeNull()
+    expect(section!).toHaveClass('col-span-full')
   })
 
   it('renders markdown content area', () => {

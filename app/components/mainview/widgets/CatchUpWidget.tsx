@@ -25,7 +25,16 @@ export function CatchUpWidget({ className = '' }: { className?: string }) {
             prose-code:text-slate-300
             text-xs"
         >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              h1: ({ node: _node, ...props }) => <h3 {...props} />,
+              h2: ({ node: _node, ...props }) => <h4 {...props} />,
+              h3: ({ node: _node, ...props }) => <h5 {...props} />,
+            }}
+          >
+            {content}
+          </ReactMarkdown>
         </div>
       </div>
     </Widget>
