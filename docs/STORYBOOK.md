@@ -86,9 +86,9 @@ Current story conventions in this project:
 
 Examples in this repo:
 
-- [`app/components/FormInput.stories.tsx`](/private/tmp/issue-79/app/components/FormInput.stories.tsx)
-- [`app/components/Topbar.stories.tsx`](/private/tmp/issue-79/app/components/Topbar.stories.tsx)
-- [`app/components/mainview/Widget.stories.tsx`](/private/tmp/issue-79/app/components/mainview/Widget.stories.tsx)
+- [`app/components/FormInput.stories.tsx`](../app/components/FormInput.stories.tsx)
+- [`app/components/Topbar.stories.tsx`](../app/components/Topbar.stories.tsx)
+- [`app/components/mainview/Widget.stories.tsx`](../app/components/mainview/Widget.stories.tsx)
 
 ## Interaction Tests with `play`
 
@@ -111,9 +111,9 @@ export const Clickable: Story = {
 
 Reference stories:
 
-- [`app/components/PixelButton.stories.tsx`](/private/tmp/issue-79/app/components/PixelButton.stories.tsx)
-- [`app/components/Toast.stories.tsx`](/private/tmp/issue-79/app/components/Toast.stories.tsx)
-- [`app/components/mainview/WikiPanel.stories.tsx`](/private/tmp/issue-79/app/components/mainview/WikiPanel.stories.tsx)
+- [`app/components/PixelButton.stories.tsx`](../app/components/PixelButton.stories.tsx)
+- [`app/components/Toast.stories.tsx`](../app/components/Toast.stories.tsx)
+- [`app/components/mainview/WikiPanel.stories.tsx`](../app/components/mainview/WikiPanel.stories.tsx)
 
 Run them with:
 
@@ -121,18 +121,18 @@ Run them with:
 npm run test:storybook
 ```
 
-That Vitest project is configured in [`vitest.config.ts`](/private/tmp/issue-79/vitest.config.ts) through `@storybook/addon-vitest` and Playwright Chromium.
+That Vitest project is configured in [`vitest.config.ts`](../vitest.config.ts) through `@storybook/addon-vitest` and Playwright Chromium.
 
 ## Mocking Dependencies
 
-This project already mocks a few app dependencies for Storybook in [`.storybook/main.ts`](/private/tmp/issue-79/.storybook/main.ts):
+This project already mocks a few app dependencies for Storybook in [`.storybook/main.ts`](../.storybook/main.ts):
 
-- `@tanstack/react-router` is aliased to [`.storybook/mocks/router.tsx`](/private/tmp/issue-79/.storybook/mocks/router.tsx)
-- `~/hooks/useAuth` is aliased to [`.storybook/mocks/useAuth.ts`](/private/tmp/issue-79/.storybook/mocks/useAuth.ts)
+- `@tanstack/react-router` is aliased to [`.storybook/mocks/router.tsx`](../.storybook/mocks/router.tsx)
+- `~/hooks/useAuth` is aliased to [`.storybook/mocks/useAuth.ts`](../.storybook/mocks/useAuth.ts)
 
 Use those existing mocks when a component depends on routing or auth state.
 
-Global preview setup in [`.storybook/preview.ts`](/private/tmp/issue-79/.storybook/preview.ts) also provides:
+Global preview setup in [`.storybook/preview.ts`](../.storybook/preview.ts) also provides:
 
 - `QueryClientProvider` for components using React Query
 - shared dark background framing
@@ -166,8 +166,8 @@ Use `argTypes` when Storybook cannot infer useful controls or when you want stri
 
 Examples in this repo:
 
-- [`app/components/PixelButton.stories.tsx`](/private/tmp/issue-79/app/components/PixelButton.stories.tsx)
-- [`app/components/campaign/CampaignHeroBanner.stories.tsx`](/private/tmp/issue-79/app/components/campaign/CampaignHeroBanner.stories.tsx)
+- [`app/components/PixelButton.stories.tsx`](../app/components/PixelButton.stories.tsx)
+- [`app/components/campaign/CampaignHeroBanner.stories.tsx`](../app/components/campaign/CampaignHeroBanner.stories.tsx)
 
 Typical cases:
 

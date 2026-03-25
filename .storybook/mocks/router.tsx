@@ -1,5 +1,5 @@
 import React from 'react'
-export * from '../../node_modules/@tanstack/react-router/dist/esm/index.js'
+export * from '@tanstack/react-router'
 
 export type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
   to?: string
