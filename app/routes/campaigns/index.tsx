@@ -46,8 +46,8 @@ function CampaignsListPage() {
   return (
     <div className="min-h-screen flex flex-col bg-[#080A12]">
       <Topbar />
-      <main className="flex-1 w-full max-w-[1160px] mx-auto px-8 py-12">
-        <div className="flex items-center justify-between mb-10">
+      <main className="flex-1 w-full max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-10">
           <h1 className="font-pixel text-[15px] text-white tracking-widest">MY CAMPAIGNS</h1>
           <div className="flex gap-3">
             {!isGm && (
