@@ -3,6 +3,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { getMe } from '~/server/functions/auth'
 import { CampaignHeader } from '~/components/mainview/CampaignHeader'
 import { MainView } from '~/components/mainview/MainView'
+import { TabletopView } from '~/components/mainview/TabletopView'
 import type { TabId } from '~/components/mainview/TabNavigation'
 
 export const playSearchSchema = z.object({
@@ -48,7 +49,7 @@ function PlayPage() {
             aria-labelledby="tab-tabletop"
             hidden={activeTab !== 'tabletop'}
           >
-            Tabletop View - Coming Soon
+            <TabletopView />
           </div>
         </MainView>
       </div>
