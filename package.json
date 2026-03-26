@@ -19,7 +19,7 @@
     "test:storybook": "vitest run --project storybook",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:ci": "vitest run --coverage --reporter=verbose",
+    "test:ci": "vitest run --project unit --coverage --reporter=verbose",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "build-storybook:full": "node scripts/build-storybook-with-iframe.mjs"
