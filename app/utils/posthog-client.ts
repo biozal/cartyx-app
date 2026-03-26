@@ -29,12 +29,23 @@ export function capturePageView(url: string): void {
   if (initialized && posthogInstance) posthogInstance.capture('$pageview', { $current_url: url })
 }
 
-function getClientEnvironment(): string {
-  const url = window.location.hostname
-  if (url.includes('dev.cartyx.io')) return 'preview'
-  if (url.includes('cartyx.io')) return 'production'
-  if (url.includes('vercel.app')) return 'preview'
-  if (url.includes('localhost')) return 'development'
+function hostnameMatches(hostname: string, domain: string): boolean {
+  return hostname === domain || hostname.endsWith(`.${domain}`)
+}
+
+function getClientEnvironment(currentUrl: string = window.location.href): string {
+  try {
+    const url = new URL(currentUrl, window.location.origin)
+    const { hostname } = url
+
+    if (hostnameMatches(hostname, 'dev.cartyx.io')) return 'preview'
+    if (hostnameMatches(hostname, 'cartyx.io')) return 'production'
+    if (hostnameMatches(hostname, 'vercel.app')) return 'preview'
+    if (hostname === 'localhost' || hostname.endsWith('.localhost')) return 'development'
+  } catch {
+    return 'unknown'
+  }
+
   return 'unknown'
 }
 

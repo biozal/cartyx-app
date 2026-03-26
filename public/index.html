@@ -494,10 +494,18 @@ fetch('/api/me').then(r => {
   document.getElementById('userEmail').textContent = user.email || '';
 
   const avatarWrap = document.getElementById('avatarWrap');
+  avatarWrap.replaceChildren();
   if (user.avatar) {
-    avatarWrap.innerHTML = `<img src="${user.avatar}" class="user-avatar" alt="">`;
+    const avatarImage = document.createElement('img');
+    avatarImage.src = user.avatar;
+    avatarImage.className = 'user-avatar';
+    avatarImage.alt = '';
+    avatarWrap.appendChild(avatarImage);
   } else {
-    avatarWrap.innerHTML = `<div class="user-avatar-placeholder">🧙</div>`;
+    const avatarPlaceholder = document.createElement('div');
+    avatarPlaceholder.className = 'user-avatar-placeholder';
+    avatarPlaceholder.textContent = '🧙';
+    avatarWrap.appendChild(avatarPlaceholder);
   }
 
   const roleMap = {
@@ -506,7 +514,11 @@ fetch('/api/me').then(r => {
     unknown: { label: '👤 Guest',        cls: 'unknown' },
   };
   const r = roleMap[user.role] || roleMap.unknown;
-  document.getElementById('roleBadge').innerHTML = `<span class="role-badge ${r.cls}">${r.label}</span>`;
+  const roleBadge = document.getElementById('roleBadge');
+  const roleBadgeContent = document.createElement('span');
+  roleBadgeContent.className = `role-badge ${r.cls}`;
+  roleBadgeContent.textContent = r.label;
+  roleBadge.replaceChildren(roleBadgeContent);
 
   if (user.role === 'gm') {
     document.getElementById('btnGM').style.display = 'flex';

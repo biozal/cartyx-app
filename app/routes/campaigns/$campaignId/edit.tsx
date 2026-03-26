@@ -9,6 +9,11 @@ import { useUpdateCampaign } from '~/hooks/useCampaigns'
 import { Topbar } from '~/components/Topbar'
 import { PixelButton } from '~/components/PixelButton'
 import { TIMEZONES } from '~/constants/timezones'
+import { FormInput } from '~/components/FormInput'
+import { FormTextarea } from '~/components/FormTextarea'
+import { FormSelect } from '~/components/FormSelect'
+import { StatusBanner } from '~/components/StatusBanner'
+import { SectionHeader } from '~/components/SectionHeader'
 
 export const Route = createFileRoute('/campaigns/$campaignId/edit')({
   beforeLoad: async ({ params }) => {
@@ -84,10 +89,10 @@ function EditCampaignPage() {
     }
   }
 
-  const inputCls = "w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-blue-500/50 focus:bg-white/[0.06] transition-all"
   const sectionCls = "bg-[#0D1117] border border-white/[0.07] rounded-2xl p-7 mb-5 shadow-lg"
-  const headingCls = "font-pixel text-[10px] text-blue-500 tracking-widest uppercase mb-5"
   const labelCls = "block text-xs font-semibold text-slate-400 mb-2 tracking-wide uppercase"
+
+  const timezoneOptions = TIMEZONES.map(([val, lbl]) => ({ value: val, label: lbl }))
 
   return (
     <div className="min-h-screen flex flex-col bg-[#080A12]">
@@ -99,29 +104,33 @@ function EditCampaignPage() {
         <h1 className="font-pixel text-[13px] text-white tracking-widest mb-9">EDIT CAMPAIGN</h1>
 
         {submitError && (
-          <div className="mb-5 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-            {submitError}
-          </div>
+          <StatusBanner variant="error" message={submitError} className="mb-5" />
         )}
 
         <div className={sectionCls}>
-          <div className={headingCls}>Basic Info</div>
-          <div className="mb-5">
-            <label className={labelCls}>Campaign Name *</label>
-            <input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="The Lost Mines of Phandelver" />
-          </div>
-          <div>
-            <label className={labelCls}>Description</label>
-            <textarea className={`${inputCls} resize-y min-h-[100px]`} value={desc} onChange={e => setDesc(e.target.value)} placeholder="Tell your players what awaits them..." />
-          </div>
+          <SectionHeader size="xs" tracking="tracking-widest" className="mb-5">Basic Info</SectionHeader>
+          <FormInput
+            label="Campaign Name *"
+            labelClassName="uppercase"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="The Lost Mines of Phandelver"
+            wrapperClassName="mb-5"
+          />
+          <FormTextarea
+            label="Description"
+            labelClassName="uppercase"
+            value={desc}
+            onChange={e => setDesc(e.target.value)}
+            placeholder="Tell your players what awaits them..."
+            textareaClassName="min-h-[100px]"
+          />
         </div>
 
         <div className={sectionCls}>
-          <div className={headingCls}>Banner Image</div>
+          <SectionHeader size="xs" tracking="tracking-widest" className="mb-5">Banner Image</SectionHeader>
           {imageError && (
-            <div className="mb-3 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-              {imageError}
-            </div>
+            <StatusBanner variant="error" message={imageError} className="mb-3" />
           )}
           <div
             className="border-2 border-dashed border-white/10 rounded-xl p-7 text-center cursor-pointer hover:border-blue-500/40 hover:bg-blue-600/[0.04] transition-all relative overflow-hidden"
@@ -141,7 +150,7 @@ function EditCampaignPage() {
         </div>
 
         <div className={sectionCls}>
-          <div className={headingCls}>Schedule</div>
+          <SectionHeader size="xs" tracking="tracking-widest" className="mb-5">Schedule</SectionHeader>
           <div className="mb-5">
             <label className={labelCls}>Frequency</label>
             <div className="flex flex-wrap gap-2">
@@ -165,21 +174,25 @@ function EditCampaignPage() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelCls}>Time</label>
-              <input type="time" className={inputCls} value={schedTime} onChange={e => setSchedTime(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelCls}>Timezone</label>
-              <select className={`${inputCls} cursor-pointer appearance-none`} value={schedTz} onChange={e => setSchedTz(e.target.value)}>
-                {TIMEZONES.map(([val, lbl]) => <option key={val} value={val} className="bg-[#0D1117]">{lbl}</option>)}
-              </select>
-            </div>
+            <FormInput
+              label="Time"
+              labelClassName="uppercase"
+              type="time"
+              value={schedTime}
+              onChange={e => setSchedTime(e.target.value)}
+            />
+            <FormSelect
+              label="Timezone"
+              labelClassName="uppercase"
+              value={schedTz}
+              onChange={e => setSchedTz(e.target.value)}
+              options={timezoneOptions}
+            />
           </div>
         </div>
 
         <div className={sectionCls}>
-          <div className={headingCls}>Links</div>
+          <SectionHeader size="xs" tracking="tracking-widest" className="mb-5">Links</SectionHeader>
           <div className="space-y-3">
             {links.map((link, i) => (
               <div key={i} className="flex gap-2 items-center">
@@ -218,7 +231,7 @@ function EditCampaignPage() {
         </div>
 
         <div className={sectionCls}>
-          <div className={headingCls}>Players</div>
+          <SectionHeader size="xs" tracking="tracking-widest" className="mb-5">Players</SectionHeader>
           <label className={labelCls}>Max Players</label>
           <div className="flex flex-wrap gap-2">
             {[1,2,3,4,5,6,7,8,9,10].map(n => (
