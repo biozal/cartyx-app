@@ -1,6 +1,12 @@
 import React from 'react'
-export * from '@tanstack/react-router'
 
+// Re-export everything from the real @tanstack/react-router using a direct
+// file path so Vite's alias (which rewrites the bare specifier to this mock)
+// doesn't cause a circular import.
+export * from '../../node_modules/@tanstack/react-router/dist/esm/index.js'
+
+// Override Link with a plain <a> so Storybook stories render without a
+// RouterProvider context.
 export type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
   to?: string
   children?: React.ReactNode
