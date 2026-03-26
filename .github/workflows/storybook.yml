@@ -43,7 +43,7 @@ jobs:
 
       - name: Deploy to Vercel
         run: |
-          vercel deploy storybook-static --prebuilt --prod --yes \
+          vercel deploy storybook-static --prod --yes \
             --token ${{ secrets.VERCEL_TOKEN }} \
             --scope ${{ secrets.VERCEL_ORG_ID }}
         env:
