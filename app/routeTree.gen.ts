@@ -68,12 +68,11 @@ const CampaignsCampaignIdSummaryRoute =
     path: '/campaigns/$campaignId/summary',
     getParentRoute: () => rootRouteImport,
   } as any)
-const CampaignsCampaignIdPlayRoute =
-  CampaignsCampaignIdPlayRouteImport.update({
-    id: '/campaigns/$campaignId/play',
-    path: '/campaigns/$campaignId/play',
-    getParentRoute: () => rootRouteImport,
-  } as any)
+const CampaignsCampaignIdPlayRoute = CampaignsCampaignIdPlayRouteImport.update({
+  id: '/campaigns/$campaignId/play',
+  path: '/campaigns/$campaignId/play',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CampaignsCampaignIdEditRoute = CampaignsCampaignIdEditRouteImport.update({
   id: '/campaigns/$campaignId/edit',
   path: '/campaigns/$campaignId/edit',
@@ -253,18 +252,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CampaignsCampaignIdSummaryRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/campaigns/$campaignId/edit': {
-      id: '/campaigns/$campaignId/edit'
-      path: '/campaigns/$campaignId/edit'
-      fullPath: '/campaigns/$campaignId/edit'
-      preLoaderRoute: typeof CampaignsCampaignIdEditRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/campaigns/$campaignId/play': {
       id: '/campaigns/$campaignId/play'
       path: '/campaigns/$campaignId/play'
       fullPath: '/campaigns/$campaignId/play'
       preLoaderRoute: typeof CampaignsCampaignIdPlayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/campaigns/$campaignId/edit': {
+      id: '/campaigns/$campaignId/edit'
+      path: '/campaigns/$campaignId/edit'
+      fullPath: '/campaigns/$campaignId/edit'
+      preLoaderRoute: typeof CampaignsCampaignIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/callback/$provider': {

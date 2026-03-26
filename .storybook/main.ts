@@ -16,6 +16,12 @@ const config: StorybookConfig = {
   ],
   framework: '@storybook/react-vite',
   viteFinal: async (config) => {
+    // Set Vite base path when STORYBOOK_BASE is provided (CI sets this
+    // for GitHub Pages deployment). Locally it's unset, so Storybook
+    // uses the default '/' and works on localhost as expected.
+    if (process.env.STORYBOOK_BASE) {
+      config.base = process.env.STORYBOOK_BASE
+    }
     config.plugins = config.plugins ?? []
     config.plugins.push(tsconfigPaths())
     config.resolve = config.resolve ?? {}
