@@ -29,11 +29,20 @@ jobs:
       - name: Build Storybook
         run: npm run build-storybook
 
+      - name: Add Vercel SPA routing config
+        run: |
+          cat > storybook-static/vercel.json << 'EOF'
+          {
+            "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+          }
+          EOF
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
       - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_STORYBOOK_PROJECT_ID }}
-          working-directory: storybook-static
-          vercel-args: --prod
+        run: vercel deploy storybook-static --prebuilt --prod --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_STORYBOOK_PROJECT_ID }}
