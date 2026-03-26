@@ -5,25 +5,17 @@ on:
     branches:
       - dev
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 concurrency:
-  group: storybook-pages
+  group: storybook-deploy
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build Storybook
+  deploy:
+    name: Build & Deploy Storybook
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -36,30 +28,21 @@ jobs:
 
       - name: Build Storybook
         run: npm run build-storybook
-        env:
-          STORYBOOK_BASE: /cartyx-app/
 
-      - name: Add SPA fallback for GitHub Pages
+      - name: Add Vercel SPA routing config
         run: |
-          # Storybook 10 uses SPA routing (e.g. /iframe.html?id=...) but
-          # GitHub Pages only serves real files. Copying index.html to 404.html
-          # makes GitHub Pages serve the Storybook app for any missing path,
-          # letting the client-side router handle it.
-          cp storybook-static/index.html storybook-static/404.html
+          cat > storybook-static/vercel.json << 'EOF'
+          {
+            "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+          }
+          EOF
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: storybook-static
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
 
-  deploy:
-    name: Deploy Storybook
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Deploy to Vercel
+        run: vercel deploy storybook-static --prebuilt --prod --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_STORYBOOK_PROJECT_ID }}
