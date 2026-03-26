@@ -39,6 +39,14 @@ jobs:
         env:
           STORYBOOK_BASE: /cartyx-app/
 
+      - name: Add SPA fallback for GitHub Pages
+        run: |
+          # Storybook 10 uses SPA routing (e.g. /iframe.html?id=...) but
+          # GitHub Pages only serves real files. Copying index.html to 404.html
+          # makes GitHub Pages serve the Storybook app for any missing path,
+          # letting the client-side router handle it.
+          cp storybook-static/index.html storybook-static/404.html
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
