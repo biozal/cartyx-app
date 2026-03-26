@@ -1,5 +1,5 @@
-// Mock TanStack Router's Link as a plain <a> for Storybook
 import React from 'react'
+export * from '@tanstack/react-router'
 
 export type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
   to?: string
