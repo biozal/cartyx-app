@@ -18,19 +18,21 @@ const config: StorybookConfig = {
     '@storybook/addon-onboarding',
   ],
   framework: '@storybook/react-vite',
-  viteFinal: async (config, { configType }) => {
+  viteFinal: async (config, { configType: _configType }) => {
     // The project vite.config.ts includes nitro() and tanstackStart() which
     // override build.outDir to '.output/public'. Remove these server-side plugins
     // so the Storybook preview build outputs correctly to storybook-static.
-    // Strip all app-specific plugins that corrupt the Storybook output dir:
-    // nitro overwrites outDir to .output/public, tanstack/start writes the app
-    // index.html, and tailwindcss scan/build are only needed for the app.
+    // We match exact plugin name prefixes known to corrupt the Storybook build:
+    //   nitro:*        — overrides outDir to .output/public
+    //   tanstack-*     — writes app index.html to the output dir
+    //   @tailwindcss/* — only needed for the app, not for Storybook
     if (config.plugins) {
-      const blocked = ['nitro', 'tanstack', 'start', '@tailwindcss']
-      config.plugins = (config.plugins as any[]).filter((p: any) => {
-        if (!p) return true
-        const name: string = (Array.isArray(p) ? p[0]?.name : p?.name) ?? ''
-        return !blocked.some(b => name.includes(b))
+      const BLOCKED_PREFIXES = ['nitro:', 'tanstack-', '@tailwindcss/']
+      const flattenedPlugins = (config.plugins as import('vite').PluginOption[]).flat(Infinity)
+      config.plugins = flattenedPlugins.filter((p) => {
+        if (!p || typeof p !== 'object' || !('name' in p)) return true
+        const name = (p as { name: string }).name
+        return !BLOCKED_PREFIXES.some(prefix => name.startsWith(prefix))
       })
     }
 

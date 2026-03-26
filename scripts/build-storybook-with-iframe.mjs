@@ -20,6 +20,17 @@ import { existsSync, renameSync } from 'fs'
 const publicIndex = 'public/index.html'
 const publicIndexTemp = 'public/index.html.sb-bak'
 
+// Guard against a stale backup from a previously interrupted build.
+if (existsSync(publicIndexTemp)) {
+  console.error(
+    '✗ Temp backup public/index.html.sb-bak already exists.\n' +
+    '  This usually means a previous Storybook build was interrupted.\n' +
+    '  - If public/index.html is missing, restore it: mv public/index.html.sb-bak public/index.html\n' +
+    '  - Otherwise delete public/index.html.sb-bak and run this script again.'
+  )
+  process.exit(1)
+}
+
 if (existsSync(publicIndex)) {
   renameSync(publicIndex, publicIndexTemp)
   console.log('→ Temporarily renamed public/index.html')
