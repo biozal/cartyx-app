@@ -9,23 +9,19 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as IndexRouteImport } from './routes/index'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as CampaignsIndexRouteImport } from './routes/campaigns/index'
 import { Route as CampaignsNewRouteImport } from './routes/campaigns/new'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout'
 import { Route as AuthProviderRouteImport } from './routes/auth/$provider'
 import { Route as CampaignsCampaignIdSummaryRouteImport } from './routes/campaigns/$campaignId/summary'
+import { Route as CampaignsCampaignIdPlayRouteImport } from './routes/campaigns/$campaignId/play'
 import { Route as CampaignsCampaignIdEditRouteImport } from './routes/campaigns/$campaignId/edit'
 import { Route as AuthCallbackProviderRouteImport } from './routes/auth/callback/$provider'
 
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
@@ -34,6 +30,11 @@ const TermsRoute = TermsRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -67,6 +68,11 @@ const CampaignsCampaignIdSummaryRoute =
     path: '/campaigns/$campaignId/summary',
     getParentRoute: () => rootRouteImport,
   } as any)
+const CampaignsCampaignIdPlayRoute = CampaignsCampaignIdPlayRouteImport.update({
+  id: '/campaigns/$campaignId/play',
+  path: '/campaigns/$campaignId/play',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CampaignsCampaignIdEditRoute = CampaignsCampaignIdEditRouteImport.update({
   id: '/campaigns/$campaignId/edit',
   path: '/campaigns/$campaignId/edit',
@@ -81,41 +87,44 @@ const AuthCallbackProviderRoute = AuthCallbackProviderRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
-  '/terms': typeof TermsRoute
   '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/auth/$provider': typeof AuthProviderRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/campaigns/new': typeof CampaignsNewRoute
   '/campaigns/': typeof CampaignsIndexRoute
   '/auth/callback/$provider': typeof AuthCallbackProviderRoute
   '/campaigns/$campaignId/edit': typeof CampaignsCampaignIdEditRoute
+  '/campaigns/$campaignId/play': typeof CampaignsCampaignIdPlayRoute
   '/campaigns/$campaignId/summary': typeof CampaignsCampaignIdSummaryRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
-  '/terms': typeof TermsRoute
   '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/auth/$provider': typeof AuthProviderRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/campaigns/new': typeof CampaignsNewRoute
   '/campaigns': typeof CampaignsIndexRoute
   '/auth/callback/$provider': typeof AuthCallbackProviderRoute
   '/campaigns/$campaignId/edit': typeof CampaignsCampaignIdEditRoute
+  '/campaigns/$campaignId/play': typeof CampaignsCampaignIdPlayRoute
   '/campaigns/$campaignId/summary': typeof CampaignsCampaignIdSummaryRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
-  '/terms': typeof TermsRoute
   '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/auth/$provider': typeof AuthProviderRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/campaigns/new': typeof CampaignsNewRoute
   '/campaigns/': typeof CampaignsIndexRoute
   '/auth/callback/$provider': typeof AuthCallbackProviderRoute
   '/campaigns/$campaignId/edit': typeof CampaignsCampaignIdEditRoute
+  '/campaigns/$campaignId/play': typeof CampaignsCampaignIdPlayRoute
   '/campaigns/$campaignId/summary': typeof CampaignsCampaignIdSummaryRoute
 }
 export interface FileRouteTypes {
@@ -123,66 +132,63 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
-    | '/terms'
     | '/privacy'
+    | '/terms'
     | '/auth/$provider'
     | '/auth/logout'
     | '/campaigns/new'
     | '/campaigns/'
     | '/auth/callback/$provider'
     | '/campaigns/$campaignId/edit'
+    | '/campaigns/$campaignId/play'
     | '/campaigns/$campaignId/summary'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/dashboard'
-    | '/terms'
     | '/privacy'
+    | '/terms'
     | '/auth/$provider'
     | '/auth/logout'
     | '/campaigns/new'
     | '/campaigns'
     | '/auth/callback/$provider'
     | '/campaigns/$campaignId/edit'
+    | '/campaigns/$campaignId/play'
     | '/campaigns/$campaignId/summary'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
-    | '/terms'
     | '/privacy'
+    | '/terms'
     | '/auth/$provider'
     | '/auth/logout'
     | '/campaigns/new'
     | '/campaigns/'
     | '/auth/callback/$provider'
     | '/campaigns/$campaignId/edit'
+    | '/campaigns/$campaignId/play'
     | '/campaigns/$campaignId/summary'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
-  TermsRoute: typeof TermsRoute
   PrivacyRoute: typeof PrivacyRoute
+  TermsRoute: typeof TermsRoute
   AuthProviderRoute: typeof AuthProviderRoute
   AuthLogoutRoute: typeof AuthLogoutRoute
   CampaignsNewRoute: typeof CampaignsNewRoute
   CampaignsIndexRoute: typeof CampaignsIndexRoute
   AuthCallbackProviderRoute: typeof AuthCallbackProviderRoute
   CampaignsCampaignIdEditRoute: typeof CampaignsCampaignIdEditRoute
+  CampaignsCampaignIdPlayRoute: typeof CampaignsCampaignIdPlayRoute
   CampaignsCampaignIdSummaryRoute: typeof CampaignsCampaignIdSummaryRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/terms': {
       id: '/terms'
       path: '/terms'
@@ -195,6 +201,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -239,6 +252,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CampaignsCampaignIdSummaryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/campaigns/$campaignId/play': {
+      id: '/campaigns/$campaignId/play'
+      path: '/campaigns/$campaignId/play'
+      fullPath: '/campaigns/$campaignId/play'
+      preLoaderRoute: typeof CampaignsCampaignIdPlayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/campaigns/$campaignId/edit': {
       id: '/campaigns/$campaignId/edit'
       path: '/campaigns/$campaignId/edit'
@@ -259,14 +279,15 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
-  TermsRoute: TermsRoute,
   PrivacyRoute: PrivacyRoute,
+  TermsRoute: TermsRoute,
   AuthProviderRoute: AuthProviderRoute,
   AuthLogoutRoute: AuthLogoutRoute,
   CampaignsNewRoute: CampaignsNewRoute,
   CampaignsIndexRoute: CampaignsIndexRoute,
   AuthCallbackProviderRoute: AuthCallbackProviderRoute,
   CampaignsCampaignIdEditRoute: CampaignsCampaignIdEditRoute,
+  CampaignsCampaignIdPlayRoute: CampaignsCampaignIdPlayRoute,
   CampaignsCampaignIdSummaryRoute: CampaignsCampaignIdSummaryRoute,
 }
 export const routeTree = rootRouteImport

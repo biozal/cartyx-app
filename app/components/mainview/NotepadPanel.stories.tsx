@@ -1,0 +1,25 @@
+import type { Meta, StoryObj } from '@storybook/react-vite'
+import { NotepadPanel } from './NotepadPanel'
+
+const meta: Meta<typeof NotepadPanel> = {
+  title: 'Components/MainView/NotepadPanel',
+  component: NotepadPanel,
+  tags: ['autodocs'],
+  parameters: {
+    layout: 'fullscreen',
+  },
+  decorators: [
+    (Story) => (
+      <div className="flex h-screen justify-end bg-[#080A12]">
+        <div className="h-full w-80 border-l border-white/[0.07]">
+          <Story />
+        </div>
+      </div>
+    ),
+  ],
+}
+
+export default meta
+type Story = StoryObj<typeof meta>
+
+export const Default: Story = {}

@@ -1,0 +1,30 @@
+export interface FloatingWindowTrayItem {
+  id: string
+  title: string
+}
+
+export interface FloatingWindowTrayProps {
+  windows: FloatingWindowTrayItem[]
+  onRestore: (id: string) => void
+}
+
+export function FloatingWindowTray({ windows, onRestore }: FloatingWindowTrayProps) {
+  if (windows.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="absolute bottom-4 left-4 flex flex-row gap-2">
+      {windows.map(window => (
+        <button
+          key={window.id}
+          type="button"
+          onClick={() => onRestore(window.id)}
+          className="rounded border border-white/[0.07] bg-[#1a1d2e] px-3 py-1.5 font-pixel text-xs text-slate-300 transition-colors hover:bg-white/[0.05]"
+        >
+          {window.title}
+        </button>
+      ))}
+    </div>
+  )
+}
