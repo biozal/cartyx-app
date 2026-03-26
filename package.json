@@ -1,7 +1,7 @@
 {
   "name": "cartyx-app",
   "version": "0.2.0",
-  "description": "Cartyx — D&D Campaign Management Platform",
+  "description": "Cartyx \u2014 D&D Campaign Management Platform",
   "type": "module",
   "engines": {
     "node": "^20.20.0 || >=22.22.0"
@@ -21,7 +21,8 @@
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --coverage --reporter=verbose",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "build-storybook:full": "node scripts/build-storybook-with-iframe.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1014.0",
