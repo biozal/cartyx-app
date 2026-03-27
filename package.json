@@ -1,7 +1,7 @@
 {
   "name": "cartyx-app",
   "version": "0.2.0",
-  "description": "Cartyx \u2014 D&D Campaign Management Platform",
+  "description": "Cartyx — D&D Campaign Management Platform",
   "type": "module",
   "engines": {
     "node": "^20.20.0 || >=22.22.0"
@@ -49,13 +49,13 @@
     "h3-v2": "npm:h3@2.0.1-rc.19"
   },
   "devDependencies": {
-    "@chromatic-com/storybook": "^5.0.2",
+    "@chromatic-com/storybook": "^5.1.1",
     "@playwright/test": "^1.58.2",
-    "@storybook/addon-a11y": "^10.1.11",
-    "@storybook/addon-docs": "^10.1.11",
-    "@storybook/addon-onboarding": "^10.1.11",
-    "@storybook/addon-vitest": "^10.1.11",
-    "@storybook/react-vite": "^10.1.11",
+    "@storybook/addon-a11y": "^10.3.3",
+    "@storybook/addon-docs": "^10.3.3",
+    "@storybook/addon-onboarding": "^10.3.3",
+    "@storybook/addon-vitest": "^10.3.3",
+    "@storybook/react-vite": "^10.3.3",
     "@tailwindcss/vite": "^4.2.2",
     "@tanstack/react-query-devtools": "^5.95.2",
     "@testing-library/jest-dom": "^6.6.3",
@@ -73,12 +73,12 @@
     "eslint": "^9.20.0",
     "eslint-plugin-react": "^7.37.4",
     "eslint-plugin-react-hooks": "^5.1.0",
-    "eslint-plugin-storybook": "^10.1.11",
+    "eslint-plugin-storybook": "^10.3.3",
     "globals": "^17.4.0",
     "happy-dom": "^20.8.4",
     "playwright": "^1.58.2",
     "prettier": "^3.5.3",
-    "storybook": "^10.1.11",
+    "storybook": "^10.3.3",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.8.2",
     "vite-tsconfig-paths": "^6.1.1",
