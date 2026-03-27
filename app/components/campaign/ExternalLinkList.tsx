@@ -16,7 +16,7 @@ export function ExternalLinkList({ links }: ExternalLinkListProps) {
     <div>
       <div className="text-[10px] font-pixel text-slate-500 tracking-wide mb-2">LINKS</div>
       <div className="flex flex-col gap-1">
-        {renderableLinks.map((link, i) => (
+        {renderableLinks.map((link) => (
           <ExternalLinkItem key={`${link.name}:${link.url}`} name={link.name} url={link.url} />
         ))}
       </div>
