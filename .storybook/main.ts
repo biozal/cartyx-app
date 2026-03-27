@@ -27,13 +27,18 @@ const config: StorybookConfig = {
     //   tanstack-*     — writes app index.html to the output dir
     //   @tailwindcss/* — only needed for the app, not for Storybook
     if (config.plugins) {
+      // Filter out app-specific plugins that corrupt the Storybook build output.
+      // We match by exact name prefixes and only check top-level entries to avoid
+      // mutating nested arrays or Promises (which Vite uses internally).
       const BLOCKED_PREFIXES = ['nitro:', 'tanstack-', '@tailwindcss/']
-      const flattenedPlugins = (config.plugins as import('vite').PluginOption[]).flat(Infinity)
-      config.plugins = flattenedPlugins.filter((p) => {
-        if (!p || typeof p !== 'object' || !('name' in p)) return true
+      const isBlocked = (p: unknown): boolean => {
+        if (!p || typeof p !== 'object' || !('name' in p)) return false
         const name = (p as { name: string }).name
-        return !BLOCKED_PREFIXES.some(prefix => name.startsWith(prefix))
-      })
+        return typeof name === 'string' && BLOCKED_PREFIXES.some(prefix => name.startsWith(prefix))
+      }
+      config.plugins = (config.plugins as import('vite').PluginOption[]).filter(
+        p => !isBlocked(p)
+      )
     }
 
     config.plugins = config.plugins ?? []
