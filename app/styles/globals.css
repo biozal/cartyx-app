@@ -1,12 +1,17 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined');
 
 @theme {
   --font-pixel: 'Press Start 2P', monospace;
+  --font-body: 'Inter', system-ui, sans-serif;
   --font-sans: 'Inter', system-ui, sans-serif;
   --color-bg: #080A12;
   --color-surface: #0D1117;
   --color-surface-2: #080A12;
+  --color-primary: #85adff;
+  --color-surface-container-high: rgb(31 31 34);
+  --color-on-surface-variant: #adaaad;
   --color-border: rgba(255, 255, 255, 0.07);
   --color-text-primary: #F1F5F9;
   --color-text-secondary: #94A3B8;

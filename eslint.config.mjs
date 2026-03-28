@@ -44,6 +44,7 @@ export default [js.configs.recommended, {
 }, {
   ignores: [
     'node_modules',
+    'vendor',
     '.output',
     '.vinxi',
     'dist',
