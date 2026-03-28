@@ -1,0 +1,32 @@
+{
+  "name": "@fortawesome/pro-solid-svg-icons",
+  "version": "6.7.2",
+  "description": "Font Awesome Pro 6 solid icons — local build",
+  "main": "index.js",
+  "module": "index.es.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./index.es.js",
+      "require": "./index.js",
+      "default": "./index.js"
+    }
+  },
+  "keywords": [
+    "font-awesome",
+    "fontawesome",
+    "svg",
+    "icons",
+    "solid"
+  ],
+  "license": "UNLICENSED",
+  "sideEffects": false,
+  "peerDependencies": {
+    "@fortawesome/fontawesome-svg-core": ">=6"
+  },
+  "peerDependenciesMeta": {
+    "@fortawesome/fontawesome-svg-core": {
+      "optional": true
+    }
+  }
+}
