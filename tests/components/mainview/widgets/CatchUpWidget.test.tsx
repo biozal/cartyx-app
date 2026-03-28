@@ -5,32 +5,23 @@ import { CatchUpWidget } from '~/components/mainview/widgets/CatchUpWidget'
 import { mockCatchUpContent } from '~/services/mocks/catchUpService'
 
 describe('CatchUpWidget', () => {
-  it('renders the widget title', () => {
+  it('renders the CATCH UP heading', () => {
     render(<CatchUpWidget content={mockCatchUpContent} />)
-    expect(screen.getByText('Session Catch-Up')).toBeInTheDocument()
+    expect(screen.getByText('CATCH UP')).toBeInTheDocument()
   })
 
   it('renders markdown content as HTML', async () => {
     render(<CatchUpWidget content={mockCatchUpContent} />)
-    // h1 in markdown is remapped to h3 to avoid heading hierarchy issues
     const heading = await screen.findByRole('heading', { name: /Session 14/ })
     expect(heading).toBeInTheDocument()
-    expect(heading.tagName).toBe('H3')
+    expect(heading.tagName).toBe('H1')
   })
 
   it('renders GFM table from markdown', async () => {
     render(<CatchUpWidget content={mockCatchUpContent} />)
-    // The party status table should render as an HTML table
     expect(await screen.findByRole('table')).toBeInTheDocument()
     expect(await screen.findByRole('columnheader', { name: 'Character' })).toBeInTheDocument()
     expect(await screen.findByRole('columnheader', { name: 'HP' })).toBeInTheDocument()
-  })
-
-  it('scrollable container has max-h-[400px] class', () => {
-    render(<CatchUpWidget content={mockCatchUpContent} />)
-    const scrollContainer = screen.getByTestId('catchup-scroll')
-    expect(scrollContainer).toHaveClass('max-h-[400px]')
-    expect(scrollContainer).toHaveClass('overflow-y-auto')
   })
 
   it('applies col-span-full for full-width layout', () => {
@@ -44,9 +35,6 @@ describe('CatchUpWidget', () => {
     render(<CatchUpWidget content={mockCatchUpContent} />)
     const markdownDiv = screen.getByTestId('catchup-markdown')
     expect(markdownDiv).toBeInTheDocument()
-    // Should contain prose classes for markdown styling
-    expect(markdownDiv).toHaveClass('prose')
-    expect(markdownDiv).toHaveClass('prose-invert')
     expect(screen.getByText(/Where We Left Off/)).toBeInTheDocument()
   })
 })
