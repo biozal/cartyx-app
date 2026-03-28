@@ -34,3 +34,4 @@ ecosystem.config.js
 npm-debug.log*
 app.config.timestamp_*.js
 storybook-static/
+coverage/
