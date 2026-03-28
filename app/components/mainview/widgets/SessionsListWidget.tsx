@@ -59,9 +59,7 @@ export function SessionsListWidget({ sessions, className = '' }: SessionsListWid
           {resolvedSessions.slice(0, 5).map((session) => (
             <article
               key={session.id}
-              tabIndex={0}
-              role="button"
-              className="p-4 bg-surface-container-highest/20 hover:bg-primary/5 rounded border border-outline-variant/20 group cursor-pointer transition-all"
+              className="p-4 bg-surface-container-highest/20 hover:bg-primary/5 rounded border border-outline-variant/20 group transition-all"
             >
               <FontAwesomeIcon
                 icon={faBookOpen}
