@@ -49,16 +49,18 @@ export function SessionsListWidget({ sessions, className = '' }: SessionsListWid
   return (
     <Widget title="Sessions" className={className}>
       {resolvedSessions === null ? (
-        <p className="font-pixel text-xs text-slate-500">Loading sessions...</p>
+        <p className="font-pixel text-xs text-on-surface-variant">Loading sessions...</p>
       ) : error ? (
         <p className="font-pixel text-xs text-rose-400">{error}</p>
       ) : resolvedSessions.length === 0 ? (
-        <p className="font-pixel text-xs text-slate-500">No sessions recorded</p>
+        <p className="font-pixel text-xs text-on-surface-variant">No sessions recorded</p>
       ) : (
         <div data-testid="sessions-grid" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {resolvedSessions.slice(0, 5).map((session) => (
             <article
               key={session.id}
+              tabIndex={0}
+              role="button"
               className="p-4 bg-surface-container-highest/20 hover:bg-primary/5 rounded border border-outline-variant/20 group cursor-pointer transition-all"
             >
               <FontAwesomeIcon
