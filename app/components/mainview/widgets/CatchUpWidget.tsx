@@ -67,7 +67,7 @@ export function CatchUpWidget({
       className={`group relative col-span-full overflow-hidden border-0 rounded-none border-l-2 border-primary/50 bg-surface-container-high/40 ${className}`}
     >
       <div className="pointer-events-none absolute right-0 top-0 p-4 opacity-5 transition-opacity group-hover:opacity-10">
-        <span className="material-symbols-outlined text-9xl text-primary" aria-hidden="true">auto_stories</span>
+        <FontAwesomeIcon icon={faBookOpen} className="text-9xl text-primary" aria-hidden="true" />
       </div>
 
       <div
