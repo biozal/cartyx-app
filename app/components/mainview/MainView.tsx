@@ -50,7 +50,7 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
           showInspector ? 'w-80 border-l border-white/[0.07]' : 'w-0'
         }`}
       >
-        <InspectorSidebar />
+        {showInspector && <InspectorSidebar />}
       </div>
     </div>
   )
