@@ -57,7 +57,7 @@ export function CatchUpWidget({
       className={`group relative col-span-full overflow-hidden border-l-2 border-primary/50 bg-surface-container-high/40 p-8 ${className}`}
     >
       <div className="pointer-events-none absolute right-0 top-0 p-4 opacity-5 transition-opacity group-hover:opacity-10">
-        <span className="material-symbols-outlined text-9xl text-primary">auto_stories</span>
+        <span className="material-symbols-outlined text-9xl text-primary" aria-hidden="true">auto_stories</span>
       </div>
 
       <h2 className="mb-6 flex items-center gap-3 font-pixel text-3xl font-bold tracking-tight text-primary">
