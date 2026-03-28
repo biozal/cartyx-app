@@ -39,6 +39,23 @@ describe('SessionsListWidget', () => {
     expect(grid).toBeInTheDocument()
   })
 
+  it('renders at most 5 sessions even when more are provided', () => {
+    const manySessions = Array.from({ length: 8 }, (_, i) => ({
+      id: `s${i}`,
+      number: i + 1,
+      name: `Session Name ${i + 1}`,
+      summary: 'Summary.',
+      date: '2026-01-01',
+    }))
+    render(<SessionsListWidget sessions={manySessions} />)
+    // First 5 should render
+    expect(screen.getByText('Session Name 1')).toBeInTheDocument()
+    expect(screen.getByText('Session Name 5')).toBeInTheDocument()
+    // 6th and beyond should NOT render
+    expect(screen.queryByText('Session Name 6')).not.toBeInTheDocument()
+    expect(screen.queryByText('Session Name 8')).not.toBeInTheDocument()
+  })
+
   it('shows empty state when sessions is empty', () => {
     render(<SessionsListWidget sessions={[]} />)
     expect(screen.getByText('No sessions recorded')).toBeInTheDocument()
