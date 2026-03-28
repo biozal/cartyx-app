@@ -55,7 +55,7 @@ export function SessionsListWidget({ sessions, className = '' }: SessionsListWid
       ) : resolvedSessions.length === 0 ? (
         <p className="font-pixel text-xs text-slate-500">No sessions recorded</p>
       ) : (
-        <div data-testid="sessions-grid" className="grid grid-cols-5 gap-4">
+        <div data-testid="sessions-grid" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {resolvedSessions.slice(0, 5).map((session) => (
             <article
               key={session.id}
