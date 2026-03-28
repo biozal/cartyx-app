@@ -64,7 +64,19 @@ export function Widget({
             {isMinimized ? (
               <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 text-slate-500" />
             ) : null}
-            {headerContent ?? <h2 id={titleId} className={WIDGET_STYLES.title}>{title}</h2>}
+            {headerContent ? (
+              <>
+                {headerContent}
+                {/* Ensure an element with id={titleId} always exists for aria-labelledby */}
+                <h2 id={titleId} className="sr-only">
+                  {title}
+                </h2>
+              </>
+            ) : (
+              <h2 id={titleId} className={WIDGET_STYLES.title}>
+                {title}
+              </h2>
+            )}
           </div>
 
           <div className="flex items-center gap-1">
