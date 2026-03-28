@@ -8,9 +8,9 @@
   --color-bg: #080A12;
   --color-surface: #0D1117;
   --color-surface-2: #080A12;
-  --color-surface-container: #0D1117;
+  --color-surface-container: var(--color-surface);
   --color-surface-container-highest: #1e293b;
-  --color-primary: #2563EB;
+  --color-primary: var(--color-blue-brand);
   --color-on-surface-variant: #94A3B8;
   --color-outline-variant: #ffffff;
   --color-border: #ffffff;
