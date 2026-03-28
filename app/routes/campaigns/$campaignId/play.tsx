@@ -46,12 +46,12 @@ function PlayPage() {
             aria-labelledby="tab-dashboard"
             hidden={activeTab !== 'dashboard'}
           >
-            <DashboardView className="h-full">
-              <CatchUpWidget />
+            <DashboardView>
+              <CatchUpWidget className="col-span-2" />
               <PartyMembersWidget />
               <KeyAlliesWidget />
-              <SessionsListWidget className="col-span-full" />
-              <CampaignTimelineWidget className="xl:col-span-2" />
+              <SessionsListWidget className="col-span-2" />
+              <CampaignTimelineWidget className="col-span-2" />
             </DashboardView>
           </div>
           <div
