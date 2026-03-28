@@ -12,8 +12,8 @@
   --color-surface-container-highest: #1e293b;
   --color-primary: #2563EB;
   --color-on-surface-variant: #94A3B8;
-  --color-outline-variant: rgba(255, 255, 255, 0.07);
-  --color-border: rgba(255, 255, 255, 0.07);
+  --color-outline-variant: #ffffff;
+  --color-border: #ffffff;
   --color-text-primary: #F1F5F9;
   --color-text-secondary: #94A3B8;
   --color-text-muted: #475569;
