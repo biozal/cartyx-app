@@ -37,4 +37,16 @@ describe('CatchUpWidget', () => {
     expect(markdownDiv).toBeInTheDocument()
     expect(screen.getByText(/Where We Left Off/)).toBeInTheDocument()
   })
+
+  it('renders FontAwesome icons and not literal Material icon names', () => {
+    const { container } = render(<CatchUpWidget content={mockCatchUpContent} />)
+
+    // Assert that 'auto_stories' is NOT present as literal text (regression for Material Icons)
+    expect(screen.queryByText('auto_stories')).not.toBeInTheDocument()
+
+    // Assert that FontAwesome SVG icons are present
+    // FontAwesomeIcon renders as an <svg> element
+    const svgs = container.querySelectorAll('svg')
+    expect(svgs.length).toBeGreaterThanOrEqual(2)
+  })
 })
