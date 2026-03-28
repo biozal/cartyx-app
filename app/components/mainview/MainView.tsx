@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import type { ReactNode } from 'react'
 import { ToolBar } from './ToolBar'
 import type { ToolType } from './ToolBar'
+import { InspectorSidebar } from './InspectorSidebar'
 
 interface MainViewProps {
   showToolbar?: boolean
@@ -49,7 +50,7 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
           showInspector ? 'w-80 border-l border-white/[0.07]' : 'w-0'
         }`}
       >
-        <div className="w-80 h-full" />
+        {showInspector && <InspectorSidebar />}
       </div>
     </div>
   )
