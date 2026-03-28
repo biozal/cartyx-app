@@ -12,6 +12,8 @@ export const WIDGET_STYLES = {
 
 export interface WidgetProps {
   title: string
+  /** Optional custom header content. When provided, replaces the default title text. */
+  headerContent?: ReactNode
   children: ReactNode
   className?: string
   defaultMinimized?: boolean
@@ -19,6 +21,7 @@ export interface WidgetProps {
 
 export function Widget({
   title,
+  headerContent,
   children,
   className = '',
   defaultMinimized = false,
@@ -61,7 +64,7 @@ export function Widget({
             {isMinimized ? (
               <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 text-slate-500" />
             ) : null}
-            <h2 id={titleId} className={WIDGET_STYLES.title}>{title}</h2>
+            {headerContent ?? <h2 id={titleId} className={WIDGET_STYLES.title}>{title}</h2>}
           </div>
 
           <div className="flex items-center gap-1">

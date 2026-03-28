@@ -3,6 +3,7 @@ import { faBookOpen } from '@fortawesome/pro-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { Widget } from '~/components/mainview/Widget'
 import { getCatchUpContent, type CatchUpContent } from '~/services/mocks/catchUpService'
 
 const emptyCatchUpContent: CatchUpContent = {
@@ -52,18 +53,22 @@ export function CatchUpWidget({
 
   const markdownContent = resolvedContent?.content ?? ''
 
+  const customHeader = (
+    <h2 className="flex items-center gap-3 font-pixel text-3xl font-bold tracking-tight text-primary">
+      <FontAwesomeIcon icon={faBookOpen} className="text-xl" />
+      CATCH UP
+    </h2>
+  )
+
   return (
-    <section
-      className={`group relative col-span-full overflow-hidden border-l-2 border-primary/50 bg-surface-container-high/40 p-8 ${className}`}
+    <Widget
+      title="Session Catch-Up"
+      headerContent={customHeader}
+      className={`group relative col-span-full overflow-hidden border-l-2 border-primary/50 bg-surface-container-high/40 ${className}`}
     >
       <div className="pointer-events-none absolute right-0 top-0 p-4 opacity-5 transition-opacity group-hover:opacity-10">
         <span className="material-symbols-outlined text-9xl text-primary" aria-hidden="true">auto_stories</span>
       </div>
-
-      <h2 className="mb-6 flex items-center gap-3 font-pixel text-3xl font-bold tracking-tight text-primary">
-        <FontAwesomeIcon icon={faBookOpen} className="text-xl" />
-        CATCH UP
-      </h2>
 
       <div
         data-testid="catchup-scroll"
@@ -183,6 +188,6 @@ export function CatchUpWidget({
           </>
         )}
       </div>
-    </section>
+    </Widget>
   )
 }
