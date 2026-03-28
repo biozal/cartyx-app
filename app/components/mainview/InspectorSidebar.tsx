@@ -3,6 +3,8 @@ import { ChatPanel } from './ChatPanel'
 import { NotepadPanel } from './NotepadPanel'
 import { SettingsPanel } from './SettingsPanel'
 import { WikiPanel } from './WikiPanel'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faMessage, faBook, faNoteSticky, faGear } from '@fortawesome/pro-solid-svg-icons'
 
 export type InspectorTab = 'chat' | 'wiki' | 'notepad' | 'settings'
 
@@ -10,11 +12,11 @@ export interface InspectorSidebarProps {
   defaultTab?: InspectorTab
 }
 
-const tabs: { id: InspectorTab; icon: string; label: string }[] = [
-  { id: 'chat', icon: '💬', label: 'Chat' },
-  { id: 'wiki', icon: '📚', label: 'Wiki' },
-  { id: 'notepad', icon: '📝', label: 'Notepad' },
-  { id: 'settings', icon: '⚙️', label: 'Settings' },
+const tabs: { id: InspectorTab; icon: any; label: string }[] = [
+  { id: 'chat', icon: faMessage, label: 'Chat' },
+  { id: 'wiki', icon: faBook, label: 'Wiki' },
+  { id: 'notepad', icon: faNoteSticky, label: 'Notepad' },
+  { id: 'settings', icon: faGear, label: 'Settings' },
 ]
 
 function tabId(id: InspectorTab) {
@@ -85,7 +87,7 @@ export function InspectorSidebar({ defaultTab = 'chat' }: InspectorSidebarProps)
                   : 'text-slate-500 hover:text-slate-300',
               ].join(' ')}
             >
-              {tab.icon}
+              <FontAwesomeIcon icon={tab.icon} className="h-4 w-4" />
             </button>
           )
         })}
