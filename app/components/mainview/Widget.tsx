@@ -4,10 +4,10 @@ import { ChevronRight, ChevronDown, Maximize2, X } from 'lucide-react'
 
 /** Shared styles used by both Widget and WidgetSlot */
 export const WIDGET_STYLES = {
-  section: 'rounded-lg border border-white/[0.07] bg-[#0D1117]',
-  header: 'flex items-center justify-between border-b border-white/[0.07] px-4 py-3',
-  title: 'font-pixel text-xs text-slate-300',
-  content: 'min-h-[200px] p-4',
+  section: 'rounded-lg border border-outline-variant/10 bg-surface-container p-6',
+  header: 'flex items-center justify-between mb-6',
+  title: 'font-pixel text-[11px] text-primary uppercase tracking-widest',
+  content: 'min-h-[200px]',
 } as const
 
 export interface WidgetProps {

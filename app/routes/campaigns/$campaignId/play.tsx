@@ -50,7 +50,7 @@ function PlayPage() {
               <CatchUpWidget />
               <PartyMembersWidget />
               <KeyAlliesWidget />
-              <SessionsListWidget className="xl:col-span-2" />
+              <SessionsListWidget className="col-span-full" />
               <CampaignTimelineWidget className="xl:col-span-2" />
             </DashboardView>
           </div>

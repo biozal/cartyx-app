@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faBookOpen } from '@fortawesome/pro-solid-svg-icons'
 import { Widget } from '~/components/mainview/Widget'
 import { getSessions, type Session } from '~/services/mocks/sessionsService'
 
@@ -53,23 +55,19 @@ export function SessionsListWidget({ sessions, className = '' }: SessionsListWid
       ) : resolvedSessions.length === 0 ? (
         <p className="font-pixel text-xs text-slate-500">No sessions recorded</p>
       ) : (
-        <div data-testid="sessions-scroll" className="max-h-[400px] overflow-y-auto">
-          {resolvedSessions.map((session) => (
+        <div className="grid grid-cols-5 gap-4">
+          {resolvedSessions.slice(0, 5).map((session) => (
             <article
               key={session.id}
-              className="border-b border-white/[0.07] py-3 last:border-b-0 first:pt-0 last:pb-0"
+              className="p-4 bg-surface-container-highest/20 hover:bg-primary/5 rounded border border-outline-variant/20 group cursor-pointer transition-all"
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1 font-pixel text-xs">
-                  <p className="text-slate-500">#{session.number}</p>
-                  <h3 className="truncate font-bold text-white">{session.name}</h3>
-                  <p className="mt-1 text-slate-400">{session.summary}</p>
-                </div>
-
-                <p className="shrink-0 text-right font-pixel text-xs text-slate-500">
-                  {session.date}
-                </p>
-              </div>
+              <FontAwesomeIcon
+                icon={faBookOpen}
+                className="text-primary mb-3 block text-xl group-hover:scale-110 transition-transform"
+              />
+              <p className="font-pixel text-xs text-on-surface-variant">Session {session.number}</p>
+              <h3 className="font-pixel text-sm font-bold text-primary truncate mt-1">{session.name}</h3>
+              <p className="text-[0.6rem] text-on-surface-variant/60 uppercase font-label mt-1">{session.date}</p>
             </article>
           ))}
         </div>

@@ -1,7 +1,7 @@
 {
   "name": "cartyx-app",
   "version": "0.2.0",
-  "description": "Cartyx \u2014 D&D Campaign Management Platform",
+  "description": "Cartyx — D&D Campaign Management Platform",
   "type": "module",
   "engines": {
     "node": "^20.20.0 || >=22.22.0"
@@ -27,6 +27,9 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1014.0",
     "@aws-sdk/s3-request-presigner": "^3.1014.0",
+    "@fortawesome/fontawesome-svg-core": "^7.2.0",
+    "@fortawesome/pro-solid-svg-icons": "file:../../../../fontawesome/packages/pro-solid-svg-icons",
+    "@fortawesome/react-fontawesome": "^3.3.0",
     "@posthog/react": "^1.8.2",
     "@tanstack/react-query": "^5.95.2",
     "@tanstack/react-router": "^1.168.3",
