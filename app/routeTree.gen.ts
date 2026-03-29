@@ -17,7 +17,6 @@ import { Route as CampaignsIndexRouteImport } from './routes/campaigns/index'
 import { Route as CampaignsNewRouteImport } from './routes/campaigns/new'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout'
 import { Route as AuthProviderRouteImport } from './routes/auth/$provider'
-import { Route as CampaignsCampaignIdSummaryRouteImport } from './routes/campaigns/$campaignId/summary'
 import { Route as CampaignsCampaignIdPlayRouteImport } from './routes/campaigns/$campaignId/play'
 import { Route as CampaignsCampaignIdEditRouteImport } from './routes/campaigns/$campaignId/edit'
 import { Route as AuthCallbackProviderRouteImport } from './routes/auth/callback/$provider'
@@ -62,12 +61,6 @@ const AuthProviderRoute = AuthProviderRouteImport.update({
   path: '/auth/$provider',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CampaignsCampaignIdSummaryRoute =
-  CampaignsCampaignIdSummaryRouteImport.update({
-    id: '/campaigns/$campaignId/summary',
-    path: '/campaigns/$campaignId/summary',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const CampaignsCampaignIdPlayRoute = CampaignsCampaignIdPlayRouteImport.update({
   id: '/campaigns/$campaignId/play',
   path: '/campaigns/$campaignId/play',
@@ -96,7 +89,6 @@ export interface FileRoutesByFullPath {
   '/auth/callback/$provider': typeof AuthCallbackProviderRoute
   '/campaigns/$campaignId/edit': typeof CampaignsCampaignIdEditRoute
   '/campaigns/$campaignId/play': typeof CampaignsCampaignIdPlayRoute
-  '/campaigns/$campaignId/summary': typeof CampaignsCampaignIdSummaryRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -110,7 +102,6 @@ export interface FileRoutesByTo {
   '/auth/callback/$provider': typeof AuthCallbackProviderRoute
   '/campaigns/$campaignId/edit': typeof CampaignsCampaignIdEditRoute
   '/campaigns/$campaignId/play': typeof CampaignsCampaignIdPlayRoute
-  '/campaigns/$campaignId/summary': typeof CampaignsCampaignIdSummaryRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -125,7 +116,6 @@ export interface FileRoutesById {
   '/auth/callback/$provider': typeof AuthCallbackProviderRoute
   '/campaigns/$campaignId/edit': typeof CampaignsCampaignIdEditRoute
   '/campaigns/$campaignId/play': typeof CampaignsCampaignIdPlayRoute
-  '/campaigns/$campaignId/summary': typeof CampaignsCampaignIdSummaryRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -141,7 +131,6 @@ export interface FileRouteTypes {
     | '/auth/callback/$provider'
     | '/campaigns/$campaignId/edit'
     | '/campaigns/$campaignId/play'
-    | '/campaigns/$campaignId/summary'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -155,7 +144,6 @@ export interface FileRouteTypes {
     | '/auth/callback/$provider'
     | '/campaigns/$campaignId/edit'
     | '/campaigns/$campaignId/play'
-    | '/campaigns/$campaignId/summary'
   id:
     | '__root__'
     | '/'
@@ -169,7 +157,6 @@ export interface FileRouteTypes {
     | '/auth/callback/$provider'
     | '/campaigns/$campaignId/edit'
     | '/campaigns/$campaignId/play'
-    | '/campaigns/$campaignId/summary'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -184,7 +171,6 @@ export interface RootRouteChildren {
   AuthCallbackProviderRoute: typeof AuthCallbackProviderRoute
   CampaignsCampaignIdEditRoute: typeof CampaignsCampaignIdEditRoute
   CampaignsCampaignIdPlayRoute: typeof CampaignsCampaignIdPlayRoute
-  CampaignsCampaignIdSummaryRoute: typeof CampaignsCampaignIdSummaryRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -245,13 +231,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthProviderRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/campaigns/$campaignId/summary': {
-      id: '/campaigns/$campaignId/summary'
-      path: '/campaigns/$campaignId/summary'
-      fullPath: '/campaigns/$campaignId/summary'
-      preLoaderRoute: typeof CampaignsCampaignIdSummaryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/campaigns/$campaignId/play': {
       id: '/campaigns/$campaignId/play'
       path: '/campaigns/$campaignId/play'
@@ -288,7 +267,6 @@ const rootRouteChildren: RootRouteChildren = {
   AuthCallbackProviderRoute: AuthCallbackProviderRoute,
   CampaignsCampaignIdEditRoute: CampaignsCampaignIdEditRoute,
   CampaignsCampaignIdPlayRoute: CampaignsCampaignIdPlayRoute,
-  CampaignsCampaignIdSummaryRoute: CampaignsCampaignIdSummaryRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

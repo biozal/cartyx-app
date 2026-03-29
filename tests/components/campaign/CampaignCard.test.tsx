@@ -92,10 +92,15 @@ describe('CampaignCard', () => {
     expect(screen.queryByText(/edit campaign/i)).not.toBeInTheDocument()
   })
 
-  it('shows summary and play route actions', () => {
-    render(<CampaignCard campaign={{ ...baseCampaign, isOwner: false, inviteCode: '' }} />)
-    expect(screen.getByText(/view summary/i).closest('a')).toHaveAttribute('href', '/campaigns/camp-1/summary')
-    expect(screen.getByRole('link', { name: /enter campaign/i }).closest('a')).toHaveAttribute('href', '/campaigns/camp-1/play?tab=dashboard')
+  it('shows enter and optionally edit route actions', () => {
+    const { rerender } = render(<CampaignCard campaign={{ ...baseCampaign, isOwner: false }} />)
+    expect(screen.getByText(/enter/i).closest('a')).toHaveAttribute('href', '/campaigns/camp-1/play?tab=dashboard')
+    expect(screen.queryByText(/edit campaign/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/view summary/i)).not.toBeInTheDocument()
+
+    rerender(<CampaignCard campaign={baseCampaign} />) // owner = true
+    expect(screen.getByText(/enter/i).closest('a')).toHaveAttribute('href', '/campaigns/camp-1/play?tab=dashboard')
+    expect(screen.getByText(/edit campaign/i).closest('a')).toHaveAttribute('href', '/campaigns/camp-1/edit')
   })
 
   it('renders external links', () => {

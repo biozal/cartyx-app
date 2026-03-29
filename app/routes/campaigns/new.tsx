@@ -94,7 +94,11 @@ function NewCampaignPage() {
     })
     if (result) {
       captureEvent('campaign_wizard_completed', { campaign_name: name.trim() })
-      navigate({ to: '/campaigns/$campaignId/summary', params: { campaignId: result.campaignId } })
+      navigate({
+        to: '/campaigns/$campaignId/play',
+        params: { campaignId: result.campaignId },
+        search: { tab: 'dashboard' },
+      })
     }
   }
 
