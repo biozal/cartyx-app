@@ -36,8 +36,8 @@ describe('CatchUpWidget', () => {
     const markdownDiv = screen.getByTestId('catchup-markdown')
     expect(markdownDiv).toBeInTheDocument()
     expect(markdownDiv).toHaveClass('w-full')
-    expect(markdownDiv).toHaveClass('max-w-none')
-    expect(markdownDiv).not.toHaveClass('max-w-3xl')
+    // Ensure no Tailwind max-w-* utilities are applied (full-width layout regression guard)
+    expect(markdownDiv.className).not.toMatch(/\bmax-w-\S*/)
     expect(screen.getByText(/Where We Left Off/)).toBeInTheDocument()
   })
 
