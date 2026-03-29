@@ -47,11 +47,11 @@ function PlayPage() {
             hidden={activeTab !== 'dashboard'}
           >
             <DashboardView>
-              <CatchUpWidget className="col-span-2" />
+              <CatchUpWidget />
               <PartyMembersWidget />
               <KeyAlliesWidget />
-              <SessionsListWidget className="col-span-2" />
-              <CampaignTimelineWidget className="col-span-2" />
+              <SessionsListWidget className="col-span-full" />
+              <CampaignTimelineWidget className="xl:col-span-2" />
             </DashboardView>
           </div>
           <div
