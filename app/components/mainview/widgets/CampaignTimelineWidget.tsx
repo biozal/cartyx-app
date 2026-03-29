@@ -8,8 +8,21 @@ import {
 export type { TimelineEvent }
 
 export interface CampaignTimelineWidgetProps {
+  // Timeline events are provided most-recent first; we render oldest -> newest
+  // so the horizontal rail reads naturally from left to right.
   events?: ReadonlyArray<Readonly<TimelineEvent>>
   className?: string
+}
+
+function getEventTone(event: TimelineEvent) {
+  if (event.isCurrent) return 'current'
+  if (event.importance === 'major') return 'major'
+  return 'normal'
+}
+
+function toDisplayOrder(events: ReadonlyArray<TimelineEvent>) {
+  // Mock/service data is most-recent first; reverse it so the rail reads left-to-right.
+  return [...events].reverse()
 }
 
 export function CampaignTimelineWidget({
@@ -50,6 +63,8 @@ export function CampaignTimelineWidget({
     }
   }, [events])
 
+  const displayEvents = resolvedEvents ? toDisplayOrder(resolvedEvents) : []
+
   return (
     <Widget title="Campaign Timeline" className={className}>
       {resolvedEvents === null ? (
@@ -67,28 +82,95 @@ export function CampaignTimelineWidget({
       ) : (
         <div
           data-testid="timeline-scroll"
-          className="relative max-h-[500px] overflow-y-auto pr-1"
+          className="relative overflow-x-auto overflow-y-hidden pb-2"
+          tabIndex={0}
+          aria-label="Campaign timeline, horizontally scrollable events"
         >
-          <div
-            aria-hidden="true"
-            className="absolute bottom-0 left-[5px] top-0 border-l border-white/[0.07]"
-          />
+          <div className="relative min-w-[760px] pt-8">
+            <div
+              aria-hidden="true"
+              className="absolute left-4 right-4 top-4 h-px bg-white/[0.08]"
+            />
 
-          <div className="space-y-4">
-            {resolvedEvents.map((event) => (
-              <article key={event.id} className="relative pl-7">
-                <div
-                  aria-hidden="true"
-                  className="absolute left-[0px] top-1 h-3 w-3 rounded-full bg-[#2563EB]"
-                />
+            <ol className="grid grid-flow-col auto-cols-[minmax(10.5rem,1fr)] gap-4">
+              {displayEvents.map((event) => {
+                const tone = getEventTone(event)
+                const isCurrent = tone === 'current'
+                const isMajor = tone === 'major'
 
-                <p className="font-pixel text-xs text-slate-500">{event.calendarDate}</p>
-                <h3 className="mt-1 font-pixel text-xs text-white">{event.sessionName}</h3>
-                <p className="mt-1 font-pixel text-xs leading-relaxed text-slate-400">
-                  {event.summary}
-                </p>
-              </article>
-            ))}
+                const dotClasses = isCurrent
+                  ? 'h-4 w-4 bg-primary ring-[12px] ring-primary/10 animate-pulse motion-reduce:animate-none'
+                  : isMajor
+                    ? 'h-4 w-4 bg-blue-light ring-8 ring-blue-light/10'
+                    : 'h-3 w-3 bg-slate-500 ring-4 ring-white/[0.05]'
+
+                const dateClasses = isCurrent
+                  ? 'text-primary'
+                  : isMajor
+                    ? 'text-blue-light'
+                    : 'text-slate-500'
+
+                const titleClasses = isCurrent
+                  ? 'text-white'
+                  : isMajor
+                    ? 'text-blue-light'
+                    : 'text-slate-500'
+
+                const labelClasses = isCurrent
+                  ? 'text-primary'
+                  : isMajor
+                    ? 'text-blue-light'
+                    : 'text-slate-600'
+
+                const summaryClasses = isCurrent
+                  ? 'text-slate-300'
+                  : isMajor
+                    ? 'text-slate-300'
+                    : 'text-slate-400'
+
+                return (
+                  <li
+                    key={event.id}
+                    data-tone={tone}
+                    className="relative min-h-[11rem] px-1 pt-4 text-center"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`absolute left-1/2 top-4 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full ${dotClasses}`}
+                    />
+
+                    <div className="flex h-full flex-col items-center justify-start">
+                      <p className={`font-pixel text-[0.6rem] tracking-[0.16em] ${dateClasses}`}>
+                        {event.calendarDate}
+                      </p>
+
+                      <h3
+                        className={`mt-2 max-w-[9rem] font-pixel text-xs font-bold uppercase leading-tight ${titleClasses}`}
+                      >
+                        {event.sessionName}
+                      </h3>
+
+                      {isCurrent ? (
+                        <p className={`mt-2 font-pixel text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                          CURRENT SESSION
+                        </p>
+                      ) : isMajor ? (
+                        <p className={`mt-2 font-pixel text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                          MAJOR EVENT
+                        </p>
+                      ) : null}
+
+                      <p
+                        className={`mt-2 max-w-[9rem] text-[0.58rem] leading-relaxed line-clamp-3 ${summaryClasses}`}
+                        title={event.summary}
+                      >
+                        {event.summary}
+                      </p>
+                    </div>
+                  </li>
+                )
+              })}
+            </ol>
           </div>
         </div>
       )}

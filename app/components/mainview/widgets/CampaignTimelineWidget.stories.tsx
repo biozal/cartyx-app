@@ -9,7 +9,7 @@ const meta: Meta<typeof CampaignTimelineWidget> = {
   decorators: [
     (Story) => (
       <div className="min-h-screen bg-[#080A12] p-6">
-        <div className="max-w-md">
+        <div className="max-w-6xl">
           <Story />
         </div>
       </div>
