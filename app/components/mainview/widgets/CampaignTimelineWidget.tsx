@@ -80,99 +80,196 @@ export function CampaignTimelineWidget({
           <p className="font-pixel text-xs text-slate-500">No timeline events</p>
         </div>
       ) : (
-        <div
-          data-testid="timeline-scroll"
-          className="relative overflow-x-auto overflow-y-hidden pb-2"
-          tabIndex={0}
-          aria-label="Campaign timeline, horizontally scrollable events"
-        >
-          <div className="relative min-w-[760px] pt-8">
+        <>
+          <ol
+            data-testid="timeline-vertical"
+            className="relative flex flex-col gap-6 pl-8 md:hidden"
+          >
             <div
               aria-hidden="true"
-              className="absolute left-4 right-4 top-4 h-px bg-white/[0.08]"
+              className="absolute bottom-2 left-[0.6875rem] top-2 w-px bg-white/[0.08]"
             />
 
-            <ol className="grid grid-flow-col auto-cols-[minmax(10.5rem,1fr)] gap-4">
-              {displayEvents.map((event) => {
-                const tone = getEventTone(event)
-                const isCurrent = tone === 'current'
-                const isMajor = tone === 'major'
+            {displayEvents.map((event) => {
+              const tone = getEventTone(event)
+              const isCurrent = tone === 'current'
+              const isMajor = tone === 'major'
 
-                const dotClasses = isCurrent
-                  ? 'h-4 w-4 bg-primary ring-[12px] ring-primary/10 animate-pulse motion-reduce:animate-none'
-                  : isMajor
-                    ? 'h-4 w-4 bg-blue-light ring-8 ring-blue-light/10'
-                    : 'h-3 w-3 bg-slate-500 ring-4 ring-white/[0.05]'
+              const dotClasses = isCurrent
+                ? 'h-4 w-4 bg-primary ring-[12px] ring-primary/10 animate-pulse motion-reduce:animate-none'
+                : isMajor
+                  ? 'h-4 w-4 bg-blue-light ring-8 ring-blue-light/10'
+                  : 'h-3 w-3 bg-slate-500 ring-4 ring-white/[0.05]'
 
-                const dateClasses = isCurrent
-                  ? 'text-primary'
-                  : isMajor
-                    ? 'text-blue-light'
-                    : 'text-slate-500'
+              const dateClasses = isCurrent
+                ? 'text-primary'
+                : isMajor
+                  ? 'text-blue-light'
+                  : 'text-slate-500'
 
-                const titleClasses = isCurrent
-                  ? 'text-white'
-                  : isMajor
-                    ? 'text-blue-light'
-                    : 'text-slate-500'
+              const titleClasses = isCurrent
+                ? 'text-white'
+                : isMajor
+                  ? 'text-blue-light'
+                  : 'text-slate-500'
 
-                const labelClasses = isCurrent
-                  ? 'text-primary'
-                  : isMajor
-                    ? 'text-blue-light'
-                    : 'text-slate-600'
+              const labelClasses = isCurrent
+                ? 'text-primary'
+                : isMajor
+                  ? 'text-blue-light'
+                  : 'text-slate-600'
 
-                const summaryClasses = isCurrent
+              const summaryClasses = isCurrent
+                ? 'text-slate-300'
+                : isMajor
                   ? 'text-slate-300'
-                  : isMajor
-                    ? 'text-slate-300'
-                    : 'text-slate-400'
+                  : 'text-slate-400'
 
-                return (
-                  <li
-                    key={event.id}
-                    data-tone={tone}
-                    className="relative min-h-[11rem] px-1 pt-4 text-center"
+              return (
+                <li
+                  key={event.id}
+                  data-layout="vertical"
+                  data-tone={tone}
+                  className="relative pl-4 text-left"
+                >
+                  <span
+                    aria-hidden="true"
+                    data-part="timeline-marker"
+                    className={`absolute left-0 top-1.5 z-10 -translate-x-1/2 rounded-full ${dotClasses}`}
+                  />
+
+                  <p className={`font-pixel text-[0.6rem] tracking-[0.16em] ${dateClasses}`}>
+                    {event.calendarDate}
+                  </p>
+
+                  <h3
+                    className={`mt-2 max-w-[13rem] font-pixel text-xs font-bold uppercase leading-tight ${titleClasses}`}
                   >
-                    <span
-                      aria-hidden="true"
-                      className={`absolute left-1/2 top-4 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full ${dotClasses}`}
-                    />
+                    {event.sessionName}
+                  </h3>
 
-                    <div className="flex h-full flex-col items-center justify-start">
-                      <p className={`font-pixel text-[0.6rem] tracking-[0.16em] ${dateClasses}`}>
-                        {event.calendarDate}
-                      </p>
+                  {isCurrent ? (
+                    <p className={`mt-2 font-pixel text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                      CURRENT SESSION
+                    </p>
+                  ) : isMajor ? (
+                    <p className={`mt-2 font-pixel text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                      MAJOR EVENT
+                    </p>
+                  ) : null}
 
-                      <h3
-                        className={`mt-2 max-w-[9rem] font-pixel text-xs font-bold uppercase leading-tight ${titleClasses}`}
-                      >
-                        {event.sessionName}
-                      </h3>
+                  <p
+                    className={`mt-2 max-w-[15rem] text-[0.58rem] leading-relaxed ${summaryClasses}`}
+                    title={event.summary}
+                  >
+                    {event.summary}
+                  </p>
+                </li>
+              )
+            })}
+          </ol>
 
-                      {isCurrent ? (
-                        <p className={`mt-2 font-pixel text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
-                          CURRENT SESSION
+          <div
+            data-testid="timeline-scroll"
+            className="relative hidden overflow-x-auto overflow-y-hidden pb-2 md:block"
+            tabIndex={0}
+            aria-label="Campaign timeline, horizontally scrollable events"
+          >
+            <div className="relative min-w-[760px] px-4 pt-2">
+              <div
+                aria-hidden="true"
+                data-part="timeline-rail"
+                className="absolute left-4 right-4 top-[3.5rem] h-px bg-white/[0.08]"
+              />
+
+              <ol className="grid grid-flow-col auto-cols-[minmax(10.5rem,1fr)] gap-4">
+                {displayEvents.map((event) => {
+                  const tone = getEventTone(event)
+                  const isCurrent = tone === 'current'
+                  const isMajor = tone === 'major'
+
+                  const dotClasses = isCurrent
+                    ? 'h-4 w-4 bg-primary ring-[12px] ring-primary/10 animate-pulse motion-reduce:animate-none'
+                    : isMajor
+                      ? 'h-4 w-4 bg-blue-light ring-8 ring-blue-light/10'
+                      : 'h-3 w-3 bg-slate-500 ring-4 ring-white/[0.05]'
+
+                  const dateClasses = isCurrent
+                    ? 'text-primary'
+                    : isMajor
+                      ? 'text-blue-light'
+                      : 'text-slate-500'
+
+                  const titleClasses = isCurrent
+                    ? 'text-white'
+                    : isMajor
+                      ? 'text-blue-light'
+                      : 'text-slate-500'
+
+                  const labelClasses = isCurrent
+                    ? 'text-primary'
+                    : isMajor
+                      ? 'text-blue-light'
+                      : 'text-slate-600'
+
+                  const summaryClasses = isCurrent
+                    ? 'text-slate-300'
+                    : isMajor
+                      ? 'text-slate-300'
+                      : 'text-slate-400'
+
+                  return (
+                    <li
+                      key={event.id}
+                      data-layout="horizontal"
+                      data-tone={tone}
+                      className="grid min-h-[12rem] grid-rows-[2.5rem_2rem_1fr] px-1 text-center"
+                    >
+                      <div className="flex items-end justify-center pb-3">
+                        <p className={`font-pixel text-[0.6rem] tracking-[0.16em] ${dateClasses}`}>
+                          {event.calendarDate}
                         </p>
-                      ) : isMajor ? (
-                        <p className={`mt-2 font-pixel text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
-                          MAJOR EVENT
-                        </p>
-                      ) : null}
+                      </div>
 
-                      <p
-                        className={`mt-2 max-w-[9rem] text-[0.58rem] leading-relaxed line-clamp-3 ${summaryClasses}`}
-                        title={event.summary}
-                      >
-                        {event.summary}
-                      </p>
-                    </div>
-                  </li>
-                )
-              })}
-            </ol>
+                      <div className="relative flex items-center justify-center">
+                        <span
+                          aria-hidden="true"
+                          data-part="timeline-marker"
+                          className={`rounded-full ${dotClasses}`}
+                        />
+                      </div>
+
+                      <div className="flex flex-col items-center justify-start pt-3">
+                        <h3
+                          className={`max-w-[9rem] font-pixel text-xs font-bold uppercase leading-tight ${titleClasses}`}
+                        >
+                          {event.sessionName}
+                        </h3>
+
+                        {isCurrent ? (
+                          <p className={`mt-2 font-pixel text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                            CURRENT SESSION
+                          </p>
+                        ) : isMajor ? (
+                          <p className={`mt-2 font-pixel text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                            MAJOR EVENT
+                          </p>
+                        ) : null}
+
+                        <p
+                          className={`mt-2 max-w-[9rem] text-[0.58rem] leading-relaxed line-clamp-3 ${summaryClasses}`}
+                          title={event.summary}
+                        >
+                          {event.summary}
+                        </p>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ol>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </Widget>
   )
