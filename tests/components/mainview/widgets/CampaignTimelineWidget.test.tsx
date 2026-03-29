@@ -1,7 +1,8 @@
 import React from 'react'
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { CampaignTimelineWidget, type TimelineEvent } from '~/components/mainview/widgets/CampaignTimelineWidget'
+import { CampaignTimelineWidget } from '~/components/mainview/widgets/CampaignTimelineWidget'
+import type { TimelineEvent } from '~/services/mocks/types'
 import { getTimelineEvents } from '~/services/mocks/timelineService'
 
 const mockEvents: ReadonlyArray<Readonly<TimelineEvent>> = [
@@ -69,6 +70,11 @@ describe('CampaignTimelineWidget', () => {
     const scroll = screen.getByTestId('timeline-scroll')
     expect(scroll).toHaveClass('overflow-x-auto')
     expect(scroll).toHaveClass('overflow-y-hidden')
+    expect(scroll).toHaveAttribute('tabindex', '0')
+    expect(scroll).toHaveAttribute(
+      'aria-label',
+      'Campaign timeline, horizontally scrollable events',
+    )
 
     expect(scroll.querySelector('ol')).toHaveClass('grid-flow-col')
     expect(scroll.querySelector('[data-tone="current"]')).toHaveTextContent(

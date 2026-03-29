@@ -8,6 +8,8 @@ import {
 export type { TimelineEvent }
 
 export interface CampaignTimelineWidgetProps {
+  // Timeline events are provided most-recent first; we render oldest -> newest
+  // so the horizontal rail reads naturally from left to right.
   events?: ReadonlyArray<Readonly<TimelineEvent>>
   className?: string
 }
@@ -16,6 +18,11 @@ function getEventTone(event: TimelineEvent) {
   if (event.isCurrent) return 'current'
   if (event.importance === 'major') return 'major'
   return 'normal'
+}
+
+function toDisplayOrder(events: ReadonlyArray<TimelineEvent>) {
+  // Mock/service data is most-recent first; reverse it so the rail reads left-to-right.
+  return [...events].reverse()
 }
 
 export function CampaignTimelineWidget({
@@ -56,7 +63,7 @@ export function CampaignTimelineWidget({
     }
   }, [events])
 
-  const displayEvents = resolvedEvents ? [...resolvedEvents].reverse() : []
+  const displayEvents = resolvedEvents ? toDisplayOrder(resolvedEvents) : []
 
   return (
     <Widget title="Campaign Timeline" className={className}>
@@ -76,6 +83,8 @@ export function CampaignTimelineWidget({
         <div
           data-testid="timeline-scroll"
           className="relative overflow-x-auto overflow-y-hidden pb-2"
+          tabIndex={0}
+          aria-label="Campaign timeline, horizontally scrollable events"
         >
           <div className="relative min-w-[760px] pt-8">
             <div
