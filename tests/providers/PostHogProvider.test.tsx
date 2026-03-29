@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PostHogProvider } from '~/providers/PostHogProvider'
@@ -12,6 +12,7 @@ const {
   mockReactPostHogProvider,
   mockPosthog,
   mockCapturePageView,
+  mockGetPostHogInstance,
   mockSetPostHogInstance,
 } = vi.hoisted(() => ({
   mockSubscribe: vi.fn(),
@@ -26,6 +27,7 @@ const {
     reloadFeatureFlags: vi.fn(),
   },
   mockCapturePageView: vi.fn(),
+  mockGetPostHogInstance: vi.fn(() => (posthogReady ? mockPosthog : null)),
   mockSetPostHogInstance: vi.fn(() => {
     posthogReady = true
   }),
@@ -56,6 +58,7 @@ vi.mock('~/utils/posthog-client', () => ({
   captureException: vi.fn(),
   captureEvent: vi.fn(),
   capturePageView: mockCapturePageView,
+  getPostHogInstance: mockGetPostHogInstance,
   isPostHogReady: vi.fn(() => posthogReady),
   setPostHogInstance: mockSetPostHogInstance,
 }))
@@ -79,23 +82,29 @@ describe('PostHogProvider', () => {
     })
   })
 
-  it('initializes PostHog, wires the React provider, and tracks page views', () => {
+  it('initializes PostHog, wires the React provider, and tracks page views', async () => {
     render(
       <PostHogProvider>
         <div>children</div>
       </PostHogProvider>
     )
 
-    expect(mockReactPostHogProvider).toHaveBeenCalledWith(
-      expect.objectContaining({ client: mockPosthog }),
-      undefined
-    )
-    expect(mockPosthog.init).toHaveBeenCalledWith('test-key', {
-      api_host: 'https://us.i.posthog.com',
-      capture_pageview: false,
-      persistence: 'localStorage+cookie',
-      capture_exceptions: true,
+    await waitFor(() => {
+      expect(mockPosthog.init).toHaveBeenCalledWith('test-key', {
+        api_host: 'https://us.i.posthog.com',
+        capture_pageview: false,
+        persistence: 'localStorage+cookie',
+        capture_exceptions: true,
+      })
     })
+
+    await waitFor(() => {
+      expect(mockReactPostHogProvider).toHaveBeenCalledWith(
+        expect.objectContaining({ client: mockPosthog, children: expect.anything() }),
+        undefined
+      )
+    })
+
     expect(mockSetPostHogInstance).toHaveBeenCalledWith(mockPosthog)
     expect(mockCapturePageView).toHaveBeenCalledWith('http://localhost:3000/')
     expect(mockSubscribe).toHaveBeenCalledWith('onResolved', expect.any(Function))
@@ -106,23 +115,25 @@ describe('PostHogProvider', () => {
     expect(mockCapturePageView).toHaveBeenLastCalledWith('http://localhost:3000/campaigns/demo')
   })
 
-  it('identifies authenticated users and refreshes feature flags', () => {
+  it('identifies authenticated users and refreshes feature flags', async () => {
     render(
       <PostHogProvider>
         <div />
       </PostHogProvider>
     )
 
-    expect(mockPosthog.identify).toHaveBeenCalledWith('user-1', {
-      name: 'Taryon',
-      email: 'taryon@example.com',
-      provider: 'google',
-      role: 'gm',
+    await waitFor(() => {
+      expect(mockPosthog.identify).toHaveBeenCalledWith('user-1', {
+        name: 'Taryon',
+        email: 'taryon@example.com',
+        provider: 'google',
+        role: 'gm',
+      })
     })
     expect(mockPosthog.reloadFeatureFlags).toHaveBeenCalledTimes(1)
   })
 
-  it('resets anonymous sessions and refreshes feature flags', () => {
+  it('resets anonymous sessions and refreshes feature flags', async () => {
     mockUseAuthContext.mockReturnValue({ user: null })
 
     render(
@@ -131,7 +142,9 @@ describe('PostHogProvider', () => {
       </PostHogProvider>
     )
 
-    expect(mockPosthog.reset).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(mockPosthog.reset).toHaveBeenCalledTimes(1)
+    })
     expect(mockPosthog.reloadFeatureFlags).toHaveBeenCalledTimes(1)
   })
 })

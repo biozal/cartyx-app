@@ -13,7 +13,7 @@ export interface FeatureFlagState<TPayload = JsonType> {
   variant: string | boolean | undefined
 }
 
-function normalizePayload<TPayload>(payload: JsonType): TPayload | null {
+function normalizePayload<TPayload>(payload: JsonType | undefined): TPayload | null {
   return (payload ?? null) as TPayload | null
 }
 
@@ -46,10 +46,16 @@ export function FeatureFlagGate({
   flag,
   children,
   fallback = null,
+  showFallbackWhileLoading = false,
 }: {
   flag: string
   children: ReactNode
   fallback?: ReactNode
+  showFallbackWhileLoading?: boolean
 }) {
-  return useFeatureFlagEnabled(flag) ? <>{children}</> : <>{fallback}</>
+  const { isEnabled, isLoading } = useFeatureFlag(flag)
+
+  if (isLoading && !showFallbackWhileLoading) return null
+
+  return isEnabled ? <>{children}</> : <>{fallback}</>
 }

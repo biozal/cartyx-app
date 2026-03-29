@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   FeatureFlagGate,
   useFeatureFlag,
@@ -41,6 +41,10 @@ function FeatureFlagStateProbe({ flag }: { flag: string }) {
 }
 
 describe('featureFlags utilities', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('surfaces loading state until PostHog resolves a flag', () => {
     mockUsePostHogFeatureFlagEnabled.mockReturnValue(undefined)
     mockUsePostHogFeatureFlagPayload.mockReturnValue(undefined)
@@ -73,6 +77,8 @@ describe('featureFlags utilities', () => {
 
   it('renders fallback content when a flag is disabled', () => {
     mockUsePostHogFeatureFlagEnabled.mockReturnValue(false)
+    mockUsePostHogFeatureFlagPayload.mockReturnValue(undefined)
+    mockUseFeatureFlagVariantKey.mockReturnValue(undefined)
 
     render(
       <FeatureFlagGate flag="campaign-redesign" fallback={<span>coming soon</span>}>
@@ -84,8 +90,44 @@ describe('featureFlags utilities', () => {
     expect(screen.getByText('coming soon')).toBeInTheDocument()
   })
 
+  it('does not render fallback while a flag is loading by default', () => {
+    mockUsePostHogFeatureFlagEnabled.mockReturnValue(undefined)
+    mockUsePostHogFeatureFlagPayload.mockReturnValue(undefined)
+    mockUseFeatureFlagVariantKey.mockReturnValue(undefined)
+
+    render(
+      <FeatureFlagGate flag="campaign-redesign" fallback={<span>coming soon</span>}>
+        <span>enabled content</span>
+      </FeatureFlagGate>
+    )
+
+    expect(screen.queryByText('enabled content')).not.toBeInTheDocument()
+    expect(screen.queryByText('coming soon')).not.toBeInTheDocument()
+  })
+
+  it('can render fallback while a flag is loading when requested', () => {
+    mockUsePostHogFeatureFlagEnabled.mockReturnValue(undefined)
+    mockUsePostHogFeatureFlagPayload.mockReturnValue(undefined)
+    mockUseFeatureFlagVariantKey.mockReturnValue(undefined)
+
+    render(
+      <FeatureFlagGate
+        flag="campaign-redesign"
+        fallback={<span>coming soon</span>}
+        showFallbackWhileLoading
+      >
+        <span>enabled content</span>
+      </FeatureFlagGate>
+    )
+
+    expect(screen.queryByText('enabled content')).not.toBeInTheDocument()
+    expect(screen.getByText('coming soon')).toBeInTheDocument()
+  })
+
   it('renders children when a flag is enabled', () => {
     mockUsePostHogFeatureFlagEnabled.mockReturnValue(true)
+    mockUsePostHogFeatureFlagPayload.mockReturnValue(undefined)
+    mockUseFeatureFlagVariantKey.mockReturnValue(undefined)
 
     render(
       <FeatureFlagGate flag="campaign-redesign" fallback={<span>coming soon</span>}>
