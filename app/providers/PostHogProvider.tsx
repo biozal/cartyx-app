@@ -1,10 +1,11 @@
+import { PostHogProvider as ReactPostHogProvider } from '@posthog/react'
+import posthog from 'posthog-js'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useAuthContext } from './AuthProvider'
 import {
   setPostHogInstance,
   isPostHogReady,
-  getPostHogInstance,
   capturePageView,
 } from '~/utils/posthog-client'
 
@@ -15,7 +16,6 @@ function PostHogInit() {
   const { user } = useAuthContext()
   const router = useRouter()
   const unsubRef = useRef<(() => void) | null>(null)
-  const cancelledRef = useRef(false)
 
   // Initialize PostHog client-side only
   useEffect(() => {
@@ -24,31 +24,23 @@ function PostHogInit() {
 
     if (!key || isPostHogReady() || typeof window === 'undefined') return
 
-    cancelledRef.current = false
+    posthog.init(key, {
+      api_host: host,
+      capture_pageview: false, // we capture manually on navigation
+      persistence: 'localStorage+cookie',
+      capture_exceptions: true,
+    })
+    setPostHogInstance(posthog)
 
-    import('posthog-js').then(({ default: posthog }) => {
-      // Guard against unmount during async import
-      if (cancelledRef.current) return
+    // Capture initial pageview
+    capturePageView(window.location.href)
 
-      posthog.init(key, {
-        api_host: host,
-        capture_pageview: false, // we capture manually on navigation
-        persistence: 'localStorage+cookie',
-        capture_exceptions: true,
-      })
-      setPostHogInstance(posthog)
-
-      // Capture initial pageview
-      capturePageView(window.location.href)
-
-      // Subscribe to route changes for manual pageview tracking
-      unsubRef.current = router.subscribe('onResolved', (event) => {
-        capturePageView(window.location.origin + event.toLocation.href)
-      })
+    // Subscribe to route changes for manual pageview tracking
+    unsubRef.current = router.subscribe('onResolved', (event) => {
+      capturePageView(window.location.origin + event.toLocation.href)
     })
 
     return () => {
-      cancelledRef.current = true
       unsubRef.current?.()
       unsubRef.current = null
     }
@@ -56,17 +48,19 @@ function PostHogInit() {
 
   // Identify/reset on auth changes
   useEffect(() => {
-    const ph = getPostHogInstance()
-    if (!isPostHogReady() || !ph) return
+    if (!isPostHogReady()) return
+
     if (user) {
-      ph.identify(user.id, {
+      posthog.identify(user.id, {
         name: user.name,
         email: user.email,
         provider: user.provider,
         role: user.role,
       })
+      posthog.reloadFeatureFlags()
     } else {
-      ph.reset()
+      posthog.reset()
+      posthog.reloadFeatureFlags()
     }
   }, [user])
 
@@ -75,9 +69,9 @@ function PostHogInit() {
 
 export function PostHogProvider({ children }: { children: ReactNode }) {
   return (
-    <>
+    <ReactPostHogProvider client={posthog}>
       <PostHogInit />
       {children}
-    </>
+    </ReactPostHogProvider>
   )
 }
