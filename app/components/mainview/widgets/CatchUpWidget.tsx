@@ -85,7 +85,7 @@ export function CatchUpWidget({
             {markdownContent ? (
               <div
                 data-testid="catchup-markdown"
-                className="max-w-3xl space-y-4 font-body text-sm leading-relaxed text-on-surface-variant"
+                className="w-full max-w-none space-y-4 font-body text-sm leading-relaxed text-on-surface-variant"
               >
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
