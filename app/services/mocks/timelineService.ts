@@ -8,6 +8,7 @@ export const mockTimelineEvents: ReadonlyArray<Readonly<TimelineEvent>> = Object
     calendarDate: '2nd of Frostmark, Year 3',
     sessionName: 'The Bell Beneath the Chapel',
     summary: 'A hidden reliquary opened under Emberfall Chapel when the black bell tolled at dawn.',
+    isCurrent: true,
   }),
   Object.freeze({
     id: 'timeline-1',
@@ -26,6 +27,7 @@ export const mockTimelineEvents: ReadonlyArray<Readonly<TimelineEvent>> = Object
     calendarDate: '11th of Longshade, Year 2',
     sessionName: 'A Crown of Hollow Iron',
     summary: 'Parley with the barrow knights collapsed when the false heir claimed the iron circlet.',
+    importance: 'major',
   }),
   Object.freeze({
     id: 'timeline-5',
