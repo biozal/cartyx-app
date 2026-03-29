@@ -85,7 +85,7 @@ function EditCampaignPage() {
       imageFile,
     })
     if (result) {
-      navigate({ to: '/campaigns/$campaignId/summary', params: { campaignId: campaign.id } })
+      navigate({ to: '/campaigns' })
     }
   }
 

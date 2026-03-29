@@ -39,7 +39,11 @@ function CampaignsListPage() {
     e.preventDefault()
     const result = await join(joinCode.trim())
     if (result) {
-      navigate({ to: '/campaigns/$campaignId/summary', params: { campaignId: result.campaignId } })
+      navigate({
+        to: '/campaigns/$campaignId/play',
+        params: { campaignId: result.campaignId },
+        search: { tab: 'dashboard' },
+      })
     }
   }
 
