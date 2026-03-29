@@ -32,7 +32,7 @@ export function DashboardView({ children, widgets = [], className = '' }: Dashbo
     <div className={`p-6 ${className}`}>
       <div
         data-testid="dashboard-grid"
-        className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]"
+        className="grid grid-cols-1 sm:grid-cols-2 gap-4"
       >
         {hasChildren
           ? childItems

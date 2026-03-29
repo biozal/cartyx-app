@@ -46,7 +46,7 @@ function PlayPage() {
             aria-labelledby="tab-dashboard"
             hidden={activeTab !== 'dashboard'}
           >
-            <DashboardView className="h-full">
+            <DashboardView>
               <CatchUpWidget />
               <PartyMembersWidget />
               <KeyAlliesWidget />
