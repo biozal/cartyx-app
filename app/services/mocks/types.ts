@@ -32,7 +32,7 @@ export interface TimelineEvent {
   calendarDate: string
   sessionName: string
   summary: string
-  importance?: 'normal' | 'major'
+  importance?: 'major'
   isCurrent?: boolean
 }
 
