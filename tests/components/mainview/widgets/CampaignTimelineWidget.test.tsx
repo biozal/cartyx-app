@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { CampaignTimelineWidget } from '~/components/mainview/widgets/CampaignTimelineWidget'
 import type { TimelineEvent } from '~/services/mocks/types'
 import { getTimelineEvents } from '~/services/mocks/timelineService'
@@ -37,10 +37,14 @@ describe('CampaignTimelineWidget', () => {
 
   it('renders all event dates and session names', () => {
     render(<CampaignTimelineWidget events={mockEvents} />)
+    const scroll = screen.getByTestId('timeline-scroll')
+    const verticalTimeline = screen.getByTestId('timeline-vertical')
 
     for (const event of mockEvents) {
-      expect(screen.getByText(event.calendarDate)).toBeInTheDocument()
-      expect(screen.getByText(event.sessionName)).toBeInTheDocument()
+      expect(within(scroll).getByText(event.calendarDate)).toBeInTheDocument()
+      expect(within(verticalTimeline).getByText(event.calendarDate)).toBeInTheDocument()
+      expect(within(scroll).getByText(event.sessionName)).toBeInTheDocument()
+      expect(within(verticalTimeline).getByText(event.sessionName)).toBeInTheDocument()
     }
   })
 
@@ -48,11 +52,17 @@ describe('CampaignTimelineWidget', () => {
     const { container } = render(<CampaignTimelineWidget events={mockEvents} />)
     const currentSummary = 'A reliquary opened beneath the chapel after the second toll.'
     const majorSummary = 'The party sealed the kiln gate and bound the cinder spirit.'
+    const scroll = screen.getByTestId('timeline-scroll')
+    const verticalTimeline = screen.getByTestId('timeline-vertical')
 
-    expect(screen.getByText('CURRENT SESSION')).toBeInTheDocument()
-    expect(screen.getByText('MAJOR EVENT')).toBeInTheDocument()
-    expect(screen.getByTitle(currentSummary)).toBeInTheDocument()
-    expect(screen.getByTitle(majorSummary)).toBeInTheDocument()
+    expect(within(scroll).getByText('CURRENT SESSION')).toBeInTheDocument()
+    expect(within(verticalTimeline).getByText('CURRENT SESSION')).toBeInTheDocument()
+    expect(within(scroll).getByText('MAJOR EVENT')).toBeInTheDocument()
+    expect(within(verticalTimeline).getByText('MAJOR EVENT')).toBeInTheDocument()
+    expect(within(scroll).getByTitle(currentSummary)).toBeInTheDocument()
+    expect(within(verticalTimeline).getByTitle(currentSummary)).toBeInTheDocument()
+    expect(within(scroll).getByTitle(majorSummary)).toBeInTheDocument()
+    expect(within(verticalTimeline).getByTitle(majorSummary)).toBeInTheDocument()
 
     expect(container.querySelector('[data-tone="current"]')).toBeInTheDocument()
     expect(container.querySelector('[data-tone="major"]')).toBeInTheDocument()
@@ -68,18 +78,40 @@ describe('CampaignTimelineWidget', () => {
     render(<CampaignTimelineWidget events={mockEvents} />)
 
     const scroll = screen.getByTestId('timeline-scroll')
+    const verticalTimeline = screen.getByTestId('timeline-vertical')
     expect(scroll).toHaveClass('overflow-x-auto')
     expect(scroll).toHaveClass('overflow-y-hidden')
+    expect(scroll).toHaveClass('md:block')
     expect(scroll).toHaveAttribute('tabindex', '0')
     expect(scroll).toHaveAttribute(
       'aria-label',
       'Campaign timeline, horizontally scrollable events',
     )
+    expect(verticalTimeline).toHaveClass('md:hidden')
 
     expect(scroll.querySelector('ol')).toHaveClass('grid-flow-col')
-    expect(scroll.querySelector('[data-tone="current"]')).toHaveTextContent(
+    expect(scroll.querySelector('[data-layout="horizontal"][data-tone="current"]')).toHaveTextContent(
       'A reliquary opened beneath the chapel after the second toll.',
     )
+    expect(scroll.querySelector('[data-part="timeline-rail"]')).toBeInTheDocument()
+    expect(scroll.querySelectorAll('[data-layout="horizontal"] [data-part="timeline-marker"]')).toHaveLength(
+      mockEvents.length,
+    )
+  })
+
+  it('renders a dedicated vertical mobile timeline', () => {
+    render(<CampaignTimelineWidget events={mockEvents} />)
+
+    const verticalTimeline = screen.getByTestId('timeline-vertical')
+    expect(verticalTimeline).toHaveClass('md:hidden')
+    expect(within(verticalTimeline).getByRole('list')).toHaveClass('flex-col')
+    expect(verticalTimeline.querySelectorAll('[data-layout="vertical"]')).toHaveLength(
+      mockEvents.length,
+    )
+    expect(verticalTimeline.querySelector('[data-tone="major"]')).toHaveTextContent(
+      'The party sealed the kiln gate and bound the cinder spirit.',
+    )
+    expect(verticalTimeline.querySelector('[data-part="timeline-rail"]')).toBeInTheDocument()
   })
 
   it('mock service returns defensive copies (new array and new objects)', async () => {
