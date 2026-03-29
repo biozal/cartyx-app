@@ -5,7 +5,7 @@ export interface ComingSoonPanelProps {
 
 export function ComingSoonPanel({ title, testId }: ComingSoonPanelProps) {
   return (
-    <div data-testid={testId} className="flex h-full flex-col bg-[#080A12]">
+    <div data-testid={testId} className="flex h-full w-full flex-col bg-[#080A12]">
       <div className="border-b border-white/[0.07] px-4 py-3">
         <h2 className="font-pixel text-xs text-slate-300">{title}</h2>
       </div>

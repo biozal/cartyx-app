@@ -54,7 +54,7 @@ export function WikiPanel() {
   const [selectedCategory, setSelectedCategory] = useState<WikiCategoryId | null>(null)
 
   return (
-    <div className="h-full flex flex-col bg-[#080A12]">
+    <div className="h-full flex flex-col bg-[#080A12] w-full">
       <div className={selectedCategory ? 'max-h-72 shrink-0 overflow-y-auto' : 'flex-1 overflow-y-auto'}>
         {WIKI_CATEGORIES.map((category, index) => {
           const Icon = category.icon
@@ -86,7 +86,7 @@ export function WikiPanel() {
       </div>
 
       {selectedCategory ? (
-        <div className="flex flex-1 flex-col border-t border-white/[0.07]">
+        <div className="flex flex-1 flex-col border-t border-white/[0.07] w-full">
           <button
             type="button"
             aria-label="Back"

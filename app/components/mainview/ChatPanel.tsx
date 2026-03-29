@@ -41,7 +41,7 @@ export function ChatPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-[#080A12]">
+    <div className="flex h-full flex-col bg-[#080A12] w-full">
       <div className="border-b border-white/[0.07] p-3">
         <label htmlFor="chat-session-selector" className="sr-only">
           Session selector
@@ -107,7 +107,7 @@ export function ChatPanel() {
           role="tabpanel"
           aria-labelledby={`${tabsId}-${channel.id}-tab`}
           hidden={channel.id !== activeChannel}
-          className="flex flex-1 items-center justify-center overflow-y-auto p-4"
+          className="flex flex-1 items-center justify-center overflow-y-auto p-4 w-full"
         >
           <span className="font-pixel text-xs text-slate-500">Coming Soon</span>
         </div>
