@@ -45,9 +45,13 @@ describe('CampaignTimelineWidget', () => {
 
   it('renders current and major emphasis states', () => {
     const { container } = render(<CampaignTimelineWidget events={mockEvents} />)
+    const currentSummary = 'A reliquary opened beneath the chapel after the second toll.'
+    const majorSummary = 'The party sealed the kiln gate and bound the cinder spirit.'
 
     expect(screen.getByText('CURRENT SESSION')).toBeInTheDocument()
     expect(screen.getByText('MAJOR EVENT')).toBeInTheDocument()
+    expect(screen.getByTitle(currentSummary)).toBeInTheDocument()
+    expect(screen.getByTitle(majorSummary)).toBeInTheDocument()
 
     expect(container.querySelector('[data-tone="current"]')).toBeInTheDocument()
     expect(container.querySelector('[data-tone="major"]')).toBeInTheDocument()
@@ -67,6 +71,9 @@ describe('CampaignTimelineWidget', () => {
     expect(scroll).toHaveClass('overflow-y-hidden')
 
     expect(scroll.querySelector('ol')).toHaveClass('grid-flow-col')
+    expect(scroll.querySelector('[data-tone="current"]')).toHaveTextContent(
+      'A reliquary opened beneath the chapel after the second toll.',
+    )
   })
 
   it('mock service returns defensive copies (new array and new objects)', async () => {

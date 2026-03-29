@@ -90,28 +90,34 @@ export function CampaignTimelineWidget({
                 const isMajor = tone === 'major'
 
                 const dotClasses = isCurrent
-                  ? 'h-4 w-4 bg-[#85adff] ring-[12px] ring-[#85adff]/10 animate-pulse'
+                  ? 'h-4 w-4 bg-primary ring-[12px] ring-primary/10 animate-pulse'
                   : isMajor
-                    ? 'h-4 w-4 bg-tertiary ring-8 ring-tertiary/10'
+                    ? 'h-4 w-4 bg-blue-light ring-8 ring-blue-light/10'
                     : 'h-3 w-3 bg-slate-500 ring-4 ring-white/[0.05]'
 
                 const dateClasses = isCurrent
-                  ? 'text-[#85adff]'
+                  ? 'text-primary'
                   : isMajor
-                    ? 'text-tertiary'
+                    ? 'text-blue-light'
                     : 'text-slate-500'
 
                 const titleClasses = isCurrent
                   ? 'text-white'
                   : isMajor
-                    ? 'text-slate-100'
+                    ? 'text-blue-light'
                     : 'text-slate-500'
 
                 const labelClasses = isCurrent
-                  ? 'text-[#85adff]'
+                  ? 'text-primary'
                   : isMajor
-                    ? 'text-tertiary'
+                    ? 'text-blue-light'
                     : 'text-slate-600'
+
+                const summaryClasses = isCurrent
+                  ? 'text-slate-300'
+                  : isMajor
+                    ? 'text-slate-300'
+                    : 'text-slate-400'
 
                 return (
                   <li
@@ -145,7 +151,12 @@ export function CampaignTimelineWidget({
                         </p>
                       ) : null}
 
-                      <p className="sr-only">{event.summary}</p>
+                      <p
+                        className={`mt-2 max-w-[9rem] text-[0.58rem] leading-relaxed line-clamp-3 ${summaryClasses}`}
+                        title={event.summary}
+                      >
+                        {event.summary}
+                      </p>
                     </div>
                   </li>
                 )
