@@ -35,6 +35,8 @@ describe('CatchUpWidget', () => {
     render(<CatchUpWidget content={mockCatchUpContent} />)
     const markdownDiv = screen.getByTestId('catchup-markdown')
     expect(markdownDiv).toBeInTheDocument()
+    expect(markdownDiv).toHaveClass('w-full')
+    expect(markdownDiv).not.toHaveClass('max-w-3xl')
     expect(screen.getByText(/Where We Left Off/)).toBeInTheDocument()
   })
 
