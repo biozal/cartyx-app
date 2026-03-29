@@ -52,7 +52,7 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
         <button
           type="button"
           aria-label="Open inspector"
-          aria-expanded={false}
+          aria-expanded={mobileInspectorOpen}
           aria-controls="mainview-inspector"
           data-testid="mobile-inspector-toggle"
           onClick={() => setMobileInspectorOpen(true)}
@@ -64,10 +64,8 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
 
       {/* Mobile inspector backdrop — tapping outside closes the drawer */}
       {drawerOpen && (
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-label="Close inspector"
+        <div
+          aria-hidden="true"
           data-testid="mobile-inspector-backdrop"
           className="lg:hidden fixed inset-0 z-40 bg-black/50 cursor-default"
           onClick={() => setMobileInspectorOpen(false)}
@@ -81,6 +79,7 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
         role={drawerOpen ? 'dialog' : undefined}
         aria-modal={drawerOpen ? true : undefined}
         aria-label={drawerOpen ? 'Inspector' : undefined}
+        onKeyDown={drawerOpen ? (e) => { if (e.key === 'Escape') setMobileInspectorOpen(false) } : undefined}
         className={
           showInspector
             ? drawerOpen
