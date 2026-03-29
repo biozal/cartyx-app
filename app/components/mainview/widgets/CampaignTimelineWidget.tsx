@@ -20,6 +20,25 @@ function getEventTone(event: TimelineEvent) {
   return 'normal'
 }
 
+function getToneClasses(tone: ReturnType<typeof getEventTone>) {
+  const isCurrent = tone === 'current'
+  const isMajor = tone === 'major'
+
+  return {
+    isCurrent,
+    isMajor,
+    dotClasses: isCurrent
+      ? 'h-4 w-4 bg-primary ring-[12px] ring-primary/10 animate-pulse motion-reduce:animate-none'
+      : isMajor
+        ? 'h-4 w-4 bg-blue-light ring-8 ring-blue-light/10'
+        : 'h-3 w-3 bg-slate-500 ring-4 ring-white/[0.05]',
+    dateClasses: isCurrent ? 'text-primary' : isMajor ? 'text-blue-light' : 'text-slate-500',
+    titleClasses: isCurrent ? 'text-white' : isMajor ? 'text-blue-light' : 'text-slate-500',
+    labelClasses: isCurrent ? 'text-primary' : isMajor ? 'text-blue-light' : 'text-slate-600',
+    summaryClasses: isCurrent || isMajor ? 'text-slate-300' : 'text-slate-400',
+  }
+}
+
 function toDisplayOrder(events: ReadonlyArray<TimelineEvent>) {
   // Mock/service data is most-recent first; reverse it so the rail reads left-to-right.
   return [...events].reverse()
@@ -81,93 +100,73 @@ export function CampaignTimelineWidget({
         </div>
       ) : (
         <>
-          <ol
+          <div
+            className="relative md:hidden"
             data-testid="timeline-vertical"
-            className="relative flex flex-col gap-6 pl-8 md:hidden"
           >
             <div
               aria-hidden="true"
+              data-part="timeline-rail"
               className="absolute bottom-2 left-[0.6875rem] top-2 w-px bg-white/[0.08]"
             />
 
-            {displayEvents.map((event) => {
-              const tone = getEventTone(event)
-              const isCurrent = tone === 'current'
-              const isMajor = tone === 'major'
+            <ol className="relative flex flex-col gap-6 pl-8">
+              {displayEvents.map((event) => {
+                const tone = getEventTone(event)
+                const {
+                  isCurrent,
+                  isMajor,
+                  dotClasses,
+                  dateClasses,
+                  titleClasses,
+                  labelClasses,
+                  summaryClasses,
+                } = getToneClasses(tone)
 
-              const dotClasses = isCurrent
-                ? 'h-4 w-4 bg-primary ring-[12px] ring-primary/10 animate-pulse motion-reduce:animate-none'
-                : isMajor
-                  ? 'h-4 w-4 bg-blue-light ring-8 ring-blue-light/10'
-                  : 'h-3 w-3 bg-slate-500 ring-4 ring-white/[0.05]'
-
-              const dateClasses = isCurrent
-                ? 'text-primary'
-                : isMajor
-                  ? 'text-blue-light'
-                  : 'text-slate-500'
-
-              const titleClasses = isCurrent
-                ? 'text-white'
-                : isMajor
-                  ? 'text-blue-light'
-                  : 'text-slate-500'
-
-              const labelClasses = isCurrent
-                ? 'text-primary'
-                : isMajor
-                  ? 'text-blue-light'
-                  : 'text-slate-600'
-
-              const summaryClasses = isCurrent
-                ? 'text-slate-300'
-                : isMajor
-                  ? 'text-slate-300'
-                  : 'text-slate-400'
-
-              return (
-                <li
-                  key={event.id}
-                  data-layout="vertical"
-                  data-tone={tone}
-                  className="relative pl-4 text-left"
-                >
-                  <span
-                    aria-hidden="true"
-                    data-part="timeline-marker"
-                    className={`absolute left-0 top-1.5 z-10 -translate-x-1/2 rounded-full ${dotClasses}`}
-                  />
-
-                  <p className={`font-pixel text-[0.6rem] tracking-[0.16em] ${dateClasses}`}>
-                    {event.calendarDate}
-                  </p>
-
-                  <h3
-                    className={`mt-2 max-w-[13rem] font-pixel text-xs font-bold uppercase leading-tight ${titleClasses}`}
+                return (
+                  <li
+                    key={event.id}
+                    data-layout="vertical"
+                    data-tone={tone}
+                    className="relative pl-4 text-left"
                   >
-                    {event.sessionName}
-                  </h3>
+                    <span
+                      aria-hidden="true"
+                      data-part="timeline-marker"
+                      className={`absolute left-0 top-1.5 z-10 -translate-x-1/2 rounded-full ${dotClasses}`}
+                    />
 
-                  {isCurrent ? (
-                    <p className={`mt-2 font-pixel text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
-                      CURRENT SESSION
+                    <p className={`font-pixel text-[0.6rem] tracking-[0.16em] ${dateClasses}`}>
+                      {event.calendarDate}
                     </p>
-                  ) : isMajor ? (
-                    <p className={`mt-2 font-pixel text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
-                      MAJOR EVENT
-                    </p>
-                  ) : null}
 
-                  <p
-                    className={`mt-2 max-w-[15rem] text-[0.58rem] leading-relaxed ${summaryClasses}`}
-                    title={event.summary}
-                  >
-                    {event.summary}
-                  </p>
-                </li>
-              )
-            })}
-          </ol>
+                    <h3
+                      className={`mt-2 max-w-[13rem] font-pixel text-xs font-bold uppercase leading-tight ${titleClasses}`}
+                    >
+                      {event.sessionName}
+                    </h3>
+
+                    {isCurrent ? (
+                      <p className={`mt-2 font-pixel text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                        CURRENT SESSION
+                      </p>
+                    ) : isMajor ? (
+                      <p className={`mt-2 font-pixel text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                        MAJOR EVENT
+                      </p>
+                    ) : null}
+
+                    <p
+                      className={`mt-2 max-w-[15rem] text-[0.58rem] leading-relaxed ${summaryClasses}`}
+                      title={event.summary}
+                    >
+                      {event.summary}
+                    </p>
+                  </li>
+                )
+              })}
+            </ol>
+          </div>
 
           <div
             data-testid="timeline-scroll"
@@ -179,44 +178,21 @@ export function CampaignTimelineWidget({
               <div
                 aria-hidden="true"
                 data-part="timeline-rail"
-                className="absolute left-4 right-4 top-[3.5rem] h-px bg-white/[0.08]"
+                className="absolute left-4 right-4 top-[3.5rem] z-0 h-px bg-white/[0.08]"
               />
 
               <ol className="grid grid-flow-col auto-cols-[minmax(10.5rem,1fr)] gap-4">
                 {displayEvents.map((event) => {
                   const tone = getEventTone(event)
-                  const isCurrent = tone === 'current'
-                  const isMajor = tone === 'major'
-
-                  const dotClasses = isCurrent
-                    ? 'h-4 w-4 bg-primary ring-[12px] ring-primary/10 animate-pulse motion-reduce:animate-none'
-                    : isMajor
-                      ? 'h-4 w-4 bg-blue-light ring-8 ring-blue-light/10'
-                      : 'h-3 w-3 bg-slate-500 ring-4 ring-white/[0.05]'
-
-                  const dateClasses = isCurrent
-                    ? 'text-primary'
-                    : isMajor
-                      ? 'text-blue-light'
-                      : 'text-slate-500'
-
-                  const titleClasses = isCurrent
-                    ? 'text-white'
-                    : isMajor
-                      ? 'text-blue-light'
-                      : 'text-slate-500'
-
-                  const labelClasses = isCurrent
-                    ? 'text-primary'
-                    : isMajor
-                      ? 'text-blue-light'
-                      : 'text-slate-600'
-
-                  const summaryClasses = isCurrent
-                    ? 'text-slate-300'
-                    : isMajor
-                      ? 'text-slate-300'
-                      : 'text-slate-400'
+                  const {
+                    isCurrent,
+                    isMajor,
+                    dotClasses,
+                    dateClasses,
+                    titleClasses,
+                    labelClasses,
+                    summaryClasses,
+                  } = getToneClasses(tone)
 
                   return (
                     <li
@@ -231,7 +207,7 @@ export function CampaignTimelineWidget({
                         </p>
                       </div>
 
-                      <div className="relative flex items-center justify-center">
+                      <div className="relative z-10 flex items-center justify-center">
                         <span
                           aria-hidden="true"
                           data-part="timeline-marker"
