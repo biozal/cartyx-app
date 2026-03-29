@@ -1,5 +1,5 @@
 import React from 'react'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InspectorSidebar } from '~/components/mainview/InspectorSidebar'
@@ -89,6 +89,36 @@ describe('InspectorSidebar', () => {
     const buttons = screen.getAllByRole('tab')
     buttons.forEach(btn => {
       expect(btn).toHaveAttribute('type', 'button')
+    })
+  })
+
+  describe('mobile close button', () => {
+    it('does not render close button when onMobileClose is not provided', () => {
+      render(<InspectorSidebar />)
+      expect(screen.queryByTestId('mobile-inspector-close')).not.toBeInTheDocument()
+    })
+
+    it('renders close button when onMobileClose is provided', () => {
+      render(<InspectorSidebar onMobileClose={() => {}} />)
+      expect(screen.getByTestId('mobile-inspector-close')).toBeInTheDocument()
+    })
+
+    it('close button has aria-label "Close inspector"', () => {
+      render(<InspectorSidebar onMobileClose={() => {}} />)
+      expect(screen.getByRole('button', { name: 'Close inspector' })).toBeInTheDocument()
+    })
+
+    it('calls onMobileClose when close button is clicked', async () => {
+      const user = userEvent.setup()
+      const onMobileClose = vi.fn()
+      render(<InspectorSidebar onMobileClose={onMobileClose} />)
+      await user.click(screen.getByTestId('mobile-inspector-close'))
+      expect(onMobileClose).toHaveBeenCalledOnce()
+    })
+
+    it('close button has type=button', () => {
+      render(<InspectorSidebar onMobileClose={() => {}} />)
+      expect(screen.getByTestId('mobile-inspector-close')).toHaveAttribute('type', 'button')
     })
   })
 })

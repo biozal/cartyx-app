@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { ToolBar } from './ToolBar'
 import type { ToolType } from './ToolBar'
 import { InspectorSidebar } from './InspectorSidebar'
+import { ChevronLeft } from 'lucide-react'
 
 interface MainViewProps {
   showToolbar?: boolean
@@ -14,6 +15,7 @@ interface MainViewProps {
 export function MainView({ showToolbar = false, showInspector = true, children, className = '' }: MainViewProps) {
   const [activeTool, setActiveTool] = useState<ToolType>('pointer')
   const [toolbarCollapsed, setToolbarCollapsed] = useState(false)
+  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false)
 
   return (
     <div className={`flex h-full bg-[#080A12] overflow-hidden ${className}`}>
@@ -43,15 +45,49 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
         {children}
       </div>
 
-      {/* Right column — Inspector */}
+      {/* Right column — Inspector (lg+ only, inline) */}
       <div
         data-testid="mainview-inspector"
-        className={`flex-shrink-0 overflow-hidden transition-all duration-200 ${
-          showInspector ? 'w-80 border-l border-white/[0.07]' : 'w-0'
+        className={`hidden lg:flex flex-shrink-0 overflow-hidden transition-all duration-200 ${
+          showInspector ? 'lg:w-80 border-l border-white/[0.07]' : 'lg:w-0'
         }`}
       >
         {showInspector && <InspectorSidebar />}
       </div>
+
+      {/* Mobile inspector toggle button — visible below lg when inspector is available and drawer is closed */}
+      {showInspector && !mobileInspectorOpen && (
+        <button
+          type="button"
+          aria-label="Open inspector"
+          aria-expanded={false}
+          data-testid="mobile-inspector-toggle"
+          onClick={() => setMobileInspectorOpen(true)}
+          className="lg:hidden fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center h-12 w-6 rounded-l bg-[#0D1117] border border-r-0 border-white/[0.07] text-slate-400 hover:text-slate-200 transition-colors"
+        >
+          <ChevronLeft size={14} />
+        </button>
+      )}
+
+      {/* Mobile inspector backdrop — tapping outside closes the drawer */}
+      {showInspector && mobileInspectorOpen && (
+        <div
+          aria-hidden="true"
+          data-testid="mobile-inspector-backdrop"
+          className="lg:hidden fixed inset-0 z-40 bg-black/50"
+          onClick={() => setMobileInspectorOpen(false)}
+        />
+      )}
+
+      {/* Mobile inspector drawer — slides in from the right as an overlay */}
+      {showInspector && mobileInspectorOpen && (
+        <div
+          data-testid="mobile-inspector-drawer"
+          className="lg:hidden fixed right-0 top-0 bottom-0 w-80 z-50 border-l border-white/[0.07]"
+        >
+          <InspectorSidebar onMobileClose={() => setMobileInspectorOpen(false)} />
+        </div>
+      )}
     </div>
   )
 }
