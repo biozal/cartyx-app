@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react'
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import { ChatPanel } from './ChatPanel'
 import { NotepadPanel } from './NotepadPanel'
 import { SettingsPanel } from './SettingsPanel'
@@ -12,7 +13,7 @@ export interface InspectorSidebarProps {
   defaultTab?: InspectorTab
 }
 
-const tabs: { id: InspectorTab; icon: any; label: string }[] = [
+const tabs: { id: InspectorTab; icon: IconDefinition; label: string }[] = [
   { id: 'chat', icon: faMessage, label: 'Chat' },
   { id: 'wiki', icon: faBook, label: 'Wiki' },
   { id: 'notepad', icon: faNoteSticky, label: 'Notepad' },
