@@ -103,7 +103,7 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
             aria-label="Close inspector"
             data-testid="mobile-inspector-close"
             onClick={onMobileClose}
-            className="flex items-center justify-center w-10 text-slate-400 hover:text-slate-200 border-l border-white/[0.07] transition-colors"
+            className="lg:hidden flex items-center justify-center w-10 text-slate-400 hover:text-slate-200 border-l border-white/[0.07] transition-colors"
           >
             <ChevronRight size={14} />
           </button>

@@ -17,6 +17,8 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
   const [toolbarCollapsed, setToolbarCollapsed] = useState(false)
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false)
 
+  const drawerOpen = showInspector && mobileInspectorOpen
+
   return (
     <div className={`flex h-full bg-[#080A12] overflow-hidden ${className}`}>
       {/* Left column — Toolbar */}
@@ -45,22 +47,13 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
         {children}
       </div>
 
-      {/* Right column — Inspector (lg+ only, inline) */}
-      <div
-        data-testid="mainview-inspector"
-        className={`hidden lg:flex flex-shrink-0 overflow-hidden transition-all duration-200 ${
-          showInspector ? 'lg:w-80 border-l border-white/[0.07]' : 'lg:w-0'
-        }`}
-      >
-        {showInspector && <InspectorSidebar />}
-      </div>
-
       {/* Mobile inspector toggle button — visible below lg when inspector is available and drawer is closed */}
       {showInspector && !mobileInspectorOpen && (
         <button
           type="button"
           aria-label="Open inspector"
           aria-expanded={false}
+          aria-controls="mainview-inspector"
           data-testid="mobile-inspector-toggle"
           onClick={() => setMobileInspectorOpen(true)}
           className="lg:hidden fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center h-12 w-6 rounded-l bg-[#0D1117] border border-r-0 border-white/[0.07] text-slate-400 hover:text-slate-200 transition-colors"
@@ -70,24 +63,36 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
       )}
 
       {/* Mobile inspector backdrop — tapping outside closes the drawer */}
-      {showInspector && mobileInspectorOpen && (
-        <div
-          aria-hidden="true"
+      {drawerOpen && (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Close inspector"
           data-testid="mobile-inspector-backdrop"
-          className="lg:hidden fixed inset-0 z-40 bg-black/50"
+          className="lg:hidden fixed inset-0 z-40 bg-black/50 cursor-default"
           onClick={() => setMobileInspectorOpen(false)}
         />
       )}
 
-      {/* Mobile inspector drawer — slides in from the right as an overlay */}
-      {showInspector && mobileInspectorOpen && (
-        <div
-          data-testid="mobile-inspector-drawer"
-          className="lg:hidden fixed right-0 top-0 bottom-0 w-80 z-50 border-l border-white/[0.07]"
-        >
+      {/* Inspector — single instance, inline on lg+, overlay drawer on mobile when open */}
+      <div
+        id="mainview-inspector"
+        data-testid="mainview-inspector"
+        role={drawerOpen ? 'dialog' : undefined}
+        aria-modal={drawerOpen ? true : undefined}
+        aria-label={drawerOpen ? 'Inspector' : undefined}
+        className={
+          showInspector
+            ? drawerOpen
+              ? 'fixed inset-y-0 right-0 w-80 z-50 flex border-l border-white/[0.07]'
+              : 'hidden lg:flex flex-shrink-0 overflow-hidden transition-all duration-200 lg:w-80 border-l border-white/[0.07]'
+            : 'hidden lg:flex flex-shrink-0 overflow-hidden transition-all duration-200 lg:w-0'
+        }
+      >
+        {showInspector && (
           <InspectorSidebar onMobileClose={() => setMobileInspectorOpen(false)} />
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

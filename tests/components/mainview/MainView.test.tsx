@@ -141,16 +141,17 @@ describe('MainView', () => {
       expect(screen.queryByTestId('mobile-inspector-toggle')).not.toBeInTheDocument()
     })
 
-    it('mobile drawer is hidden by default', () => {
+    it('mobile drawer is hidden by default (no dialog role)', () => {
       render(
         <MainView>
           <div>Content</div>
         </MainView>
       )
-      expect(screen.queryByTestId('mobile-inspector-drawer')).not.toBeInTheDocument()
+      const inspector = screen.getByTestId('mainview-inspector')
+      expect(inspector).not.toHaveAttribute('role', 'dialog')
     })
 
-    it('clicking mobile toggle opens the drawer', async () => {
+    it('clicking mobile toggle opens the drawer (dialog role applied)', async () => {
       const user = userEvent.setup()
       render(
         <MainView>
@@ -158,7 +159,7 @@ describe('MainView', () => {
         </MainView>
       )
       await user.click(screen.getByTestId('mobile-inspector-toggle'))
-      expect(screen.getByTestId('mobile-inspector-drawer')).toBeInTheDocument()
+      expect(screen.getByTestId('mainview-inspector')).toHaveAttribute('role', 'dialog')
     })
 
     it('clicking mobile toggle hides the toggle button', async () => {
@@ -192,7 +193,7 @@ describe('MainView', () => {
       )
       await user.click(screen.getByTestId('mobile-inspector-toggle'))
       await user.click(screen.getByTestId('mobile-inspector-backdrop'))
-      expect(screen.queryByTestId('mobile-inspector-drawer')).not.toBeInTheDocument()
+      expect(screen.getByTestId('mainview-inspector')).not.toHaveAttribute('role', 'dialog')
     })
 
     it('clicking close button inside drawer closes it', async () => {
@@ -203,9 +204,9 @@ describe('MainView', () => {
         </MainView>
       )
       await user.click(screen.getByTestId('mobile-inspector-toggle'))
-      expect(screen.getByTestId('mobile-inspector-drawer')).toBeInTheDocument()
+      expect(screen.getByTestId('mainview-inspector')).toHaveAttribute('role', 'dialog')
       await user.click(screen.getByTestId('mobile-inspector-close'))
-      expect(screen.queryByTestId('mobile-inspector-drawer')).not.toBeInTheDocument()
+      expect(screen.getByTestId('mainview-inspector')).not.toHaveAttribute('role', 'dialog')
     })
   })
 })
