@@ -99,7 +99,7 @@ export function CampaignTimelineWidget({
                 const isMajor = tone === 'major'
 
                 const dotClasses = isCurrent
-                  ? 'h-4 w-4 bg-primary ring-[12px] ring-primary/10 animate-pulse'
+                  ? 'h-4 w-4 bg-primary ring-[12px] ring-primary/10 animate-pulse motion-reduce:animate-none'
                   : isMajor
                     ? 'h-4 w-4 bg-blue-light ring-8 ring-blue-light/10'
                     : 'h-3 w-3 bg-slate-500 ring-4 ring-white/[0.05]'
