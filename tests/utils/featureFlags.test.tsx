@@ -6,6 +6,7 @@ import {
   useFeatureFlagEnabled,
   useFeatureFlagPayload,
   useFeatureFlagVariant,
+  useOptionalFeatureFlagEnabled,
 } from '~/utils/featureFlags'
 
 const {
@@ -23,6 +24,11 @@ vi.mock('@posthog/react', () => ({
   useFeatureFlagPayload: mockUsePostHogFeatureFlagPayload,
   useFeatureFlagVariantKey: mockUseFeatureFlagVariantKey,
 }))
+
+function OptionalFlagProbe({ flag }: { flag: string }) {
+  const enabled = useOptionalFeatureFlagEnabled(flag)
+  return <div data-testid="result">{String(enabled)}</div>
+}
 
 function FeatureFlagStateProbe({ flag }: { flag: string }) {
   const state = useFeatureFlag(flag)
@@ -122,6 +128,33 @@ describe('featureFlags utilities', () => {
 
     expect(screen.queryByText('enabled content')).not.toBeInTheDocument()
     expect(screen.getByText('coming soon')).toBeInTheDocument()
+  })
+
+  describe('useOptionalFeatureFlagEnabled', () => {
+    it('returns false for an empty flag name without querying PostHog with an empty string', () => {
+      render(<OptionalFlagProbe flag="" />)
+      expect(screen.getByTestId('result')).toHaveTextContent('false')
+      // PostHog should have been called with the sentinel, not an empty string
+      expect(mockUsePostHogFeatureFlagEnabled).not.toHaveBeenCalledWith('')
+    })
+
+    it('returns false when PostHog returns false for a non-empty flag name', () => {
+      mockUsePostHogFeatureFlagEnabled.mockReturnValue(false)
+      render(<OptionalFlagProbe flag="inspector-chat" />)
+      expect(screen.getByTestId('result')).toHaveTextContent('false')
+    })
+
+    it('returns false when PostHog returns undefined (loading) for a non-empty flag name', () => {
+      mockUsePostHogFeatureFlagEnabled.mockReturnValue(undefined)
+      render(<OptionalFlagProbe flag="inspector-chat" />)
+      expect(screen.getByTestId('result')).toHaveTextContent('false')
+    })
+
+    it('returns true when PostHog returns true for a non-empty flag name', () => {
+      mockUsePostHogFeatureFlagEnabled.mockReturnValue(true)
+      render(<OptionalFlagProbe flag="inspector-chat" />)
+      expect(screen.getByTestId('result')).toHaveTextContent('true')
+    })
   })
 
   it('renders children when a flag is enabled', () => {

@@ -34,10 +34,11 @@ export function useFeatureFlagEnabled(flag: string): boolean {
   return usePostHogFeatureFlagEnabled(flag) ?? false
 }
 
-// Like useFeatureFlagEnabled but returns false immediately when flag name is
-// empty (i.e. the env var is unset), without querying PostHog for an empty key.
+// Like useFeatureFlagEnabled but returns false when the flag name is empty
+// (i.e. the env var is unset). PostHog is never queried with an empty string —
+// a sentinel key is used instead so hook call count stays stable.
 export function useOptionalFeatureFlagEnabled(flag: string): boolean {
-  const enabled = usePostHogFeatureFlagEnabled(flag)
+  const enabled = usePostHogFeatureFlagEnabled(flag || '__ff_disabled__')
   return Boolean(flag) && (enabled ?? false)
 }
 
