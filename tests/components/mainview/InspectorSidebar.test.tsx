@@ -5,19 +5,22 @@ import userEvent from '@testing-library/user-event'
 import { InspectorSidebar } from '~/components/mainview/InspectorSidebar'
 
 // Env var names used per-environment (set in Vercel)
-const DEV_FLAGS = {
-  chat: 'dev-inspector-chat',
-  notepad: 'dev-inspector-notepad',
-  settings: 'dev-inspector-settings',
-}
+const { DEV_FLAGS, enabledFlags } = vi.hoisted(() => {
+  const DEV_FLAGS = {
+    chat: 'dev-inspector-chat',
+    notepad: 'dev-inspector-notepad',
+    settings: 'dev-inspector-settings',
+  }
 
-// Which flags PostHog reports as enabled
-const enabledFlags = new Set<string>([
-  DEV_FLAGS.chat,
-  DEV_FLAGS.notepad,
-  DEV_FLAGS.settings,
-])
+  // Which flags PostHog reports as enabled
+  const enabledFlags = new Set<string>([
+    DEV_FLAGS.chat,
+    DEV_FLAGS.notepad,
+    DEV_FLAGS.settings,
+  ])
 
+  return { DEV_FLAGS, enabledFlags }
+})
 vi.mock('~/utils/featureFlags', () => ({
   useOptionalFeatureFlagEnabled: (flag: string) => Boolean(flag) && enabledFlags.has(flag),
 }))
