@@ -1,5 +1,4 @@
 import React, { useRef } from 'react'
-import { Link } from '@tanstack/react-router'
 import { UserMenu } from '~/components/shared/UserMenu'
 import { TABS, handleTabsKeyDown } from './TabNavigation'
 import type { TabId } from './TabNavigation'
@@ -16,14 +15,9 @@ export function CampaignHeader({ sessionNumber, activeTab, onTabChange }: Campai
 
   return (
     <nav className="flex items-center h-14 px-4 bg-[#0D1117] border-b border-white/[0.07] sticky top-0 z-50 gap-4">
-      {/* Left: Back link */}
-      <Link
-        to="/campaigns"
-        className="font-sans font-semibold text-xs text-slate-400 hover:text-white transition-colors whitespace-nowrap"
-        aria-label="Back to campaigns"
-      >
-        ← Back
-      </Link>
+      <span className="font-sans font-semibold text-xs text-white tracking-widest whitespace-nowrap">
+        Cartyx
+      </span>
 
       {/* Left-center: Session number */}
       {sessionNumber !== undefined && (
@@ -74,7 +68,7 @@ export function CampaignHeader({ sessionNumber, activeTab, onTabChange }: Campai
           🔔
         </button>
 
-        <UserMenu />
+        <UserMenu contextualAction={{ label: 'Close Campaign', to: '/campaigns' }} />
       </div>
     </nav>
   )
