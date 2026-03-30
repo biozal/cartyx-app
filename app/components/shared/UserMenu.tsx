@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { faArrowRightFromBracket, faGear } from '@fortawesome/pro-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { Link } from '@tanstack/react-router'
+import { Link, type LinkProps } from '@tanstack/react-router'
 import { useAuth } from '~/hooks/useAuth'
 
 interface UserMenuAction {
   label: string
-  to: string
+  to: LinkProps['to']
 }
 
 interface UserMenuProps {
