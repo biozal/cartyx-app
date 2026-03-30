@@ -115,11 +115,12 @@ describe('CampaignHeader', () => {
     expect(screen.queryByTestId('session-number')).not.toBeInTheDocument()
   })
 
-  it('renders back link', () => {
+  it('renders the static Cartyx product name instead of a back link', () => {
     render(
       <CampaignHeader activeTab="dashboard" onTabChange={vi.fn()} />
     )
-    expect(screen.getByRole('link', { name: 'Back to campaigns' })).toBeInTheDocument()
+    expect(screen.getByText('Cartyx')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Back to campaigns' })).not.toBeInTheDocument()
   })
 
   it('opens and closes user menu', () => {
@@ -131,7 +132,9 @@ describe('CampaignHeader', () => {
 
     fireEvent.click(menuButton)
     expect(menuButton).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByText('🚪 Sign Out')).toBeInTheDocument()
+    expect(screen.getByText('Close Campaign')).toBeInTheDocument()
+    expect(screen.getByText('User Profile information')).toBeInTheDocument()
+    expect(screen.getByText('Sign Out')).toBeInTheDocument()
 
     fireEvent.click(menuButton)
     expect(menuButton).toHaveAttribute('aria-expanded', 'false')
@@ -142,7 +145,7 @@ describe('CampaignHeader', () => {
       <CampaignHeader activeTab="dashboard" onTabChange={vi.fn()} />
     )
     fireEvent.click(screen.getByRole('button', { name: /User menu for/ }))
-    fireEvent.click(screen.getByText('🚪 Sign Out'))
+    fireEvent.click(screen.getByText('Sign Out'))
     expect(mockLogout).toHaveBeenCalled()
   })
 })
