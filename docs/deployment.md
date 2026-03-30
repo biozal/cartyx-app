@@ -321,7 +321,7 @@ git push origin dev
 | `CDN_URL` | `https://cdn-dev.cartyx.io` |
 | `POSTHOG_KEY` | dev PostHog project API key (or same as prod) |
 
-### PostHog (Optional)
+### PostHog Analytics and Feature Flags (Optional)
 
 | Variable | Description |
 |---|---|
@@ -329,6 +329,8 @@ git push origin dev
 | `VITE_PUBLIC_POSTHOG_HOST` | PostHog host (default: `https://app.posthog.com`) |
 | `POSTHOG_KEY` | Server-side PostHog project key |
 | `POSTHOG_HOST` | Server-side PostHog host |
+
+Client-side feature flags use the same `VITE_PUBLIC_POSTHOG_*` variables as analytics. When a user signs in or out, the app refreshes their PostHog identity so person-targeted flags update without a redeploy.
 
 ### Local Development Only
 
