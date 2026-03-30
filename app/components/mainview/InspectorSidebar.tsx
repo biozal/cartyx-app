@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import { ChatPanel } from './ChatPanel'
 import { NotepadPanel } from './NotepadPanel'
@@ -7,6 +7,7 @@ import { WikiPanel } from './WikiPanel'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faMessage, faBook, faNoteSticky, faGear } from '@fortawesome/pro-solid-svg-icons'
 import { ChevronRight } from 'lucide-react'
+import { useOptionalFeatureFlagEnabled } from '~/utils/featureFlags'
 
 export type InspectorTab = 'chat' | 'wiki' | 'notepad' | 'settings'
 
@@ -15,7 +16,7 @@ export interface InspectorSidebarProps {
   onMobileClose?: () => void
 }
 
-const tabs: { id: InspectorTab; icon: IconDefinition; label: string }[] = [
+const ALL_TABS: { id: InspectorTab; icon: IconDefinition; label: string }[] = [
   { id: 'chat', icon: faMessage, label: 'Chat' },
   { id: 'wiki', icon: faBook, label: 'Wiki' },
   { id: 'notepad', icon: faNoteSticky, label: 'Notepad' },
@@ -31,8 +32,36 @@ function panelId(id: InspectorTab) {
 }
 
 export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: InspectorSidebarProps) {
-  const [activeTab, setActiveTab] = useState<InspectorTab>(defaultTab)
+  const chatFlagName = import.meta.env.VITE_PUBLIC_FF_CHAT ?? ''
+  const notepadFlagName = import.meta.env.VITE_PUBLIC_FF_NOTEPAD ?? ''
+  const settingsFlagName = import.meta.env.VITE_PUBLIC_FF_SETTINGS ?? ''
+
+  const chatEnabled = useOptionalFeatureFlagEnabled(chatFlagName)
+  const notepadEnabled = useOptionalFeatureFlagEnabled(notepadFlagName)
+  const settingsEnabled = useOptionalFeatureFlagEnabled(settingsFlagName)
+
+  const tabs = useMemo(() => ALL_TABS.filter(tab => {
+    if (tab.id === 'chat') return chatEnabled
+    if (tab.id === 'notepad') return notepadEnabled
+    if (tab.id === 'settings') return settingsEnabled
+    return true // wiki is always visible
+  }), [chatEnabled, notepadEnabled, settingsEnabled])
+
+  const initialTab = tabs.some(t => t.id === defaultTab) ? defaultTab : 'wiki'
+  const [activeTab, setActiveTab] = useState<InspectorTab>(initialTab)
+  const hasInteracted = useRef(false)
   const tablistRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!tabs.some(t => t.id === activeTab)) {
+      // Active tab became unavailable (flag disabled) — fall back to wiki
+      setActiveTab('wiki')
+    } else if (!hasInteracted.current && activeTab !== defaultTab && tabs.some(t => t.id === defaultTab)) {
+      // Flags finished loading and defaultTab is now available; restore it
+      // only if the user has not manually navigated away
+      setActiveTab(defaultTab)
+    }
+  }, [tabs, activeTab, defaultTab])
 
   function handleKeyDown(e: React.KeyboardEvent) {
     const currentIndex = tabs.findIndex(t => t.id === activeTab)
@@ -54,6 +83,7 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
       return
     }
 
+    hasInteracted.current = true
     setActiveTab(tabs[nextIndex].id)
     const buttons = tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
     buttons?.[nextIndex]?.focus()
@@ -83,7 +113,7 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
                 aria-label={tab.label}
                 tabIndex={isActive ? 0 : -1}
                 data-testid={tabId(tab.id)}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => { hasInteracted.current = true; setActiveTab(tab.id) }}
                 className={[
                   'flex flex-1 items-center justify-center text-base transition-colors relative',
                   isActive
