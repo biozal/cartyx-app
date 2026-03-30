@@ -87,6 +87,12 @@ export function CatchUpWidget({
                 data-testid="catchup-markdown"
                 className="w-full prose prose-invert max-w-none
                   prose-headings:text-slate-200 prose-headings:font-pixel
+                  prose-h1:mb-2 prose-h1:mt-4 prose-h1:text-2xl prose-h1:font-bold prose-h1:text-primary
+                  prose-h2:mb-2 prose-h2:mt-4 prose-h2:text-xl prose-h2:font-bold prose-h2:text-primary
+                  prose-h3:mb-1 prose-h3:mt-3 prose-h3:text-lg prose-h3:font-semibold
+                  prose-h4:mb-1 prose-h4:mt-3 prose-h4:text-base prose-h4:font-semibold
+                  prose-h5:mb-1 prose-h5:mt-3 prose-h5:text-sm prose-h5:font-semibold
+                  prose-h6:mb-1 prose-h6:mt-3 prose-h6:text-sm
                   prose-p:text-slate-400
                   prose-strong:text-slate-300
                   prose-a:text-blue-brand
@@ -96,16 +102,7 @@ export function CatchUpWidget({
                   prose-code:text-slate-300
                   text-xs"
               >
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    h1: ({ node: _node, ...props }) => <h3 {...props} />,
-                    h2: ({ node: _node, ...props }) => <h4 {...props} />,
-                    h3: ({ node: _node, ...props }) => <h5 {...props} />,
-                  }}
-                >
-                  {markdownContent}
-                </ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdownContent}</ReactMarkdown>
               </div>
             ) : (
               <p className="font-pixel text-xs text-slate-500">No catch-up content available</p>
