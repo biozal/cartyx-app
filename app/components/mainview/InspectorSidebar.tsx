@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import { ChatPanel } from './ChatPanel'
 import { NotepadPanel } from './NotepadPanel'
@@ -7,7 +7,7 @@ import { WikiPanel } from './WikiPanel'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faMessage, faBook, faNoteSticky, faGear } from '@fortawesome/pro-solid-svg-icons'
 import { ChevronRight } from 'lucide-react'
-import { useFeatureFlagEnabled } from '~/utils/featureFlags'
+import { useOptionalFeatureFlagEnabled } from '~/utils/featureFlags'
 
 export type InspectorTab = 'chat' | 'wiki' | 'notepad' | 'settings'
 
@@ -36,16 +36,16 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
   const notepadFlagName = import.meta.env.VITE_PUBLIC_FF_NOTEPAD ?? ''
   const settingsFlagName = import.meta.env.VITE_PUBLIC_FF_SETTINGS ?? ''
 
-  const chatEnabled = useFeatureFlagEnabled(chatFlagName)
-  const notepadEnabled = useFeatureFlagEnabled(notepadFlagName)
-  const settingsEnabled = useFeatureFlagEnabled(settingsFlagName)
+  const chatEnabled = useOptionalFeatureFlagEnabled(chatFlagName)
+  const notepadEnabled = useOptionalFeatureFlagEnabled(notepadFlagName)
+  const settingsEnabled = useOptionalFeatureFlagEnabled(settingsFlagName)
 
-  const tabs = ALL_TABS.filter(tab => {
+  const tabs = useMemo(() => ALL_TABS.filter(tab => {
     if (tab.id === 'chat') return chatEnabled
     if (tab.id === 'notepad') return notepadEnabled
     if (tab.id === 'settings') return settingsEnabled
     return true // wiki is always visible
-  })
+  }), [chatEnabled, notepadEnabled, settingsEnabled])
 
   const initialTab = tabs.some(t => t.id === defaultTab) ? defaultTab : 'wiki'
   const [activeTab, setActiveTab] = useState<InspectorTab>(initialTab)
@@ -56,7 +56,7 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
     if (!tabs.some(t => t.id === activeTab)) {
       setActiveTab('wiki')
     }
-  }, [chatEnabled, notepadEnabled, settingsEnabled])
+  }, [tabs, activeTab])
 
   function handleKeyDown(e: React.KeyboardEvent) {
     const currentIndex = tabs.findIndex(t => t.id === activeTab)

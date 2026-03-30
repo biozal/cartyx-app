@@ -19,7 +19,7 @@ const enabledFlags = new Set<string>([
 ])
 
 vi.mock('~/utils/featureFlags', () => ({
-  useFeatureFlagEnabled: (flag: string) => enabledFlags.has(flag),
+  useOptionalFeatureFlagEnabled: (flag: string) => Boolean(flag) && enabledFlags.has(flag),
 }))
 
 beforeEach(() => {

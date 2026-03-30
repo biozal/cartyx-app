@@ -34,6 +34,13 @@ export function useFeatureFlagEnabled(flag: string): boolean {
   return usePostHogFeatureFlagEnabled(flag) ?? false
 }
 
+// Like useFeatureFlagEnabled but returns false immediately when flag name is
+// empty (i.e. the env var is unset), without querying PostHog for an empty key.
+export function useOptionalFeatureFlagEnabled(flag: string): boolean {
+  const enabled = usePostHogFeatureFlagEnabled(flag)
+  return Boolean(flag) && (enabled ?? false)
+}
+
 export function useFeatureFlagPayload<TPayload = JsonType>(flag: string): TPayload | null {
   return normalizePayload<TPayload>(usePostHogFeatureFlagPayload(flag))
 }
