@@ -67,7 +67,7 @@ export function SessionsListWidget({ sessions, className = '' }: SessionsListWid
               />
               <p className="font-sans font-semibold text-xs text-on-surface-variant">Session {session.number}</p>
               <h3 className="font-sans font-semibold text-sm font-bold text-primary truncate mt-1">{session.name}</h3>
-              <p className="text-[0.6rem] text-on-surface-variant/60 uppercase font-label mt-1">{session.date}</p>
+              <p className="text-[0.6rem] text-on-surface-variant/60 uppercase font-sans mt-1">{session.date}</p>
             </article>
           ))}
         </div>

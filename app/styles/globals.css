@@ -2,7 +2,6 @@
 @import "tailwindcss";
 
 @theme {
-  --font-pixel: 'Open Sans', system-ui, sans-serif;
   --font-sans: 'Open Sans', system-ui, sans-serif;
   --color-bg: #080A12;
   --color-surface: #0D1117;

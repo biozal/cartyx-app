@@ -40,7 +40,7 @@ describe('CatchUpWidget', () => {
     expect(screen.getByText(/Where We Left Off/)).toBeInTheDocument()
   })
 
-  it('keeps the empty state on the pixel font styling', () => {
+  it('renders with Open Sans heading styles in the empty state', () => {
     render(
       <CatchUpWidget
         content={{ ...mockCatchUpContent, content: '' }}

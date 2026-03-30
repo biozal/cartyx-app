@@ -86,7 +86,7 @@ export function CatchUpWidget({
               <div
                 data-testid="catchup-markdown"
                 className="w-full prose prose-invert max-w-none
-                  prose-headings:text-slate-200 prose-headings:font-sans font-semibold
+                  prose-headings:text-slate-200 prose-headings:font-sans prose-headings:font-semibold
                   prose-h1:mb-2 prose-h1:mt-4 prose-h1:text-2xl prose-h1:font-bold prose-h1:text-primary
                   prose-h2:mb-2 prose-h2:mt-4 prose-h2:text-xl prose-h2:font-bold prose-h2:text-primary
                   prose-h3:mb-1 prose-h3:mt-3 prose-h3:text-lg prose-h3:font-semibold
