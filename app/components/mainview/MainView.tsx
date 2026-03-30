@@ -41,9 +41,10 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
   const drawerRef = useRef<HTMLDivElement>(null)
 
   const drawerOpen = showInspector && mobileInspectorOpen
-  const isInspectorOpen = isDesktop ? inspectorVisible : mobileInspectorOpen
-  const inspectorToggleLabel = isInspectorOpen ? 'Close inspector' : 'Open inspector'
-  const inspectorToggleIconClass = `inline-flex transition-transform duration-200 ${isInspectorOpen ? 'rotate-180' : 'rotate-0'}`
+  const desktopInspectorToggleLabel = inspectorVisible ? 'Close inspector' : 'Open inspector'
+  const mobileInspectorToggleLabel = mobileInspectorOpen ? 'Close inspector' : 'Open inspector'
+  const desktopInspectorToggleIconClass = `inline-flex transition-transform duration-200 ${inspectorVisible ? 'rotate-180' : 'rotate-0'}`
+  const mobileInspectorToggleIconClass = `inline-flex transition-transform duration-200 ${mobileInspectorOpen ? 'rotate-180' : 'rotate-0'}`
 
   // Focus the drawer and attach Escape-to-close while open
   useEffect(() => {
@@ -105,30 +106,30 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
       </div>
 
       {/* Desktop inspector shell — animate width like the toolbar collapse rail */}
-      {showInspector && isDesktop && (
+      {showInspector && (
         <div
           data-testid="desktop-inspector-shell"
-          className={`relative flex-shrink-0 transition-[width] duration-200 ${inspectorVisible ? 'w-80' : 'w-0'}`}
+          className={`relative hidden w-0 flex-shrink-0 transition-[width] duration-200 lg:block ${inspectorVisible ? 'lg:w-80' : 'lg:w-0'}`}
         >
           <button
             type="button"
-            aria-label={inspectorToggleLabel}
-            aria-expanded={isInspectorOpen}
-            aria-controls="mainview-inspector"
-            data-testid="inspector-toggle"
+            aria-label={desktopInspectorToggleLabel}
+            aria-expanded={inspectorVisible}
+            aria-controls="mainview-inspector-desktop"
+            data-testid="desktop-inspector-toggle"
             onClick={handleInspectorToggle}
-            title={inspectorToggleLabel}
+            title={desktopInspectorToggleLabel}
             className="absolute left-0 top-1/2 z-10 flex h-12 w-6 -translate-x-full -translate-y-1/2 items-center justify-center rounded-l border border-r-0 border-white/[0.07] bg-[#0D1117] text-slate-400 transition-colors hover:text-slate-200"
           >
-            <span data-testid="inspector-toggle-icon" className={inspectorToggleIconClass}>
+            <span data-testid="desktop-inspector-toggle-icon" className={desktopInspectorToggleIconClass}>
               <ChevronLeft size={14} />
             </span>
           </button>
 
           <div
-            id="mainview-inspector"
-            data-testid="mainview-inspector"
-            className={`h-full w-80 overflow-hidden bg-[#0D1117] ${inspectorVisible ? 'flex border-l border-white/[0.07]' : 'hidden'}`}
+            id="mainview-inspector-desktop"
+            data-testid="desktop-inspector"
+            className={`h-full w-80 overflow-hidden bg-[#0D1117] ${inspectorVisible ? 'flex border-l border-white/[0.07]' : 'hidden lg:hidden'}`}
           >
             <InspectorSidebar />
           </div>
@@ -136,25 +137,25 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
       )}
 
       {/* Mobile inspector toggle — remains a floating drawer control */}
-      {showInspector && !isDesktop && (
+      {showInspector && (
         <button
           type="button"
-          aria-label={inspectorToggleLabel}
-          aria-expanded={isInspectorOpen}
-          aria-controls="mainview-inspector"
-          data-testid="inspector-toggle"
+          aria-label={mobileInspectorToggleLabel}
+          aria-expanded={mobileInspectorOpen}
+          aria-controls="mainview-inspector-mobile"
+          data-testid="mobile-inspector-toggle"
           onClick={handleInspectorToggle}
-          title={inspectorToggleLabel}
-          className="fixed right-0 top-1/2 -translate-y-1/2 z-[60] flex items-center justify-center h-12 w-6 rounded-l bg-[#0D1117] border border-r-0 border-white/[0.07] text-slate-400 hover:text-slate-200 transition-colors"
+          title={mobileInspectorToggleLabel}
+          className="fixed right-0 top-1/2 -translate-y-1/2 z-[60] flex h-12 w-6 items-center justify-center rounded-l border border-r-0 border-white/[0.07] bg-[#0D1117] text-slate-400 transition-colors hover:text-slate-200 lg:hidden"
         >
-          <span data-testid="inspector-toggle-icon" className={inspectorToggleIconClass}>
+          <span data-testid="mobile-inspector-toggle-icon" className={mobileInspectorToggleIconClass}>
             <ChevronLeft size={14} />
           </span>
         </button>
       )}
 
       {/* Mobile inspector backdrop — tapping outside closes the drawer */}
-      {!isDesktop && drawerOpen && (
+      {drawerOpen && (
         <div
           aria-hidden="true"
           data-testid="mobile-inspector-backdrop"
@@ -164,20 +165,18 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
       )}
 
       {/* Inspector — single instance, overlay drawer on mobile when open, inline on lg+ */}
-      {!isDesktop && (
+      {showInspector && (
         <div
           ref={drawerRef}
-          id="mainview-inspector"
-          data-testid="mainview-inspector"
+          id="mainview-inspector-mobile"
+          data-testid="mobile-inspector"
           role={drawerOpen ? 'dialog' : undefined}
           aria-modal={drawerOpen ? true : undefined}
           aria-label={drawerOpen ? 'Inspector' : undefined}
           tabIndex={drawerOpen ? -1 : undefined}
-          className={mobileInspectorClass}
+          className={`${mobileInspectorClass} lg:hidden`}
         >
-          {showInspector && (
-            <InspectorSidebar onMobileClose={() => setMobileInspectorOpen(false)} />
-          )}
+          <InspectorSidebar onMobileClose={() => setMobileInspectorOpen(false)} />
         </div>
       )}
     </div>

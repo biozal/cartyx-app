@@ -66,7 +66,7 @@ describe('MainView', () => {
         <div>Content</div>
       </MainView>
     )
-    const inspector = screen.getByTestId('mainview-inspector')
+    const inspector = screen.getByTestId('mobile-inspector')
     expect(inspector).toHaveClass('hidden')
     expect(inspector).not.toHaveAttribute('role', 'dialog')
   })
@@ -77,9 +77,8 @@ describe('MainView', () => {
         <div>Content</div>
       </MainView>
     )
-    const inspector = screen.getByTestId('mainview-inspector')
-    expect(inspector).toHaveClass('hidden')
-    expect(inspector).not.toHaveClass('lg:w-80')
+    expect(screen.queryByTestId('mobile-inspector')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('desktop-inspector-shell')).not.toBeInTheDocument()
   })
 
   it('hides both sidebars when both props are false', () => {
@@ -89,9 +88,8 @@ describe('MainView', () => {
       </MainView>
     )
     expect(screen.getByTestId('mainview-toolbar')).toHaveClass('w-0')
-    const inspector = screen.getByTestId('mainview-inspector')
-    expect(inspector).toHaveClass('hidden')
-    expect(inspector).not.toHaveClass('lg:w-80')
+    expect(screen.queryByTestId('mobile-inspector')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('desktop-inspector-shell')).not.toBeInTheDocument()
   })
 
   it('toolbar toggle is not in DOM when showToolbar is false', () => {
@@ -146,7 +144,7 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      expect(screen.getByTestId('inspector-toggle')).toBeInTheDocument()
+      expect(screen.getByTestId('mobile-inspector-toggle')).toBeInTheDocument()
     })
 
     it('inspector toggle has aria-label "Open inspector" initially', () => {
@@ -164,7 +162,7 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      expect(screen.queryByTestId('inspector-toggle')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('mobile-inspector-toggle')).not.toBeInTheDocument()
     })
 
     it('mobile drawer is hidden by default (no dialog role)', () => {
@@ -173,7 +171,7 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      const inspector = screen.getByTestId('mainview-inspector')
+      const inspector = screen.getByTestId('mobile-inspector')
       expect(inspector).not.toHaveAttribute('role', 'dialog')
     })
 
@@ -184,8 +182,8 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      await user.click(screen.getByTestId('inspector-toggle'))
-      expect(screen.getByTestId('mainview-inspector')).toHaveAttribute('role', 'dialog')
+      await user.click(screen.getByTestId('mobile-inspector-toggle'))
+      expect(screen.getByTestId('mobile-inspector')).toHaveAttribute('role', 'dialog')
     })
 
     it('toggle button remains visible and marks aria-expanded after click', async () => {
@@ -195,11 +193,11 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      const toggle = screen.getByTestId('inspector-toggle')
+      const toggle = screen.getByTestId('mobile-inspector-toggle')
       expect(toggle).toHaveAttribute('aria-expanded', 'false')
       await user.click(toggle)
-      expect(screen.getByTestId('inspector-toggle')).toBeInTheDocument()
-      expect(screen.getByTestId('inspector-toggle')).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByTestId('mobile-inspector-toggle')).toBeInTheDocument()
+      expect(screen.getByTestId('mobile-inspector-toggle')).toHaveAttribute('aria-expanded', 'true')
     })
 
     it('mobile toggle chevron rotates between closed and open states', async () => {
@@ -209,11 +207,11 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      const icon = screen.getByTestId('inspector-toggle-icon')
+      const icon = screen.getByTestId('mobile-inspector-toggle-icon')
       expect(icon).toHaveClass('rotate-0')
 
-      await user.click(screen.getByTestId('inspector-toggle'))
-      expect(screen.getByTestId('inspector-toggle-icon')).toHaveClass('rotate-180')
+      await user.click(screen.getByTestId('mobile-inspector-toggle'))
+      expect(screen.getByTestId('mobile-inspector-toggle-icon')).toHaveClass('rotate-180')
     })
 
     it('drawer shows backdrop when open on mobile', async () => {
@@ -223,7 +221,7 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      await user.click(screen.getByTestId('inspector-toggle'))
+      await user.click(screen.getByTestId('mobile-inspector-toggle'))
       expect(screen.getByTestId('mobile-inspector-backdrop')).toBeInTheDocument()
     })
 
@@ -234,9 +232,9 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      await user.click(screen.getByTestId('inspector-toggle'))
+      await user.click(screen.getByTestId('mobile-inspector-toggle'))
       await user.click(screen.getByTestId('mobile-inspector-backdrop'))
-      expect(screen.getByTestId('mainview-inspector')).not.toHaveAttribute('role', 'dialog')
+      expect(screen.getByTestId('mobile-inspector')).not.toHaveAttribute('role', 'dialog')
     })
 
     it('pressing Escape while drawer is open closes the drawer', async () => {
@@ -246,10 +244,10 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      await user.click(screen.getByTestId('inspector-toggle'))
-      expect(screen.getByTestId('mainview-inspector')).toHaveAttribute('role', 'dialog')
+      await user.click(screen.getByTestId('mobile-inspector-toggle'))
+      expect(screen.getByTestId('mobile-inspector')).toHaveAttribute('role', 'dialog')
       await user.keyboard('{Escape}')
-      expect(screen.getByTestId('mainview-inspector')).not.toHaveAttribute('role', 'dialog')
+      expect(screen.getByTestId('mobile-inspector')).not.toHaveAttribute('role', 'dialog')
     })
 
     it('clicking close button inside drawer closes it', async () => {
@@ -259,10 +257,10 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      await user.click(screen.getByTestId('inspector-toggle'))
-      expect(screen.getByTestId('mainview-inspector')).toHaveAttribute('role', 'dialog')
+      await user.click(screen.getByTestId('mobile-inspector-toggle'))
+      expect(screen.getByTestId('mobile-inspector')).toHaveAttribute('role', 'dialog')
       await user.click(screen.getByTestId('mobile-inspector-close'))
-      expect(screen.getByTestId('mainview-inspector')).not.toHaveAttribute('role', 'dialog')
+      expect(screen.getByTestId('mobile-inspector')).not.toHaveAttribute('role', 'dialog')
     })
   })
 
@@ -278,8 +276,8 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      expect(screen.getByTestId('desktop-inspector-shell')).toHaveClass('w-80')
-      const inspector = screen.getByTestId('mainview-inspector')
+      expect(screen.getByTestId('desktop-inspector-shell')).toHaveClass('lg:w-80')
+      const inspector = screen.getByTestId('desktop-inspector')
       expect(inspector).toHaveClass('w-80')
     })
 
@@ -291,12 +289,12 @@ describe('MainView', () => {
         </MainView>
       )
       const shell = screen.getByTestId('desktop-inspector-shell')
-      const inspector = screen.getByTestId('mainview-inspector')
-      expect(shell).toHaveClass('w-80')
+      const inspector = screen.getByTestId('desktop-inspector')
+      expect(shell).toHaveClass('lg:w-80')
       expect(inspector).not.toHaveClass('hidden')
 
-      await user.click(screen.getByTestId('inspector-toggle'))
-      expect(shell).toHaveClass('w-0')
+      await user.click(screen.getByTestId('desktop-inspector-toggle'))
+      expect(shell).toHaveClass('lg:w-0')
       expect(inspector).toHaveClass('hidden')
     })
 
@@ -307,7 +305,7 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      const toggle = screen.getByTestId('inspector-toggle')
+      const toggle = screen.getByTestId('desktop-inspector-toggle')
       // Inspector visible by default on desktop → aria-expanded="true"
       expect(toggle).toHaveAttribute('aria-expanded', 'true')
 
@@ -322,8 +320,8 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      await user.click(screen.getByTestId('inspector-toggle'))
-      expect(screen.getByTestId('mainview-inspector')).not.toHaveAttribute('role', 'dialog')
+      await user.click(screen.getByTestId('desktop-inspector-toggle'))
+      expect(screen.getByTestId('desktop-inspector')).not.toHaveAttribute('role', 'dialog')
     })
 
     it('on desktop, clicking toggle twice restores inspector visibility', async () => {
@@ -333,11 +331,11 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      const toggle = screen.getByTestId('inspector-toggle')
+      const toggle = screen.getByTestId('desktop-inspector-toggle')
       await user.click(toggle)
       await user.click(toggle)
-      expect(screen.getByTestId('desktop-inspector-shell')).toHaveClass('w-80')
-      expect(screen.getByTestId('mainview-inspector')).toHaveClass('w-80')
+      expect(screen.getByTestId('desktop-inspector-shell')).toHaveClass('lg:w-80')
+      expect(screen.getByTestId('desktop-inspector')).toHaveClass('w-80')
     })
 
     it('on desktop, the toggle sits on the left edge of the inspector shell', () => {
@@ -346,7 +344,7 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      expect(screen.getByTestId('inspector-toggle')).toHaveClass('absolute', 'left-0', '-translate-x-full')
+      expect(screen.getByTestId('desktop-inspector-toggle')).toHaveClass('absolute', 'left-0', '-translate-x-full')
     })
 
     it('on desktop, the chevron rotates to reflect the open state', async () => {
@@ -356,11 +354,11 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      const icon = screen.getByTestId('inspector-toggle-icon')
+      const icon = screen.getByTestId('desktop-inspector-toggle-icon')
       expect(icon).toHaveClass('rotate-180')
 
-      await user.click(screen.getByTestId('inspector-toggle'))
-      expect(screen.getByTestId('inspector-toggle-icon')).toHaveClass('rotate-0')
+      await user.click(screen.getByTestId('desktop-inspector-toggle'))
+      expect(screen.getByTestId('desktop-inspector-toggle-icon')).toHaveClass('rotate-0')
     })
   })
 })
