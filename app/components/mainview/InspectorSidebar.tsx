@@ -60,7 +60,7 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#0D1117]">
+    <div className="flex flex-col h-full w-full bg-[#0D1117]">
       {/* Tab bar */}
       <div className="flex h-12 border-b border-white/[0.07] flex-shrink-0">
         <div
@@ -121,7 +121,7 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
             role="tabpanel"
             aria-labelledby={tabId(tab.id)}
             hidden={!isActive}
-            className="flex flex-1"
+            className="flex flex-1 w-full"
           >
             {tab.id === 'chat' ? (
               <ChatPanel />

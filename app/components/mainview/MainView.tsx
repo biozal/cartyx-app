@@ -16,6 +16,8 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
   const [activeTool, setActiveTool] = useState<ToolType>('pointer')
   const [toolbarCollapsed, setToolbarCollapsed] = useState(false)
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false)
+  const [inspectorVisible, setInspectorVisible] = useState(true)
+  const [isDesktop, setIsDesktop] = useState(false)
   const drawerRef = useRef<HTMLDivElement>(null)
 
   const drawerOpen = showInspector && mobileInspectorOpen
@@ -34,15 +36,42 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [drawerOpen])
 
-  // Reset drawer when viewport grows to lg+ so the inspector reverts to inline panel
+  // Track desktop breakpoint; reset mobile drawer when viewport grows to lg+
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)')
+    setIsDesktop(mq.matches)
     const handleChange = (e: MediaQueryListEvent) => {
+      setIsDesktop(e.matches)
       if (e.matches) setMobileInspectorOpen(false)
     }
     mq.addEventListener('change', handleChange)
     return () => mq.removeEventListener('change', handleChange)
   }, [])
+
+  const handleInspectorToggle = () => {
+    if (isDesktop) {
+      setInspectorVisible(v => !v)
+    } else {
+      setMobileInspectorOpen(o => !o)
+    }
+  }
+
+  // Reflects whether the inspector is currently accessible in the active viewport context
+  const isInspectorOpen = isDesktop ? inspectorVisible : mobileInspectorOpen
+
+  const inspectorClass = (() => {
+    if (!showInspector) return 'hidden'
+
+    const mobileBase = drawerOpen
+      ? 'fixed inset-y-0 right-0 w-80 z-50 flex border-l border-white/[0.07]'
+      : 'hidden'
+
+    const desktopOverride = inspectorVisible
+      ? 'lg:relative lg:inset-auto lg:z-auto lg:flex lg:flex-shrink-0 lg:overflow-hidden lg:w-80 lg:border-l lg:border-white/[0.07]'
+      : 'lg:hidden'
+
+    return `${mobileBase} ${desktopOverride}`
+  })()
 
   return (
     <div className={`flex h-full bg-[#080A12] overflow-hidden ${className}`}>
@@ -72,16 +101,16 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
         {children}
       </div>
 
-      {/* Mobile inspector toggle — always rendered on mobile when inspector is available so it can toggle open/close */}
+      {/* Inspector toggle — visible at all screen sizes */}
       {showInspector && (
         <button
           type="button"
-          aria-label={mobileInspectorOpen ? 'Close inspector' : 'Open inspector'}
-          aria-expanded={mobileInspectorOpen}
+          aria-label={isInspectorOpen ? 'Close inspector' : 'Open inspector'}
+          aria-expanded={isInspectorOpen}
           aria-controls="mainview-inspector"
-          data-testid="mobile-inspector-toggle"
-          onClick={() => setMobileInspectorOpen(o => !o)}
-          className="lg:hidden fixed right-0 top-1/2 -translate-y-1/2 z-60 flex items-center justify-center h-12 w-6 rounded-l bg-[#0D1117] border border-r-0 border-white/[0.07] text-slate-400 hover:text-slate-200 transition-colors"
+          data-testid="inspector-toggle"
+          onClick={handleInspectorToggle}
+          className="fixed right-0 top-1/2 -translate-y-1/2 z-60 flex items-center justify-center h-12 w-6 rounded-l bg-[#0D1117] border border-r-0 border-white/[0.07] text-slate-400 hover:text-slate-200 transition-colors"
         >
           <ChevronLeft size={14} />
         </button>
@@ -97,9 +126,7 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
         />
       )}
 
-      {/* Inspector — single instance, inline on lg+, overlay drawer on mobile when open.
-          lg: overrides on the drawerOpen branch ensure viewport resize back to lg+ snaps
-          the panel back to inline flow rather than staying fixed. */}
+      {/* Inspector — single instance, overlay drawer on mobile when open, inline on lg+ */}
       <div
         ref={drawerRef}
         id="mainview-inspector"
@@ -108,13 +135,7 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
         aria-modal={drawerOpen ? true : undefined}
         aria-label={drawerOpen ? 'Inspector' : undefined}
         tabIndex={drawerOpen ? -1 : undefined}
-        className={
-          showInspector
-            ? drawerOpen
-              ? 'fixed inset-y-0 right-0 w-80 z-50 flex border-l border-white/[0.07] lg:relative lg:inset-auto lg:z-auto lg:flex-shrink-0 lg:overflow-hidden lg:translate-x-0'
-              : 'hidden lg:flex flex-shrink-0 overflow-hidden transition-all duration-200 lg:w-80 border-l border-white/[0.07]'
-            : 'hidden lg:flex flex-shrink-0 overflow-hidden transition-all duration-200 lg:w-0'
-        }
+        className={inspectorClass}
       >
         {showInspector && (
           <InspectorSidebar onMobileClose={() => setMobileInspectorOpen(false)} />
