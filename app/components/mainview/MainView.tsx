@@ -34,6 +34,16 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [drawerOpen])
 
+  // Reset drawer when viewport grows to lg+ so the inspector reverts to inline panel
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const handleChange = (e: MediaQueryListEvent) => {
+      if (e.matches) setMobileInspectorOpen(false)
+    }
+    mq.addEventListener('change', handleChange)
+    return () => mq.removeEventListener('change', handleChange)
+  }, [])
+
   return (
     <div className={`flex h-full bg-[#080A12] overflow-hidden ${className}`}>
       {/* Left column — Toolbar */}
@@ -71,7 +81,7 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
           aria-controls="mainview-inspector"
           data-testid="mobile-inspector-toggle"
           onClick={() => setMobileInspectorOpen(o => !o)}
-          className="lg:hidden fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center h-12 w-6 rounded-l bg-[#0D1117] border border-r-0 border-white/[0.07] text-slate-400 hover:text-slate-200 transition-colors"
+          className="lg:hidden fixed right-0 top-1/2 -translate-y-1/2 z-60 flex items-center justify-center h-12 w-6 rounded-l bg-[#0D1117] border border-r-0 border-white/[0.07] text-slate-400 hover:text-slate-200 transition-colors"
         >
           <ChevronLeft size={14} />
         </button>
