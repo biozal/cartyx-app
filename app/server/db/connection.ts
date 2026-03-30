@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { bootstrapDB } from './bootstrap'
 import { serverCaptureException } from '../utils/posthog'
 
 export async function connectDB(): Promise<void> {
@@ -10,6 +11,7 @@ export async function connectDB(): Promise<void> {
 
   try {
     await mongoose.connect(uri)
+    await bootstrapDB()
   } catch (e) {
     serverCaptureException(e, undefined, { action: 'connectDB' })
     throw e
