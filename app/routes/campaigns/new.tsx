@@ -165,7 +165,8 @@ function NewCampaignPage() {
                         <>
                           <div className="text-3xl mb-2">🖼</div>
                           <div className="text-sm text-slate-500">Click to upload a banner image</div>
-                          <div className="text-xs text-slate-700 mt-1">PNG, JPG, WebP up to 10MB · GIF up to 3MB</div>
+                          <div className="text-xs text-slate-600 mt-1 mb-0.5">Recommended: 1200 × 400px or larger</div>
+                          <div className="text-xs text-slate-700">PNG, JPG, WebP up to 10MB · GIF up to 3MB</div>
                         </>
                       )}
                     </div>
