@@ -49,7 +49,8 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
   }, [])
 
   const handleInspectorToggle = () => {
-    if (isDesktop) {
+    const isDesktopNow = window.matchMedia('(min-width: 1024px)').matches
+    if (isDesktopNow) {
       setInspectorVisible(v => !v)
     } else {
       setMobileInspectorOpen(o => !o)
