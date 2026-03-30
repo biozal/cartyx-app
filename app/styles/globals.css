@@ -4,7 +4,6 @@
 
 @theme {
   --font-pixel: 'Press Start 2P', monospace;
-  --font-body: 'Inter', system-ui, sans-serif;
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-label: 'Inter', system-ui, sans-serif;
   --color-bg: #080A12;

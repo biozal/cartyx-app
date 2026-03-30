@@ -14,7 +14,7 @@ describe('CatchUpWidget', () => {
     render(<CatchUpWidget content={mockCatchUpContent} />)
     const heading = await screen.findByRole('heading', { name: /Session 14/ })
     expect(heading).toBeInTheDocument()
-    expect(heading.tagName).toBe('H1')
+    expect(heading.tagName).toBe('H3')
   })
 
   it('renders GFM table from markdown', async () => {
@@ -39,6 +39,16 @@ describe('CatchUpWidget', () => {
     expect(markdownDiv).toHaveClass('max-w-none')
     expect(markdownDiv).not.toHaveClass('max-w-3xl')
     expect(screen.getByText(/Where We Left Off/)).toBeInTheDocument()
+  })
+
+  it('keeps the empty state on the pixel font styling', () => {
+    render(
+      <CatchUpWidget
+        content={{ ...mockCatchUpContent, content: '' }}
+      />
+    )
+
+    expect(screen.getByText('No catch-up content available')).toHaveClass('font-pixel', 'text-xs')
   })
 
   it('renders FontAwesome icons and not literal Material icon names', () => {
