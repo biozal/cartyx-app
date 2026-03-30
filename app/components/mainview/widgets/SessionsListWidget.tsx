@@ -49,11 +49,11 @@ export function SessionsListWidget({ sessions, className = '' }: SessionsListWid
   return (
     <Widget title="Sessions" className={className}>
       {resolvedSessions === null ? (
-        <p className="font-pixel text-xs text-on-surface-variant">Loading sessions...</p>
+        <p className="font-sans font-semibold text-xs text-on-surface-variant">Loading sessions...</p>
       ) : error ? (
-        <p className="font-pixel text-xs text-rose-400">{error}</p>
+        <p className="font-sans font-semibold text-xs text-rose-400">{error}</p>
       ) : resolvedSessions.length === 0 ? (
-        <p className="font-pixel text-xs text-on-surface-variant">No sessions recorded</p>
+        <p className="font-sans font-semibold text-xs text-on-surface-variant">No sessions recorded</p>
       ) : (
         <div data-testid="sessions-grid" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {resolvedSessions.slice(0, 5).map((session) => (
@@ -65,9 +65,9 @@ export function SessionsListWidget({ sessions, className = '' }: SessionsListWid
                 icon={faBookOpen}
                 className="text-primary mb-3 block text-xl group-hover:scale-110 transition-transform"
               />
-              <p className="font-pixel text-xs text-on-surface-variant">Session {session.number}</p>
-              <h3 className="font-pixel text-sm font-bold text-primary truncate mt-1">{session.name}</h3>
-              <p className="text-[0.6rem] text-on-surface-variant/60 uppercase font-label mt-1">{session.date}</p>
+              <p className="font-sans font-semibold text-xs text-on-surface-variant">Session {session.number}</p>
+              <h3 className="font-sans text-sm font-bold text-primary truncate mt-1">{session.name}</h3>
+              <p className="text-[0.6rem] text-on-surface-variant/60 uppercase font-sans mt-1">{session.date}</p>
             </article>
           ))}
         </div>

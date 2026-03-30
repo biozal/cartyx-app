@@ -14,7 +14,7 @@ export function NextSessionBadge({ nextSession, schedule }: NextSessionBadgeProp
     <div className="flex items-start gap-2.5">
       <span className="text-sm mt-0.5">{nextSession ? '🗓' : '⏸'}</span>
       <div>
-        <div className="text-[10px] font-pixel text-slate-500 tracking-wide mb-0.5">NEXT SESSION</div>
+        <div className="text-[10px] font-sans font-semibold text-slate-500 tracking-wide mb-0.5">NEXT SESSION</div>
         {nextSession ? (
           <div className="text-sm text-slate-300">
             {formatNextSession(nextSession.day, schedule.time, schedule.timezone)}

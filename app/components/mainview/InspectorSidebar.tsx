@@ -163,7 +163,7 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
               <SettingsPanel />
             ) : (
               <div className="flex flex-1 items-center justify-center">
-                <span className="font-pixel text-xs text-slate-600">
+                <span className="font-sans font-semibold text-xs text-slate-600">
                   {tab.label} — Coming Soon
                 </span>
               </div>

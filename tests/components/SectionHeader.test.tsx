@@ -9,9 +9,9 @@ describe('SectionHeader', () => {
     expect(screen.getByText('THE QUEST')).toBeInTheDocument()
   })
 
-  it('uses font-pixel class', () => {
+  it('uses font-sans font-semibold class', () => {
     render(<SectionHeader>TITLE</SectionHeader>)
-    expect(screen.getByText('TITLE').className).toMatch(/font-pixel/)
+    expect(screen.getByText('TITLE').className).toMatch(/font-sans font-semibold/)
   })
 
   it('applies sm size class', () => {

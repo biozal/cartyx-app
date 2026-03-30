@@ -19,7 +19,7 @@ export function CampaignHeader({ sessionNumber, activeTab, onTabChange }: Campai
       {/* Left: Back link */}
       <Link
         to="/campaigns"
-        className="font-pixel text-xs text-slate-400 hover:text-white transition-colors whitespace-nowrap"
+        className="font-sans font-semibold text-xs text-slate-400 hover:text-white transition-colors whitespace-nowrap"
         aria-label="Back to campaigns"
       >
         ← Back
@@ -27,7 +27,7 @@ export function CampaignHeader({ sessionNumber, activeTab, onTabChange }: Campai
 
       {/* Left-center: Session number */}
       {sessionNumber !== undefined && (
-        <span className="font-pixel text-xs text-slate-300 whitespace-nowrap" data-testid="session-number">
+        <span className="font-sans font-semibold text-xs text-slate-300 whitespace-nowrap" data-testid="session-number">
           Session {sessionNumber}
         </span>
       )}
@@ -52,7 +52,7 @@ export function CampaignHeader({ sessionNumber, activeTab, onTabChange }: Campai
               aria-controls={`tab-panel-${tab.id}`}
               tabIndex={isActive ? 0 : -1}
               onClick={() => onTabChange(tab.id)}
-              className={`font-pixel text-xs px-4 h-14 border-b-2 transition-colors ${
+              className={`font-sans font-semibold text-xs px-4 h-14 border-b-2 transition-colors ${
                 isActive
                   ? 'text-white border-[#2563EB]'
                   : 'text-slate-400 border-transparent hover:text-slate-200'

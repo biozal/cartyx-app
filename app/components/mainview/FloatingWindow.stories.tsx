@@ -45,7 +45,7 @@ type Story = StoryObj<typeof meta>
 
 function WindowContent({ lines }: { lines: string[] }) {
   return (
-    <div className="space-y-2 p-4 font-pixel text-xs text-slate-400">
+    <div className="space-y-2 p-4 font-sans font-semibold text-xs text-slate-400">
       {lines.map(line => (
         <p key={line}>{line}</p>
       ))}

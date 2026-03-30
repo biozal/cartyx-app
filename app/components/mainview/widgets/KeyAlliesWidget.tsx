@@ -57,11 +57,11 @@ export function KeyAlliesWidget({
   return (
     <Widget title="Key Allies" className={className}>
       {resolvedAllies === null ? (
-        <p className="font-pixel text-xs text-slate-500">Loading allies...</p>
+        <p className="font-sans font-semibold text-xs text-slate-500">Loading allies...</p>
       ) : error ? (
-        <p className="font-pixel text-xs text-rose-400">{error}</p>
+        <p className="font-sans font-semibold text-xs text-rose-400">{error}</p>
       ) : resolvedAllies.length === 0 ? (
-        <p className="font-pixel text-xs text-slate-500">No allies found</p>
+        <p className="font-sans font-semibold text-xs text-slate-500">No allies found</p>
       ) : (
         <div className="space-y-3">
           {resolvedAllies.map((ally) => (
@@ -69,7 +69,7 @@ export function KeyAlliesWidget({
               key={ally.id}
               className="flex items-center gap-3 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2"
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/[0.07] bg-slate-800 font-pixel text-xs text-white">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/[0.07] bg-slate-800 font-sans font-semibold text-xs text-white">
                 {ally.avatarUrl ? (
                   <img
                     src={ally.avatarUrl}
@@ -82,8 +82,8 @@ export function KeyAlliesWidget({
               </div>
 
               <div className="min-w-0">
-                <p className="truncate font-pixel text-xs text-white">{ally.name}</p>
-                <p className="truncate font-pixel text-xs text-slate-400">{ally.town}</p>
+                <p className="truncate font-sans font-semibold text-xs text-white">{ally.name}</p>
+                <p className="truncate font-sans font-semibold text-xs text-slate-400">{ally.town}</p>
               </div>
             </div>
           ))}
