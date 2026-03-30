@@ -162,15 +162,18 @@ describe('MainView', () => {
       expect(screen.getByTestId('mainview-inspector')).toHaveAttribute('role', 'dialog')
     })
 
-    it('clicking mobile toggle hides the toggle button', async () => {
+    it('clicking mobile toggle keeps the toggle button visible and marks it expanded', async () => {
       const user = userEvent.setup()
       render(
         <MainView>
           <div>Content</div>
         </MainView>
       )
-      await user.click(screen.getByTestId('mobile-inspector-toggle'))
-      expect(screen.queryByTestId('mobile-inspector-toggle')).not.toBeInTheDocument()
+      const toggle = screen.getByTestId('mobile-inspector-toggle')
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      await user.click(toggle)
+      expect(screen.getByTestId('mobile-inspector-toggle')).toBeInTheDocument()
+      expect(screen.getByTestId('mobile-inspector-toggle')).toHaveAttribute('aria-expanded', 'true')
     })
 
     it('drawer shows backdrop when open', async () => {
@@ -193,6 +196,19 @@ describe('MainView', () => {
       )
       await user.click(screen.getByTestId('mobile-inspector-toggle'))
       await user.click(screen.getByTestId('mobile-inspector-backdrop'))
+      expect(screen.getByTestId('mainview-inspector')).not.toHaveAttribute('role', 'dialog')
+    })
+
+    it('pressing Escape while drawer is open closes the drawer', async () => {
+      const user = userEvent.setup()
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      await user.click(screen.getByTestId('mobile-inspector-toggle'))
+      expect(screen.getByTestId('mainview-inspector')).toHaveAttribute('role', 'dialog')
+      await user.keyboard('{Escape}')
       expect(screen.getByTestId('mainview-inspector')).not.toHaveAttribute('role', 'dialog')
     })
 
