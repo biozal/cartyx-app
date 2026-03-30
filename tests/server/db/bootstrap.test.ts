@@ -20,13 +20,13 @@ vi.mock('~/server/db/models/Player', () => ({ Player: playerMock }))
 vi.mock('~/server/db/models/Session', () => ({ Session: sessionMock }))
 vi.mock('~/server/db/models/GMScreen', () => ({ GMScreen: gmScreenMock }))
 
-import { bootstrapDB, isBootstrapped, resetBootstrapFlag } from '~/server/db/bootstrap'
+import { bootstrapDB, isBootstrapped, __resetBootstrapForTests } from '~/server/db/bootstrap'
 
 const allModels = [userMock, campaignMock, playerMock, sessionMock, gmScreenMock]
 
 describe('bootstrapDB', () => {
   beforeEach(() => {
-    resetBootstrapFlag()
+    __resetBootstrapForTests()
     for (const m of allModels) {
       m.createCollection.mockClear().mockResolvedValue(undefined)
       m.ensureIndexes.mockClear().mockResolvedValue(undefined)
@@ -76,6 +76,26 @@ describe('bootstrapDB', () => {
     for (const m of allModels) {
       expect(m.createCollection).toHaveBeenCalled()
       expect(m.ensureIndexes).toHaveBeenCalled()
+    }
+    expect(isBootstrapped()).toBe(true)
+  })
+
+  it('concurrent calls share the same bootstrap and only run setup once', async () => {
+    // Make createCollection slow so both callers overlap
+    for (const m of allModels) {
+      m.createCollection.mockImplementation(
+        () => new Promise((resolve) => setTimeout(resolve, 50)),
+      )
+    }
+
+    const [r1, r2] = await Promise.all([bootstrapDB(), bootstrapDB()])
+
+    expect(r1).toBeUndefined()
+    expect(r2).toBeUndefined()
+
+    for (const m of allModels) {
+      expect(m.createCollection).toHaveBeenCalledTimes(1)
+      expect(m.ensureIndexes).toHaveBeenCalledTimes(1)
     }
     expect(isBootstrapped()).toBe(true)
   })

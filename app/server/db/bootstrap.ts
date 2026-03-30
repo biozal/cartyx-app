@@ -5,6 +5,7 @@ import { Session } from './models/Session'
 import { User } from './models/User'
 
 let bootstrapped = false
+let bootstrapPromise: Promise<void> | null = null
 
 /**
  * Ensures all collections exist and indexes are created/verified at startup.
@@ -41,23 +42,35 @@ let bootstrapped = false
 export async function bootstrapDB(): Promise<void> {
   if (bootstrapped) return
 
-  await Promise.all([
-    User.createCollection(),
-    Campaign.createCollection(),
-    Player.createCollection(),
-    Session.createCollection(),
-    GMScreen.createCollection(),
-  ])
+  // If a bootstrap is already in flight, share the same attempt so
+  // concurrent callers don't duplicate collection/index setup.
+  if (bootstrapPromise) return bootstrapPromise
 
-  await Promise.all([
-    User.ensureIndexes(),
-    Campaign.ensureIndexes(),
-    Player.ensureIndexes(),
-    Session.ensureIndexes(),
-    GMScreen.ensureIndexes(),
-  ])
+  bootstrapPromise = (async () => {
+    try {
+      await Promise.all([
+        User.createCollection(),
+        Campaign.createCollection(),
+        Player.createCollection(),
+        Session.createCollection(),
+        GMScreen.createCollection(),
+      ])
 
-  bootstrapped = true
+      await Promise.all([
+        User.ensureIndexes(),
+        Campaign.ensureIndexes(),
+        Player.ensureIndexes(),
+        Session.ensureIndexes(),
+        GMScreen.ensureIndexes(),
+      ])
+
+      bootstrapped = true
+    } finally {
+      bootstrapPromise = null
+    }
+  })()
+
+  return bootstrapPromise
 }
 
 /** Returns whether bootstrap has completed successfully. */
@@ -65,7 +78,8 @@ export function isBootstrapped(): boolean {
   return bootstrapped
 }
 
-/** Reset the bootstrap flag (for testing only). */
-export function resetBootstrapFlag(): void {
+/** @internal Reset module state — test-only. Not part of the public API. */
+export function __resetBootstrapForTests(): void {
   bootstrapped = false
+  bootstrapPromise = null
 }

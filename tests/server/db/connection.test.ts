@@ -17,13 +17,16 @@ vi.mock('~/server/utils/posthog', () => ({
   serverCaptureException: vi.fn(),
 }))
 
-import { connectDB, isDBConnected } from '~/server/db/connection'
+import { connectDB, isDBConnected, __resetConnectPromiseForTests } from '~/server/db/connection'
 
 describe('connectDB', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    __resetConnectPromiseForTests()
+    mongooseMock.connect.mockResolvedValue(undefined)
     mongooseMock.connection.readyState = 0
     bootstrapMock.isBootstrapped.mockReturnValue(false)
+    bootstrapMock.bootstrapDB.mockResolvedValue(undefined)
     process.env.MONGODB_URI = 'mongodb://localhost/test'
   })
 
@@ -61,6 +64,38 @@ describe('connectDB', () => {
 
     expect(mongooseMock.connect).not.toHaveBeenCalled()
     expect(bootstrapMock.bootstrapDB).not.toHaveBeenCalled()
+  })
+
+  it('waits for in-flight connection when readyState is 2 (connecting)', async () => {
+    // Simulate a slow connect so the first call sets readyState to 2
+    let resolveConnect!: () => void
+    mongooseMock.connect.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          // Transition to "connecting" state
+          mongooseMock.connection.readyState = 2
+          resolveConnect = () => {
+            mongooseMock.connection.readyState = 1
+            resolve()
+          }
+        }),
+    )
+
+    // First caller starts connecting
+    const first = connectDB()
+
+    // Second caller arrives while readyState is 2
+    const second = connectDB()
+
+    // Resolve the connection
+    resolveConnect()
+
+    await Promise.all([first, second])
+
+    // connect should only have been called once
+    expect(mongooseMock.connect).toHaveBeenCalledTimes(1)
+    // bootstrap should still run
+    expect(bootstrapMock.bootstrapDB).toHaveBeenCalled()
   })
 
   it('rethrows errors from bootstrap', async () => {
