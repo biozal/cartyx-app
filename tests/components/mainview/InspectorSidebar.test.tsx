@@ -185,6 +185,29 @@ describe('InspectorSidebar', () => {
       expect(screen.queryByTestId('inspector-tab-settings')).not.toBeInTheDocument()
       expect(screen.getByTestId('inspector-tab-wiki')).toBeInTheDocument()
     })
+
+    it('switches active panel to wiki when the active tab flag is toggled off at runtime', async () => {
+      const user = userEvent.setup()
+      const { rerender } = render(<InspectorSidebar defaultTab="chat" />)
+
+      // Chat tab is active on first render
+      await user.click(screen.getByTestId('inspector-tab-chat'))
+      expect(screen.getByTestId('inspector-tab-chat')).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByTestId('inspector-panel')).toContainElement(
+        screen.getByRole('combobox', { name: 'Session selector' })
+      )
+
+      // Simulate PostHog toggling the chat flag off
+      enabledFlags.delete(DEV_FLAGS.chat)
+      rerender(<InspectorSidebar defaultTab="chat" />)
+
+      // Chat tab should disappear and wiki panel should now be active
+      expect(screen.queryByTestId('inspector-tab-chat')).not.toBeInTheDocument()
+      expect(screen.getByTestId('inspector-tab-wiki')).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByTestId('inspector-panel')).toContainElement(
+        screen.getByRole('button', { name: 'Characters' })
+      )
+    })
   })
 
   describe('mobile close button', () => {
