@@ -17,7 +17,10 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
   const [toolbarCollapsed, setToolbarCollapsed] = useState(false)
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false)
   const [inspectorVisible, setInspectorVisible] = useState(true)
-  const [isDesktop, setIsDesktop] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia('(min-width: 1024px)').matches
+  })
   const drawerRef = useRef<HTMLDivElement>(null)
 
   const drawerOpen = showInspector && mobileInspectorOpen
@@ -39,7 +42,6 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
   // Track desktop breakpoint; reset mobile drawer when viewport grows to lg+
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)')
-    setIsDesktop(mq.matches)
     const handleChange = (e: MediaQueryListEvent) => {
       setIsDesktop(e.matches)
       if (e.matches) setMobileInspectorOpen(false)
