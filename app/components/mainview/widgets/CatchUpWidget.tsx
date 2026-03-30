@@ -54,7 +54,7 @@ export function CatchUpWidget({
   const markdownContent = resolvedContent?.content ?? ''
 
   const customHeader = (
-    <h2 className="flex items-center gap-3 font-sans font-semibold text-3xl font-bold tracking-tight text-primary">
+    <h2 className="flex items-center gap-3 font-sans text-3xl font-bold tracking-tight text-primary">
       <FontAwesomeIcon icon={faBookOpen} className="text-xl" />
       CATCH UP
     </h2>

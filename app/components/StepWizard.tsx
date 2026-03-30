@@ -45,7 +45,7 @@ export function StepWizard({ steps, currentStep, onStepClick }: StepWizardProps)
         {steps.map((label, i) => (
           <span
             key={`${label}-${i}`}
-            className={`font-sans font-semibold text-[5px] w-8 text-center leading-relaxed transition-colors ${
+            className={`font-sans font-semibold text-[10px] sm:text-[11px] w-8 text-center leading-relaxed transition-colors ${
               i + 1 === currentStep
                 ? 'text-blue-400'
                 : i + 1 < currentStep

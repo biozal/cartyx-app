@@ -141,17 +141,17 @@ export function CampaignTimelineWidget({
                     </p>
 
                     <h3
-                      className={`mt-2 max-w-[13rem] font-sans font-semibold text-xs font-bold uppercase leading-tight ${titleClasses}`}
+                      className={`mt-2 max-w-[13rem] font-sans text-xs font-bold uppercase leading-tight ${titleClasses}`}
                     >
                       {event.sessionName}
                     </h3>
 
                     {isCurrent ? (
-                      <p className={`mt-2 font-sans font-semibold text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                      <p className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
                         CURRENT SESSION
                       </p>
                     ) : isMajor ? (
-                      <p className={`mt-2 font-sans font-semibold text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                      <p className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
                         MAJOR EVENT
                       </p>
                     ) : null}
@@ -217,17 +217,17 @@ export function CampaignTimelineWidget({
 
                       <div className="flex flex-col items-center justify-start pt-3">
                         <h3
-                          className={`max-w-[9rem] font-sans font-semibold text-xs font-bold uppercase leading-tight ${titleClasses}`}
+                          className={`max-w-[9rem] font-sans text-xs font-bold uppercase leading-tight ${titleClasses}`}
                         >
                           {event.sessionName}
                         </h3>
 
                         {isCurrent ? (
-                          <p className={`mt-2 font-sans font-semibold text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                          <p className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
                             CURRENT SESSION
                           </p>
                         ) : isMajor ? (
-                          <p className={`mt-2 font-sans font-semibold text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                          <p className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
                             MAJOR EVENT
                           </p>
                         ) : null}
