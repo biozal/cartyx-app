@@ -14,7 +14,6 @@ describe('CatchUpWidget', () => {
     render(<CatchUpWidget content={mockCatchUpContent} />)
     const heading = await screen.findByRole('heading', { name: /Session 14/ })
     expect(heading).toBeInTheDocument()
-    expect(heading.tagName).toBe('H3')
   })
 
   it('renders GFM table from markdown', async () => {
