@@ -20,7 +20,7 @@ vi.mock('~/server/db/models/Player', () => ({ Player: playerMock }))
 vi.mock('~/server/db/models/Session', () => ({ Session: sessionMock }))
 vi.mock('~/server/db/models/GMScreen', () => ({ GMScreen: gmScreenMock }))
 
-import { bootstrapDB, resetBootstrapFlag } from '~/server/db/bootstrap'
+import { bootstrapDB, isBootstrapped, resetBootstrapFlag } from '~/server/db/bootstrap'
 
 const allModels = [userMock, campaignMock, playerMock, sessionMock, gmScreenMock]
 
@@ -62,5 +62,21 @@ describe('bootstrapDB', () => {
     sessionMock.ensureIndexes.mockRejectedValueOnce(new Error('index error'))
 
     await expect(bootstrapDB()).rejects.toThrow('index error')
+  })
+
+  it('retries after a previous failure (bootstrapped flag stays false)', async () => {
+    userMock.createCollection.mockRejectedValueOnce(new Error('transient'))
+
+    await expect(bootstrapDB()).rejects.toThrow('transient')
+    expect(isBootstrapped()).toBe(false)
+
+    // Second call should retry and succeed
+    await bootstrapDB()
+
+    for (const m of allModels) {
+      expect(m.createCollection).toHaveBeenCalled()
+      expect(m.ensureIndexes).toHaveBeenCalled()
+    }
+    expect(isBootstrapped()).toBe(true)
   })
 })
