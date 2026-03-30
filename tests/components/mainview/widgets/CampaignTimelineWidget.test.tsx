@@ -95,6 +95,9 @@ describe('CampaignTimelineWidget', () => {
     )
     const rail = scroll.querySelector('[data-part="timeline-rail"]')
     expect(rail).toBeInTheDocument()
+    if (!rail) {
+      return
+    }
     expect(rail).toHaveClass('top-16')
     expect(rail).toHaveClass('z-0')
 
