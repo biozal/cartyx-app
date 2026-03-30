@@ -47,7 +47,8 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
     return true // wiki is always visible
   }), [chatEnabled, notepadEnabled, settingsEnabled])
 
-  const [activeTab, setActiveTab] = useState<InspectorTab>(defaultTab)
+  const initialTab = tabs.some(t => t.id === defaultTab) ? defaultTab : 'wiki'
+  const [activeTab, setActiveTab] = useState<InspectorTab>(initialTab)
   const hasInteracted = useRef(false)
   const tablistRef = useRef<HTMLDivElement>(null)
 
