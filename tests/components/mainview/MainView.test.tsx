@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, act } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MainView } from '~/components/mainview/MainView'
 
@@ -258,14 +258,12 @@ describe('MainView', () => {
       mockMatchMedia(1024)
     })
 
-    it('on desktop, inspector is inline and visible by default (lg:w-80 class)', async () => {
+    it('on desktop, inspector is inline and visible by default (lg:w-80 class)', () => {
       render(
         <MainView>
           <div>Content</div>
         </MainView>
       )
-      // Wait for the useEffect to set isDesktop
-      await act(async () => {})
       const inspector = screen.getByTestId('mainview-inspector')
       expect(inspector).toHaveClass('lg:w-80')
     })
@@ -277,7 +275,6 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      await act(async () => {})
       const inspector = screen.getByTestId('mainview-inspector')
       expect(inspector).toHaveClass('lg:w-80')
       expect(inspector).not.toHaveClass('lg:hidden')
@@ -294,7 +291,6 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      await act(async () => {})
       const toggle = screen.getByTestId('inspector-toggle')
       // Inspector visible by default on desktop → aria-expanded="true"
       expect(toggle).toHaveAttribute('aria-expanded', 'true')
@@ -310,7 +306,6 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      await act(async () => {})
       await user.click(screen.getByTestId('inspector-toggle'))
       expect(screen.getByTestId('mainview-inspector')).not.toHaveAttribute('role', 'dialog')
     })
@@ -322,7 +317,6 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
-      await act(async () => {})
       const toggle = screen.getByTestId('inspector-toggle')
       await user.click(toggle)
       await user.click(toggle)

@@ -1,9 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { ToolBar } from './ToolBar'
 import type { ToolType } from './ToolBar'
 import { InspectorSidebar } from './InspectorSidebar'
 import { ChevronLeft } from 'lucide-react'
+
+const LG_QUERY = '(min-width: 1024px)'
+
+function subscribeToDesktop(callback: () => void) {
+  const mq = window.matchMedia(LG_QUERY)
+  mq.addEventListener('change', callback)
+  return () => mq.removeEventListener('change', callback)
+}
+
+function getDesktopSnapshot() {
+  return window.matchMedia(LG_QUERY).matches
+}
+
+function getDesktopServerSnapshot() {
+  return false
+}
 
 interface MainViewProps {
   showToolbar?: boolean
@@ -17,10 +33,11 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
   const [toolbarCollapsed, setToolbarCollapsed] = useState(false)
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false)
   const [inspectorVisible, setInspectorVisible] = useState(true)
-  const [isDesktop, setIsDesktop] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return window.matchMedia('(min-width: 1024px)').matches
-  })
+  const isDesktop = useSyncExternalStore(
+    subscribeToDesktop,
+    getDesktopSnapshot,
+    getDesktopServerSnapshot,
+  )
   const drawerRef = useRef<HTMLDivElement>(null)
 
   const drawerOpen = showInspector && mobileInspectorOpen
@@ -39,20 +56,13 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [drawerOpen])
 
-  // Track desktop breakpoint; reset mobile drawer when viewport grows to lg+
+  // Reset mobile drawer when viewport grows to lg+
   useEffect(() => {
-    const mq = window.matchMedia('(min-width: 1024px)')
-    const handleChange = (e: MediaQueryListEvent) => {
-      setIsDesktop(e.matches)
-      if (e.matches) setMobileInspectorOpen(false)
-    }
-    mq.addEventListener('change', handleChange)
-    return () => mq.removeEventListener('change', handleChange)
-  }, [])
+    if (isDesktop) setMobileInspectorOpen(false)
+  }, [isDesktop])
 
   const handleInspectorToggle = () => {
-    const isDesktopNow = window.matchMedia('(min-width: 1024px)').matches
-    if (isDesktopNow) {
+    if (isDesktop) {
       setInspectorVisible(v => !v)
     } else {
       setMobileInspectorOpen(o => !o)
