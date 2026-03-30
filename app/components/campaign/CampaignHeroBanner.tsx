@@ -18,7 +18,7 @@ export function CampaignHeroBanner({ name, imagePath, status }: CampaignHeroBann
   const hasImage = !!imagePath && isValidImagePath(imagePath)
 
   return (
-    <div className="relative h-56 overflow-hidden">
+    <div className="relative h-64 overflow-hidden">
       {hasImage ? (
         <img
           src={imagePath!}
