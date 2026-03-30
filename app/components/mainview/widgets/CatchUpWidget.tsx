@@ -75,115 +75,37 @@ export function CatchUpWidget({
         className="max-h-[400px] overflow-y-auto"
       >
         {resolvedContent === null ? (
-          <p className="font-body text-sm leading-relaxed text-on-surface-variant">Loading catch-up...</p>
+          <p className="font-pixel text-xs text-slate-500">Loading catch-up...</p>
         ) : (
           <>
             {error ? (
-              <p className="mb-3 font-body text-sm leading-relaxed text-rose-400">{error}</p>
+              <p className="mb-3 font-pixel text-xs text-rose-400">{error}</p>
             ) : null}
 
             {markdownContent ? (
               <div
                 data-testid="catchup-markdown"
-                className="w-full max-w-none space-y-4 font-body text-sm leading-relaxed text-on-surface-variant"
+                className="w-full prose prose-invert max-w-none
+                  prose-headings:text-slate-200 prose-headings:font-pixel
+                  prose-h1:mb-2 prose-h1:mt-4 prose-h1:text-2xl prose-h1:font-bold prose-h1:text-primary
+                  prose-h2:mb-2 prose-h2:mt-4 prose-h2:text-xl prose-h2:font-bold prose-h2:text-primary
+                  prose-h3:mb-1 prose-h3:mt-3 prose-h3:text-lg prose-h3:font-semibold
+                  prose-h4:mb-1 prose-h4:mt-3 prose-h4:text-base prose-h4:font-semibold
+                  prose-h5:mb-1 prose-h5:mt-3 prose-h5:text-sm prose-h5:font-semibold
+                  prose-h6:mb-1 prose-h6:mt-3 prose-h6:text-sm
+                  prose-p:text-slate-400
+                  prose-strong:text-slate-300
+                  prose-a:text-blue-brand
+                  prose-li:text-slate-400
+                  prose-blockquote:text-slate-400 prose-blockquote:border-slate-600
+                  prose-th:text-slate-300 prose-td:text-slate-400
+                  prose-code:text-slate-300
+                  text-xs"
               >
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    h1: ({ node: _node, className, ...props }) => (
-                      <h1
-                        className={`mb-2 mt-4 font-pixel text-2xl font-bold text-primary ${className ?? ''}`}
-                        {...props}
-                      />
-                    ),
-                    h2: ({ node: _node, className, ...props }) => (
-                      <h2
-                        className={`mb-2 mt-4 font-pixel text-xl font-bold text-primary ${className ?? ''}`}
-                        {...props}
-                      />
-                    ),
-                    h3: ({ node: _node, className, ...props }) => (
-                      <h3
-                        className={`mb-1 mt-3 font-pixel text-lg font-semibold text-slate-200 ${className ?? ''}`}
-                        {...props}
-                      />
-                    ),
-                    h4: ({ node: _node, className, ...props }) => (
-                      <h4
-                        className={`mb-1 mt-3 font-pixel text-base font-semibold text-slate-200 ${className ?? ''}`}
-                        {...props}
-                      />
-                    ),
-                    h5: ({ node: _node, className, ...props }) => (
-                      <h5
-                        className={`mb-1 mt-3 font-pixel text-sm font-semibold text-slate-200 ${className ?? ''}`}
-                        {...props}
-                      />
-                    ),
-                    h6: ({ node: _node, className, ...props }) => (
-                      <h6
-                        className={`mb-1 mt-3 font-pixel text-sm text-slate-200 ${className ?? ''}`}
-                        {...props}
-                      />
-                    ),
-                    p: ({ node: _node, className, ...props }) => (
-                      <p
-                        className={`font-body text-sm leading-relaxed text-on-surface-variant ${className ?? ''}`}
-                        {...props}
-                      />
-                    ),
-                    ul: ({ node: _node, className, ...props }) => (
-                      <ul className={`list-disc space-y-2 pl-6 ${className ?? ''}`} {...props} />
-                    ),
-                    ol: ({ node: _node, className, ...props }) => (
-                      <ol className={`list-decimal space-y-2 pl-6 ${className ?? ''}`} {...props} />
-                    ),
-                    li: ({ node: _node, className, ...props }) => (
-                      <li
-                        className={`font-body text-sm leading-relaxed text-on-surface-variant ${className ?? ''}`}
-                        {...props}
-                      />
-                    ),
-                    strong: ({ node: _node, className, ...props }) => (
-                      <strong className={`font-semibold text-slate-200 ${className ?? ''}`} {...props} />
-                    ),
-                    a: ({ node: _node, className, ...props }) => (
-                      <a className={`text-primary underline underline-offset-2 ${className ?? ''}`} {...props} />
-                    ),
-                    blockquote: ({ node: _node, className, ...props }) => (
-                      <blockquote
-                        className={`border-l-2 border-primary/40 pl-4 italic text-on-surface-variant ${className ?? ''}`}
-                        {...props}
-                      />
-                    ),
-                    code: ({ node: _node, className, ...props }) => (
-                      <code
-                        className={`rounded bg-black/20 px-1 py-0.5 text-slate-200 ${className ?? ''}`}
-                        {...props}
-                      />
-                    ),
-                    table: ({ node: _node, className, ...props }) => (
-                      <table className={`w-full border-collapse text-left ${className ?? ''}`} {...props} />
-                    ),
-                    th: ({ node: _node, className, ...props }) => (
-                      <th
-                        className={`border-b border-white/10 px-2 py-1 font-pixel text-xs text-slate-200 ${className ?? ''}`}
-                        {...props}
-                      />
-                    ),
-                    td: ({ node: _node, className, ...props }) => (
-                      <td
-                        className={`border-b border-white/5 px-2 py-1 align-top font-body text-sm text-on-surface-variant ${className ?? ''}`}
-                        {...props}
-                      />
-                    ),
-                  }}
-                >
-                  {markdownContent}
-                </ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdownContent}</ReactMarkdown>
               </div>
             ) : (
-              <p className="font-body text-sm leading-relaxed text-on-surface-variant">No catch-up content available</p>
+              <p className="font-pixel text-xs text-slate-500">No catch-up content available</p>
             )}
           </>
         )}
