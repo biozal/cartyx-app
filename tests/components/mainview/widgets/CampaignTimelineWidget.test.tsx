@@ -93,7 +93,22 @@ describe('CampaignTimelineWidget', () => {
     expect(scroll.querySelector('[data-layout="horizontal"][data-tone="current"]')).toHaveTextContent(
       'A reliquary opened beneath the chapel after the second toll.',
     )
-    expect(scroll.querySelector('[data-part="timeline-rail"]')).toBeInTheDocument()
+    const rail = scroll.querySelector('[data-part="timeline-rail"]')
+    expect(rail).toBeInTheDocument()
+    if (!rail) {
+      return
+    }
+    expect(rail).toHaveClass('top-16')
+    expect(rail).toHaveClass('z-0')
+
+    const markerRows = scroll.querySelectorAll('[data-layout="horizontal"] [data-part="timeline-marker-row"]')
+    expect(markerRows).toHaveLength(mockEvents.length)
+    markerRows.forEach((markerRow) => {
+      expect(markerRow).toHaveClass('relative')
+      expect(markerRow).toHaveClass('z-10')
+      expect(markerRow).toHaveClass('items-center')
+    })
+
     expect(scroll.querySelectorAll('[data-layout="horizontal"] [data-part="timeline-marker"]')).toHaveLength(
       mockEvents.length,
     )

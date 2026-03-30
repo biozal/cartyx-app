@@ -178,7 +178,7 @@ export function CampaignTimelineWidget({
               <div
                 aria-hidden="true"
                 data-part="timeline-rail"
-                className="absolute left-4 right-4 top-[3.5rem] z-0 h-px bg-white/[0.08]"
+                className="absolute left-4 right-4 top-16 z-0 h-px bg-white/[0.08]"
               />
 
               <ol className="grid grid-flow-col auto-cols-[minmax(10.5rem,1fr)] gap-4">
@@ -207,7 +207,10 @@ export function CampaignTimelineWidget({
                         </p>
                       </div>
 
-                      <div className="relative z-10 flex items-center justify-center">
+                      <div
+                        data-part="timeline-marker-row"
+                        className="relative z-10 flex items-center justify-center"
+                      >
                         <span
                           aria-hidden="true"
                           data-part="timeline-marker"
