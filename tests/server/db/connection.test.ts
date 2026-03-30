@@ -98,6 +98,32 @@ describe('connectDB', () => {
     expect(bootstrapMock.bootstrapDB).toHaveBeenCalled()
   })
 
+  it('shares one connect attempt when two callers race before readyState flips', async () => {
+    // Both callers enter while readyState is still 0 — the first creates a
+    // connectPromise, the second must reuse it instead of calling connect again.
+    let resolveConnect!: () => void
+    mongooseMock.connect.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          // readyState stays 0 during this tick to simulate the race window
+          resolveConnect = () => {
+            mongooseMock.connection.readyState = 1
+            resolve()
+          }
+        }),
+    )
+
+    // Both callers start in the same microtask before readyState changes
+    const first = connectDB()
+    const second = connectDB()
+
+    resolveConnect()
+    await Promise.all([first, second])
+
+    expect(mongooseMock.connect).toHaveBeenCalledTimes(1)
+    expect(bootstrapMock.bootstrapDB).toHaveBeenCalled()
+  })
+
   it('rethrows errors from bootstrap', async () => {
     bootstrapMock.bootstrapDB.mockRejectedValueOnce(new Error('bootstrap failed'))
 

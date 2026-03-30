@@ -9,20 +9,18 @@ export async function connectDB(): Promise<void> {
   if (!uri) return
 
   try {
-    if (mongoose.connection.readyState === 0) {
+    if (connectPromise) {
+      // A connection attempt is already in flight — wait for it regardless
+      // of readyState, so concurrent callers always share one attempt.
+      await connectPromise
+    } else if (mongoose.connection.readyState === 0) {
       // Disconnected — start a new connection and track the promise so
-      // concurrent callers that arrive while readyState is 2 can await it.
+      // concurrent callers can await it.
       connectPromise = mongoose.connect(uri)
       await connectPromise
       connectPromise = null
-    } else if (mongoose.connection.readyState === 2) {
-      // Connection is in progress — wait for the existing attempt to finish
-      // rather than proceeding to bootstrap before the connection is ready.
-      if (connectPromise) {
-        await connectPromise
-      }
     }
-    // readyState 1 (connected) — nothing to do
+    // readyState 1 (connected) with no in-flight promise — nothing to do
 
     // Always attempt bootstrap — it's idempotent and must succeed even if
     // a previous connect succeeded but bootstrap failed partway through.
