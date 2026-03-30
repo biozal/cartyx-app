@@ -6,11 +6,13 @@ import { SettingsPanel } from './SettingsPanel'
 import { WikiPanel } from './WikiPanel'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faMessage, faBook, faNoteSticky, faGear } from '@fortawesome/pro-solid-svg-icons'
+import { ChevronRight } from 'lucide-react'
 
 export type InspectorTab = 'chat' | 'wiki' | 'notepad' | 'settings'
 
 export interface InspectorSidebarProps {
   defaultTab?: InspectorTab
+  onMobileClose?: () => void
 }
 
 const tabs: { id: InspectorTab; icon: IconDefinition; label: string }[] = [
@@ -28,7 +30,7 @@ function panelId(id: InspectorTab) {
   return `inspector-panel-${id}`
 }
 
-export function InspectorSidebar({ defaultTab = 'chat' }: InspectorSidebarProps) {
+export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: InspectorSidebarProps) {
   const [activeTab, setActiveTab] = useState<InspectorTab>(defaultTab)
   const tablistRef = useRef<HTMLDivElement>(null)
 
@@ -60,38 +62,52 @@ export function InspectorSidebar({ defaultTab = 'chat' }: InspectorSidebarProps)
   return (
     <div className="flex flex-col h-full bg-[#0D1117]">
       {/* Tab bar */}
-      <div
-        className="flex h-12 border-b border-white/[0.07] flex-shrink-0"
-        role="tablist"
-        aria-label="Inspector panels"
-        ref={tablistRef}
-        onKeyDown={handleKeyDown}
-      >
-        {tabs.map((tab) => {
-          const isActive = tab.id === activeTab
-          return (
-            <button
-              key={tab.id}
-              id={tabId(tab.id)}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              aria-controls={panelId(tab.id)}
-              aria-label={tab.label}
-              tabIndex={isActive ? 0 : -1}
-              data-testid={tabId(tab.id)}
-              onClick={() => setActiveTab(tab.id)}
-              className={[
-                'flex flex-1 items-center justify-center text-base transition-colors relative',
-                isActive
-                  ? "text-[#60A5FA] after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-[#60A5FA]"
-                  : 'text-slate-500 hover:text-slate-300',
-              ].join(' ')}
-            >
-              <FontAwesomeIcon icon={tab.icon} className="h-4 w-4" />
-            </button>
-          )
-        })}
+      <div className="flex h-12 border-b border-white/[0.07] flex-shrink-0">
+        <div
+          className="flex flex-1"
+          role="tablist"
+          aria-label="Inspector panels"
+          ref={tablistRef}
+          onKeyDown={handleKeyDown}
+        >
+          {tabs.map((tab) => {
+            const isActive = tab.id === activeTab
+            return (
+              <button
+                key={tab.id}
+                id={tabId(tab.id)}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={panelId(tab.id)}
+                aria-label={tab.label}
+                tabIndex={isActive ? 0 : -1}
+                data-testid={tabId(tab.id)}
+                onClick={() => setActiveTab(tab.id)}
+                className={[
+                  'flex flex-1 items-center justify-center text-base transition-colors relative',
+                  isActive
+                    ? "text-[#60A5FA] after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-[#60A5FA]"
+                    : 'text-slate-500 hover:text-slate-300',
+                ].join(' ')}
+              >
+                <FontAwesomeIcon icon={tab.icon} className="h-4 w-4" />
+              </button>
+            )
+          })}
+        </div>
+
+        {onMobileClose && (
+          <button
+            type="button"
+            aria-label="Close inspector"
+            data-testid="mobile-inspector-close"
+            onClick={onMobileClose}
+            className="lg:hidden flex items-center justify-center w-10 text-slate-400 hover:text-slate-200 border-l border-white/[0.07] transition-colors"
+          >
+            <ChevronRight size={14} />
+          </button>
+        )}
       </div>
 
       {/* Tab panels — one per tab, only active is visible */}

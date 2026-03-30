@@ -22,17 +22,17 @@ export function DashboardView({ children, widgets = [], className = '' }: Dashbo
 
   if (!hasChildren && !hasWidgets) {
     return (
-      <div className={`flex h-full items-center justify-center p-6 ${className}`}>
+      <div className={`flex h-full items-center justify-center p-3 sm:p-6 ${className}`}>
         <p className="font-pixel text-xs text-slate-500">No widgets yet</p>
       </div>
     )
   }
 
   return (
-    <div className={`p-6 ${className}`}>
+    <div className={`p-3 sm:p-6 ${className}`}>
       <div
         data-testid="dashboard-grid"
-        className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+        className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"
       >
         {hasChildren
           ? childItems
