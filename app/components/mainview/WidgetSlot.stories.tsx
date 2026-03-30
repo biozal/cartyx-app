@@ -22,7 +22,7 @@ export const Default: Story = {
   args: {
     title: 'Session Notes',
     children: (
-      <div className="space-y-2 font-pixel text-xs text-slate-400">
+      <div className="space-y-2 font-sans font-semibold text-xs text-slate-400">
         <p>Last checkpoint reached.</p>
         <p>Next objective: descend into the crypt.</p>
       </div>
@@ -34,7 +34,7 @@ export const WithLongContent: Story = {
   args: {
     title: 'Timeline',
     children: (
-      <div className="space-y-3 font-pixel text-xs text-slate-400">
+      <div className="space-y-3 font-sans font-semibold text-xs text-slate-400">
         <p>The party crossed the marsh at dawn and tracked the cultists toward the drowned watchtower.</p>
         <p>Scattered ritual markings suggest a second site somewhere beneath the eastern cliffs.</p>
         <p>Recovered clues point to an eclipse window, which narrows the response time to the next session.</p>

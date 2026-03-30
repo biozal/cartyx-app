@@ -42,7 +42,7 @@ export function SectionHeader({
 }: SectionHeaderProps) {
   return (
     <div
-      className={`font-pixel ${sizeStyles[size]} ${colorStyles[color]} ${tracking} uppercase ${className}`}
+      className={`font-sans font-semibold ${sizeStyles[size]} ${colorStyles[color]} ${tracking} uppercase ${className}`}
     >
       {children}
     </div>

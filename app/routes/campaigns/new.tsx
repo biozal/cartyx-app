@@ -112,7 +112,7 @@ function NewCampaignPage() {
       <Topbar />
       <main className="flex-1 w-full max-w-[680px] mx-auto px-6 py-10">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="font-pixel text-[13px] text-white tracking-widest">NEW CAMPAIGN</h1>
+          <h1 className="font-sans font-semibold text-[13px] text-white tracking-widest">NEW CAMPAIGN</h1>
           <a href="/campaigns" className="text-xs text-slate-500 hover:text-slate-400 transition-colors font-medium">← Back</a>
         </div>
 
@@ -342,7 +342,7 @@ function NewCampaignPage() {
             >
               ← Back
             </PixelButton>
-            <span className="font-pixel text-[9px] text-slate-700">{step} / {STEPS.length}</span>
+            <span className="font-sans font-semibold text-[9px] text-slate-700">{step} / {STEPS.length}</span>
             {step < STEPS.length ? (
               <PixelButton
                 variant="primary"

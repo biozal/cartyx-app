@@ -17,14 +17,14 @@ export function PrivacyPage() {
           ← Back
         </Link>
 
-        <h1 className="font-pixel text-[14px] text-white tracking-widest mb-2">
+        <h1 className="font-sans font-semibold text-[14px] text-white tracking-widest mb-2">
           PRIVACY POLICY
         </h1>
         <p className="text-xs text-slate-500 mb-10">Last updated: March 2026</p>
 
         <div className="space-y-8 text-sm text-slate-300 leading-relaxed">
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               OVERVIEW
             </h2>
             <p>
@@ -35,7 +35,7 @@ export function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               INFORMATION WE COLLECT
             </h2>
             <p>We collect only what is necessary to let you use Cartyx:</p>
@@ -67,7 +67,7 @@ export function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               HOW WE USE YOUR INFORMATION
             </h2>
             <p>Your information is used exclusively to:</p>
@@ -88,7 +88,7 @@ export function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               WE DO NOT SELL YOUR DATA
             </h2>
             <p className="text-slate-200 font-medium">
@@ -101,7 +101,7 @@ export function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               THIRD-PARTY SERVICES
             </h2>
             <p>
@@ -141,7 +141,7 @@ export function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               COOKIES
             </h2>
             <p>
@@ -152,7 +152,7 @@ export function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               DATA RETENTION
             </h2>
             <p>
@@ -162,7 +162,7 @@ export function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               YOUR RIGHTS &amp; DATA DELETION
             </h2>
             <p>
@@ -179,7 +179,7 @@ export function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               CHANGES TO THIS POLICY
             </h2>
             <p>
@@ -190,7 +190,7 @@ export function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               CONTACT
             </h2>
             <p>

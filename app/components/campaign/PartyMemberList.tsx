@@ -23,7 +23,7 @@ export function PartyMemberList({ members, maxPlayers }: PartyMemberListProps) {
 
   return (
     <div>
-      <div className="text-[10px] font-pixel text-slate-500 tracking-wide mb-2">PARTY</div>
+      <div className="text-[10px] font-sans font-semibold text-slate-500 tracking-wide mb-2">PARTY</div>
       <div className="flex flex-wrap gap-2">
         {capped.map((m) => (
           <PartyMemberChip
@@ -41,7 +41,7 @@ export function PartyMemberList({ members, maxPlayers }: PartyMemberListProps) {
             <div className="w-10 h-10 rounded-md border border-white/[0.05] flex-shrink-0 flex items-center justify-center">
               <span className="text-lg opacity-30">+</span>
             </div>
-            <div className="text-[10px] font-pixel text-slate-700">OPEN SLOT</div>
+            <div className="text-[10px] font-sans font-semibold text-slate-700">OPEN SLOT</div>
           </div>
         ))}
       </div>

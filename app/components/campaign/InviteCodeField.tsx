@@ -19,7 +19,7 @@ export function InviteCodeField({ code }: InviteCodeFieldProps) {
 
   return (
     <div>
-      <div className="text-[10px] font-pixel text-slate-500 tracking-wide mb-2">INVITE CODE</div>
+      <div className="text-[10px] font-sans font-semibold text-slate-500 tracking-wide mb-2">INVITE CODE</div>
       <div className="flex items-center gap-2">
         <input
           type="text"

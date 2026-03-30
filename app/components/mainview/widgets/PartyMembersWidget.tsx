@@ -49,15 +49,15 @@ export function PartyMembersWidget({
     <Widget title="Party Members" className={className}>
       {resolvedMembers === null ? (
         <div className="flex items-center justify-center py-8">
-          <p className="font-pixel text-xs text-slate-500">Loading party members...</p>
+          <p className="font-sans font-semibold text-xs text-slate-500">Loading party members...</p>
         </div>
       ) : error ? (
         <div className="flex items-center justify-center py-8">
-          <p className="font-pixel text-xs text-rose-400">{error}</p>
+          <p className="font-sans font-semibold text-xs text-rose-400">{error}</p>
         </div>
       ) : resolvedMembers.length === 0 ? (
         <div className="flex items-center justify-center py-8">
-          <p className="font-pixel text-xs text-slate-500">No party members found</p>
+          <p className="font-sans font-semibold text-xs text-slate-500">No party members found</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -75,16 +75,16 @@ export function PartyMembersWidget({
               ) : (
                 <div
                   aria-hidden="true"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-700 font-pixel text-xs text-slate-200"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-700 font-sans font-semibold text-xs text-slate-200"
                 >
                   {member.name.charAt(0)}
                 </div>
               )}
 
               <div className="min-w-0">
-                <p className="truncate font-pixel text-xs text-white">{member.name}</p>
-                <p className="font-pixel text-xs text-slate-400">{member.characterClass}</p>
-                <p className="font-pixel text-xs text-slate-400">{member.race}</p>
+                <p className="truncate font-sans font-semibold text-xs text-white">{member.name}</p>
+                <p className="font-sans font-semibold text-xs text-slate-400">{member.characterClass}</p>
+                <p className="font-sans font-semibold text-xs text-slate-400">{member.race}</p>
               </div>
             </article>
           ))}

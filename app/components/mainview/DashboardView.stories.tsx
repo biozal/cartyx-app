@@ -28,14 +28,14 @@ export const WithSampleWidgets: Story = {
   render: () => (
     <DashboardView>
       <WidgetSlot title="Session Recap">
-        <div className="space-y-2 font-pixel text-xs text-slate-400">
+        <div className="space-y-2 font-sans font-semibold text-xs text-slate-400">
           <p>The party cleared the outer keep.</p>
           <p>One sealed vault remains unexplored.</p>
         </div>
       </WidgetSlot>
 
       <WidgetSlot title="Initiative Queue">
-        <div className="space-y-2 font-pixel text-xs text-slate-400">
+        <div className="space-y-2 font-sans font-semibold text-xs text-slate-400">
           <p>1. Thorne</p>
           <p>2. Warden Shade</p>
           <p>3. Mira</p>
@@ -43,7 +43,7 @@ export const WithSampleWidgets: Story = {
       </WidgetSlot>
 
       <WidgetSlot title="Resource Tracker">
-        <div className="space-y-2 font-pixel text-xs text-slate-400">
+        <div className="space-y-2 font-sans font-semibold text-xs text-slate-400">
           <p>Torches: 4</p>
           <p>Rations: 9</p>
           <p>Potions: 2</p>
@@ -51,7 +51,7 @@ export const WithSampleWidgets: Story = {
       </WidgetSlot>
 
       <WidgetSlot title="Open Threads">
-        <div className="space-y-2 font-pixel text-xs text-slate-400">
+        <div className="space-y-2 font-sans font-semibold text-xs text-slate-400">
           <p>Find the missing cartographer.</p>
           <p>Decode the sigils in the archive.</p>
         </div>

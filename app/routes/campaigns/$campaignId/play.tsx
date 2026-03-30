@@ -55,7 +55,7 @@ function PlayPage() {
             </DashboardView>
           </div>
           <div
-            className="flex items-center justify-center h-full text-slate-400 font-pixel text-xs"
+            className="flex items-center justify-center h-full text-slate-400 font-sans font-semibold text-xs"
             role="tabpanel"
             id="tab-panel-tabletop"
             aria-labelledby="tab-tabletop"

@@ -52,7 +52,7 @@ function CampaignsListPage() {
       <Topbar />
       <main className="flex-1 w-full max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-10">
-          <h1 className="font-pixel text-[15px] text-white tracking-widest">MY CAMPAIGNS</h1>
+          <h1 className="font-sans font-semibold text-[15px] text-white tracking-widest">MY CAMPAIGNS</h1>
           <div className="flex gap-3">
             {!isGm && (
               <PixelButton
@@ -90,7 +90,7 @@ function CampaignsListPage() {
               className="w-80 h-auto mb-6 rounded-xl object-contain"
               style={{ imageRendering: 'pixelated', filter: 'sepia(1) hue-rotate(185deg) saturate(2) brightness(0.75)' }}
             />
-            <div className="font-pixel text-[11px] text-slate-500 tracking-widest mb-3 leading-relaxed">NO CAMPAIGNS YET</div>
+            <div className="font-sans font-semibold text-[11px] text-slate-500 tracking-widest mb-3 leading-relaxed">NO CAMPAIGNS YET</div>
             <p className="text-sm text-slate-600 max-w-sm leading-relaxed mb-8">
               {isGm
                 ? 'Create your first campaign to get started.'
@@ -131,7 +131,7 @@ function CampaignsListPage() {
           onClick={e => { if (e.target === e.currentTarget) { setShowJoinForm(false); setJoinCode('') } }}
         >
           <div className="bg-[#0D1117] border border-white/[0.07] rounded-2xl p-8 w-full max-w-md mx-4">
-            <h2 id="join-campaign-title" className="font-pixel text-[11px] text-white tracking-widest mb-6">JOIN CAMPAIGN</h2>
+            <h2 id="join-campaign-title" className="font-sans font-semibold text-[11px] text-white tracking-widest mb-6">JOIN CAMPAIGN</h2>
             <form onSubmit={handleJoin} className="space-y-4">
               <input
                 type="text"
