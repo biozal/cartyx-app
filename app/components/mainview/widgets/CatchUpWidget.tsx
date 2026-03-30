@@ -89,7 +89,7 @@ export function CatchUpWidget({
                   prose-headings:text-slate-200 prose-headings:font-pixel
                   prose-p:text-slate-400
                   prose-strong:text-slate-300
-                  prose-a:text-[#2563EB]
+                  prose-a:text-blue-brand
                   prose-li:text-slate-400
                   prose-blockquote:text-slate-400 prose-blockquote:border-slate-600
                   prose-th:text-slate-300 prose-td:text-slate-400
