@@ -145,7 +145,7 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
           data-testid="inspector-toggle"
           onClick={handleInspectorToggle}
           title={inspectorToggleLabel}
-          className="fixed right-0 top-1/2 -translate-y-1/2 z-60 flex items-center justify-center h-12 w-6 rounded-l bg-[#0D1117] border border-r-0 border-white/[0.07] text-slate-400 hover:text-slate-200 transition-colors"
+          className="fixed right-0 top-1/2 -translate-y-1/2 z-50 flex items-center justify-center h-12 w-6 rounded-l bg-[#0D1117] border border-r-0 border-white/[0.07] text-slate-400 hover:text-slate-200 transition-colors"
         >
           <span data-testid="inspector-toggle-icon" className={inspectorToggleIconClass}>
             <ChevronLeft size={14} />
