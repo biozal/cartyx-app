@@ -60,15 +60,15 @@ describe('MainView', () => {
     expect(toolbar).not.toHaveClass('w-0')
   })
 
-  it('shows inspector by default (lg breakpoint class)', () => {
+  it('keeps the mobile inspector drawer hidden by default', () => {
     render(
       <MainView>
         <div>Content</div>
       </MainView>
     )
     const inspector = screen.getByTestId('mainview-inspector')
-    expect(inspector).toHaveClass('lg:w-80')
-    expect(inspector).not.toHaveClass('lg:w-0')
+    expect(inspector).toHaveClass('hidden')
+    expect(inspector).not.toHaveAttribute('role', 'dialog')
   })
 
   it('hides inspector when showInspector is false', () => {
@@ -202,6 +202,20 @@ describe('MainView', () => {
       expect(screen.getByTestId('inspector-toggle')).toHaveAttribute('aria-expanded', 'true')
     })
 
+    it('mobile toggle chevron rotates between closed and open states', async () => {
+      const user = userEvent.setup()
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      const icon = screen.getByTestId('inspector-toggle-icon')
+      expect(icon).toHaveClass('rotate-0')
+
+      await user.click(screen.getByTestId('inspector-toggle'))
+      expect(screen.getByTestId('inspector-toggle-icon')).toHaveClass('rotate-180')
+    })
+
     it('drawer shows backdrop when open on mobile', async () => {
       const user = userEvent.setup()
       render(
@@ -264,24 +278,26 @@ describe('MainView', () => {
           <div>Content</div>
         </MainView>
       )
+      expect(screen.getByTestId('desktop-inspector-shell')).toHaveClass('w-80')
       const inspector = screen.getByTestId('mainview-inspector')
-      expect(inspector).toHaveClass('lg:w-80')
+      expect(inspector).toHaveClass('w-80')
     })
 
-    it('on desktop, clicking toggle hides the inspector inline (adds lg:hidden)', async () => {
+    it('on desktop, clicking toggle collapses the inspector shell from the left edge', async () => {
       const user = userEvent.setup()
       render(
         <MainView>
           <div>Content</div>
         </MainView>
       )
+      const shell = screen.getByTestId('desktop-inspector-shell')
       const inspector = screen.getByTestId('mainview-inspector')
-      expect(inspector).toHaveClass('lg:w-80')
-      expect(inspector).not.toHaveClass('lg:hidden')
+      expect(shell).toHaveClass('w-80')
+      expect(inspector).not.toHaveClass('hidden')
 
       await user.click(screen.getByTestId('inspector-toggle'))
-      expect(inspector).toHaveClass('lg:hidden')
-      expect(inspector).not.toHaveClass('lg:w-80')
+      expect(shell).toHaveClass('w-0')
+      expect(inspector).toHaveClass('hidden')
     })
 
     it('on desktop, toggle aria-expanded reflects inspectorVisible state', async () => {
@@ -320,7 +336,31 @@ describe('MainView', () => {
       const toggle = screen.getByTestId('inspector-toggle')
       await user.click(toggle)
       await user.click(toggle)
-      expect(screen.getByTestId('mainview-inspector')).toHaveClass('lg:w-80')
+      expect(screen.getByTestId('desktop-inspector-shell')).toHaveClass('w-80')
+      expect(screen.getByTestId('mainview-inspector')).toHaveClass('w-80')
+    })
+
+    it('on desktop, the toggle sits on the left edge of the inspector shell', () => {
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      expect(screen.getByTestId('inspector-toggle')).toHaveClass('absolute', 'left-0', '-translate-x-full')
+    })
+
+    it('on desktop, the chevron rotates to reflect the open state', async () => {
+      const user = userEvent.setup()
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      const icon = screen.getByTestId('inspector-toggle-icon')
+      expect(icon).toHaveClass('rotate-180')
+
+      await user.click(screen.getByTestId('inspector-toggle'))
+      expect(screen.getByTestId('inspector-toggle-icon')).toHaveClass('rotate-0')
     })
   })
 })
