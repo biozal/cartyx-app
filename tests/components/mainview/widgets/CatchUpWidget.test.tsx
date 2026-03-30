@@ -47,7 +47,7 @@ describe('CatchUpWidget', () => {
       />
     )
 
-    expect(screen.getByText('No catch-up content available')).toHaveClass('font-sans font-semibold', 'text-xs')
+    expect(screen.getByText('No catch-up content available')).toHaveClass('font-sans', 'font-semibold', 'text-xs')
   })
 
   it('renders FontAwesome icons and not literal Material icon names', () => {
