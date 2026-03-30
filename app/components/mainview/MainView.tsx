@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useSyncExternalStore } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { ToolBar } from './ToolBar'
 import type { ToolType } from './ToolBar'
@@ -6,20 +6,6 @@ import { InspectorSidebar } from './InspectorSidebar'
 import { ChevronLeft } from 'lucide-react'
 
 const LG_QUERY = '(min-width: 1024px)'
-
-function subscribeToDesktop(callback: () => void) {
-  const mq = window.matchMedia(LG_QUERY)
-  mq.addEventListener('change', callback)
-  return () => mq.removeEventListener('change', callback)
-}
-
-function getDesktopSnapshot() {
-  return window.matchMedia(LG_QUERY).matches
-}
-
-function getDesktopServerSnapshot() {
-  return false
-}
 
 interface MainViewProps {
   showToolbar?: boolean
@@ -33,11 +19,6 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
   const [toolbarCollapsed, setToolbarCollapsed] = useState(false)
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false)
   const [inspectorVisible, setInspectorVisible] = useState(true)
-  const isDesktop = useSyncExternalStore(
-    subscribeToDesktop,
-    getDesktopSnapshot,
-    getDesktopServerSnapshot,
-  )
   const drawerRef = useRef<HTMLDivElement>(null)
 
   const drawerOpen = showInspector && mobileInspectorOpen
@@ -62,20 +43,13 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
 
   // Reset mobile drawer when viewport grows to lg+
   useEffect(() => {
-    if (isDesktop) setMobileInspectorOpen(false)
-  }, [isDesktop])
-
-  const handleInspectorToggle = () => {
-    if (isDesktop) {
-      setInspectorVisible(v => !v)
-    } else {
-      setMobileInspectorOpen(o => !o)
+    const mq = window.matchMedia(LG_QUERY)
+    const handler = () => {
+      if (mq.matches) setMobileInspectorOpen(false)
     }
-  }
-
-  const mobileInspectorClass = drawerOpen
-    ? 'fixed inset-y-0 right-0 z-50 flex w-80 border-l border-white/[0.07]'
-    : 'hidden'
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   return (
     <div className={`flex h-full bg-[#080A12] overflow-hidden ${className}`}>
@@ -105,79 +79,83 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
         {children}
       </div>
 
-      {/* Desktop inspector shell — animate width like the toolbar collapse rail */}
+      {/* Inspector — single instance */}
       {showInspector && (
-        <div
-          data-testid="desktop-inspector-shell"
-          className={`relative hidden w-0 flex-shrink-0 transition-[width] duration-200 lg:block ${inspectorVisible ? 'lg:w-80' : 'lg:w-0'}`}
-        >
+        <>
+          {/* Mobile toggle — fixed button on right edge, visible below lg */}
           <button
             type="button"
-            aria-label={desktopInspectorToggleLabel}
-            aria-expanded={inspectorVisible}
-            aria-controls="mainview-inspector-desktop"
-            data-testid="desktop-inspector-toggle"
-            onClick={handleInspectorToggle}
-            title={desktopInspectorToggleLabel}
-            className="absolute left-0 top-1/2 z-10 flex h-12 w-6 -translate-x-full -translate-y-1/2 items-center justify-center rounded-l border border-r-0 border-white/[0.07] bg-[#0D1117] text-slate-400 transition-colors hover:text-slate-200"
+            aria-label={mobileInspectorToggleLabel}
+            aria-expanded={mobileInspectorOpen}
+            aria-controls="mainview-inspector"
+            data-testid="mobile-inspector-toggle"
+            onClick={() => setMobileInspectorOpen(o => !o)}
+            title={mobileInspectorToggleLabel}
+            className="fixed right-0 top-1/2 -translate-y-1/2 z-[60] flex h-12 w-6 items-center justify-center rounded-l border border-r-0 border-white/[0.07] bg-[#0D1117] text-slate-400 transition-colors hover:text-slate-200 lg:hidden"
           >
-            <span data-testid="desktop-inspector-toggle-icon" className={desktopInspectorToggleIconClass}>
+            <span data-testid="mobile-inspector-toggle-icon" className={mobileInspectorToggleIconClass}>
               <ChevronLeft size={14} />
             </span>
           </button>
 
+          {/* Mobile backdrop — tapping outside closes the drawer */}
+          {drawerOpen && (
+            <div
+              aria-hidden="true"
+              data-testid="mobile-inspector-backdrop"
+              className="lg:hidden fixed inset-0 z-40 bg-black/50 cursor-default"
+              onClick={() => setMobileInspectorOpen(false)}
+            />
+          )}
+
+          {/* Inspector shell — inline panel on lg+, fixed drawer on mobile */}
           <div
-            id="mainview-inspector-desktop"
-            data-testid="desktop-inspector"
-            className={`h-full w-80 overflow-hidden bg-[#0D1117] ${inspectorVisible ? 'flex border-l border-white/[0.07]' : 'hidden lg:hidden'}`}
+            ref={drawerRef}
+            id="mainview-inspector"
+            data-testid="inspector-shell"
+            role={drawerOpen ? 'dialog' : undefined}
+            aria-modal={drawerOpen || undefined}
+            aria-label={drawerOpen ? 'Inspector' : undefined}
+            tabIndex={drawerOpen ? -1 : undefined}
+            className={[
+              'flex-shrink-0 overflow-hidden',
+              drawerOpen
+                ? 'fixed inset-y-0 right-0 z-50 flex w-80'
+                : 'hidden',
+              'lg:relative lg:flex lg:inset-auto lg:z-auto lg:transition-[width] lg:duration-200',
+              inspectorVisible ? 'lg:w-80' : 'lg:w-0',
+            ].join(' ')}
           >
-            <InspectorSidebar />
+            {/* Desktop toggle — positioned on left edge of shell */}
+            <button
+              type="button"
+              aria-label={desktopInspectorToggleLabel}
+              aria-expanded={inspectorVisible}
+              aria-controls="mainview-inspector"
+              data-testid="desktop-inspector-toggle"
+              onClick={() => setInspectorVisible(v => !v)}
+              title={desktopInspectorToggleLabel}
+              className="absolute left-0 top-1/2 z-10 hidden h-12 w-6 -translate-x-full -translate-y-1/2 items-center justify-center rounded-l border border-r-0 border-white/[0.07] bg-[#0D1117] text-slate-400 transition-colors hover:text-slate-200 lg:flex"
+            >
+              <span data-testid="desktop-inspector-toggle-icon" className={desktopInspectorToggleIconClass}>
+                <ChevronLeft size={14} />
+              </span>
+            </button>
+
+            {/* Inspector content */}
+            <div
+              data-testid="inspector-content"
+              className={[
+                'h-full w-80 overflow-hidden bg-[#0D1117]',
+                (inspectorVisible || drawerOpen)
+                  ? 'flex border-l border-white/[0.07]'
+                  : 'hidden',
+              ].join(' ')}
+            >
+              <InspectorSidebar onMobileClose={() => setMobileInspectorOpen(false)} />
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* Mobile inspector toggle — remains a floating drawer control */}
-      {showInspector && (
-        <button
-          type="button"
-          aria-label={mobileInspectorToggleLabel}
-          aria-expanded={mobileInspectorOpen}
-          aria-controls="mainview-inspector-mobile"
-          data-testid="mobile-inspector-toggle"
-          onClick={handleInspectorToggle}
-          title={mobileInspectorToggleLabel}
-          className="fixed right-0 top-1/2 -translate-y-1/2 z-[60] flex h-12 w-6 items-center justify-center rounded-l border border-r-0 border-white/[0.07] bg-[#0D1117] text-slate-400 transition-colors hover:text-slate-200 lg:hidden"
-        >
-          <span data-testid="mobile-inspector-toggle-icon" className={mobileInspectorToggleIconClass}>
-            <ChevronLeft size={14} />
-          </span>
-        </button>
-      )}
-
-      {/* Mobile inspector backdrop — tapping outside closes the drawer */}
-      {drawerOpen && (
-        <div
-          aria-hidden="true"
-          data-testid="mobile-inspector-backdrop"
-          className="lg:hidden fixed inset-0 z-40 bg-black/50 cursor-default"
-          onClick={() => setMobileInspectorOpen(false)}
-        />
-      )}
-
-      {/* Inspector — single instance, overlay drawer on mobile when open, inline on lg+ */}
-      {showInspector && (
-        <div
-          ref={drawerRef}
-          id="mainview-inspector-mobile"
-          data-testid="mobile-inspector"
-          role={drawerOpen ? 'dialog' : undefined}
-          aria-modal={drawerOpen ? true : undefined}
-          aria-label={drawerOpen ? 'Inspector' : undefined}
-          tabIndex={drawerOpen ? -1 : undefined}
-          className={`${mobileInspectorClass} lg:hidden`}
-        >
-          <InspectorSidebar onMobileClose={() => setMobileInspectorOpen(false)} />
-        </div>
+        </>
       )}
     </div>
   )
