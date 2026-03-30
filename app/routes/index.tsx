@@ -86,7 +86,7 @@ function LandingPage() {
           }}
         />
         <div className="relative z-10 max-w-md">
-          <div className="font-pixel text-[9px] tracking-[3px] text-blue-400/80 uppercase mb-3">
+          <div className="font-sans font-semibold text-[9px] tracking-[3px] text-blue-400/80 uppercase mb-3">
             {isAuthenticated && user?.role === 'gm'
               ? 'Game Master Portal'
               : isAuthenticated && user?.role === 'player'
@@ -94,7 +94,7 @@ function LandingPage() {
               : 'Welcome to Cartyx'}
           </div>
           <div
-            className="font-pixel text-[22px] leading-relaxed text-white mb-4"
+            className="font-sans font-semibold text-[22px] leading-relaxed text-white mb-4"
             style={{ textShadow: '0 0 30px rgba(100,181,246,0.3)' }}
           >
             {isAuthenticated && user?.role === 'gm' ? (
@@ -178,7 +178,7 @@ function LandingPage() {
                 <p className="text-center text-sm text-slate-500 mb-3">You don't have access yet.<br />Ask your GM for an invite code.</p>
                 <div className="flex gap-2">
                   <input
-                    className="flex-1 py-3 px-4 bg-white/[0.04] border border-white/[0.08] rounded-xl text-slate-200 font-pixel text-xs tracking-wider focus:outline-none focus:border-blue-400/40"
+                    className="flex-1 py-3 px-4 bg-white/[0.04] border border-white/[0.08] rounded-xl text-slate-200 font-sans font-semibold text-xs tracking-wider focus:outline-none focus:border-blue-400/40"
                     placeholder="XXXX-XXXX"
                     maxLength={9}
                     value={inviteCode}
@@ -256,7 +256,7 @@ function LandingPage() {
                 <label className="block text-xs text-slate-500 mb-2">Have an invite code?</label>
                 <div className="flex gap-2">
                   <input
-                    className="flex-1 py-3 px-4 bg-white/[0.04] border border-white/[0.08] rounded-xl text-slate-200 font-pixel text-xs tracking-wider focus:outline-none focus:border-blue-400/40"
+                    className="flex-1 py-3 px-4 bg-white/[0.04] border border-white/[0.08] rounded-xl text-slate-200 font-sans font-semibold text-xs tracking-wider focus:outline-none focus:border-blue-400/40"
                     placeholder="XXXX-XXXX"
                     maxLength={9}
                     value={inviteCode}

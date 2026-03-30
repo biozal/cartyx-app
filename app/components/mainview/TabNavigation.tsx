@@ -71,7 +71,7 @@ export function TabNavigation({ activeTab, onTabChange, className = '' }: TabNav
               aria-controls={`tab-panel-${tab.id}`}
               tabIndex={isActive ? 0 : -1}
               onClick={() => onTabChange(tab.id)}
-              className={`font-pixel text-xs px-4 h-10 border-b-2 transition-colors ${
+              className={`font-sans font-semibold text-xs px-4 h-10 border-b-2 transition-colors ${
                 isActive
                   ? 'text-white border-[#2563EB]'
                   : 'text-slate-400 border-transparent hover:text-slate-200'

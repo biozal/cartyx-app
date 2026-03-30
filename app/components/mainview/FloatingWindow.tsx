@@ -261,7 +261,7 @@ export function FloatingWindow({
         ].join(' ')}
         onMouseDown={handleTitleBarMouseDown}
       >
-        <div id={titleId} className="truncate font-pixel text-xs text-slate-300">
+        <div id={titleId} className="truncate font-sans font-semibold text-xs text-slate-300">
           {title}
         </div>
 

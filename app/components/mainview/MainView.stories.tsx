@@ -3,7 +3,7 @@ import { MainView } from './MainView'
 
 const DashboardContent = () => (
   <div className="h-full flex items-center justify-center">
-    <div className="px-6 py-4 rounded-xl border border-white/[0.07] bg-white/[0.02] text-sm text-slate-500 font-pixel tracking-wider">
+    <div className="px-6 py-4 rounded-xl border border-white/[0.07] bg-white/[0.02] text-sm text-slate-500 font-sans font-semibold tracking-wider">
       Dashboard Content
     </div>
   </div>

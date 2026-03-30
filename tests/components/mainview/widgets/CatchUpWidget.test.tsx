@@ -40,14 +40,14 @@ describe('CatchUpWidget', () => {
     expect(screen.getByText(/Where We Left Off/)).toBeInTheDocument()
   })
 
-  it('keeps the empty state on the pixel font styling', () => {
+  it('renders with Open Sans heading styles in the empty state', () => {
     render(
       <CatchUpWidget
         content={{ ...mockCatchUpContent, content: '' }}
       />
     )
 
-    expect(screen.getByText('No catch-up content available')).toHaveClass('font-pixel', 'text-xs')
+    expect(screen.getByText('No catch-up content available')).toHaveClass('font-sans', 'font-semibold', 'text-xs')
   })
 
   it('renders FontAwesome icons and not literal Material icon names', () => {

@@ -74,7 +74,7 @@ export function WikiPanel() {
             >
               <Icon className="mr-3 h-4 w-4 shrink-0 text-slate-400" />
               <span
-                className={`font-pixel text-xs ${
+                className={`font-sans font-semibold text-xs ${
                   isSelected ? 'text-white' : 'text-slate-300'
                 }`}
               >
@@ -91,14 +91,14 @@ export function WikiPanel() {
             type="button"
             aria-label="Back"
             onClick={() => setSelectedCategory(null)}
-            className="flex items-center gap-2 border-b border-white/[0.07] px-4 py-3 font-pixel text-xs text-slate-300 transition-colors hover:bg-white/[0.05] hover:text-white"
+            className="flex items-center gap-2 border-b border-white/[0.07] px-4 py-3 font-sans font-semibold text-xs text-slate-300 transition-colors hover:bg-white/[0.05] hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Back</span>
           </button>
 
           <div className="flex flex-1 items-center justify-center p-4">
-            <span className="font-pixel text-xs text-slate-500">
+            <span className="font-sans font-semibold text-xs text-slate-500">
               {WIKI_CATEGORIES.find(category => category.id === selectedCategory)?.label} - Coming
               {' '}Soon
             </span>

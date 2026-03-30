@@ -42,14 +42,14 @@ export const InDashboardGrid: Story = {
       <PartyMembersWidget members={mockPartyMembers} />
 
       <WidgetSlot title="Quest Log">
-        <div className="space-y-2 font-pixel text-xs text-slate-400">
+        <div className="space-y-2 font-sans font-semibold text-xs text-slate-400">
           <p>Recover the stolen moonstone.</p>
           <p>Meet the ferryman at dusk.</p>
         </div>
       </WidgetSlot>
 
       <WidgetSlot title="Camp Supplies">
-        <div className="space-y-2 font-pixel text-xs text-slate-400">
+        <div className="space-y-2 font-sans font-semibold text-xs text-slate-400">
           <p>Bedrolls: 5</p>
           <p>Torches: 8</p>
           <p>Waterskins: 4</p>

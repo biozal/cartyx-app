@@ -54,7 +54,7 @@ export function CatchUpWidget({
   const markdownContent = resolvedContent?.content ?? ''
 
   const customHeader = (
-    <h2 className="flex items-center gap-3 font-pixel text-3xl font-bold tracking-tight text-primary">
+    <h2 className="flex items-center gap-3 font-sans text-3xl font-bold tracking-tight text-primary">
       <FontAwesomeIcon icon={faBookOpen} className="text-xl" />
       CATCH UP
     </h2>
@@ -75,18 +75,18 @@ export function CatchUpWidget({
         className="max-h-[400px] overflow-y-auto"
       >
         {resolvedContent === null ? (
-          <p className="font-pixel text-xs text-slate-500">Loading catch-up...</p>
+          <p className="font-sans font-semibold text-xs text-slate-500">Loading catch-up...</p>
         ) : (
           <>
             {error ? (
-              <p className="mb-3 font-pixel text-xs text-rose-400">{error}</p>
+              <p className="mb-3 font-sans font-semibold text-xs text-rose-400">{error}</p>
             ) : null}
 
             {markdownContent ? (
               <div
                 data-testid="catchup-markdown"
                 className="w-full prose prose-invert max-w-none
-                  prose-headings:text-slate-200 prose-headings:font-pixel
+                  prose-headings:text-slate-200 prose-headings:font-sans prose-headings:font-semibold
                   prose-h1:mb-2 prose-h1:mt-4 prose-h1:text-2xl prose-h1:font-bold prose-h1:text-primary
                   prose-h2:mb-2 prose-h2:mt-4 prose-h2:text-xl prose-h2:font-bold prose-h2:text-primary
                   prose-h3:mb-1 prose-h3:mt-3 prose-h3:text-lg prose-h3:font-semibold
@@ -105,7 +105,7 @@ export function CatchUpWidget({
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdownContent}</ReactMarkdown>
               </div>
             ) : (
-              <p className="font-pixel text-xs text-slate-500">No catch-up content available</p>
+              <p className="font-sans font-semibold text-xs text-slate-500">No catch-up content available</p>
             )}
           </>
         )}

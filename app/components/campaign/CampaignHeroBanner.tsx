@@ -41,7 +41,7 @@ export function CampaignHeroBanner({ name, imagePath, status }: CampaignHeroBann
 
       {/* Status badge top-left */}
       <span
-        className="absolute top-4 left-4 font-pixel text-[9px] tracking-wide px-2.5 py-1 rounded-md"
+        className="absolute top-4 left-4 font-sans font-semibold text-[9px] tracking-wide px-2.5 py-1 rounded-md"
         style={{ background: isActive ? '#2563EB' : '#334155', color: isActive ? '#fff' : '#CBD5E1' }}
       >
         {isActive ? 'ACTIVE' : 'PAUSED'}
@@ -49,7 +49,7 @@ export function CampaignHeroBanner({ name, imagePath, status }: CampaignHeroBann
 
       {/* Campaign name overlay at bottom */}
       <div className="absolute bottom-0 left-0 right-0 p-5">
-        <h2 className="font-pixel text-[13px] text-white leading-relaxed tracking-wide drop-shadow-lg">
+        <h2 className="font-sans font-semibold text-[13px] text-white leading-relaxed tracking-wide drop-shadow-lg">
           {name}
         </h2>
       </div>
