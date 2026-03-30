@@ -147,4 +147,25 @@ describe('PostHogProvider', () => {
     })
     expect(mockPosthog.reloadFeatureFlags).toHaveBeenCalledTimes(1)
   })
+
+  it('skips loading PostHog entirely when the client key is absent', async () => {
+    vi.unstubAllEnvs()
+    vi.stubEnv('VITE_PUBLIC_POSTHOG_HOST', 'https://us.i.posthog.com')
+
+    render(
+      <PostHogProvider>
+        <div>children</div>
+      </PostHogProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('children')).toBeInTheDocument()
+    })
+
+    expect(mockPosthog.init).not.toHaveBeenCalled()
+    expect(mockReactPostHogProvider).not.toHaveBeenCalled()
+    expect(mockSetPostHogInstance).not.toHaveBeenCalled()
+    expect(mockSubscribe).not.toHaveBeenCalled()
+    expect(mockCapturePageView).not.toHaveBeenCalled()
+  })
 })

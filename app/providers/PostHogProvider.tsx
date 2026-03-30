@@ -26,13 +26,16 @@ export function PostHogProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const key = import.meta.env.VITE_PUBLIC_POSTHOG_KEY
     const host = import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://app.posthog.com'
+    const shouldLoadProvider = isPostHogReady() || Boolean(key)
     let cancelled = false
 
     if (typeof window === 'undefined') return
 
-    void import('@posthog/react').then(({ PostHogProvider: PostHogReactProvider }) => {
-      if (!cancelled) setProviderComponent(() => PostHogReactProvider)
-    })
+    if (shouldLoadProvider) {
+      void import('@posthog/react').then(({ PostHogProvider: PostHogReactProvider }) => {
+        if (!cancelled) setProviderComponent(() => PostHogReactProvider)
+      })
+    }
 
     if (isPostHogReady()) {
       const existingClient = getPostHogInstance()
