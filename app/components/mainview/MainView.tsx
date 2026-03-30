@@ -105,10 +105,10 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
       </div>
 
       {/* Desktop inspector shell — animate width like the toolbar collapse rail */}
-      {showInspector && (
+      {showInspector && isDesktop && (
         <div
           data-testid="desktop-inspector-shell"
-          className={`relative hidden w-0 flex-shrink-0 transition-[width] duration-200 lg:block ${inspectorVisible ? 'lg:w-80' : 'lg:w-0'}`}
+          className={`relative flex-shrink-0 transition-[width] duration-200 ${inspectorVisible ? 'w-80' : 'w-0'}`}
         >
           <button
             type="button"
