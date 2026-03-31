@@ -11,8 +11,20 @@ const bootstrapMock = vi.hoisted(() => ({
   isBootstrapped: vi.fn().mockReturnValue(false),
 }))
 
+const policyMock = vi.hoisted(() => ({
+  getBootstrapPolicy: vi.fn().mockReturnValue({
+    environment: 'development',
+    syncIndexes: true,
+    verifyCriticalIndexes: false,
+    failOnCriticalDrift: false,
+    autoIndex: true,
+    timeoutMs: 30_000,
+  }),
+}))
+
 vi.mock('mongoose', () => ({ default: mongooseMock }))
 vi.mock('~/server/db/bootstrap', () => bootstrapMock)
+vi.mock('~/server/db/policy', () => policyMock)
 vi.mock('~/server/utils/posthog', () => ({
   serverCaptureException: vi.fn(),
 }))
@@ -29,6 +41,14 @@ describe('connectDB', () => {
     mongooseMock.connection.readyState = 0
     bootstrapMock.isBootstrapped.mockReturnValue(false)
     bootstrapMock.bootstrapDB.mockResolvedValue(undefined)
+    policyMock.getBootstrapPolicy.mockReturnValue({
+      environment: 'development',
+      syncIndexes: true,
+      verifyCriticalIndexes: false,
+      failOnCriticalDrift: false,
+      autoIndex: true,
+      timeoutMs: 30_000,
+    })
     process.env.MONGODB_URI = 'mongodb://localhost/test'
   })
 
@@ -49,19 +69,37 @@ describe('connectDB', () => {
     expect(bootstrapMock.bootstrapDB).toHaveBeenCalledTimes(1)
   })
 
-  it('disables autoIndex when NODE_ENV is production', async () => {
-    const originalNodeEnv = process.env.NODE_ENV
-    process.env.NODE_ENV = 'production'
+  it('uses autoIndex from the resolved policy', async () => {
+    policyMock.getBootstrapPolicy.mockReturnValue({
+      environment: 'production',
+      syncIndexes: false,
+      verifyCriticalIndexes: true,
+      failOnCriticalDrift: true,
+      autoIndex: false,
+      timeoutMs: 10_000,
+    })
 
-    try {
-      await connectDB()
+    await connectDB()
 
-      expect(mongooseMock.connect).toHaveBeenCalledWith('mongodb://localhost/test', {
-        autoIndex: false,
-      })
-    } finally {
-      process.env.NODE_ENV = originalNodeEnv
+    expect(mongooseMock.connect).toHaveBeenCalledWith('mongodb://localhost/test', {
+      autoIndex: false,
+    })
+  })
+
+  it('passes the resolved policy to bootstrapDB', async () => {
+    const policy = {
+      environment: 'staging' as const,
+      syncIndexes: false,
+      verifyCriticalIndexes: true,
+      failOnCriticalDrift: false,
+      autoIndex: false,
+      timeoutMs: 15_000,
     }
+    policyMock.getBootstrapPolicy.mockReturnValue(policy)
+
+    await connectDB()
+
+    expect(bootstrapMock.bootstrapDB).toHaveBeenCalledWith(policy)
   })
 
   it('skips connect but retries bootstrap when already connected and bootstrap failed', async () => {
@@ -94,12 +132,10 @@ describe('connectDB', () => {
   })
 
   it('waits for in-flight connection when readyState is 2 (connecting)', async () => {
-    // Simulate a slow connect so the first call sets readyState to 2
     let resolveConnect!: () => void
     mongooseMock.connect.mockImplementation(
       () =>
         new Promise<void>((resolve) => {
-          // Transition to "connecting" state
           mongooseMock.connection.readyState = 2
           resolveConnect = () => {
             mongooseMock.connection.readyState = 1
@@ -108,31 +144,21 @@ describe('connectDB', () => {
         }),
     )
 
-    // First caller starts connecting
     const first = connectDB()
-
-    // Second caller arrives while readyState is 2
     const second = connectDB()
 
-    // Resolve the connection
     resolveConnect()
-
     await Promise.all([first, second])
 
-    // connect should only have been called once
     expect(mongooseMock.connect).toHaveBeenCalledTimes(1)
-    // bootstrap should still run
     expect(bootstrapMock.bootstrapDB).toHaveBeenCalled()
   })
 
   it('shares one connect attempt when two callers race before readyState flips', async () => {
-    // Both callers enter while readyState is still 0 — the first creates a
-    // connectPromise, the second must reuse it instead of calling connect again.
     let resolveConnect!: () => void
     mongooseMock.connect.mockImplementation(
       () =>
         new Promise<void>((resolve) => {
-          // readyState stays 0 during this tick to simulate the race window
           resolveConnect = () => {
             mongooseMock.connection.readyState = 1
             resolve()
@@ -140,7 +166,6 @@ describe('connectDB', () => {
         }),
     )
 
-    // Both callers start in the same microtask before readyState changes
     const first = connectDB()
     const second = connectDB()
 
