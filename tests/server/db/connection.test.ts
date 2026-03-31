@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 
 const mongooseMock = vi.hoisted(() => ({
   connect: vi.fn().mockResolvedValue(undefined),
@@ -19,6 +19,8 @@ vi.mock('~/server/utils/posthog', () => ({
 
 import { connectDB, isDBConnected, __resetConnectPromiseForTests } from '~/server/db/connection'
 
+const originalMongoUri = process.env.MONGODB_URI
+
 describe('connectDB', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -28,6 +30,14 @@ describe('connectDB', () => {
     bootstrapMock.isBootstrapped.mockReturnValue(false)
     bootstrapMock.bootstrapDB.mockResolvedValue(undefined)
     process.env.MONGODB_URI = 'mongodb://localhost/test'
+  })
+
+  afterAll(() => {
+    if (originalMongoUri === undefined) {
+      delete process.env.MONGODB_URI
+    } else {
+      process.env.MONGODB_URI = originalMongoUri
+    }
   })
 
   it('connects and bootstraps on first call', async () => {
