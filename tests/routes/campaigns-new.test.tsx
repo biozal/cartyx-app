@@ -1,14 +1,10 @@
 import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { render, screen } from '@testing-library/react'
 
-// Mock routing
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, ...props }: { children: React.ReactNode }) => <a {...props}>{children}</a>,
-  createFileRoute: () => ({
-    useRouteContext: vi.fn(() => ({ user: { id: '1', name: 'Test', role: 'gm' } })),
-  }),
+  createFileRoute: vi.fn(() => vi.fn(() => ({ useRouteContext: vi.fn(), useLoaderData: vi.fn() }))),
   redirect: vi.fn(),
   useNavigate: vi.fn(() => vi.fn()),
 }))
@@ -24,23 +20,25 @@ vi.mock('~/constants/timezones', () => ({
   TIMEZONES: [['America/Chicago', 'Central Time (CT)']],
 }))
 
-const wizardSource = readFileSync(
-  resolve(__dirname, '../../app/routes/campaigns/new.tsx'),
-  'utf-8',
-)
+import { NewCampaignPage } from '~/routes/campaigns/new'
 
 describe('Create-campaign wizard — step 1 image guidance (#302)', () => {
-  it('includes recommended image-size guidance text', () => {
-    expect(wizardSource).toContain('Recommended: 1200')
-    expect(wizardSource).toContain('400px or larger')
-    expect(wizardSource).toContain('PNG, JPG, WebP up to 10MB')
-    expect(wizardSource).toContain('GIF up to 3MB')
+  it('renders recommended image-size guidance text', () => {
+    render(<NewCampaignPage />)
+    expect(screen.getByText(/Recommended: 1200/)).toBeInTheDocument()
+    expect(screen.getByText(/400px or larger/)).toBeInTheDocument()
   })
 
-  it('validates allowed image types (PNG, JPEG, GIF, WebP)', () => {
-    expect(wizardSource).toContain("'image/png'")
-    expect(wizardSource).toContain("'image/jpeg'")
-    expect(wizardSource).toContain("'image/gif'")
-    expect(wizardSource).toContain("'image/webp'")
+  it('renders allowed file-type and size limits', () => {
+    render(<NewCampaignPage />)
+    expect(screen.getByText(/PNG, JPG, WebP up to 10MB/)).toBeInTheDocument()
+    expect(screen.getByText(/GIF up to 3MB/)).toBeInTheDocument()
+  })
+
+  it('file input accepts only PNG, JPEG, GIF, and WebP', () => {
+    render(<NewCampaignPage />)
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    expect(fileInput).toBeTruthy()
+    expect(fileInput.accept).toBe('image/png,image/jpeg,image/gif,image/webp')
   })
 })

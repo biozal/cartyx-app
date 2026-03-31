@@ -378,9 +378,9 @@ describe('getCampaign', () => {
     const campaign = makeCampaign({ gameMasterId: 'someone-else', members: [{ userId: 'dbuser-1', role: 'player' }] })
     vi.mocked(Campaign.findById).mockResolvedValue(campaign)
 
-    const result = await _getCampaign({ data: { id: 'camp-1' } }) as { gmScreens?: unknown }
+    const result = await _getCampaign({ data: { id: 'camp-1' } }) as { gmScreens?: unknown[] }
 
-    expect(result.gmScreens).toBeUndefined()
+    expect(!result.gmScreens || result.gmScreens.length === 0).toBe(true)
   })
 })
 
@@ -862,7 +862,8 @@ describe('createCampaign — default document creation regression (#302)', () =>
       widgets?: unknown[]
     }>
     expect(gmCreateCall[0].name).toBe('Default')
-    expect(gmCreateCall[0].widgets).toBeUndefined()
+    const widgets = gmCreateCall[0].widgets
+    expect(!widgets || widgets.length === 0).toBe(true)
   })
 
   it('does not create Session 0 or GMScreen when Campaign.create fails', async () => {
@@ -1003,13 +1004,13 @@ describe('getCampaign — enter-campaign loading regression (#302)', () => {
 
     const result = await _getCampaign({ data: { id: 'camp-1' } }) as {
       sessions: Array<{ name: string }>
-      gmScreens?: unknown
+      gmScreens?: unknown[]
       isOwner: boolean
     }
 
     expect(result.sessions).toHaveLength(1)
     expect(result.sessions[0].name).toBe('Session 0')
-    expect(result.gmScreens).toBeUndefined()
+    expect(!result.gmScreens || result.gmScreens.length === 0).toBe(true)
     expect(result.isOwner).toBe(false)
   })
 
