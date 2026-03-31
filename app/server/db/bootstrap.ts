@@ -1,14 +1,11 @@
-import { Campaign } from './models/Campaign'
-import { GMScreen } from './models/GMScreen'
-import { Player } from './models/Player'
-import { Session } from './models/Session'
-import { User } from './models/User'
+import { ensureCollections, syncCollectionsAndIndexes } from './inspect'
 
 let bootstrapped = false
 let bootstrapPromise: Promise<void> | null = null
 
 /**
- * Ensures all collections exist and indexes are created/verified at startup.
+ * Ensures all collections exist at startup, and in non-production environments
+ * also creates any missing indexes.
  *
  * ## Why bootstrap at startup instead of migrations or CI-only checks?
  *
@@ -21,25 +18,35 @@ let bootstrapPromise: Promise<void> | null = null
  * queries hit full collection scans until someone manually runs a setup script.
  *
  * **Startup bootstrap** sidesteps both problems: `createCollection` and
- * `ensureIndexes` are idempotent MongoDB operations that no-op when the
+ * `createIndexes` are idempotent MongoDB operations that no-op when the
  * collection/index already exists, so they're safe to run on every boot.
- * This guarantees that any environment with a valid MONGODB_URI is query-ready
- * immediately, with no manual steps and no migration history to track.
+ * This guarantees that any non-production environment with a valid MONGODB_URI
+ * is query-ready immediately, with no manual steps and no migration history
+ * to track.
+ *
+ * ### Production behaviour
+ * In production, bootstrap only creates collections — it does **not** call
+ * `createIndexes`. This avoids implicit index creation on app startup, which
+ * can lock collections and cause latency spikes on large datasets. Operators
+ * should use `npm run db:sync` for controlled index management and
+ * `npm run db:verify` as a pre-deploy gate.
  *
  * ### Tradeoffs
- * - Adds a small amount of latency to the first request (collection + index
+ * - Adds a small amount of latency to the first request (collection
  *   verification). In practice this is <100 ms against an idle cluster.
  * - If the schema grows to need destructive changes (dropping indexes, renaming
  *   fields, backfilling data), a proper migration tool should be introduced at
  *   that point — bootstrap only handles additive, idempotent operations.
- * - `ensureIndexes` will throw if a schema-defined index conflicts with an
- *   existing index that has different options. This is intentional — it surfaces
- *   drift early rather than silently ignoring it.
  *
  * Safe to call multiple times — runs only once per process. If it throws, the
  * flag stays `false` so the next `connectDB()` call will retry.
+ *
+ * @param production — when true, only creates collections (no index sync).
+ *   Defaults to `process.env.NODE_ENV === 'production'`.
  */
-export async function bootstrapDB(): Promise<void> {
+export async function bootstrapDB(
+  production = process.env.NODE_ENV === 'production',
+): Promise<void> {
   if (bootstrapped) return
 
   // If a bootstrap is already in flight, share the same attempt so
@@ -48,22 +55,11 @@ export async function bootstrapDB(): Promise<void> {
 
   bootstrapPromise = (async () => {
     try {
-      await Promise.all([
-        User.createCollection(),
-        Campaign.createCollection(),
-        Player.createCollection(),
-        Session.createCollection(),
-        GMScreen.createCollection(),
-      ])
-
-      await Promise.all([
-        User.ensureIndexes(),
-        Campaign.ensureIndexes(),
-        Player.ensureIndexes(),
-        Session.ensureIndexes(),
-        GMScreen.ensureIndexes(),
-      ])
-
+      if (production) {
+        await ensureCollections()
+      } else {
+        await syncCollectionsAndIndexes()
+      }
       bootstrapped = true
     } finally {
       bootstrapPromise = null

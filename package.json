@@ -1,7 +1,7 @@
 {
   "name": "cartyx-app",
   "version": "0.2.0",
-  "description": "Cartyx \u2014 D&D Campaign Management Platform",
+  "description": "Cartyx — D&D Campaign Management Platform",
   "type": "module",
   "engines": {
     "node": "^20.20.0 || >=22.22.0"
@@ -22,7 +22,9 @@
     "test:ci": "vitest run --project unit --coverage --reporter=verbose",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "build-storybook:full": "node scripts/build-storybook-with-iframe.mjs"
+    "build-storybook:full": "node scripts/build-storybook-with-iframe.mjs",
+    "db:verify": "tsx scripts/mongo-admin.ts verify",
+    "db:sync": "tsx scripts/mongo-admin.ts sync"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1014.0",
@@ -83,6 +85,7 @@
     "prettier": "^3.5.3",
     "storybook": "^10.1.11",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.8.2",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^3.0.8"

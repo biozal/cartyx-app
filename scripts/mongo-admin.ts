@@ -1,0 +1,122 @@
+/**
+ * MongoDB administration CLI — verify or sync collections and indexes.
+ *
+ * Usage:
+ *   npx tsx scripts/mongo-admin.ts verify   # read-only check, exits non-zero on drift
+ *   npx tsx scripts/mongo-admin.ts sync     # creates missing collections + indexes
+ *
+ * Shortcut via npm scripts:
+ *   npm run db:verify
+ *   npm run db:sync
+ *
+ * Requires MONGODB_URI to be set (e.g. via .env or shell export).
+ */
+import mongoose from 'mongoose'
+import { inspectIndexes, syncCollectionsAndIndexes } from '../app/server/db/inspect.js'
+
+const COMMANDS = ['verify', 'sync'] as const
+type Command = (typeof COMMANDS)[number]
+
+function usage(): void {
+  console.error('Usage: npx tsx scripts/mongo-admin.ts <verify|sync>')
+  console.error('')
+  console.error('Commands:')
+  console.error('  verify  Check expected collections/indexes against the database (read-only).')
+  console.error('          Exits 0 if everything matches, 1 if there is drift.')
+  console.error('  sync    Create any missing collections and indexes.')
+  process.exitCode = 2
+}
+
+function printDiffs(result: Awaited<ReturnType<typeof inspectIndexes>>): void {
+  for (const diff of result.diffs) {
+    const hasDrift =
+      diff.missing.length > 0 || diff.extra.length > 0 || diff.optionMismatches.length > 0
+    const status = hasDrift ? '✗' : '✓'
+    console.log(`\n${status} ${diff.model} (${diff.collection})`)
+
+    if (diff.missing.length > 0) {
+      console.log('  Missing indexes:')
+      for (const idx of diff.missing) {
+        console.log(`    - ${JSON.stringify(idx.key)}`)
+      }
+    }
+
+    if (diff.extra.length > 0) {
+      console.log('  Extra indexes (in DB but not in schema):')
+      for (const idx of diff.extra) {
+        console.log(`    - ${JSON.stringify(idx.key)}`)
+      }
+    }
+
+    if (diff.optionMismatches.length > 0) {
+      console.log('  Option mismatches:')
+      for (const m of diff.optionMismatches) {
+        console.log(`    - ${JSON.stringify(m.key)}`)
+        console.log(`      expected: ${JSON.stringify(m.expected)}`)
+        console.log(`      actual:   ${JSON.stringify(m.actual)}`)
+      }
+    }
+
+    if (!hasDrift) {
+      console.log('  All indexes match.')
+    }
+  }
+}
+
+async function main(): Promise<void> {
+  const command = process.argv[2] as Command | undefined
+  if (!command || !COMMANDS.includes(command)) {
+    usage()
+    return
+  }
+
+  const uri = process.env.MONGODB_URI
+  if (!uri) {
+    console.error('Error: MONGODB_URI environment variable is not set.')
+    process.exitCode = 2
+    return
+  }
+
+  // Connect without autoIndex — we manage indexes explicitly.
+  await mongoose.connect(uri, { autoIndex: false })
+
+  try {
+    if (command === 'verify') {
+      console.log('Verifying MongoDB collections and indexes...')
+      const result = await inspectIndexes()
+      printDiffs(result)
+
+      if (result.ok) {
+        console.log('\nAll expected indexes are present.')
+      } else {
+        console.error('\nIndex drift detected — run `npm run db:sync` to fix.')
+        process.exitCode = 1
+      }
+      return
+    }
+
+    if (command === 'sync') {
+      console.log('Syncing MongoDB collections and indexes...')
+      await syncCollectionsAndIndexes()
+      console.log('Sync complete. Verifying...')
+
+      const result = await inspectIndexes()
+      printDiffs(result)
+
+      if (result.ok) {
+        console.log('\nAll collections and indexes are up to date.')
+      } else {
+        console.error('\nSync completed but drift remains — investigate manually.')
+        process.exitCode = 1
+      }
+      return
+    }
+  } finally {
+    await mongoose.disconnect()
+  }
+}
+
+main().catch((err) => {
+  console.error('Fatal error:', err)
+  process.exitCode = 2
+})
