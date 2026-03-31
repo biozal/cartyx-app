@@ -60,14 +60,14 @@ describe('MainView', () => {
     expect(toolbar).not.toHaveClass('w-0')
   })
 
-  it('keeps the mobile inspector drawer hidden by default', () => {
+  it('keeps the mobile inspector drawer collapsed by default', () => {
     render(
       <MainView>
         <div>Content</div>
       </MainView>
     )
     const inspector = screen.getByTestId('inspector-shell')
-    expect(inspector).toHaveClass('hidden')
+    expect(inspector).toHaveClass('w-0')
     expect(inspector).not.toHaveAttribute('role', 'dialog')
   })
 
@@ -289,11 +289,11 @@ describe('MainView', () => {
       const shell = screen.getByTestId('inspector-shell')
       const inspector = screen.getByTestId('inspector-content')
       expect(shell).toHaveClass('lg:w-80')
-      expect(inspector).not.toHaveClass('hidden')
+      expect(inspector).toHaveClass('lg:flex')
 
       await user.click(screen.getByTestId('desktop-inspector-toggle'))
       expect(shell).toHaveClass('lg:w-0')
-      expect(inspector).toHaveClass('hidden')
+      expect(inspector).toHaveClass('lg:hidden')
     })
 
     it('on desktop, toggle aria-expanded reflects inspectorVisible state', async () => {
@@ -357,6 +357,149 @@ describe('MainView', () => {
 
       await user.click(screen.getByTestId('desktop-inspector-toggle'))
       expect(screen.getByTestId('desktop-inspector-toggle-icon')).toHaveClass('rotate-0')
+    })
+  })
+
+  describe('toggle visibility and left-edge positioning', () => {
+    it('mobile toggle is rendered inside the inspector shell', () => {
+      mockMatchMedia(0)
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      const shell = screen.getByTestId('inspector-shell')
+      const mobileToggle = screen.getByTestId('mobile-inspector-toggle')
+      expect(shell).toContainElement(mobileToggle)
+    })
+
+    it('mobile toggle is positioned on the left edge of the inspector shell', () => {
+      mockMatchMedia(0)
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      const mobileToggle = screen.getByTestId('mobile-inspector-toggle')
+      expect(mobileToggle).toHaveClass('absolute', 'left-0', '-translate-x-full')
+    })
+
+    it('mobile toggle is visible when drawer is closed', () => {
+      mockMatchMedia(0)
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      expect(screen.getByTestId('mobile-inspector-toggle')).toBeInTheDocument()
+      expect(screen.getByTestId('inspector-shell')).not.toHaveClass('hidden')
+    })
+
+    it('mobile toggle is visible when drawer is open', async () => {
+      mockMatchMedia(0)
+      const user = userEvent.setup()
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      await user.click(screen.getByTestId('mobile-inspector-toggle'))
+      expect(screen.getByTestId('mobile-inspector-toggle')).toBeInTheDocument()
+    })
+
+    it('desktop toggle is rendered inside the inspector shell', () => {
+      mockMatchMedia(1024)
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      const shell = screen.getByTestId('inspector-shell')
+      const desktopToggle = screen.getByTestId('desktop-inspector-toggle')
+      expect(shell).toContainElement(desktopToggle)
+    })
+
+    it('desktop toggle is positioned on the left edge of the inspector shell', () => {
+      mockMatchMedia(1024)
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      const desktopToggle = screen.getByTestId('desktop-inspector-toggle')
+      expect(desktopToggle).toHaveClass('absolute', 'left-0', '-translate-x-full')
+    })
+
+    it('desktop toggle remains in DOM when inspector is collapsed', async () => {
+      mockMatchMedia(1024)
+      const user = userEvent.setup()
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      await user.click(screen.getByTestId('desktop-inspector-toggle'))
+      expect(screen.getByTestId('inspector-shell')).toHaveClass('lg:w-0')
+      expect(screen.getByTestId('desktop-inspector-toggle')).toBeInTheDocument()
+    })
+
+    it('on mobile, inspector content is hidden when drawer is closed', () => {
+      mockMatchMedia(0)
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      const content = screen.getByTestId('inspector-content')
+      expect(content).toHaveClass('hidden')
+      expect(content).not.toHaveClass('flex')
+    })
+
+    it('on mobile, inspector content is visible when drawer is open', async () => {
+      mockMatchMedia(0)
+      const user = userEvent.setup()
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      await user.click(screen.getByTestId('mobile-inspector-toggle'))
+      const content = screen.getByTestId('inspector-content')
+      expect(content).toHaveClass('flex')
+      expect(content).not.toHaveClass('hidden')
+    })
+
+    it('inspector shell is not display:hidden so toggles remain accessible', () => {
+      mockMatchMedia(0)
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      const shell = screen.getByTestId('inspector-shell')
+      expect(shell).not.toHaveClass('hidden')
+      expect(shell).toHaveClass('w-0')
+    })
+
+    it('both toggles have proper button semantics and accessible labels', () => {
+      mockMatchMedia(1024)
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      const mobileToggle = screen.getByTestId('mobile-inspector-toggle')
+      const desktopToggle = screen.getByTestId('desktop-inspector-toggle')
+
+      expect(mobileToggle).toHaveAttribute('type', 'button')
+      expect(mobileToggle).toHaveAttribute('aria-label')
+      expect(mobileToggle).toHaveAttribute('aria-expanded')
+      expect(mobileToggle).toHaveAttribute('aria-controls', 'mainview-inspector')
+
+      expect(desktopToggle).toHaveAttribute('type', 'button')
+      expect(desktopToggle).toHaveAttribute('aria-label')
+      expect(desktopToggle).toHaveAttribute('aria-expanded')
+      expect(desktopToggle).toHaveAttribute('aria-controls', 'mainview-inspector')
     })
   })
 })

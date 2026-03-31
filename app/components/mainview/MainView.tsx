@@ -82,22 +82,6 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
       {/* Inspector — single instance */}
       {showInspector && (
         <>
-          {/* Mobile toggle — fixed button on right edge, visible below lg */}
-          <button
-            type="button"
-            aria-label={mobileInspectorToggleLabel}
-            aria-expanded={mobileInspectorOpen}
-            aria-controls="mainview-inspector"
-            data-testid="mobile-inspector-toggle"
-            onClick={() => setMobileInspectorOpen(o => !o)}
-            title={mobileInspectorToggleLabel}
-            className="fixed right-0 top-1/2 -translate-y-1/2 z-[60] flex h-12 w-6 items-center justify-center rounded-l border border-r-0 border-white/[0.07] bg-[#0D1117] text-slate-400 transition-colors hover:text-slate-200 lg:hidden"
-          >
-            <span data-testid="mobile-inspector-toggle-icon" className={mobileInspectorToggleIconClass}>
-              <ChevronLeft size={14} />
-            </span>
-          </button>
-
           {/* Mobile backdrop — tapping outside closes the drawer */}
           {drawerOpen && (
             <div
@@ -118,14 +102,30 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
             aria-label={drawerOpen ? 'Inspector' : undefined}
             tabIndex={drawerOpen ? -1 : undefined}
             className={[
-              'flex-shrink-0 overflow-hidden',
+              'flex-shrink-0',
               drawerOpen
                 ? 'fixed inset-y-0 right-0 z-50 flex w-80'
-                : 'hidden',
+                : 'relative w-0',
               'lg:relative lg:flex lg:inset-auto lg:z-auto lg:transition-[width] lg:duration-200',
               inspectorVisible ? 'lg:w-80' : 'lg:w-0',
             ].join(' ')}
           >
+            {/* Mobile toggle — positioned on left edge of inspector shell, visible below lg */}
+            <button
+              type="button"
+              aria-label={mobileInspectorToggleLabel}
+              aria-expanded={mobileInspectorOpen}
+              aria-controls="mainview-inspector"
+              data-testid="mobile-inspector-toggle"
+              onClick={() => setMobileInspectorOpen(o => !o)}
+              title={mobileInspectorToggleLabel}
+              className="absolute left-0 top-1/2 z-[60] flex h-12 w-6 -translate-x-full -translate-y-1/2 items-center justify-center rounded-l border border-r-0 border-white/[0.07] bg-[#0D1117] text-slate-400 transition-colors hover:text-slate-200 lg:hidden"
+            >
+              <span data-testid="mobile-inspector-toggle-icon" className={mobileInspectorToggleIconClass}>
+                <ChevronLeft size={14} />
+              </span>
+            </button>
+
             {/* Desktop toggle — positioned on left edge of shell */}
             <button
               type="button"
@@ -147,9 +147,12 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
               data-testid="inspector-content"
               className={[
                 'h-full w-80 overflow-hidden bg-[#0D1117]',
-                (inspectorVisible || drawerOpen)
+                drawerOpen
                   ? 'flex border-l border-white/[0.07]'
                   : 'hidden',
+                inspectorVisible
+                  ? 'lg:flex lg:border-l lg:border-white/[0.07]'
+                  : 'lg:hidden',
               ].join(' ')}
             >
               <InspectorSidebar onMobileClose={() => setMobileInspectorOpen(false)} />
