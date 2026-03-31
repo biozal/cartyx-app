@@ -42,6 +42,14 @@ export function useOptionalFeatureFlagEnabled(flag: string): boolean {
   return Boolean(flag) && (enabled ?? false)
 }
 
+export function useOptionalFeatureFlag(flag: string): { isEnabled: boolean; isLoading: boolean } {
+  const enabled = usePostHogFeatureFlagEnabled(flag || '__ff_disabled__')
+  return {
+    isEnabled: Boolean(flag) && (enabled ?? false),
+    isLoading: Boolean(flag) && enabled === undefined,
+  }
+}
+
 export function useFeatureFlagPayload<TPayload = JsonType>(flag: string): TPayload | null {
   return normalizePayload<TPayload>(usePostHogFeatureFlagPayload(flag))
 }

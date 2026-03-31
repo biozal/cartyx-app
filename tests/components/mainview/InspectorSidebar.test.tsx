@@ -23,11 +23,17 @@ const { DEV_FLAGS, enabledFlags } = vi.hoisted(() => {
 
   return { DEV_FLAGS, enabledFlags }
 })
+let isLoadingFlags = false
+
 vi.mock('~/utils/featureFlags', () => ({
-  useOptionalFeatureFlagEnabled: (flag: string) => Boolean(flag) && enabledFlags.has(flag),
+  useOptionalFeatureFlag: (flag: string) => ({
+    isEnabled: Boolean(flag) && enabledFlags.has(flag) && !isLoadingFlags,
+    isLoading: isLoadingFlags && Boolean(flag),
+  }),
 }))
 
 beforeEach(() => {
+  isLoadingFlags = false
   vi.stubEnv('VITE_PUBLIC_FF_CHAT', DEV_FLAGS.chat)
   vi.stubEnv('VITE_PUBLIC_FF_WIKI', DEV_FLAGS.wiki)
   vi.stubEnv('VITE_PUBLIC_FF_NOTEPAD', DEV_FLAGS.notepad)
@@ -122,6 +128,14 @@ describe('InspectorSidebar', () => {
     )
   })
 
+  it('handleKeyDown does nothing when no tabs are available', () => {
+    enabledFlags.clear()
+    render(<InspectorSidebar />)
+    const tablist = screen.getByRole('tablist')
+    // Should not throw
+    fireEvent.keyDown(tablist, { key: 'ArrowRight' })
+  })
+
   it('tab buttons have type=button', () => {
     render(<InspectorSidebar />)
     const buttons = screen.getAllByRole('tab')
@@ -195,10 +209,19 @@ describe('InspectorSidebar', () => {
       )
     })
 
+    it('shows loading state when all flagged tabs are loading and none are available yet', () => {
+      isLoadingFlags = true
+      enabledFlags.clear()
+      render(<InspectorSidebar />)
+      expect(screen.getByText('Loading panels...')).toBeInTheDocument()
+      expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+    })
+
     it('shows no tabs when all flagged tabs are disabled', () => {
       enabledFlags.clear()
       render(<InspectorSidebar />)
       expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+      expect(screen.queryByText('Loading panels...')).not.toBeInTheDocument()
     })
 
     it('switches active panel to chat when the active tab flag (wiki) is toggled off at runtime', async () => {
