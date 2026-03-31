@@ -443,6 +443,32 @@ describe('MainView', () => {
       expect(screen.getByTestId('desktop-inspector-toggle')).toBeInTheDocument()
     })
 
+    it('on mobile, inspector content is hidden when drawer is closed', () => {
+      mockMatchMedia(0)
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      const content = screen.getByTestId('inspector-content')
+      expect(content).toHaveClass('hidden')
+      expect(content).not.toHaveClass('flex')
+    })
+
+    it('on mobile, inspector content is visible when drawer is open', async () => {
+      mockMatchMedia(0)
+      const user = userEvent.setup()
+      render(
+        <MainView>
+          <div>Content</div>
+        </MainView>
+      )
+      await user.click(screen.getByTestId('mobile-inspector-toggle'))
+      const content = screen.getByTestId('inspector-content')
+      expect(content).toHaveClass('flex')
+      expect(content).not.toHaveClass('hidden')
+    })
+
     it('inspector shell is not display:hidden so toggles remain accessible', () => {
       mockMatchMedia(0)
       render(

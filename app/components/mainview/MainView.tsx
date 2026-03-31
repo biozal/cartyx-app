@@ -19,9 +19,11 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
   const [toolbarCollapsed, setToolbarCollapsed] = useState(false)
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false)
   const [inspectorVisible, setInspectorVisible] = useState(true)
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia(LG_QUERY).matches)
   const drawerRef = useRef<HTMLDivElement>(null)
 
   const drawerOpen = showInspector && mobileInspectorOpen
+  const contentVisible = isDesktop ? inspectorVisible : drawerOpen
   const desktopInspectorToggleLabel = inspectorVisible ? 'Close inspector' : 'Open inspector'
   const mobileInspectorToggleLabel = mobileInspectorOpen ? 'Close inspector' : 'Open inspector'
   const desktopInspectorToggleIconClass = `inline-flex transition-transform duration-200 ${inspectorVisible ? 'rotate-180' : 'rotate-0'}`
@@ -41,10 +43,11 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [drawerOpen])
 
-  // Reset mobile drawer when viewport grows to lg+
+  // Track viewport size and reset mobile drawer when viewport grows to lg+
   useEffect(() => {
     const mq = window.matchMedia(LG_QUERY)
     const handler = () => {
+      setIsDesktop(mq.matches)
       if (mq.matches) setMobileInspectorOpen(false)
     }
     mq.addEventListener('change', handler)
@@ -147,7 +150,7 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
               data-testid="inspector-content"
               className={[
                 'h-full w-80 overflow-hidden bg-[#0D1117]',
-                (inspectorVisible || drawerOpen)
+                contentVisible
                   ? 'flex border-l border-white/[0.07]'
                   : 'hidden',
               ].join(' ')}
