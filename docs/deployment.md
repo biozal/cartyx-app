@@ -40,9 +40,10 @@ Complete guide to setting up Cartyx infrastructure from scratch.
 5. [Vercel Setup](#4-vercel-setup)
 6. [Environment Variables Reference](#5-environment-variables-reference)
 7. [Local Development](#6-local-development)
-8. [CI/CD Pipeline](#7-cicd-pipeline)
-9. [DNS Configuration](#8-dns-configuration)
-10. [Troubleshooting](#troubleshooting)
+8. [MongoDB Administration](#7-mongodb-administration)
+9. [CI/CD Pipeline](#8-cicd-pipeline)
+10. [DNS Configuration](#9-dns-configuration)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -375,7 +376,50 @@ Image uploads work locally without R2 — files save to `public/uploads/`. To te
 
 ---
 
-## 7. CI/CD Pipeline
+## 7. MongoDB Administration
+
+Cartyx provides a CLI tool for controlled database index management.
+
+### Commands
+
+```bash
+# Read-only check — exits 0 if indexes match, 1 if there is drift
+npm run db:verify
+
+# Create missing collections and indexes
+npm run db:sync
+```
+
+Both commands require `MONGODB_URI` to be set.
+
+### When to use each command
+
+| Scenario | Command |
+|---|---|
+| **Pre-deploy CI gate** | `npm run db:verify` — fails the pipeline if indexes are missing |
+| **New environment setup** | `npm run db:sync` — creates all collections and indexes from scratch |
+| **After adding a new index in code** | `npm run db:verify` to confirm drift, then `npm run db:sync` to apply |
+| **Routine health check** | `npm run db:verify` — safe to run at any time, never mutates the DB |
+
+### Production behavior
+
+In production (`NODE_ENV=production`), Mongoose `autoIndex` is disabled so index
+creation is never a side-effect of app startup. Use `npm run db:sync` explicitly
+before or after deploys when schema indexes change.
+
+In non-production environments (local dev, preview deploys), `autoIndex` remains
+enabled for convenience so new indexes are applied automatically on app start.
+
+### Schema as source of truth
+
+All indexes are declared in the Mongoose schema files under `app/server/db/models/`.
+The `db:verify` and `db:sync` commands read these declarations and compare/apply them
+against the live database. There is no separate migration system — the schema files
+are the single source of truth.
+
+---
+
+## 8. CI/CD Pipeline
 
 ### Pull Request Checks (`ci.yml`)
 
@@ -410,7 +454,7 @@ Vercel deploys are triggered automatically on every push:
 
 ---
 
-## 8. DNS Configuration
+## 9. DNS Configuration
 
 All DNS is managed in Cloudflare. Required records:
 

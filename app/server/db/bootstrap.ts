@@ -1,8 +1,4 @@
-import { Campaign } from './models/Campaign'
-import { GMScreen } from './models/GMScreen'
-import { Player } from './models/Player'
-import { Session } from './models/Session'
-import { User } from './models/User'
+import { syncCollectionsAndIndexes } from './inspect'
 
 let bootstrapped = false
 let bootstrapPromise: Promise<void> | null = null
@@ -26,13 +22,20 @@ let bootstrapPromise: Promise<void> | null = null
  * This guarantees that any environment with a valid MONGODB_URI is query-ready
  * immediately, with no manual steps and no migration history to track.
  *
+ * ### Production note
+ * In production, `autoIndex` is disabled on the Mongoose connection so index
+ * creation is never an implicit side-effect. The bootstrap still runs
+ * `createIndexes` explicitly to keep non-production environments self-sufficient.
+ * For production, operators should prefer `npm run db:sync` for controlled
+ * index management and `npm run db:verify` as a pre-deploy gate.
+ *
  * ### Tradeoffs
  * - Adds a small amount of latency to the first request (collection + index
  *   verification). In practice this is <100 ms against an idle cluster.
  * - If the schema grows to need destructive changes (dropping indexes, renaming
  *   fields, backfilling data), a proper migration tool should be introduced at
  *   that point — bootstrap only handles additive, idempotent operations.
- * - `ensureIndexes` will throw if a schema-defined index conflicts with an
+ * - `createIndexes` will throw if a schema-defined index conflicts with an
  *   existing index that has different options. This is intentional — it surfaces
  *   drift early rather than silently ignoring it.
  *
@@ -48,22 +51,7 @@ export async function bootstrapDB(): Promise<void> {
 
   bootstrapPromise = (async () => {
     try {
-      await Promise.all([
-        User.createCollection(),
-        Campaign.createCollection(),
-        Player.createCollection(),
-        Session.createCollection(),
-        GMScreen.createCollection(),
-      ])
-
-      await Promise.all([
-        User.ensureIndexes(),
-        Campaign.ensureIndexes(),
-        Player.ensureIndexes(),
-        Session.ensureIndexes(),
-        GMScreen.ensureIndexes(),
-      ])
-
+      await syncCollectionsAndIndexes()
       bootstrapped = true
     } finally {
       bootstrapPromise = null

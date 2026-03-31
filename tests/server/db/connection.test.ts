@@ -43,8 +43,22 @@ describe('connectDB', () => {
   it('connects and bootstraps on first call', async () => {
     await connectDB()
 
-    expect(mongooseMock.connect).toHaveBeenCalledWith('mongodb://localhost/test')
+    expect(mongooseMock.connect).toHaveBeenCalledWith('mongodb://localhost/test', {
+      autoIndex: true,
+    })
     expect(bootstrapMock.bootstrapDB).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables autoIndex when NODE_ENV is production', async () => {
+    process.env.NODE_ENV = 'production'
+
+    await connectDB()
+
+    expect(mongooseMock.connect).toHaveBeenCalledWith('mongodb://localhost/test', {
+      autoIndex: false,
+    })
+
+    process.env.NODE_ENV = 'test'
   })
 
   it('skips connect but retries bootstrap when already connected and bootstrap failed', async () => {

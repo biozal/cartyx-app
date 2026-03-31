@@ -16,7 +16,15 @@ export async function connectDB(): Promise<void> {
     } else if (mongoose.connection.readyState === 0) {
       // Disconnected — start a new connection and track the promise so
       // concurrent callers can await it.
-      connectPromise = mongoose.connect(uri)
+      //
+      // autoIndex is disabled in production so that index creation is never
+      // a side-effect of app startup. Use `npm run db:sync` to manage
+      // indexes explicitly. In non-production environments autoIndex stays
+      // on for convenience.
+      const isProduction = process.env.NODE_ENV === 'production'
+      connectPromise = mongoose.connect(uri, {
+        autoIndex: !isProduction,
+      })
       await connectPromise
       connectPromise = null
     }

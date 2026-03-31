@@ -1,0 +1,157 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const { userMock, campaignMock, playerMock, sessionMock, gmScreenMock } = vi.hoisted(() => {
+  function make(
+    name: string,
+    collectionName: string,
+    schemaIndexes: Array<[Record<string, unknown>, Record<string, unknown>]>,
+  ) {
+    return {
+      modelName: name,
+      collection: { collectionName },
+      schema: { indexes: vi.fn().mockReturnValue(schemaIndexes) },
+      listIndexes: vi.fn().mockResolvedValue([{ key: { _id: 1 } }]),
+      createCollection: vi.fn().mockResolvedValue(undefined),
+      createIndexes: vi.fn().mockResolvedValue(undefined),
+    }
+  }
+
+  return {
+    userMock: make('User', 'users', [
+      [{ email: 1 }, { unique: true, sparse: true }],
+      [{ role: 1 }, {}],
+    ]),
+    campaignMock: make('Campaign', 'campaigns', [
+      [{ 'members.userId': 1 }, {}],
+    ]),
+    playerMock: make('Player', 'players', [
+      [{ campaignId: 1, userId: 1 }, { unique: true }],
+      [{ campaignId: 1 }, {}],
+    ]),
+    sessionMock: make('Session', 'sessions', [
+      [{ campaignId: 1, number: -1 }, {}],
+    ]),
+    gmScreenMock: make('GMScreen', 'gmscreen', [
+      [{ campaignId: 1 }, {}],
+    ]),
+  }
+})
+
+vi.mock('~/server/db/models/User', () => ({ User: userMock }))
+vi.mock('~/server/db/models/Campaign', () => ({ Campaign: campaignMock }))
+vi.mock('~/server/db/models/Player', () => ({ Player: playerMock }))
+vi.mock('~/server/db/models/Session', () => ({ Session: sessionMock }))
+vi.mock('~/server/db/models/GMScreen', () => ({ GMScreen: gmScreenMock }))
+
+import { inspectIndexes, syncCollectionsAndIndexes, ALL_MODELS } from '~/server/db/inspect'
+
+const allMocks = [userMock, campaignMock, playerMock, sessionMock, gmScreenMock]
+
+describe('ALL_MODELS', () => {
+  it('contains all five models', () => {
+    expect(ALL_MODELS).toHaveLength(5)
+  })
+})
+
+describe('inspectIndexes', () => {
+  beforeEach(() => {
+    for (const m of allMocks) {
+      m.listIndexes.mockReset().mockResolvedValue([{ key: { _id: 1 } }])
+    }
+  })
+
+  it('reports ok when all schema indexes exist in the database', async () => {
+    userMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { email: 1 } },
+      { key: { role: 1 } },
+    ])
+    campaignMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { 'members.userId': 1 } },
+    ])
+    playerMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { campaignId: 1, userId: 1 } },
+      { key: { campaignId: 1 } },
+    ])
+    sessionMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { campaignId: 1, number: -1 } },
+    ])
+    gmScreenMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { campaignId: 1 } },
+    ])
+
+    const result = await inspectIndexes()
+    expect(result.ok).toBe(true)
+    for (const diff of result.diffs) {
+      expect(diff.missing).toHaveLength(0)
+    }
+  })
+
+  it('reports missing indexes when DB has only _id', async () => {
+    const result = await inspectIndexes()
+
+    expect(result.ok).toBe(false)
+
+    const userDiff = result.diffs.find((d) => d.model === 'User')!
+    expect(userDiff.missing).toHaveLength(2)
+
+    const playerDiff = result.diffs.find((d) => d.model === 'Player')!
+    expect(playerDiff.missing).toHaveLength(2)
+  })
+
+  it('reports extra indexes not in the schema', async () => {
+    userMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { email: 1 } },
+      { key: { role: 1 } },
+      { key: { firstName: 1 } },
+    ])
+
+    const result = await inspectIndexes()
+    const userDiff = result.diffs.find((d) => d.model === 'User')!
+    expect(userDiff.extra).toHaveLength(1)
+    expect(userDiff.extra[0].key).toEqual({ firstName: 1 })
+  })
+
+  it('handles listIndexes failure gracefully (collection does not exist)', async () => {
+    userMock.listIndexes.mockRejectedValue(new Error('ns not found'))
+
+    const result = await inspectIndexes()
+
+    const userDiff = result.diffs.find((d) => d.model === 'User')!
+    expect(userDiff.missing).toHaveLength(2)
+    expect(userDiff.extra).toHaveLength(0)
+  })
+})
+
+describe('syncCollectionsAndIndexes', () => {
+  beforeEach(() => {
+    for (const m of allMocks) {
+      m.createCollection.mockClear()
+      m.createIndexes.mockClear()
+    }
+  })
+
+  it('creates all collections and indexes', async () => {
+    await syncCollectionsAndIndexes()
+
+    for (const m of allMocks) {
+      expect(m.createCollection).toHaveBeenCalledTimes(1)
+      expect(m.createIndexes).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('propagates errors from createCollection', async () => {
+    userMock.createCollection.mockRejectedValueOnce(new Error('create failed'))
+    await expect(syncCollectionsAndIndexes()).rejects.toThrow('create failed')
+  })
+
+  it('propagates errors from createIndexes', async () => {
+    sessionMock.createIndexes.mockRejectedValueOnce(new Error('index failed'))
+    await expect(syncCollectionsAndIndexes()).rejects.toThrow('index failed')
+  })
+})
