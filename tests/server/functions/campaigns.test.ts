@@ -536,12 +536,12 @@ describe('createCampaign', () => {
   it('rolls back all writes when Session.create fails inside transaction', async () => {
     vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never)
     vi.mocked(Session.create).mockRejectedValue(new Error('Session write failed'))
-    mockMongoSession.withTransaction.mockRejectedValue(new Error('Session write failed'))
 
     await expect(
       _createCampaign({ data: { name: 'My Campaign', description: '' } })
     ).rejects.toThrow('Session write failed')
 
+    expect(Session.create).toHaveBeenCalled()
     expect(User.updateOne).not.toHaveBeenCalled()
     expect(mockMongoSession.endSession).toHaveBeenCalled()
   })
@@ -549,12 +549,15 @@ describe('createCampaign', () => {
   it('rolls back all writes when User.updateOne fails inside transaction', async () => {
     vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never)
     vi.mocked(User.updateOne).mockRejectedValue(new Error('User update failed'))
-    mockMongoSession.withTransaction.mockRejectedValue(new Error('User update failed'))
 
     await expect(
       _createCampaign({ data: { name: 'My Campaign', description: '' } })
     ).rejects.toThrow('User update failed')
 
+    expect(Campaign.create).toHaveBeenCalled()
+    expect(Session.create).toHaveBeenCalled()
+    expect(GMScreen.create).toHaveBeenCalled()
+    expect(User.updateOne).toHaveBeenCalled()
     expect(mockMongoSession.endSession).toHaveBeenCalled()
   })
 })
