@@ -289,11 +289,11 @@ describe('MainView', () => {
       const shell = screen.getByTestId('inspector-shell')
       const inspector = screen.getByTestId('inspector-content')
       expect(shell).toHaveClass('lg:w-80')
-      expect(inspector).not.toHaveClass('hidden')
+      expect(inspector).toHaveClass('lg:flex')
 
       await user.click(screen.getByTestId('desktop-inspector-toggle'))
       expect(shell).toHaveClass('lg:w-0')
-      expect(inspector).toHaveClass('hidden')
+      expect(inspector).toHaveClass('lg:hidden')
     })
 
     it('on desktop, toggle aria-expanded reflects inspectorVisible state', async () => {
