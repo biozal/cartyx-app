@@ -131,6 +131,13 @@ describe('InspectorSidebar', () => {
   })
 
   describe('feature flags', () => {
+    it('hides chat tab when VITE_PUBLIC_FF_CHAT env var is not set', () => {
+      vi.stubEnv('VITE_PUBLIC_FF_CHAT', '')
+      render(<InspectorSidebar />)
+      expect(screen.queryByTestId('inspector-tab-chat')).not.toBeInTheDocument()
+      expect(screen.getByTestId('inspector-tab-wiki')).toBeInTheDocument()
+    })
+
     it('hides wiki tab when VITE_PUBLIC_FF_WIKI env var is not set', () => {
       vi.stubEnv('VITE_PUBLIC_FF_WIKI', '')
       render(<InspectorSidebar />)
@@ -214,6 +221,26 @@ describe('InspectorSidebar', () => {
       expect(screen.getByTestId('inspector-tab-chat')).toHaveAttribute('aria-selected', 'true')
       expect(screen.getByTestId('inspector-panel')).toContainElement(
         screen.getByRole('combobox', { name: 'Session selector' })
+      )
+    })
+
+    it('restores default tab when it becomes available after initial render', async () => {
+      // 1. Initial render with wiki flag disabled, but defaultTab="wiki"
+      enabledFlags.delete(DEV_FLAGS.wiki)
+      const { rerender } = render(<InspectorSidebar defaultTab="wiki" />)
+
+      // It should fall back to chat
+      expect(screen.getByTestId('inspector-tab-chat')).toHaveAttribute('aria-selected', 'true')
+      expect(screen.queryByTestId('inspector-tab-wiki')).not.toBeInTheDocument()
+
+      // 2. Simulate flags finishing loading (wiki flag enabled)
+      enabledFlags.add(DEV_FLAGS.wiki)
+      rerender(<InspectorSidebar defaultTab="wiki" />)
+
+      // It should now restore wiki as the active tab
+      expect(screen.getByTestId('inspector-tab-wiki')).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByTestId('inspector-panel')).toContainElement(
+        screen.getByRole('button', { name: 'Characters' })
       )
     })
   })
