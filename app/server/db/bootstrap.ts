@@ -53,7 +53,7 @@ export async function bootstrapDB(policy?: BootstrapPolicy): Promise<void> {
 
   bootstrapPromise = (async () => {
     try {
-      await withTimeout(runBootstrap(resolved), resolved.timeoutMs, 'bootstrap')
+      await runBootstrap(resolved)
       bootstrapped = true
     } finally {
       bootstrapPromise = null
@@ -76,124 +76,131 @@ async function runBootstrap(policy: BootstrapPolicy): Promise<void> {
   })
 
   try {
-    if (policy.syncIndexes) {
-      // Development: full sync for convenience — creates collections + indexes.
-      await syncCollectionsAndIndexes()
-      const durationMs = Math.round(performance.now() - start)
-      console.log(`[bootstrap] success env=${env} action=sync duration_ms=${durationMs}`)
-      serverCaptureEvent('server', 'db.bootstrap.success', {
-        bootstrap_env: env,
-        action: 'sync',
-        duration_ms: durationMs,
-      })
-      return
-    }
-
-    // Production / staging: lightweight path — collections only, then verify.
-    await ensureCollections()
-
-    if (!policy.verifyCriticalIndexes) {
-      const durationMs = Math.round(performance.now() - start)
-      console.log(`[bootstrap] success env=${env} action=ensure_collections duration_ms=${durationMs}`)
-      serverCaptureEvent('server', 'db.bootstrap.success', {
-        bootstrap_env: env,
-        action: 'ensure_collections',
-        duration_ms: durationMs,
-      })
-      return
-    }
-
-    const result = await inspectIndexes()
-    const durationMs = Math.round(performance.now() - start)
-    const totalMissing = result.diffs.reduce((sum, d) => sum + d.missing.length, 0)
-    const totalMismatches = result.diffs.reduce((sum, d) => sum + d.optionMismatches.length, 0)
-    const modelsChecked = result.diffs.length
-
-    if (result.ok) {
-      console.log(
-        `[bootstrap] success env=${env} action=verify duration_ms=${durationMs} models_checked=${modelsChecked}`,
-      )
-      serverCaptureEvent('server', 'db.bootstrap.success', {
-        bootstrap_env: env,
-        action: 'verify',
-        duration_ms: durationMs,
-        models_checked: modelsChecked,
-        indexes_ok: true,
-      })
-      return
-    }
-
-    // Build actionable details for every critical drift item.
-    const details: string[] = []
-    for (const diff of result.diffs) {
-      for (const m of diff.missing) {
-        if (m.severity === 'critical') {
-          details.push(`${diff.model} (${diff.collection}): missing index ${JSON.stringify(m.key)}`)
+    await withTimeout(
+      (async () => {
+        if (policy.syncIndexes) {
+          // Development: full sync for convenience — creates collections + indexes.
+          await syncCollectionsAndIndexes()
+          const durationMs = Math.round(performance.now() - start)
+          console.log(`[bootstrap] success env=${env} action=sync duration_ms=${durationMs}`)
+          serverCaptureEvent('server', 'db.bootstrap.success', {
+            bootstrap_env: env,
+            action: 'sync',
+            duration_ms: durationMs,
+          })
+          return
         }
-      }
-      for (const m of diff.optionMismatches) {
-        if (m.severity === 'critical') {
-          details.push(
-            `${diff.model} (${diff.collection}): option mismatch on ${JSON.stringify(m.key)}` +
-              ` — expected ${JSON.stringify(m.expected)}, actual ${JSON.stringify(m.actual)}`,
+
+        // Production / staging: lightweight path — collections only, then verify.
+        await ensureCollections()
+
+        if (!policy.verifyCriticalIndexes) {
+          const durationMs = Math.round(performance.now() - start)
+          console.log(`[bootstrap] success env=${env} action=ensure_collections duration_ms=${durationMs}`)
+          serverCaptureEvent('server', 'db.bootstrap.success', {
+            bootstrap_env: env,
+            action: 'ensure_collections',
+            duration_ms: durationMs,
+          })
+          return
+        }
+
+        const result = await inspectIndexes()
+        const durationMs = Math.round(performance.now() - start)
+        const totalMissing = result.diffs.reduce((sum, d) => sum + d.missing.length, 0)
+        const totalMismatches = result.diffs.reduce((sum, d) => sum + d.optionMismatches.length, 0)
+        const modelsChecked = result.diffs.length
+
+        if (result.ok) {
+          console.log(
+            `[bootstrap] success env=${env} action=verify duration_ms=${durationMs} models_checked=${modelsChecked}`,
           )
+          serverCaptureEvent('server', 'db.bootstrap.success', {
+            bootstrap_env: env,
+            action: 'verify',
+            duration_ms: durationMs,
+            models_checked: modelsChecked,
+            indexes_ok: true,
+          })
+          return
         }
-      }
-    }
 
-    if (result.hasCriticalDrift) {
-      const message =
-        `Runtime bootstrap [${env}]: ${details.length} critical index problem(s) detected.\n` +
-        `Run "npm run db:sync" to fix before deploying.\n` +
-        details.map((d) => `  • ${d}`).join('\n')
+        // Build actionable details for every critical drift item.
+        const details: string[] = []
+        for (const diff of result.diffs) {
+          for (const m of diff.missing) {
+            if (m.severity === 'critical') {
+              details.push(`${diff.model} (${diff.collection}): missing index ${JSON.stringify(m.key)}`)
+            }
+          }
+          for (const m of diff.optionMismatches) {
+            if (m.severity === 'critical') {
+              details.push(
+                `${diff.model} (${diff.collection}): option mismatch on ${JSON.stringify(m.key)}` +
+                  ` — expected ${JSON.stringify(m.expected)}, actual ${JSON.stringify(m.actual)}`,
+              )
+            }
+          }
+        }
 
-      if (policy.failOnCriticalDrift) {
-        console.error(
-          `[bootstrap] failure env=${env} action=verify duration_ms=${durationMs}` +
-            ` missing=${totalMissing} mismatches=${totalMismatches} critical_drift=true`,
-        )
-        serverCaptureEvent('server', 'db.bootstrap.failure', {
-          bootstrap_env: env,
-          action: 'verify',
-          duration_ms: durationMs,
-          missing_indexes: totalMissing,
-          option_mismatches: totalMismatches,
-          critical_drift: true,
-          details,
-        })
-        throw new BootstrapError(message, env, details)
-      }
+        if (result.hasCriticalDrift) {
+          const message =
+            `Runtime bootstrap [${env}]: ${details.length} critical index problem(s) detected.\n` +
+            `Run "npm run db:sync" to fix before deploying.\n` +
+            details.map((d) => `  • ${d}`).join('\n')
 
-      // Staging: warn but don't abort so preview deploys stay functional.
-      console.warn(`[bootstrap] WARNING — ${message}`)
-      serverCaptureEvent('server', 'db.bootstrap.warning', {
-        bootstrap_env: env,
-        action: 'verify',
-        duration_ms: durationMs,
-        missing_indexes: totalMissing,
-        option_mismatches: totalMismatches,
-        critical_drift: true,
-        details,
-      })
-    } else {
-      // Optional drift only — log success with advisory note.
-      console.log(
-        `[bootstrap] success env=${env} action=verify duration_ms=${durationMs}` +
-          ` models_checked=${modelsChecked} optional_drift=true missing=${totalMissing} mismatches=${totalMismatches}`,
-      )
-      serverCaptureEvent('server', 'db.bootstrap.success', {
-        bootstrap_env: env,
-        action: 'verify',
-        duration_ms: durationMs,
-        models_checked: modelsChecked,
-        indexes_ok: false,
-        optional_drift: true,
-        missing_indexes: totalMissing,
-        option_mismatches: totalMismatches,
-      })
-    }
+          if (policy.failOnCriticalDrift) {
+            console.error(
+              `[bootstrap] failure env=${env} action=verify duration_ms=${durationMs}` +
+                ` missing=${totalMissing} mismatches=${totalMismatches} critical_drift=true`,
+            )
+            serverCaptureEvent('server', 'db.bootstrap.failure', {
+              bootstrap_env: env,
+              action: 'verify',
+              duration_ms: durationMs,
+              missing_indexes: totalMissing,
+              option_mismatches: totalMismatches,
+              critical_drift: true,
+              details,
+            })
+            throw new BootstrapError(message, env, details)
+          }
+
+          // Staging: warn but don't abort so preview deploys stay functional.
+          console.warn(`[bootstrap] WARNING — ${message}`)
+          serverCaptureEvent('server', 'db.bootstrap.warning', {
+            bootstrap_env: env,
+            action: 'verify',
+            duration_ms: durationMs,
+            missing_indexes: totalMissing,
+            option_mismatches: totalMismatches,
+            critical_drift: true,
+            details,
+          })
+        } else {
+          // Optional drift only — log success with advisory note.
+          console.log(
+            `[bootstrap] success env=${env} action=verify duration_ms=${durationMs}` +
+              ` models_checked=${modelsChecked} optional_drift=true missing=${totalMissing} mismatches=${totalMismatches}`,
+          )
+          serverCaptureEvent('server', 'db.bootstrap.success', {
+            bootstrap_env: env,
+            action: 'verify',
+            duration_ms: durationMs,
+            models_checked: modelsChecked,
+            indexes_ok: false,
+            optional_drift: true,
+            missing_indexes: totalMissing,
+            option_mismatches: totalMismatches,
+          })
+        }
+      })(),
+      policy.timeoutMs,
+      'bootstrap',
+    )
   } catch (error) {
-    // BootstrapError is already logged above — only log unexpected errors.
+    // BootstrapError is already logged above — only log unexpected errors
+    // (including timeouts, which now flow through this catch block).
     if (!(error instanceof BootstrapError)) {
       const durationMs = Math.round(performance.now() - start)
       console.error(
