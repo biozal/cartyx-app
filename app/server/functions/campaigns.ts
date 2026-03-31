@@ -1,5 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
+import mongoose from 'mongoose'
 import { getSession } from '../session'
 import { connectDB, isDBConnected } from '../db/connection'
 import { User } from '../db/models/User'
@@ -342,72 +343,85 @@ export const createCampaign = createServerFn({ method: 'POST' })
         imagePath = await saveUploadedFile(file, 'uploads/campaigns')
       }
 
-      let campaign = null
-      let attempts = 0
-      while (attempts < 10 && !campaign) {
-        const inviteCode = generateInviteCode()
-        const inUse = await Campaign.exists({ inviteCode })
-        attempts++
-        if (inUse) continue
-        try {
-          campaign = await Campaign.create({
-            gameMasterId: dbUser._id,
-            name: name.trim(),
-            description: description.trim(),
-            imagePath,
-            schedule: {
-              frequency: schedFreq ?? null,
-              dayOfWeek: schedDay ?? null,
-              time: schedTime ?? null,
-              timezone: schedTz ?? null,
-            },
-            links: links ?? [],
-            maxPlayers: parseMaxPlayers(maxPlayers),
-            inviteCode,
-            members: [{ userId: dbUser._id, role: 'gm', joinedAt: new Date() }],
-          })
-        } catch (e: unknown) {
-          if ((e as { code?: number })?.code === 11000) { campaign = null; continue }
-          throw e
-        }
+      interface CampaignResult { _id: mongoose.Types.ObjectId; name: string; inviteCode: string }
+      const mongoSession = await mongoose.startSession()
+      let result: CampaignResult
+      try {
+        result = await mongoSession.withTransaction(async () => {
+          let campaign: CampaignResult | null = null
+          let attempts = 0
+          while (attempts < 10 && !campaign) {
+            const inviteCode = generateInviteCode()
+            const inUse = await Campaign.exists({ inviteCode }).session(mongoSession)
+            attempts++
+            if (inUse) continue
+            try {
+              const [doc] = await Campaign.create([{
+                gameMasterId: dbUser._id,
+                name: name.trim(),
+                description: description.trim(),
+                imagePath,
+                schedule: {
+                  frequency: schedFreq ?? null,
+                  dayOfWeek: schedDay ?? null,
+                  time: schedTime ?? null,
+                  timezone: schedTz ?? null,
+                },
+                links: links ?? [],
+                maxPlayers: parseMaxPlayers(maxPlayers),
+                inviteCode,
+                members: [{ userId: dbUser._id, role: 'gm', joinedAt: new Date() }],
+              }], { session: mongoSession })
+              campaign = doc as CampaignResult
+            } catch (e: unknown) {
+              if ((e as { code?: number })?.code === 11000) { campaign = null; continue }
+              throw e
+            }
+          }
+
+          if (!campaign) throw new Error('Could not generate unique invite code')
+
+          // Create default Session 0 and GM Screen for new campaign
+          const now = new Date()
+          await Promise.all([
+            Session.create([{
+              campaignId: campaign._id,
+              name: 'Session 0',
+              gm: dbUser._id,
+              number: 0,
+              startDate: now,
+              endDate: null,
+            }], { session: mongoSession }),
+            GMScreen.create([{
+              campaignId: campaign._id,
+              name: 'Default',
+            }], { session: mongoSession }),
+          ])
+
+          // Sync User.campaigns array
+          await User.updateOne(
+            { _id: dbUser._id },
+            { $push: { campaigns: { campaignId: campaign._id, joinedAt: new Date(), status: 'active' } } },
+            { session: mongoSession }
+          )
+
+          return campaign
+        }) as CampaignResult
+      } finally {
+        await mongoSession.endSession()
       }
 
-      if (!campaign) throw new Error('Could not generate unique invite code')
-
-      // Create default Session 0 and GM Screen for new campaign
-      const now = new Date()
-      await Promise.all([
-        Session.create({
-          campaignId: campaign._id,
-          name: 'Session 0',
-          gm: dbUser._id,
-          number: 0,
-          startDate: now,
-          endDate: null,
-        }),
-        GMScreen.create({
-          campaignId: campaign._id,
-          name: 'Default',
-        }),
-      ])
-
-      // Sync User.campaigns array
-      await User.updateOne(
-        { _id: dbUser._id },
-        { $push: { campaigns: { campaignId: campaign._id, joinedAt: new Date(), status: 'active' } } }
-      )
-
       serverCaptureEvent(user.id, 'campaign_created', {
-        campaign_id: String(campaign._id),
-        campaign_name: campaign.name as string,
+        campaign_id: String(result._id),
+        campaign_name: result.name,
         has_image: imagePath !== null,
         has_schedule: !!(schedFreq || schedDay || schedTime || schedTz),
       })
 
       return {
         success: true,
-        campaignId: String(campaign._id),
-        inviteCode: campaign.inviteCode as string,
+        campaignId: String(result._id),
+        inviteCode: result.inviteCode,
       }
     } catch (e) {
       serverCaptureException(e, user?.id, { action: 'createCampaign' })
