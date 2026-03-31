@@ -204,6 +204,76 @@ describe('bootstrapDB', () => {
     expect(errorSpy.mock.calls.some((c) => c[0].includes('[bootstrap] failure'))).toBe(true)
   })
 
+  it('suppresses success/warning emissions from timed-out underlying work', async () => {
+    // ensureCollections is slow (triggers timeout), but eventually resolves.
+    // After timeout, the underlying work continues and would normally emit
+    // a success log — the cancellation token should suppress it.
+    let resolveEnsure!: () => void
+    inspectMock.ensureCollections.mockImplementation(
+      () => new Promise<void>((r) => { resolveEnsure = r }),
+    )
+    const policy = makePolicy({
+      environment: 'production',
+      syncIndexes: false,
+      verifyCriticalIndexes: false,
+      failOnCriticalDrift: true,
+      timeoutMs: 50,
+    })
+
+    await expect(bootstrapDB(policy)).rejects.toThrow('timed out')
+
+    // Clear mocks to isolate post-timeout emissions.
+    posthogMock.serverCaptureEvent.mockClear()
+    vi.mocked(console.log).mockClear()
+
+    // Let the underlying work complete after the timeout.
+    resolveEnsure()
+    // Flush microtasks so the async work runs.
+    await new Promise((r) => setTimeout(r, 10))
+
+    // No success event should have been emitted after the timeout.
+    const successCalls = posthogMock.serverCaptureEvent.mock.calls.filter(
+      (c: unknown[]) => c[1] === 'db.bootstrap.success',
+    )
+    expect(successCalls).toHaveLength(0)
+    const successLogs = vi.mocked(console.log).mock.calls.filter(
+      (c: unknown[]) => typeof c[0] === 'string' && c[0].includes('[bootstrap] success'),
+    )
+    expect(successLogs).toHaveLength(0)
+  })
+
+  it('prevents overlapping bootstrap attempts after timeout', async () => {
+    let resolveFirst!: () => void
+    let firstCallCount = 0
+    inspectMock.syncCollectionsAndIndexes.mockImplementation(() => {
+      firstCallCount++
+      if (firstCallCount === 1) {
+        // First call: slow (will timeout)
+        return new Promise<void>((r) => { resolveFirst = r })
+      }
+      // Second call: fast
+      return Promise.resolve()
+    })
+
+    const slowPolicy = makePolicy({ timeoutMs: 50 })
+
+    // First attempt times out.
+    await expect(bootstrapDB(slowPolicy)).rejects.toThrow('timed out')
+    expect(isBootstrapped()).toBe(false)
+
+    // Second attempt should wait for the first's underlying work to settle
+    // before starting, not race with it.
+    const retryPromise = bootstrapDB(devPolicy)
+
+    // Let the first attempt's underlying work finish.
+    resolveFirst()
+
+    await retryPromise
+    expect(isBootstrapped()).toBe(true)
+    // Both calls should have happened sequentially, not concurrently.
+    expect(inspectMock.syncCollectionsAndIndexes).toHaveBeenCalledTimes(2)
+  })
+
   // ── Idempotency & concurrency ───────────────────────────────────────
 
   it('runs only once per process (idempotent)', async () => {
