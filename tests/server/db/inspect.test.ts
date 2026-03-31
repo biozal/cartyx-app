@@ -91,6 +91,7 @@ describe('inspectIndexes', () => {
 
     const result = await inspectIndexes()
     expect(result.ok).toBe(true)
+    expect(result.hasCriticalDrift).toBe(false)
     for (const diff of result.diffs) {
       expect(diff.missing).toHaveLength(0)
       expect(diff.extra).toHaveLength(0)
@@ -216,6 +217,94 @@ describe('inspectIndexes', () => {
     userMock.listIndexes.mockRejectedValue(authError)
 
     await expect(inspectIndexes()).rejects.toThrow('not authorized')
+  })
+
+  it('annotates missing indexes with governance severity', async () => {
+    const result = await inspectIndexes()
+
+    const userDiff = result.diffs.find((d) => d.model === 'User')!
+    const emailMissing = userDiff.missing.find((m) => 'email' in m.key)
+    expect(emailMissing?.severity).toBe('critical')
+
+    const roleMissing = userDiff.missing.find((m) => 'role' in m.key)
+    expect(roleMissing?.severity).toBe('optional')
+  })
+
+  it('annotates option mismatches with governance severity', async () => {
+    userMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { email: 1 } }, // missing unique + sparse
+      { key: { role: 1 } },
+    ])
+
+    const result = await inspectIndexes()
+    const userDiff = result.diffs.find((d) => d.model === 'User')!
+    const emailMismatch = userDiff.optionMismatches.find((m) => 'email' in m.key)
+    expect(emailMismatch?.severity).toBe('critical')
+  })
+
+  it('sets hasCriticalDrift=true when a critical index is missing', async () => {
+    // All mocks default to only _id, so User email (critical) is missing
+    const result = await inspectIndexes()
+    expect(result.hasCriticalDrift).toBe(true)
+  })
+
+  it('sets hasCriticalDrift=false when only optional indexes have drift', async () => {
+    // Provide all critical indexes, but leave some optional ones missing
+    userMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { email: 1 }, unique: true, sparse: true },
+      // role (optional) is missing
+    ])
+    campaignMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      // members.userId (optional) is missing
+    ])
+    playerMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { campaignId: 1, userId: 1 }, unique: true },
+      // campaignId (optional) is missing
+    ])
+    sessionMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      // both session indexes are optional and missing
+    ])
+    gmScreenMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      // campaignId (optional) is missing
+    ])
+
+    const result = await inspectIndexes()
+    expect(result.ok).toBe(false)
+    expect(result.hasCriticalDrift).toBe(false)
+  })
+
+  it('sets hasCriticalDrift=true when a critical index has option mismatch', async () => {
+    userMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { email: 1 } }, // missing unique+sparse = critical option mismatch
+      { key: { role: 1 } },
+    ])
+    campaignMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { 'members.userId': 1 } },
+    ])
+    playerMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { campaignId: 1, userId: 1 }, unique: true },
+      { key: { campaignId: 1 } },
+    ])
+    sessionMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { campaignId: 1, number: -1 } },
+    ])
+    gmScreenMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { campaignId: 1 } },
+    ])
+
+    const result = await inspectIndexes()
+    expect(result.hasCriticalDrift).toBe(true)
   })
 })
 

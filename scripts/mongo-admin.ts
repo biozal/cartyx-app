@@ -2,8 +2,10 @@
  * MongoDB administration CLI — verify or sync collections and indexes.
  *
  * Usage:
- *   npx tsx scripts/mongo-admin.ts verify   # read-only check, exits non-zero on drift
- *   npx tsx scripts/mongo-admin.ts sync     # creates missing collections + indexes
+ *   npx tsx scripts/mongo-admin.ts verify          # exits non-zero on critical drift
+ *   npx tsx scripts/mongo-admin.ts verify --strict  # exits non-zero on any drift
+ *   npx tsx scripts/mongo-admin.ts verify --json    # machine-readable JSON output
+ *   npx tsx scripts/mongo-admin.ts sync             # creates missing collections + indexes
  *
  * Shortcut via npm scripts:
  *   npm run db:verify
@@ -13,21 +15,32 @@
  */
 import mongoose from 'mongoose'
 import { inspectIndexes, syncCollectionsAndIndexes } from '../app/server/db/inspect.js'
+import type { InspectResult } from '../app/server/db/inspect.js'
+import type { IndexSeverity } from '../app/server/db/governance.js'
 
 const COMMANDS = ['verify', 'sync'] as const
 type Command = (typeof COMMANDS)[number]
 
 function usage(): void {
-  console.error('Usage: npx tsx scripts/mongo-admin.ts <verify|sync>')
+  console.error('Usage: npx tsx scripts/mongo-admin.ts <verify|sync> [options]')
   console.error('')
   console.error('Commands:')
   console.error('  verify  Check expected collections/indexes against the database (read-only).')
-  console.error('          Exits 0 if everything matches, 1 if there is drift.')
+  console.error('          Exits 0 if no critical drift, 1 if critical drift detected.')
+  console.error('          Options:')
+  console.error('            --strict  Exit 1 on any drift (including optional indexes).')
+  console.error('            --json    Output machine-readable JSON instead of text.')
   console.error('  sync    Create any missing collections and indexes.')
   process.exitCode = 2
 }
 
-function printDiffs(result: Awaited<ReturnType<typeof inspectIndexes>>): void {
+function severityLabel(severity: IndexSeverity | undefined): string {
+  if (severity === 'critical') return '[CRITICAL]'
+  if (severity === 'optional') return '[optional]'
+  return '[unclassified]'
+}
+
+function printDiffs(result: InspectResult): void {
   for (const diff of result.diffs) {
     const hasDrift =
       diff.missing.length > 0 || diff.extra.length > 0 || diff.optionMismatches.length > 0
@@ -37,7 +50,7 @@ function printDiffs(result: Awaited<ReturnType<typeof inspectIndexes>>): void {
     if (diff.missing.length > 0) {
       console.log('  Missing indexes:')
       for (const idx of diff.missing) {
-        console.log(`    - ${JSON.stringify(idx.key)}`)
+        console.log(`    ${severityLabel(idx.severity)} ${JSON.stringify(idx.key)}`)
       }
     }
 
@@ -51,7 +64,7 @@ function printDiffs(result: Awaited<ReturnType<typeof inspectIndexes>>): void {
     if (diff.optionMismatches.length > 0) {
       console.log('  Option mismatches:')
       for (const m of diff.optionMismatches) {
-        console.log(`    - ${JSON.stringify(m.key)}`)
+        console.log(`    ${severityLabel(m.severity)} ${JSON.stringify(m.key)}`)
         console.log(`      expected: ${JSON.stringify(m.expected)}`)
         console.log(`      actual:   ${JSON.stringify(m.actual)}`)
       }
@@ -63,12 +76,21 @@ function printDiffs(result: Awaited<ReturnType<typeof inspectIndexes>>): void {
   }
 }
 
+function printJson(result: InspectResult): void {
+  console.log(JSON.stringify(result, null, 2))
+}
+
 async function main(): Promise<void> {
-  const command = process.argv[2] as Command | undefined
+  const args = process.argv.slice(2)
+  const command = args[0] as Command | undefined
   if (!command || !COMMANDS.includes(command)) {
     usage()
     return
   }
+
+  const flags = new Set(args.slice(1))
+  const strict = flags.has('--strict')
+  const json = flags.has('--json')
 
   const uri = process.env.MONGODB_URI
   if (!uri) {
@@ -82,15 +104,25 @@ async function main(): Promise<void> {
 
   try {
     if (command === 'verify') {
-      console.log('Verifying MongoDB collections and indexes...')
+      if (!json) console.log('Verifying MongoDB collections and indexes...')
       const result = await inspectIndexes()
-      printDiffs(result)
+
+      if (json) {
+        printJson(result)
+      } else {
+        printDiffs(result)
+      }
 
       if (result.ok) {
-        console.log('\nAll expected indexes are present.')
-      } else {
-        console.error('\nIndex drift detected — run `npm run db:sync` to fix.')
+        if (!json) console.log('\nAll expected indexes are present.')
+      } else if (result.hasCriticalDrift) {
+        if (!json) console.error('\nCritical index drift detected — run `npm run db:sync` to fix.')
         process.exitCode = 1
+      } else if (strict) {
+        if (!json) console.error('\nOptional index drift detected (strict mode) — run `npm run db:sync` to fix.')
+        process.exitCode = 1
+      } else {
+        if (!json) console.warn('\nOptional index drift detected (warning only). Run `npm run db:sync` to fix.')
       }
       return
     }
