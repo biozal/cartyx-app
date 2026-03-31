@@ -1,4 +1,3 @@
-#!/usr/bin/env npx tsx
 /**
  * MongoDB administration CLI — verify or sync collections and indexes.
  *

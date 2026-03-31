@@ -199,8 +199,9 @@ describe('inspectIndexes', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('handles listIndexes failure gracefully (collection does not exist)', async () => {
-    userMock.listIndexes.mockRejectedValue(new Error('ns not found'))
+  it('handles NamespaceNotFound (code 26) gracefully when collection does not exist', async () => {
+    const nsError = Object.assign(new Error('ns not found'), { code: 26 })
+    userMock.listIndexes.mockRejectedValue(nsError)
 
     const result = await inspectIndexes()
 
@@ -208,6 +209,13 @@ describe('inspectIndexes', () => {
     expect(userDiff.missing).toHaveLength(2)
     expect(userDiff.extra).toHaveLength(0)
     expect(userDiff.optionMismatches).toHaveLength(0)
+  })
+
+  it('rethrows non-NamespaceNotFound errors from listIndexes', async () => {
+    const authError = Object.assign(new Error('not authorized'), { code: 13 })
+    userMock.listIndexes.mockRejectedValue(authError)
+
+    await expect(inspectIndexes()).rejects.toThrow('not authorized')
   })
 })
 

@@ -98,8 +98,11 @@ export async function inspectIndexes(): Promise<InspectResult> {
     let dbIndexes: Array<{ key: Record<string, unknown>; [k: string]: unknown }> = []
     try {
       dbIndexes = await Model.listIndexes()
-    } catch {
-      // Collection may not exist yet — treat as zero indexes.
+    } catch (err: unknown) {
+      // MongoDB error code 26 (NamespaceNotFound) means the collection
+      // doesn't exist yet — treat as zero indexes. Rethrow anything else.
+      const code = typeof err === 'object' && err !== null && 'code' in err ? (err as { code: unknown }).code : undefined
+      if (code !== 26) throw err
     }
 
     // Build maps of key signatures for comparison.

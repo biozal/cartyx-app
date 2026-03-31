@@ -50,15 +50,18 @@ describe('connectDB', () => {
   })
 
   it('disables autoIndex when NODE_ENV is production', async () => {
+    const originalNodeEnv = process.env.NODE_ENV
     process.env.NODE_ENV = 'production'
 
-    await connectDB()
+    try {
+      await connectDB()
 
-    expect(mongooseMock.connect).toHaveBeenCalledWith('mongodb://localhost/test', {
-      autoIndex: false,
-    })
-
-    process.env.NODE_ENV = 'test'
+      expect(mongooseMock.connect).toHaveBeenCalledWith('mongodb://localhost/test', {
+        autoIndex: false,
+      })
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv
+    }
   })
 
   it('skips connect but retries bootstrap when already connected and bootstrap failed', async () => {
