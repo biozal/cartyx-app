@@ -8,10 +8,16 @@ const inspectMock = vi.hoisted(() => ({
   inspectIndexes: vi.fn().mockResolvedValue({ diffs: [], ok: true, hasCriticalDrift: false }),
 }))
 
+const posthogMock = vi.hoisted(() => ({
+  serverCaptureEvent: vi.fn(),
+  serverCaptureException: vi.fn(),
+}))
+
 vi.mock('~/server/db/inspect', () => inspectMock)
 vi.mock('~/server/db/policy', () => ({
   getBootstrapPolicy: vi.fn(),
 }))
+vi.mock('~/server/utils/posthog', () => posthogMock)
 
 import {
   bootstrapDB,
@@ -91,6 +97,7 @@ describe('bootstrapDB', () => {
     inspectMock.inspectIndexes
       .mockClear()
       .mockResolvedValue({ diffs: [], ok: true, hasCriticalDrift: false })
+    posthogMock.serverCaptureEvent.mockClear()
   })
 
   // ── Development policy ──────────────────────────────────────────────
@@ -212,5 +219,100 @@ describe('bootstrapDB', () => {
     await bootstrapDB(devPolicy)
     expect(inspectMock.syncCollectionsAndIndexes).toHaveBeenCalledTimes(2)
     expect(isBootstrapped()).toBe(true)
+  })
+
+  // ── Observability ───────────────────────────────────────────────────
+
+  it('emits db.bootstrap.start and db.bootstrap.success PostHog events on dev sync', async () => {
+    await bootstrapDB(devPolicy)
+
+    expect(posthogMock.serverCaptureEvent).toHaveBeenCalledWith(
+      'server',
+      'db.bootstrap.start',
+      expect.objectContaining({ bootstrap_env: 'development', sync_indexes: true }),
+    )
+    expect(posthogMock.serverCaptureEvent).toHaveBeenCalledWith(
+      'server',
+      'db.bootstrap.success',
+      expect.objectContaining({ bootstrap_env: 'development', action: 'sync', duration_ms: expect.any(Number) }),
+    )
+  })
+
+  it('emits db.bootstrap.success with verify action on production (no drift)', async () => {
+    await bootstrapDB(prodPolicy)
+
+    expect(posthogMock.serverCaptureEvent).toHaveBeenCalledWith(
+      'server',
+      'db.bootstrap.success',
+      expect.objectContaining({
+        bootstrap_env: 'production',
+        action: 'verify',
+        duration_ms: expect.any(Number),
+        models_checked: expect.any(Number),
+        indexes_ok: true,
+      }),
+    )
+  })
+
+  it('emits db.bootstrap.failure on production critical drift', async () => {
+    inspectMock.inspectIndexes.mockResolvedValueOnce(criticalDriftResult)
+
+    await expect(bootstrapDB(prodPolicy)).rejects.toThrow(BootstrapError)
+
+    expect(posthogMock.serverCaptureEvent).toHaveBeenCalledWith(
+      'server',
+      'db.bootstrap.failure',
+      expect.objectContaining({
+        bootstrap_env: 'production',
+        critical_drift: true,
+        duration_ms: expect.any(Number),
+      }),
+    )
+  })
+
+  it('emits db.bootstrap.warning on staging critical drift', async () => {
+    inspectMock.inspectIndexes.mockResolvedValueOnce(criticalDriftResult)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await bootstrapDB(stagingPolicy)
+
+    expect(posthogMock.serverCaptureEvent).toHaveBeenCalledWith(
+      'server',
+      'db.bootstrap.warning',
+      expect.objectContaining({
+        bootstrap_env: 'staging',
+        critical_drift: true,
+        duration_ms: expect.any(Number),
+      }),
+    )
+
+    vi.restoreAllMocks()
+  })
+
+  it('emits db.bootstrap.failure on unexpected errors', async () => {
+    inspectMock.syncCollectionsAndIndexes.mockRejectedValueOnce(new Error('mongo down'))
+
+    await expect(bootstrapDB(devPolicy)).rejects.toThrow('mongo down')
+
+    expect(posthogMock.serverCaptureEvent).toHaveBeenCalledWith(
+      'server',
+      'db.bootstrap.failure',
+      expect.objectContaining({
+        bootstrap_env: 'development',
+        duration_ms: expect.any(Number),
+        error: 'mongo down',
+      }),
+    )
+  })
+
+  it('logs structured start/success to console on dev sync', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await bootstrapDB(devPolicy)
+
+    expect(logSpy.mock.calls.some((c) => c[0].includes('[bootstrap] start env=development'))).toBe(true)
+    expect(logSpy.mock.calls.some((c) => c[0].includes('[bootstrap] success env=development action=sync'))).toBe(true)
+
+    logSpy.mockRestore()
   })
 })

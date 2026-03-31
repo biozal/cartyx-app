@@ -370,6 +370,38 @@ If you just want to explore the UI without setting up OAuth:
 - The app will show login buttons as "not configured" for providers without env vars
 - You can still view unauthenticated pages
 
+### Local MongoDB and transactions
+
+MongoDB transactions require a **replica set**. Atlas clusters (including the free
+M0 tier) are always replica sets, so transactions work out of the box in deployed
+environments. Local development with a standalone `mongod` will fail if any code
+path uses `session.startTransaction()`.
+
+**Recommended local setup — Docker replica set:**
+
+```bash
+# Start a single-node replica set (sufficient for local dev)
+docker run -d --name mongo-rs -p 27017:27017 mongo:7 \
+  --replSet rs0
+
+# Initiate the replica set (one-time)
+docker exec mongo-rs mongosh --eval "rs.initiate()"
+```
+
+Then set your local `.env`:
+
+```
+MONGODB_URI=mongodb://localhost:27017/cartyx?replicaSet=rs0&directConnection=true
+```
+
+**Alternative — mongosh `--replSet` flag:** If you install MongoDB locally
+(e.g. via Homebrew), start `mongod` with `--replSet rs0` and initiate via
+`mongosh` as above.
+
+If you do not need transactions locally, a plain standalone `mongod` works
+for most development. The bootstrap will create collections and indexes
+regardless of replica set status.
+
 ### Local with R2 Images
 
 Image uploads work locally without R2 — files save to `public/uploads/`. To test R2 locally, add the R2 env vars to your `.env` file and set `CDN_URL`.
@@ -440,6 +472,59 @@ locally:
 ```bash
 BOOTSTRAP_ENV=production npm run dev
 ```
+
+### Production index rollout
+
+When you add, change, or remove an index in a Mongoose schema file, follow this
+workflow to roll it out safely:
+
+1. **Declare the index** in the schema file (`app/server/db/models/*.ts`).
+2. **Classify it** in `app/server/db/governance.ts` — choose `critical` (correctness
+   constraint) or `optional` (performance only).
+3. **Run `npm run db:verify` locally** to confirm the drift is detected.
+4. **Run `npm run db:sync` against the target database** before deploying the new code.
+   For production, this means running the command with `MONGODB_URI` pointing at
+   the production cluster. The sync is idempotent — safe to run multiple times.
+5. **Deploy the new code.** On startup, the production bootstrap will verify that
+   the new index exists. If it is classified as `critical` and was not synced in
+   step 4, startup will abort with a `BootstrapError`.
+
+**Why sync before deploy?** Production bootstrap never creates indexes — it only
+verifies. This is intentional: index creation on large collections can take minutes
+and lock writes, so it must happen as an explicit operator action, not as a
+side-effect of a cold start or scaling event.
+
+**Index removal** follows the same pattern in reverse: deploy code that no longer
+references the index first, then drop the index from MongoDB manually (Mongoose
+does not auto-drop indexes). `db:verify` will report the extra index so you know
+when cleanup is needed.
+
+**CI gate:** Add `npm run db:verify` to your CI pipeline to catch index drift
+before code reaches production. The command exits non-zero when critical indexes
+are missing, blocking the deploy.
+
+### Bootstrap observability
+
+The runtime bootstrap emits structured log events and PostHog analytics events
+at each phase so operators can monitor startup health:
+
+| Event | When | Key fields |
+|---|---|---|
+| `db.bootstrap.start` | Bootstrap begins | `bootstrap_env`, `sync_indexes`, `verify_critical`, `timeout_ms` |
+| `db.bootstrap.success` | Bootstrap completes without error | `bootstrap_env`, `action`, `duration_ms`, `models_checked` |
+| `db.bootstrap.warning` | Staging detects critical drift but continues | `bootstrap_env`, `duration_ms`, `missing_indexes`, `option_mismatches`, `details` |
+| `db.bootstrap.failure` | Fatal error or production critical drift | `bootstrap_env`, `duration_ms`, `error` or `details` |
+
+Console logs follow a structured `key=value` format for easy parsing:
+
+```
+[bootstrap] start env=production sync=false verify=true
+[bootstrap] success env=production action=verify duration_ms=42 models_checked=5
+```
+
+All events are also sent to PostHog via `serverCaptureEvent` when a PostHog key
+is configured. Use these events to build dashboards or alerts for bootstrap
+duration regressions, unexpected drift, or startup failures.
 
 ### Schema as source of truth
 
