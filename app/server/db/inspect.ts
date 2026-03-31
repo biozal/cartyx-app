@@ -1,4 +1,6 @@
 import type mongoose from 'mongoose'
+import type { IndexSeverity } from './governance'
+import { getSeverity } from './governance'
 import { Campaign } from './models/Campaign'
 import { GMScreen } from './models/GMScreen'
 import { Player } from './models/Player'
@@ -26,12 +28,16 @@ export interface IndexDiff {
 export interface IndexSpec {
   key: Record<string, unknown>
   options?: Record<string, unknown>
+  /** Governance severity — `undefined` if the index is not in the registry. */
+  severity?: IndexSeverity
 }
 
 export interface OptionMismatch {
   key: Record<string, unknown>
   expected: Record<string, unknown>
   actual: Record<string, unknown>
+  /** Governance severity — `undefined` if the index is not in the registry. */
+  severity?: IndexSeverity
 }
 
 export interface InspectResult {
@@ -39,6 +45,8 @@ export interface InspectResult {
   diffs: IndexDiff[]
   /** true when there is no drift: no missing, no extra, and no option mismatches. */
   ok: boolean
+  /** true when any critical-severity index is missing or has an option mismatch. */
+  hasCriticalDrift: boolean
 }
 
 /**
@@ -81,6 +89,9 @@ function optionsMatch(a: Record<string, unknown>, b: Record<string, unknown>): b
  *
  * Does NOT mutate the database — safe to call in CI, pre-deploy, or
  * production as a read-only health check.
+ *
+ * Each missing index and option mismatch is annotated with its governance
+ * severity (`critical` or `optional`) from the governance registry.
  */
 export async function inspectIndexes(): Promise<InspectResult> {
   const diffs: IndexDiff[] = []
@@ -124,14 +135,15 @@ export async function inspectIndexes(): Promise<InspectResult> {
     const optionMismatches: OptionMismatch[] = []
 
     for (const [sig, spec] of schemaKeys) {
+      const severity = getSeverity(modelName, spec.key)
       if (!dbKeyMap.has(sig)) {
-        missing.push(spec)
+        missing.push({ ...spec, severity })
       } else {
         // Key exists — check whether meaningful options match.
         const expected = normalizeOptions(spec.options ?? {})
         const actual = normalizeOptions(dbKeyMap.get(sig)!)
         if (!optionsMatch(expected, actual)) {
-          optionMismatches.push({ key: spec.key, expected, actual })
+          optionMismatches.push({ key: spec.key, expected, actual, severity })
         }
       }
     }
@@ -150,7 +162,14 @@ export async function inspectIndexes(): Promise<InspectResult> {
   const ok = diffs.every(
     (d) => d.missing.length === 0 && d.extra.length === 0 && d.optionMismatches.length === 0,
   )
-  return { diffs, ok }
+
+  const hasCriticalDrift = diffs.some(
+    (d) =>
+      d.missing.some((m) => m.severity === 'critical') ||
+      d.optionMismatches.some((m) => m.severity === 'critical'),
+  )
+
+  return { diffs, ok, hasCriticalDrift }
 }
 
 /**
