@@ -5,6 +5,8 @@ import { connectDB, isDBConnected } from '../db/connection'
 import { User } from '../db/models/User'
 import { Campaign } from '../db/models/Campaign'
 import { Player } from '../db/models/Player'
+import { Session } from '../db/models/Session'
+import { GMScreen } from '../db/models/GMScreen'
 import { generateInviteCode, parseMaxPlayers, saveUploadedFile, MAX_IMAGE_BASE64_LENGTH } from '../utils/helpers'
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
 import { formatSchedule } from '~/utils/date'
@@ -27,6 +29,17 @@ export interface CampaignData {
   players: { current: number; max: number }
   partyMembers: Array<{ id: string; characterName: string; characterClass: string; avatar: string | null; userId: string }>
   nextSession: { day: string; time: string } | null
+  sessions: Array<{
+    id: string
+    name: string
+    number: number
+    startDate: string
+    endDate: string | null
+  }>
+  gmScreens?: Array<{
+    id: string
+    name: string
+  }>
   isOwner: boolean
   isMember: boolean
   scheduleText: string
@@ -53,7 +66,7 @@ function serializeCampaign(c: {
   schedule?: { frequency?: string | null; dayOfWeek?: string | null; time?: string | null; timezone?: string | null } | null
   gameMasterId?: unknown
   members?: Array<{ userId: unknown; role?: string }>
-}, gmId?: string, userId?: string, partyMembers: Array<{ id: string; characterName: string; characterClass: string; avatar: string | null; userId: string }> = []): CampaignData {
+}, gmId?: string, userId?: string, partyMembers: Array<{ id: string; characterName: string; characterClass: string; avatar: string | null; userId: string }> = [], sessions: CampaignData['sessions'] = [], gmScreens?: CampaignData['gmScreens']): CampaignData {
   const schedule = c.schedule ?? null
   const members = c.members ?? []
   const playerCount = members.filter(m => m.role === 'player').length
@@ -82,6 +95,8 @@ function serializeCampaign(c: {
       schedule?.dayOfWeek
         ? { day: schedule.dayOfWeek, time: schedule.time ?? 'TBD' }
         : null,
+    sessions,
+    ...(gmScreens ? { gmScreens } : {}),
     isOwner: !!gmId && String(c.gameMasterId) === gmId,
     isMember,
     scheduleText: buildScheduleText(schedule),
@@ -173,11 +188,31 @@ export const getCampaign = createServerFn({ method: 'GET' })
 
       const isOwner = !!userId && c.gameMasterId != null && String(c.gameMasterId) === userId
 
-      const playerDocs = await Player.find(
-        { campaignId: c._id },
-        '_id campaignId userId characterName characterClass avatar'
-      ).lean()
-      const partyMembers = playerDocs.map((p: { _id: unknown; characterName: unknown; characterClass: unknown; avatar: unknown; userId: unknown }) => ({
+      // Load players and sessions in parallel; GM also gets gmscreen docs
+      const queries: [
+        ReturnType<typeof Player.find>,
+        ReturnType<typeof Session.find>,
+        ReturnType<typeof GMScreen.find> | null,
+      ] = [
+        Player.find(
+          { campaignId: c._id },
+          '_id campaignId userId characterName characterClass avatar'
+        ).lean(),
+        Session.find(
+          { campaignId: c._id },
+          '_id name number startDate endDate'
+        ).sort({ number: 1 }).lean(),
+        isOwner
+          ? GMScreen.find(
+              { campaignId: c._id },
+              '_id name'
+            ).lean()
+          : null,
+      ]
+
+      const [playerDocs, sessionDocs, gmScreenDocs] = await Promise.all(queries)
+
+      const partyMembers = (playerDocs as Array<{ _id: unknown; characterName: unknown; characterClass: unknown; avatar: unknown; userId: unknown }>).map(p => ({
         id: String(p._id),
         characterName: p.characterName as string,
         characterClass: p.characterClass as string,
@@ -185,7 +220,22 @@ export const getCampaign = createServerFn({ method: 'GET' })
         userId: String(p.userId),
       }))
 
-      const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], userId, userId, partyMembers)
+      const sessions = (sessionDocs as Array<{ _id: unknown; name: unknown; number: unknown; startDate: unknown; endDate: unknown }>).map(s => ({
+        id: String(s._id),
+        name: s.name as string,
+        number: s.number as number,
+        startDate: (s.startDate as Date).toISOString(),
+        endDate: s.endDate ? (s.endDate as Date).toISOString() : null,
+      }))
+
+      const gmScreens = gmScreenDocs
+        ? (gmScreenDocs as Array<{ _id: unknown; name: unknown }>).map(g => ({
+            id: String(g._id),
+            name: g.name as string,
+          }))
+        : undefined
+
+      const serialized = serializeCampaign(c as Parameters<typeof serializeCampaign>[0], userId, userId, partyMembers, sessions, gmScreens)
 
       // Redact invite code for non-owners
       if (!isOwner) {
@@ -323,6 +373,23 @@ export const createCampaign = createServerFn({ method: 'POST' })
       }
 
       if (!campaign) throw new Error('Could not generate unique invite code')
+
+      // Create default Session 0 and GM Screen for new campaign
+      const now = new Date()
+      await Promise.all([
+        Session.create({
+          campaignId: campaign._id,
+          name: 'Session 0',
+          gm: dbUser._id,
+          number: 0,
+          startDate: now,
+          endDate: null,
+        }),
+        GMScreen.create({
+          campaignId: campaign._id,
+          name: 'Default',
+        }),
+      ])
 
       // Sync User.campaigns array
       await User.updateOne(

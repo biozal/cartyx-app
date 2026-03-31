@@ -29,6 +29,7 @@ const baseCampaign: CampaignData = {
     { id: '3', characterName: 'Lyra Moonwhisper', characterClass: 'Wizard', avatar: null, userId: 'u3' },
   ],
   nextSession: { day: 'Friday', time: '19:00' },
+  sessions: [],
   isOwner: true,
   isMember: true,
   scheduleText: 'Weekly · Friday · at 7:00 PM · CST',
