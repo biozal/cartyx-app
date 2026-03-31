@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import { bootstrapDB, isBootstrapped } from './bootstrap'
+import { getBootstrapPolicy } from './policy'
 import { serverCaptureException } from '../utils/posthog'
 
 let connectPromise: Promise<typeof mongoose> | null = null
@@ -7,6 +8,8 @@ let connectPromise: Promise<typeof mongoose> | null = null
 export async function connectDB(): Promise<void> {
   const uri = process.env.MONGODB_URI
   if (!uri) return
+
+  const policy = getBootstrapPolicy()
 
   try {
     if (connectPromise) {
@@ -17,13 +20,12 @@ export async function connectDB(): Promise<void> {
       // Disconnected — start a new connection and track the promise so
       // concurrent callers can await it.
       //
-      // autoIndex is disabled in production so that index creation is never
-      // a side-effect of app startup. Operators should use `npm run db:sync`
-      // to manage indexes explicitly. In non-production environments autoIndex
-      // stays on for convenience, and bootstrap also calls createIndexes.
-      const isProduction = process.env.NODE_ENV === 'production'
+      // autoIndex is driven by the bootstrap policy: disabled in production
+      // and staging so index creation is never a side-effect of app startup.
+      // Operators should use `npm run db:sync` to manage indexes explicitly.
+      // In development autoIndex stays on for convenience.
       connectPromise = mongoose.connect(uri, {
-        autoIndex: !isProduction,
+        autoIndex: policy.autoIndex,
       })
       await connectPromise
       connectPromise = null
@@ -33,7 +35,7 @@ export async function connectDB(): Promise<void> {
     // Always attempt bootstrap — it's idempotent and must succeed even if
     // a previous connect succeeded but bootstrap failed partway through.
     if (!isBootstrapped()) {
-      await bootstrapDB()
+      await bootstrapDB(policy)
     }
   } catch (e) {
     connectPromise = null

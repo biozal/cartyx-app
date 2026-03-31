@@ -401,14 +401,45 @@ Both commands require `MONGODB_URI` to be set.
 | **After adding a new index in code** | `npm run db:verify` to confirm drift, then `npm run db:sync` to apply |
 | **Routine health check** | `npm run db:verify` — safe to run at any time, never mutates the DB |
 
-### Production behavior
+### Runtime bootstrap policy
 
-In production (`NODE_ENV=production`), Mongoose `autoIndex` is disabled so index
-creation is never a side-effect of app startup. Use `npm run db:sync` explicitly
-before or after deploys when schema indexes change.
+On every first database access, the app runs a lightweight bootstrap pass. The
+behaviour is **environment-aware** — each environment gets a different policy:
 
-In non-production environments (local dev, preview deploys), `autoIndex` remains
-enabled for convenience so new indexes are applied automatically on app start.
+| Environment | Detection | Collections | Indexes | Critical check | Failure mode |
+|-------------|-----------|-------------|---------|----------------|--------------|
+| **production** | `VERCEL_ENV=production` or `NODE_ENV=production` | ensure | — | yes | **abort startup** |
+| **staging** | `VERCEL_ENV=preview` (dev branch + PR previews) | ensure | — | yes | warn only |
+| **development** | local dev (`NODE_ENV != production`, no Vercel) | ensure | sync | — | — |
+
+**Production** — the lightweight path ensures collections exist, then verifies
+that all critical indexes (uniqueness constraints, auth lookups) are present.
+If any critical index is missing, startup aborts with a `BootstrapError` that
+names the missing indexes and tells operators to run `npm run db:sync`. Mongoose
+`autoIndex` is disabled. Non-critical (performance-only) index drift does not
+block startup.
+
+**Staging** — same lightweight verification, but critical drift produces a
+console warning instead of aborting. This keeps preview deploys functional while
+still surfacing problems. `autoIndex` is disabled.
+
+**Development** — full sync: collections and indexes are created automatically
+on startup for developer convenience. `autoIndex` is enabled. This is the only
+environment where heavy index work happens at boot.
+
+All bootstrap work is bounded by a timeout (production: 10 s, staging: 15 s,
+development: 30 s) so startup cannot hang indefinitely without an actionable
+error.
+
+#### Overriding the environment
+
+Set `BOOTSTRAP_ENV` to `production`, `staging`, or `development` to override
+automatic detection. This is useful for testing production bootstrap behaviour
+locally:
+
+```bash
+BOOTSTRAP_ENV=production npm run dev
+```
 
 ### Schema as source of truth
 
