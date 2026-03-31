@@ -79,7 +79,14 @@ vi.mock('~/server/db/models/User', () => ({
   User: { findOne: vi.fn(), updateOne: vi.fn() },
 }))
 vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { find: vi.fn(), findById: vi.fn(), findOne: vi.fn(), findOneAndUpdate: vi.fn(), create: vi.fn(), exists: vi.fn() },
+  Campaign: {
+    find: vi.fn(),
+    findById: vi.fn(),
+    findOne: vi.fn(),
+    findOneAndUpdate: vi.fn(),
+    create: vi.fn(),
+    exists: vi.fn().mockReturnValue({ session: vi.fn().mockResolvedValue(null) }),
+  },
 }))
 vi.mock('~/server/db/models/Player', () => ({
   Player: {
@@ -88,12 +95,34 @@ vi.mock('~/server/db/models/Player', () => ({
     updateOne: vi.fn(),
   },
 }))
+vi.mock('~/server/db/models/Session', () => ({
+  Session: {
+    find: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) }),
+    create: vi.fn(),
+  },
+}))
+vi.mock('~/server/db/models/GMScreen', () => ({
+  GMScreen: {
+    find: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+    create: vi.fn(),
+  },
+}))
 vi.mock('~/server/utils/posthog', () => ({ serverCaptureException: vi.fn(), serverCaptureEvent: vi.fn() }))
+
+const mockMongoSession = {
+  withTransaction: vi.fn(async (fn: () => Promise<void>) => fn()),
+  endSession: vi.fn(),
+}
+vi.mock('mongoose', () => ({
+  default: { startSession: vi.fn(() => mockMongoSession) },
+}))
 
 import { getSession } from '~/server/session'
 import { User } from '~/server/db/models/User'
 import { Campaign } from '~/server/db/models/Campaign'
 import { Player } from '~/server/db/models/Player'
+import { Session } from '~/server/db/models/Session'
+import { GMScreen } from '~/server/db/models/GMScreen'
 import { listCampaigns, getCampaign, createCampaign, updateCampaign, joinCampaign, campaignInputSchema } from '~/server/functions/campaigns'
 import { serverCaptureEvent } from '~/server/utils/posthog'
 
@@ -135,6 +164,13 @@ beforeEach(() => {
   vi.mocked(Player.find).mockReturnValue({ lean: vi.fn().mockResolvedValue([]) } as never)
   vi.mocked(Player.create).mockResolvedValue({} as never)
   vi.mocked(Player.updateOne).mockResolvedValue({} as never)
+  vi.mocked(Session.find).mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) } as never)
+  vi.mocked(Session.create).mockResolvedValue([] as never)
+  vi.mocked(GMScreen.find).mockReturnValue({ lean: vi.fn().mockResolvedValue([]) } as never)
+  vi.mocked(GMScreen.create).mockResolvedValue([] as never)
+  vi.mocked(Campaign.exists).mockReturnValue({ session: vi.fn().mockResolvedValue(null) } as never)
+  mockMongoSession.withTransaction.mockImplementation(async (fn: () => Promise<void>) => fn())
+  mockMongoSession.endSession.mockReset()
 })
 
 // Cast server functions to callable handler signatures
@@ -303,6 +339,49 @@ describe('getCampaign', () => {
 
     expect((result as { partyMembers: Array<{ characterName: string }> }).partyMembers[0].characterName).toBe('Gandalf')
   })
+
+  it('loads sessions for any user entering the campaign', async () => {
+    const campaign = makeCampaign({ gameMasterId: 'someone-else', members: [{ userId: 'dbuser-1', role: 'player' }] })
+    vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    const mockSessionDocs = [
+      { _id: 'sess-1', name: 'Session 0', number: 0, startDate: new Date('2026-01-01'), endDate: null },
+    ]
+    vi.mocked(Session.find).mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(mockSessionDocs) }) } as never)
+
+    const result = await _getCampaign({ data: { id: 'camp-1' } }) as { sessions: Array<{ name: string }> }
+
+    expect(Session.find).toHaveBeenCalledWith(
+      { campaignId: 'camp-1' },
+      '_id name number startDate endDate'
+    )
+    expect(result.sessions).toHaveLength(1)
+    expect(result.sessions[0].name).toBe('Session 0')
+  })
+
+  it('loads gmScreens only for GM (campaign owner)', async () => {
+    const campaign = makeCampaign()
+    vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    const mockGmScreenDocs = [{ _id: 'gms-1', name: 'Default' }]
+    vi.mocked(GMScreen.find).mockReturnValue({ lean: vi.fn().mockResolvedValue(mockGmScreenDocs) } as never)
+
+    const result = await _getCampaign({ data: { id: 'camp-1' } }) as { gmScreens?: Array<{ name: string }> }
+
+    expect(GMScreen.find).toHaveBeenCalledWith(
+      { campaignId: 'camp-1' },
+      '_id name'
+    )
+    expect(result.gmScreens).toHaveLength(1)
+    expect(result.gmScreens![0].name).toBe('Default')
+  })
+
+  it('does not load gmScreens for non-GM users', async () => {
+    const campaign = makeCampaign({ gameMasterId: 'someone-else', members: [{ userId: 'dbuser-1', role: 'player' }] })
+    vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+
+    const result = await _getCampaign({ data: { id: 'camp-1' } }) as { gmScreens?: unknown }
+
+    expect(result.gmScreens).toBeUndefined()
+  })
 })
 
 describe('legacy campaigns (no members array)', () => {
@@ -357,42 +436,39 @@ describe('legacy campaigns (no members array)', () => {
 
 describe('createCampaign', () => {
   it('auto-adds GM as a member with role gm', async () => {
-    vi.mocked(Campaign.exists).mockResolvedValue(null)
     const created = makeCampaign()
-    vi.mocked(Campaign.create).mockResolvedValue(created as never)
+    vi.mocked(Campaign.create).mockResolvedValue([created] as never)
 
     await _createCampaign({ data: { name: 'My Campaign', description: '' } })
 
-    const createCall = vi.mocked(Campaign.create).mock.calls[0][0] as { members: Array<{ role: string }> }
-    expect(createCall.members).toHaveLength(1)
-    expect(createCall.members[0].role).toBe('gm')
+    const createCall = vi.mocked(Campaign.create).mock.calls[0][0] as Array<{ members: Array<{ role: string }> }>
+    expect(createCall[0].members).toHaveLength(1)
+    expect(createCall[0].members[0].role).toBe('gm')
   })
 
   it('stores links on the campaign', async () => {
-    vi.mocked(Campaign.exists).mockResolvedValue(null)
-    vi.mocked(Campaign.create).mockResolvedValue(makeCampaign() as never)
+    vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never)
 
     await _createCampaign({ data: { name: 'My Campaign', description: '', links: [{ name: 'Discord', url: 'https://discord.gg/test' }] } })
 
-    const createCall = vi.mocked(Campaign.create).mock.calls[0][0] as { links: Array<{ name: string; url: string }> }
-    expect(createCall.links).toEqual([{ name: 'Discord', url: 'https://discord.gg/test' }])
+    const createCall = vi.mocked(Campaign.create).mock.calls[0][0] as Array<{ links: Array<{ name: string; url: string }> }>
+    expect(createCall[0].links).toEqual([{ name: 'Discord', url: 'https://discord.gg/test' }])
   })
 
   it('syncs User.campaigns after creation', async () => {
-    vi.mocked(Campaign.exists).mockResolvedValue(null)
-    vi.mocked(Campaign.create).mockResolvedValue(makeCampaign() as never)
+    vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never)
 
     await _createCampaign({ data: { name: 'My Campaign', description: '' } })
 
     expect(User.updateOne).toHaveBeenCalledWith(
       { _id: 'dbuser-1' },
-      expect.objectContaining({ $push: expect.objectContaining({ campaigns: expect.any(Object) }) })
+      expect.objectContaining({ $push: expect.objectContaining({ campaigns: expect.any(Object) }) }),
+      expect.objectContaining({ session: expect.anything() })
     )
   })
 
   it('fires campaign_created analytics event on success', async () => {
-    vi.mocked(Campaign.exists).mockResolvedValue(null)
-    vi.mocked(Campaign.create).mockResolvedValue({ ...makeCampaign(), name: 'My Campaign' } as never)
+    vi.mocked(Campaign.create).mockResolvedValue([{ ...makeCampaign(), name: 'My Campaign' }] as never)
 
     await _createCampaign({ data: { name: 'My Campaign', description: '' } })
 
@@ -412,6 +488,77 @@ describe('createCampaign', () => {
     ).rejects.toThrow('Not authenticated')
 
     expect(serverCaptureEvent).not.toHaveBeenCalled()
+  })
+
+  it('creates a default Session 0 document for the new campaign', async () => {
+    const created = makeCampaign()
+    vi.mocked(Campaign.create).mockResolvedValue([created] as never)
+
+    await _createCampaign({ data: { name: 'My Campaign', description: '' } })
+
+    expect(Session.create).toHaveBeenCalledWith(
+      [expect.objectContaining({
+        campaignId: 'camp-1',
+        name: 'Session 0',
+        gm: 'dbuser-1',
+        number: 0,
+        endDate: null,
+      })],
+      expect.objectContaining({ session: expect.anything() })
+    )
+  })
+
+  it('creates a default GMScreen document for the new campaign', async () => {
+    const created = makeCampaign()
+    vi.mocked(Campaign.create).mockResolvedValue([created] as never)
+
+    await _createCampaign({ data: { name: 'My Campaign', description: '' } })
+
+    expect(GMScreen.create).toHaveBeenCalledWith(
+      [expect.objectContaining({
+        campaignId: 'camp-1',
+        name: 'Default',
+      })],
+      expect.objectContaining({ session: expect.anything() })
+    )
+  })
+
+  it('ends the mongo session even when the transaction fails', async () => {
+    vi.mocked(Campaign.create).mockRejectedValue(new Error('DB write failed'))
+
+    await expect(
+      _createCampaign({ data: { name: 'Fail', description: '' } })
+    ).rejects.toThrow()
+
+    expect(mockMongoSession.endSession).toHaveBeenCalled()
+  })
+
+  it('rolls back all writes when Session.create fails inside transaction', async () => {
+    vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never)
+    vi.mocked(Session.create).mockRejectedValue(new Error('Session write failed'))
+
+    await expect(
+      _createCampaign({ data: { name: 'My Campaign', description: '' } })
+    ).rejects.toThrow('Session write failed')
+
+    expect(Session.create).toHaveBeenCalled()
+    expect(User.updateOne).not.toHaveBeenCalled()
+    expect(mockMongoSession.endSession).toHaveBeenCalled()
+  })
+
+  it('rolls back all writes when User.updateOne fails inside transaction', async () => {
+    vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never)
+    vi.mocked(User.updateOne).mockRejectedValue(new Error('User update failed'))
+
+    await expect(
+      _createCampaign({ data: { name: 'My Campaign', description: '' } })
+    ).rejects.toThrow('User update failed')
+
+    expect(Campaign.create).toHaveBeenCalled()
+    expect(Session.create).toHaveBeenCalled()
+    expect(GMScreen.create).toHaveBeenCalled()
+    expect(User.updateOne).toHaveBeenCalled()
+    expect(mockMongoSession.endSession).toHaveBeenCalled()
   })
 })
 
@@ -596,8 +743,7 @@ describe('createCampaign with imagePath (direct R2 upload)', () => {
 
   beforeEach(() => {
     process.env.CDN_URL = 'https://cdn.example.com'
-    vi.mocked(Campaign.exists).mockResolvedValue(null)
-    vi.mocked(Campaign.create).mockResolvedValue(makeCampaign() as never)
+    vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never)
   })
 
   afterEach(() => {
@@ -613,8 +759,8 @@ describe('createCampaign with imagePath (direct R2 upload)', () => {
       },
     })
 
-    const createCall = vi.mocked(Campaign.create).mock.calls[0][0] as { imagePath: string }
-    expect(createCall.imagePath).toBe('https://cdn.example.com/uploads/campaigns/img.webp')
+    const createCall = vi.mocked(Campaign.create).mock.calls[0][0] as Array<{ imagePath: string }>
+    expect(createCall[0].imagePath).toBe('https://cdn.example.com/uploads/campaigns/img.webp')
   })
 
   it('throws when imagePath origin does not match CDN_URL', async () => {
