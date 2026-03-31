@@ -1,4 +1,4 @@
-import type { BootstrapPolicy } from './policy'
+import type { BootstrapEnvironment, BootstrapPolicy } from './policy'
 import { getBootstrapPolicy } from './policy'
 import { ensureCollections, syncCollectionsAndIndexes, inspectIndexes } from './inspect'
 
@@ -13,7 +13,7 @@ export class BootstrapError extends Error {
   override readonly name = 'BootstrapError'
   constructor(
     message: string,
-    public readonly environment: string,
+    public readonly environment: BootstrapEnvironment,
     public readonly details: string[],
   ) {
     super(message)
@@ -115,7 +115,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   if (ms <= 0) return promise
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(
-      () => reject(new Error(`${label} timed out after ${ms}ms — check MongoDB connectivity`)),
+      () => reject(new Error(`${label} timed out after ${ms}ms — possible causes: MongoDB connectivity issues, slow collection/index operations, or high cluster load`)),
       ms,
     )
     promise.then(
