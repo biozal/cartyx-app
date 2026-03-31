@@ -33,29 +33,32 @@ function panelId(id: InspectorTab) {
 
 export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: InspectorSidebarProps) {
   const chatFlagName = import.meta.env.VITE_PUBLIC_FF_CHAT ?? ''
+  const wikiFlagName = import.meta.env.VITE_PUBLIC_FF_WIKI ?? ''
   const notepadFlagName = import.meta.env.VITE_PUBLIC_FF_NOTEPAD ?? ''
   const settingsFlagName = import.meta.env.VITE_PUBLIC_FF_SETTINGS ?? ''
 
   const chatEnabled = useOptionalFeatureFlagEnabled(chatFlagName)
+  const wikiEnabled = useOptionalFeatureFlagEnabled(wikiFlagName)
   const notepadEnabled = useOptionalFeatureFlagEnabled(notepadFlagName)
   const settingsEnabled = useOptionalFeatureFlagEnabled(settingsFlagName)
 
   const tabs = useMemo(() => ALL_TABS.filter(tab => {
     if (tab.id === 'chat') return chatEnabled
+    if (tab.id === 'wiki') return wikiEnabled
     if (tab.id === 'notepad') return notepadEnabled
     if (tab.id === 'settings') return settingsEnabled
-    return true // wiki is always visible
-  }), [chatEnabled, notepadEnabled, settingsEnabled])
+    return true
+  }), [chatEnabled, wikiEnabled, notepadEnabled, settingsEnabled])
 
-  const initialTab = tabs.some(t => t.id === defaultTab) ? defaultTab : 'wiki'
+  const initialTab = tabs.some(t => t.id === defaultTab) ? defaultTab : (tabs[0]?.id ?? 'chat')
   const [activeTab, setActiveTab] = useState<InspectorTab>(initialTab)
   const hasInteracted = useRef(false)
   const tablistRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!tabs.some(t => t.id === activeTab)) {
-      // Active tab became unavailable (flag disabled) — fall back to wiki
-      setActiveTab('wiki')
+      // Active tab became unavailable (flag disabled) — fall back to first available
+      setActiveTab(tabs[0]?.id ?? 'chat')
     } else if (!hasInteracted.current && activeTab !== defaultTab && tabs.some(t => t.id === defaultTab)) {
       // Flags finished loading and defaultTab is now available; restore it
       // only if the user has not manually navigated away

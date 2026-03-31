@@ -8,6 +8,7 @@ import { InspectorSidebar } from '~/components/mainview/InspectorSidebar'
 const { DEV_FLAGS, enabledFlags } = vi.hoisted(() => {
   const DEV_FLAGS = {
     chat: 'dev-inspector-chat',
+    wiki: 'dev-inspector-wiki',
     notepad: 'dev-inspector-notepad',
     settings: 'dev-inspector-settings',
   }
@@ -15,6 +16,7 @@ const { DEV_FLAGS, enabledFlags } = vi.hoisted(() => {
   // Which flags PostHog reports as enabled
   const enabledFlags = new Set<string>([
     DEV_FLAGS.chat,
+    DEV_FLAGS.wiki,
     DEV_FLAGS.notepad,
     DEV_FLAGS.settings,
   ])
@@ -27,9 +29,11 @@ vi.mock('~/utils/featureFlags', () => ({
 
 beforeEach(() => {
   vi.stubEnv('VITE_PUBLIC_FF_CHAT', DEV_FLAGS.chat)
+  vi.stubEnv('VITE_PUBLIC_FF_WIKI', DEV_FLAGS.wiki)
   vi.stubEnv('VITE_PUBLIC_FF_NOTEPAD', DEV_FLAGS.notepad)
   vi.stubEnv('VITE_PUBLIC_FF_SETTINGS', DEV_FLAGS.settings)
   enabledFlags.add(DEV_FLAGS.chat)
+  enabledFlags.add(DEV_FLAGS.wiki)
   enabledFlags.add(DEV_FLAGS.notepad)
   enabledFlags.add(DEV_FLAGS.settings)
 })
@@ -127,25 +131,25 @@ describe('InspectorSidebar', () => {
   })
 
   describe('feature flags', () => {
-    it('hides chat tab when VITE_PUBLIC_FF_CHAT env var is not set', () => {
-      vi.stubEnv('VITE_PUBLIC_FF_CHAT', '')
+    it('hides wiki tab when VITE_PUBLIC_FF_WIKI env var is not set', () => {
+      vi.stubEnv('VITE_PUBLIC_FF_WIKI', '')
       render(<InspectorSidebar />)
-      expect(screen.queryByTestId('inspector-tab-chat')).not.toBeInTheDocument()
-      expect(screen.getByTestId('inspector-tab-wiki')).toBeInTheDocument()
+      expect(screen.queryByTestId('inspector-tab-wiki')).not.toBeInTheDocument()
+      expect(screen.getByTestId('inspector-tab-chat')).toBeInTheDocument()
     })
 
     it('hides notepad tab when VITE_PUBLIC_FF_NOTEPAD env var is not set', () => {
       vi.stubEnv('VITE_PUBLIC_FF_NOTEPAD', '')
       render(<InspectorSidebar />)
       expect(screen.queryByTestId('inspector-tab-notepad')).not.toBeInTheDocument()
-      expect(screen.getByTestId('inspector-tab-wiki')).toBeInTheDocument()
+      expect(screen.getByTestId('inspector-tab-chat')).toBeInTheDocument()
     })
 
     it('hides settings tab when VITE_PUBLIC_FF_SETTINGS env var is not set', () => {
       vi.stubEnv('VITE_PUBLIC_FF_SETTINGS', '')
       render(<InspectorSidebar />)
       expect(screen.queryByTestId('inspector-tab-settings')).not.toBeInTheDocument()
-      expect(screen.getByTestId('inspector-tab-wiki')).toBeInTheDocument()
+      expect(screen.getByTestId('inspector-tab-chat')).toBeInTheDocument()
     })
 
     it('hides chat tab when the PostHog flag is disabled', () => {
@@ -155,57 +159,61 @@ describe('InspectorSidebar', () => {
       expect(screen.getByTestId('inspector-tab-wiki')).toBeInTheDocument()
     })
 
+    it('hides wiki tab when the PostHog flag is disabled', () => {
+      enabledFlags.delete(DEV_FLAGS.wiki)
+      render(<InspectorSidebar />)
+      expect(screen.queryByTestId('inspector-tab-wiki')).not.toBeInTheDocument()
+      expect(screen.getByTestId('inspector-tab-chat')).toBeInTheDocument()
+    })
+
     it('hides notepad tab when the PostHog flag is disabled', () => {
       enabledFlags.delete(DEV_FLAGS.notepad)
       render(<InspectorSidebar />)
       expect(screen.queryByTestId('inspector-tab-notepad')).not.toBeInTheDocument()
-      expect(screen.getByTestId('inspector-tab-wiki')).toBeInTheDocument()
+      expect(screen.getByTestId('inspector-tab-chat')).toBeInTheDocument()
     })
 
     it('hides settings tab when the PostHog flag is disabled', () => {
       enabledFlags.delete(DEV_FLAGS.settings)
       render(<InspectorSidebar />)
       expect(screen.queryByTestId('inspector-tab-settings')).not.toBeInTheDocument()
-      expect(screen.getByTestId('inspector-tab-wiki')).toBeInTheDocument()
+      expect(screen.getByTestId('inspector-tab-chat')).toBeInTheDocument()
     })
 
-    it('falls back to wiki when defaultTab is chat and chat flag is disabled', () => {
-      enabledFlags.delete(DEV_FLAGS.chat)
-      render(<InspectorSidebar defaultTab="chat" />)
-      expect(screen.getByTestId('inspector-panel')).toContainElement(
-        screen.getByRole('button', { name: 'Characters' })
-      )
-    })
-
-    it('only shows wiki when all flagged tabs are disabled', () => {
-      enabledFlags.clear()
-      render(<InspectorSidebar />)
-      expect(screen.queryByTestId('inspector-tab-chat')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('inspector-tab-notepad')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('inspector-tab-settings')).not.toBeInTheDocument()
-      expect(screen.getByTestId('inspector-tab-wiki')).toBeInTheDocument()
-    })
-
-    it('switches active panel to wiki when the active tab flag is toggled off at runtime', async () => {
-      const user = userEvent.setup()
-      const { rerender } = render(<InspectorSidebar defaultTab="chat" />)
-
-      // Chat tab is active on first render
-      await user.click(screen.getByTestId('inspector-tab-chat'))
-      expect(screen.getByTestId('inspector-tab-chat')).toHaveAttribute('aria-selected', 'true')
+    it('falls back to chat when defaultTab is wiki and wiki flag is disabled', () => {
+      enabledFlags.delete(DEV_FLAGS.wiki)
+      render(<InspectorSidebar defaultTab="wiki" />)
       expect(screen.getByTestId('inspector-panel')).toContainElement(
         screen.getByRole('combobox', { name: 'Session selector' })
       )
+    })
 
-      // Simulate PostHog toggling the chat flag off
-      enabledFlags.delete(DEV_FLAGS.chat)
-      rerender(<InspectorSidebar defaultTab="chat" />)
+    it('shows no tabs when all flagged tabs are disabled', () => {
+      enabledFlags.clear()
+      render(<InspectorSidebar />)
+      expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+    })
 
-      // Chat tab should disappear and wiki panel should now be active
-      expect(screen.queryByTestId('inspector-tab-chat')).not.toBeInTheDocument()
+    it('switches active panel to chat when the active tab flag (wiki) is toggled off at runtime', async () => {
+      const user = userEvent.setup()
+      const { rerender } = render(<InspectorSidebar defaultTab="wiki" />)
+
+      // Wiki tab is active on first render
+      await user.click(screen.getByTestId('inspector-tab-wiki'))
       expect(screen.getByTestId('inspector-tab-wiki')).toHaveAttribute('aria-selected', 'true')
       expect(screen.getByTestId('inspector-panel')).toContainElement(
         screen.getByRole('button', { name: 'Characters' })
+      )
+
+      // Simulate PostHog toggling the wiki flag off
+      enabledFlags.delete(DEV_FLAGS.wiki)
+      rerender(<InspectorSidebar defaultTab="wiki" />)
+
+      // Wiki tab should disappear and chat panel should now be active
+      expect(screen.queryByTestId('inspector-tab-wiki')).not.toBeInTheDocument()
+      expect(screen.getByTestId('inspector-tab-chat')).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByTestId('inspector-panel')).toContainElement(
+        screen.getByRole('combobox', { name: 'Session selector' })
       )
     })
   })
