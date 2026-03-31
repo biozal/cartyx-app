@@ -19,6 +19,8 @@ export interface IndexDiff {
   missing: IndexSpec[]
   /** Indexes present in the database but not in the schema (excluding _id). */
   extra: IndexSpec[]
+  /** Indexes whose keys match but whose options differ (unique, sparse, etc.). */
+  optionMismatches: OptionMismatch[]
 }
 
 export interface IndexSpec {
@@ -26,10 +28,16 @@ export interface IndexSpec {
   options?: Record<string, unknown>
 }
 
+export interface OptionMismatch {
+  key: Record<string, unknown>
+  expected: Record<string, unknown>
+  actual: Record<string, unknown>
+}
+
 export interface InspectResult {
   /** Per-model diff reports. */
   diffs: IndexDiff[]
-  /** true when every expected index exists (missing arrays are all empty). */
+  /** true when there is no drift: no missing, no extra, and no option mismatches. */
   ok: boolean
 }
 
@@ -41,6 +49,30 @@ function keySignature(key: Record<string, unknown>): string {
   return Object.entries(key)
     .map(([field, dir]) => `${field}:${Number(dir)}`)
     .join(',')
+}
+
+/** Index options that affect query behaviour and are worth comparing. */
+const COMPARABLE_OPTIONS = ['unique', 'sparse', 'expireAfterSeconds'] as const
+
+/**
+ * Extract only the options we care about for drift comparison.
+ * Mongoose schema options and MongoDB listIndexes output use different shapes,
+ * so we normalise to a plain object with only the meaningful keys present.
+ */
+function normalizeOptions(opts: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const key of COMPARABLE_OPTIONS) {
+    if (key in opts) result[key] = opts[key]
+  }
+  return result
+}
+
+/** Shallow-compare two normalised option objects. */
+function optionsMatch(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const keysA = Object.keys(a)
+  const keysB = Object.keys(b)
+  if (keysA.length !== keysB.length) return false
+  return keysA.every((k) => a[k] === b[k])
 }
 
 /**
@@ -70,48 +102,69 @@ export async function inspectIndexes(): Promise<InspectResult> {
       // Collection may not exist yet — treat as zero indexes.
     }
 
-    // Build sets of key signatures for comparison.
+    // Build maps of key signatures for comparison.
     const schemaKeys = new Map<string, IndexSpec>()
     for (const [key, opts] of schemaIndexes) {
       const sig = keySignature(key)
       schemaKeys.set(sig, { key, options: opts })
     }
 
-    const dbKeys = new Set<string>()
+    const dbKeyMap = new Map<string, Record<string, unknown>>()
     for (const idx of dbIndexes) {
       // Skip the default _id index — it always exists.
       if (keySignature(idx.key) === '_id:1') continue
-      dbKeys.add(keySignature(idx.key))
+      const { key, ...rest } = idx
+      dbKeyMap.set(keySignature(key), rest)
     }
 
     const missing: IndexSpec[] = []
+    const optionMismatches: OptionMismatch[] = []
+
     for (const [sig, spec] of schemaKeys) {
-      if (!dbKeys.has(sig)) {
+      if (!dbKeyMap.has(sig)) {
         missing.push(spec)
+      } else {
+        // Key exists — check whether meaningful options match.
+        const expected = normalizeOptions(spec.options ?? {})
+        const actual = normalizeOptions(dbKeyMap.get(sig)!)
+        if (!optionsMatch(expected, actual)) {
+          optionMismatches.push({ key: spec.key, expected, actual })
+        }
       }
     }
 
     const extra: IndexSpec[] = []
-    for (const sig of dbKeys) {
+    for (const sig of dbKeyMap.keys()) {
       if (!schemaKeys.has(sig)) {
         const dbIdx = dbIndexes.find((i) => keySignature(i.key) === sig)
         if (dbIdx) extra.push({ key: dbIdx.key })
       }
     }
 
-    diffs.push({ model: modelName, collection: collectionName, missing, extra })
+    diffs.push({ model: modelName, collection: collectionName, missing, extra, optionMismatches })
   }
 
-  const ok = diffs.every((d) => d.missing.length === 0)
+  const ok = diffs.every(
+    (d) => d.missing.length === 0 && d.extra.length === 0 && d.optionMismatches.length === 0,
+  )
   return { diffs, ok }
 }
 
 /**
+ * Ensure all collections exist. Idempotent — safe to call on every startup
+ * in any environment, including production.
+ */
+export async function ensureCollections(): Promise<void> {
+  await Promise.all(ALL_MODELS.map((M) => M.createCollection()))
+}
+
+/**
  * Create any missing collections and sync (create) missing indexes.
- * This is the explicit, operator-controlled path — never called implicitly
- * at production runtime.
+ * This is the explicit, operator-controlled path used by `npm run db:sync`
+ * and by non-production startup bootstrap. In production, operators should
+ * run `npm run db:sync` instead.
  */
 export async function syncCollectionsAndIndexes(): Promise<void> {
-  await Promise.all(ALL_MODELS.map((M) => M.createCollection()))
+  await ensureCollections()
   await Promise.all(ALL_MODELS.map((M) => M.createIndexes()))
 }

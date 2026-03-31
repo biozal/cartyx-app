@@ -18,9 +18,9 @@ export async function connectDB(): Promise<void> {
       // concurrent callers can await it.
       //
       // autoIndex is disabled in production so that index creation is never
-      // a side-effect of app startup. Use `npm run db:sync` to manage
-      // indexes explicitly. In non-production environments autoIndex stays
-      // on for convenience.
+      // a side-effect of app startup. Operators should use `npm run db:sync`
+      // to manage indexes explicitly. In non-production environments autoIndex
+      // stays on for convenience, and bootstrap also calls createIndexes.
       const isProduction = process.env.NODE_ENV === 'production'
       connectPromise = mongoose.connect(uri, {
         autoIndex: !isProduction,
