@@ -511,15 +511,17 @@ at each phase so operators can monitor startup health:
 | Event | When | Key fields |
 |---|---|---|
 | `db.bootstrap.start` | Bootstrap begins | `bootstrap_env`, `sync_indexes`, `verify_critical`, `timeout_ms` |
-| `db.bootstrap.success` | Bootstrap completes without error | `bootstrap_env`, `action`, `duration_ms`, `models_checked` |
-| `db.bootstrap.warning` | Staging detects critical drift but continues | `bootstrap_env`, `duration_ms`, `missing_indexes`, `option_mismatches`, `details` |
-| `db.bootstrap.failure` | Fatal error or production critical drift | `bootstrap_env`, `duration_ms`, `error` or `details` |
+| `db.bootstrap.success` | Bootstrap completes without error | `bootstrap_env`, `action`, `duration_ms`; when action=`verify`: `models_checked`, `indexes_ok`; when action=`verify` with optional drift: `optional_drift`, `missing_indexes`, `option_mismatches` |
+| `db.bootstrap.warning` | Staging detects critical drift but continues | `bootstrap_env`, `action`, `duration_ms`, `missing_indexes`, `option_mismatches`, `critical_drift`, `details` |
+| `db.bootstrap.failure` | Fatal error or production critical drift | `bootstrap_env`, `action`, `duration_ms`; on critical drift: `missing_indexes`, `option_mismatches`, `critical_drift`, `details`; on unexpected error: `error` |
 
 Console logs follow a structured `key=value` format for easy parsing:
 
 ```
 [bootstrap] start env=production sync=false verify=true
 [bootstrap] success env=production action=verify duration_ms=42 models_checked=5
+[bootstrap] warning env=staging action=verify duration_ms=38 missing=1 mismatches=0 critical_drift=true
+[bootstrap] failure env=production action=verify duration_ms=15 error=timed out after 10000ms
 ```
 
 All events are also sent to PostHog via `serverCaptureEvent` when a PostHog key

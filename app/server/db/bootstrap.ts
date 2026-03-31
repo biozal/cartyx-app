@@ -66,6 +66,7 @@ export async function bootstrapDB(policy?: BootstrapPolicy): Promise<void> {
 async function runBootstrap(policy: BootstrapPolicy): Promise<void> {
   const env = policy.environment
   const start = performance.now()
+  let action: string | undefined
 
   console.log(`[bootstrap] start env=${env} sync=${policy.syncIndexes} verify=${policy.verifyCriticalIndexes}`)
   serverCaptureEvent('server', 'db.bootstrap.start', {
@@ -79,6 +80,7 @@ async function runBootstrap(policy: BootstrapPolicy): Promise<void> {
     await withTimeout(
       (async () => {
         if (policy.syncIndexes) {
+          action = 'sync'
           // Development: full sync for convenience — creates collections + indexes.
           await syncCollectionsAndIndexes()
           const durationMs = Math.round(performance.now() - start)
@@ -92,6 +94,7 @@ async function runBootstrap(policy: BootstrapPolicy): Promise<void> {
         }
 
         // Production / staging: lightweight path — collections only, then verify.
+        action = 'ensure_collections'
         await ensureCollections()
 
         if (!policy.verifyCriticalIndexes) {
@@ -105,6 +108,7 @@ async function runBootstrap(policy: BootstrapPolicy): Promise<void> {
           return
         }
 
+        action = 'verify'
         const result = await inspectIndexes()
         const durationMs = Math.round(performance.now() - start)
         const totalMissing = result.diffs.reduce((sum, d) => sum + d.missing.length, 0)
@@ -144,11 +148,6 @@ async function runBootstrap(policy: BootstrapPolicy): Promise<void> {
         }
 
         if (result.hasCriticalDrift) {
-          const message =
-            `Runtime bootstrap [${env}]: ${details.length} critical index problem(s) detected.\n` +
-            `Run "npm run db:sync" to fix before deploying.\n` +
-            details.map((d) => `  • ${d}`).join('\n')
-
           if (policy.failOnCriticalDrift) {
             console.error(
               `[bootstrap] failure env=${env} action=verify duration_ms=${durationMs}` +
@@ -163,11 +162,21 @@ async function runBootstrap(policy: BootstrapPolicy): Promise<void> {
               critical_drift: true,
               details,
             })
+            const message =
+              `Runtime bootstrap [${env}]: ${details.length} critical index problem(s) detected.\n` +
+              `Run "npm run db:sync" to fix before deploying.\n` +
+              details.map((d) => `  • ${d}`).join('\n')
             throw new BootstrapError(message, env, details)
           }
 
           // Staging: warn but don't abort so preview deploys stay functional.
-          console.warn(`[bootstrap] WARNING — ${message}`)
+          console.warn(
+            `[bootstrap] warning env=${env} action=verify duration_ms=${durationMs}` +
+              ` missing=${totalMissing} mismatches=${totalMismatches} critical_drift=true`,
+          )
+          for (const d of details) {
+            console.warn(`[bootstrap] drift_detail ${d}`)
+          }
           serverCaptureEvent('server', 'db.bootstrap.warning', {
             bootstrap_env: env,
             action: 'verify',
@@ -204,11 +213,12 @@ async function runBootstrap(policy: BootstrapPolicy): Promise<void> {
     if (!(error instanceof BootstrapError)) {
       const durationMs = Math.round(performance.now() - start)
       console.error(
-        `[bootstrap] failure env=${env} duration_ms=${durationMs}` +
+        `[bootstrap] failure env=${env} action=${action ?? 'unknown'} duration_ms=${durationMs}` +
           ` error=${error instanceof Error ? error.message : String(error)}`,
       )
       serverCaptureEvent('server', 'db.bootstrap.failure', {
         bootstrap_env: env,
+        action: action ?? 'unknown',
         duration_ms: durationMs,
         error: error instanceof Error ? error.message : String(error),
       })

@@ -167,8 +167,9 @@ describe('bootstrapDB', () => {
 
     expect(isBootstrapped()).toBe(true)
     const warnSpy = vi.mocked(console.warn)
-    expect(warnSpy).toHaveBeenCalledTimes(1)
-    expect(warnSpy.mock.calls[0][0]).toContain('critical index problem')
+    // First call is structured warning line, subsequent calls are drift details.
+    expect(warnSpy.mock.calls[0][0]).toContain('[bootstrap] warning env=staging action=verify')
+    expect(warnSpy.mock.calls[0][0]).toContain('critical_drift=true')
   })
 
   // ── Timeout ─────────────────────────────────────────────────────────
@@ -188,12 +189,13 @@ describe('bootstrapDB', () => {
     await expect(bootstrapDB(policy)).rejects.toThrow('timed out')
     expect(isBootstrapped()).toBe(false)
 
-    // Timeout errors now flow through structured failure logging.
+    // Timeout errors now flow through structured failure logging with action.
     expect(posthogMock.serverCaptureEvent).toHaveBeenCalledWith(
       'server',
       'db.bootstrap.failure',
       expect.objectContaining({
         bootstrap_env: 'production',
+        action: 'ensure_collections',
         duration_ms: expect.any(Number),
         error: expect.stringContaining('timed out'),
       }),
@@ -306,7 +308,7 @@ describe('bootstrapDB', () => {
     )
   })
 
-  it('emits db.bootstrap.failure on unexpected errors', async () => {
+  it('emits db.bootstrap.failure with action on unexpected errors', async () => {
     inspectMock.syncCollectionsAndIndexes.mockRejectedValueOnce(new Error('mongo down'))
 
     await expect(bootstrapDB(devPolicy)).rejects.toThrow('mongo down')
@@ -316,6 +318,7 @@ describe('bootstrapDB', () => {
       'db.bootstrap.failure',
       expect.objectContaining({
         bootstrap_env: 'development',
+        action: 'sync',
         duration_ms: expect.any(Number),
         error: 'mongo down',
       }),
