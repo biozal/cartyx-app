@@ -61,7 +61,17 @@ export async function bootstrapDB(policy?: BootstrapPolicy): Promise<void> {
   bootstrapPromise = (async () => {
     // If a previous timed-out attempt's work is still running, wait for
     // it to settle before starting new work to prevent DB-level races.
-    if (inflightWork) await inflightWork.catch(() => {})
+    if (inflightWork) {
+      const waitMs = typeof resolved.timeoutMs === 'number' && resolved.timeoutMs > 0 ? resolved.timeoutMs : null
+      if (waitMs !== null) {
+        await Promise.race([
+          inflightWork.catch(() => {}),
+          new Promise<void>((resolve) => setTimeout(resolve, waitMs)),
+        ])
+      } else {
+        await inflightWork.catch(() => {})
+      }
+    }
 
     try {
       await runBootstrap(resolved)
