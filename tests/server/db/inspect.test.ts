@@ -239,7 +239,8 @@ describe('inspectIndexes', () => {
 
     const result = await inspectIndexes()
     const userDiff = result.diffs.find((d) => d.model === 'User')!
-    expect(userDiff.optionMismatches[0].severity).toBe('critical')
+    const emailMismatch = userDiff.optionMismatches.find((m) => 'email' in m.key)
+    expect(emailMismatch?.severity).toBe('critical')
   })
 
   it('sets hasCriticalDrift=true when a critical index is missing', async () => {

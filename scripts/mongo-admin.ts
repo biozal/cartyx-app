@@ -16,6 +16,7 @@
 import mongoose from 'mongoose'
 import { inspectIndexes, syncCollectionsAndIndexes } from '../app/server/db/inspect.js'
 import type { InspectResult } from '../app/server/db/inspect.js'
+import type { IndexSeverity } from '../app/server/db/governance.js'
 
 const COMMANDS = ['verify', 'sync'] as const
 type Command = (typeof COMMANDS)[number]
@@ -33,7 +34,7 @@ function usage(): void {
   process.exitCode = 2
 }
 
-function severityLabel(severity: string | undefined): string {
+function severityLabel(severity: IndexSeverity | undefined): string {
   if (severity === 'critical') return '[CRITICAL]'
   if (severity === 'optional') return '[optional]'
   return '[unclassified]'

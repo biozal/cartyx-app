@@ -70,7 +70,7 @@ export const INDEX_GOVERNANCE: Record<string, GovernanceEntry[]> = {
  * Normalise an index key to a stable string for governance lookup.
  * Must use the same algorithm as `inspect.ts` so signatures match.
  */
-function keySignature(key: Record<string, unknown>): string {
+export function keySignature(key: Record<string, unknown>): string {
   return Object.entries(key)
     .map(([field, dir]) => `${field}:${Number(dir)}`)
     .join(',')

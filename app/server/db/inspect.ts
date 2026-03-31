@@ -1,6 +1,6 @@
 import type mongoose from 'mongoose'
 import type { IndexSeverity } from './governance'
-import { getSeverity } from './governance'
+import { getSeverity, keySignature } from './governance'
 import { Campaign } from './models/Campaign'
 import { GMScreen } from './models/GMScreen'
 import { Player } from './models/Player'
@@ -47,16 +47,6 @@ export interface InspectResult {
   ok: boolean
   /** true when any critical-severity index is missing or has an option mismatch. */
   hasCriticalDrift: boolean
-}
-
-/**
- * Normalise an index key object to a stable string for comparison.
- * Mongoose and MongoDB may express the same key differently (e.g. `1` vs `"1"`).
- */
-function keySignature(key: Record<string, unknown>): string {
-  return Object.entries(key)
-    .map(([field, dir]) => `${field}:${Number(dir)}`)
-    .join(',')
 }
 
 /** Index options that affect query behaviour and are worth comparing. */
