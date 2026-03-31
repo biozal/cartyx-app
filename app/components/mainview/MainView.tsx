@@ -19,7 +19,7 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
   const [toolbarCollapsed, setToolbarCollapsed] = useState(false)
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false)
   const [inspectorVisible, setInspectorVisible] = useState(true)
-  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia(LG_QUERY).matches)
+  const [isDesktop, setIsDesktop] = useState(false)
   const drawerRef = useRef<HTMLDivElement>(null)
 
   const drawerOpen = showInspector && mobileInspectorOpen
@@ -46,6 +46,7 @@ export function MainView({ showToolbar = false, showInspector = true, children, 
   // Track viewport size and reset mobile drawer when viewport grows to lg+
   useEffect(() => {
     const mq = window.matchMedia(LG_QUERY)
+    setIsDesktop(mq.matches)
     const handler = () => {
       setIsDesktop(mq.matches)
       if (mq.matches) setMobileInspectorOpen(false)
