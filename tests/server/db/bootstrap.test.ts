@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { InspectResult } from '~/server/db/inspect'
 import type { BootstrapPolicy } from '~/server/db/policy'
 
@@ -8,10 +8,16 @@ const inspectMock = vi.hoisted(() => ({
   inspectIndexes: vi.fn().mockResolvedValue({ diffs: [], ok: true, hasCriticalDrift: false }),
 }))
 
+const posthogMock = vi.hoisted(() => ({
+  serverCaptureEvent: vi.fn(),
+  serverCaptureException: vi.fn(),
+}))
+
 vi.mock('~/server/db/inspect', () => inspectMock)
 vi.mock('~/server/db/policy', () => ({
   getBootstrapPolicy: vi.fn(),
 }))
+vi.mock('~/server/utils/posthog', () => posthogMock)
 
 import {
   bootstrapDB,
@@ -91,6 +97,16 @@ describe('bootstrapDB', () => {
     inspectMock.inspectIndexes
       .mockClear()
       .mockResolvedValue({ diffs: [], ok: true, hasCriticalDrift: false })
+    posthogMock.serverCaptureEvent.mockClear()
+
+    // Silence console output during tests by default.
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   // ── Development policy ──────────────────────────────────────────────
@@ -146,20 +162,19 @@ describe('bootstrapDB', () => {
 
   it('warns but succeeds on critical drift in staging', async () => {
     inspectMock.inspectIndexes.mockResolvedValueOnce(criticalDriftResult)
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     await bootstrapDB(stagingPolicy)
 
     expect(isBootstrapped()).toBe(true)
-    expect(warnSpy).toHaveBeenCalledTimes(1)
-    expect(warnSpy.mock.calls[0][0]).toContain('critical index problem')
-
-    warnSpy.mockRestore()
+    const warnSpy = vi.mocked(console.warn)
+    // First call is structured warning line, subsequent calls are drift details.
+    expect(warnSpy.mock.calls[0][0]).toContain('[bootstrap] warning env=staging action=verify')
+    expect(warnSpy.mock.calls[0][0]).toContain('critical_drift=true')
   })
 
   // ── Timeout ─────────────────────────────────────────────────────────
 
-  it('times out when bootstrap exceeds timeoutMs', async () => {
+  it('times out when bootstrap exceeds timeoutMs and emits failure event', async () => {
     inspectMock.ensureCollections.mockImplementation(
       () => new Promise((resolve) => setTimeout(resolve, 500)),
     )
@@ -173,6 +188,90 @@ describe('bootstrapDB', () => {
 
     await expect(bootstrapDB(policy)).rejects.toThrow('timed out')
     expect(isBootstrapped()).toBe(false)
+
+    // Timeout errors now flow through structured failure logging with action.
+    expect(posthogMock.serverCaptureEvent).toHaveBeenCalledWith(
+      'server',
+      'db.bootstrap.failure',
+      expect.objectContaining({
+        bootstrap_env: 'production',
+        action: 'ensure_collections',
+        duration_ms: expect.any(Number),
+        error: expect.stringContaining('timed out'),
+      }),
+    )
+    const errorSpy = vi.mocked(console.error)
+    expect(errorSpy.mock.calls.some((c) => c[0].includes('[bootstrap] failure'))).toBe(true)
+  })
+
+  it('suppresses success/warning emissions from timed-out underlying work', async () => {
+    // ensureCollections is slow (triggers timeout), but eventually resolves.
+    // After timeout, the underlying work continues and would normally emit
+    // a success log — the cancellation token should suppress it.
+    let resolveEnsure!: () => void
+    inspectMock.ensureCollections.mockImplementation(
+      () => new Promise<void>((r) => { resolveEnsure = r }),
+    )
+    const policy = makePolicy({
+      environment: 'production',
+      syncIndexes: false,
+      verifyCriticalIndexes: false,
+      failOnCriticalDrift: true,
+      timeoutMs: 50,
+    })
+
+    await expect(bootstrapDB(policy)).rejects.toThrow('timed out')
+
+    // Clear mocks to isolate post-timeout emissions.
+    posthogMock.serverCaptureEvent.mockClear()
+    vi.mocked(console.log).mockClear()
+
+    // Let the underlying work complete after the timeout.
+    resolveEnsure()
+    // Flush microtasks so the async work runs.
+    await new Promise((r) => setTimeout(r, 10))
+
+    // No success event should have been emitted after the timeout.
+    const successCalls = posthogMock.serverCaptureEvent.mock.calls.filter(
+      (c: unknown[]) => c[1] === 'db.bootstrap.success',
+    )
+    expect(successCalls).toHaveLength(0)
+    const successLogs = vi.mocked(console.log).mock.calls.filter(
+      (c: unknown[]) => typeof c[0] === 'string' && c[0].includes('[bootstrap] success'),
+    )
+    expect(successLogs).toHaveLength(0)
+  })
+
+  it('prevents overlapping bootstrap attempts after timeout', async () => {
+    let resolveFirst!: () => void
+    let firstCallCount = 0
+    inspectMock.syncCollectionsAndIndexes.mockImplementation(() => {
+      firstCallCount++
+      if (firstCallCount === 1) {
+        // First call: slow (will timeout)
+        return new Promise<void>((r) => { resolveFirst = r })
+      }
+      // Second call: fast
+      return Promise.resolve()
+    })
+
+    const slowPolicy = makePolicy({ timeoutMs: 50 })
+
+    // First attempt times out.
+    await expect(bootstrapDB(slowPolicy)).rejects.toThrow('timed out')
+    expect(isBootstrapped()).toBe(false)
+
+    // Second attempt should wait for the first's underlying work to settle
+    // before starting, not race with it.
+    const retryPromise = bootstrapDB(devPolicy)
+
+    // Let the first attempt's underlying work finish.
+    resolveFirst()
+
+    await retryPromise
+    expect(isBootstrapped()).toBe(true)
+    // Both calls should have happened sequentially, not concurrently.
+    expect(inspectMock.syncCollectionsAndIndexes).toHaveBeenCalledTimes(2)
   })
 
   // ── Idempotency & concurrency ───────────────────────────────────────
@@ -212,5 +311,95 @@ describe('bootstrapDB', () => {
     await bootstrapDB(devPolicy)
     expect(inspectMock.syncCollectionsAndIndexes).toHaveBeenCalledTimes(2)
     expect(isBootstrapped()).toBe(true)
+  })
+
+  // ── Observability ───────────────────────────────────────────────────
+
+  it('emits db.bootstrap.start and db.bootstrap.success PostHog events on dev sync', async () => {
+    await bootstrapDB(devPolicy)
+
+    expect(posthogMock.serverCaptureEvent).toHaveBeenCalledWith(
+      'server',
+      'db.bootstrap.start',
+      expect.objectContaining({ bootstrap_env: 'development', sync_indexes: true }),
+    )
+    expect(posthogMock.serverCaptureEvent).toHaveBeenCalledWith(
+      'server',
+      'db.bootstrap.success',
+      expect.objectContaining({ bootstrap_env: 'development', action: 'sync', duration_ms: expect.any(Number) }),
+    )
+  })
+
+  it('emits db.bootstrap.success with verify action on production (no drift)', async () => {
+    await bootstrapDB(prodPolicy)
+
+    expect(posthogMock.serverCaptureEvent).toHaveBeenCalledWith(
+      'server',
+      'db.bootstrap.success',
+      expect.objectContaining({
+        bootstrap_env: 'production',
+        action: 'verify',
+        duration_ms: expect.any(Number),
+        models_checked: expect.any(Number),
+        indexes_ok: true,
+      }),
+    )
+  })
+
+  it('emits db.bootstrap.failure on production critical drift', async () => {
+    inspectMock.inspectIndexes.mockResolvedValueOnce(criticalDriftResult)
+
+    await expect(bootstrapDB(prodPolicy)).rejects.toThrow(BootstrapError)
+
+    expect(posthogMock.serverCaptureEvent).toHaveBeenCalledWith(
+      'server',
+      'db.bootstrap.failure',
+      expect.objectContaining({
+        bootstrap_env: 'production',
+        critical_drift: true,
+        duration_ms: expect.any(Number),
+      }),
+    )
+  })
+
+  it('emits db.bootstrap.warning on staging critical drift', async () => {
+    inspectMock.inspectIndexes.mockResolvedValueOnce(criticalDriftResult)
+
+    await bootstrapDB(stagingPolicy)
+
+    expect(posthogMock.serverCaptureEvent).toHaveBeenCalledWith(
+      'server',
+      'db.bootstrap.warning',
+      expect.objectContaining({
+        bootstrap_env: 'staging',
+        critical_drift: true,
+        duration_ms: expect.any(Number),
+      }),
+    )
+  })
+
+  it('emits db.bootstrap.failure with action on unexpected errors', async () => {
+    inspectMock.syncCollectionsAndIndexes.mockRejectedValueOnce(new Error('mongo down'))
+
+    await expect(bootstrapDB(devPolicy)).rejects.toThrow('mongo down')
+
+    expect(posthogMock.serverCaptureEvent).toHaveBeenCalledWith(
+      'server',
+      'db.bootstrap.failure',
+      expect.objectContaining({
+        bootstrap_env: 'development',
+        action: 'sync',
+        duration_ms: expect.any(Number),
+        error: 'mongo down',
+      }),
+    )
+  })
+
+  it('logs structured start/success to console on dev sync', async () => {
+    await bootstrapDB(devPolicy)
+
+    const logSpy = vi.mocked(console.log)
+    expect(logSpy.mock.calls.some((c) => c[0].includes('[bootstrap] start env=development'))).toBe(true)
+    expect(logSpy.mock.calls.some((c) => c[0].includes('[bootstrap] success env=development action=sync'))).toBe(true)
   })
 })

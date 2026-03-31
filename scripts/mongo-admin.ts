@@ -105,38 +105,45 @@ async function main(): Promise<void> {
   try {
     if (command === 'verify') {
       if (!json) console.log('Verifying MongoDB collections and indexes...')
+      const start = performance.now()
       const result = await inspectIndexes()
+      const durationMs = Math.round(performance.now() - start)
 
       if (json) {
         printJson(result)
       } else {
         printDiffs(result)
+        console.log(`\nVerification completed in ${durationMs}ms.`)
       }
 
       if (result.ok) {
-        if (!json) console.log('\nAll expected indexes are present.')
+        if (!json) console.log('All expected indexes are present.')
       } else if (result.hasCriticalDrift) {
-        if (!json) console.error('\nCritical index drift detected — run `npm run db:sync` to fix.')
+        if (!json) console.error('Critical index drift detected — run `npm run db:sync` to fix.')
         process.exitCode = 1
       } else if (strict) {
-        if (!json) console.error('\nOptional index drift detected (strict mode) — run `npm run db:sync` to fix.')
+        if (!json) console.error('Optional index drift detected (strict mode) — run `npm run db:sync` to fix.')
         process.exitCode = 1
       } else {
-        if (!json) console.warn('\nOptional index drift detected (warning only). Run `npm run db:sync` to fix.')
+        if (!json) console.warn('Optional index drift detected (warning only). Run `npm run db:sync` to fix.')
       }
       return
     }
 
     if (command === 'sync') {
       console.log('Syncing MongoDB collections and indexes...')
+      const syncStart = performance.now()
       await syncCollectionsAndIndexes()
-      console.log('Sync complete. Verifying...')
+      const syncDurationMs = Math.round(performance.now() - syncStart)
+      console.log(`Sync complete in ${syncDurationMs}ms. Verifying...`)
 
+      const verifyStart = performance.now()
       const result = await inspectIndexes()
+      const verifyDurationMs = Math.round(performance.now() - verifyStart)
       printDiffs(result)
 
       if (result.ok) {
-        console.log('\nAll collections and indexes are up to date.')
+        console.log(`\nAll collections and indexes are up to date (verified in ${verifyDurationMs}ms).`)
       } else {
         console.error('\nSync completed but drift remains — investigate manually.')
         process.exitCode = 1
