@@ -56,6 +56,7 @@ const config: StorybookConfig = {
     aliasArray.push(
       { find: /^@tanstack\/react-router$/, replacement: path.resolve(__dirname, './mocks/router.tsx') },
       { find: '~/hooks/useAuth', replacement: path.resolve(__dirname, './mocks/useAuth.ts') },
+      { find: '~/hooks/useNotes', replacement: path.resolve(__dirname, './mocks/useNotes.ts') },
     )
     config.resolve.alias = aliasArray
     return config

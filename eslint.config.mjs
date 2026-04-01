@@ -49,6 +49,7 @@ export default [js.configs.recommended, {
     '.vinxi',
     'dist',
     'coverage',
+    'storybook-static',
     'app/routeTree.gen.ts',
     'server.cjs',
     'prod-server.js',
