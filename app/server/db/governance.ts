@@ -64,15 +64,38 @@ export const INDEX_GOVERNANCE: Record<string, GovernanceEntry[]> = {
   GMScreen: [
     { key: { campaignId: 1 }, severity: 'optional' },
   ],
+  Note: [
+    { key: { sessionId: 1 }, severity: 'optional' },
+    { key: { campaignId: 1 }, severity: 'optional' },
+    { key: { createdBy: 1 }, severity: 'optional' },
+    { key: { tags: 1 }, severity: 'optional' },
+    { key: { isPublic: 1 }, severity: 'optional' },
+    { key: { _fts: 'text', _ftsx: 1 }, severity: 'optional' },
+  ],
+}
+
+/**
+ * Normalise a text index key to the canonical form that MongoDB reports
+ * via `listIndexes()`. Schema declarations use field names (e.g.
+ * `{ title: 'text', note: 'text' }`) while MongoDB stores the internal
+ * representation `{ _fts: 'text', _ftsx: 1 }`. This helper collapses
+ * both forms to the canonical DB shape so comparisons are stable.
+ */
+export function normalizeIndexKey(key: Record<string, unknown>): Record<string, unknown> {
+  const hasText = Object.values(key).some((v) => v === 'text')
+  if (hasText) return { _fts: 'text', _ftsx: 1 }
+  return key
 }
 
 /**
  * Normalise an index key to a stable string for governance lookup.
- * Must use the same algorithm as `inspect.ts` so signatures match.
+ * Text indexes are first collapsed to the canonical MongoDB form so that
+ * schema-declared keys and DB-reported keys produce identical signatures.
  */
 export function keySignature(key: Record<string, unknown>): string {
-  return Object.entries(key)
-    .map(([field, dir]) => `${field}:${Number(dir)}`)
+  const normalized = normalizeIndexKey(key)
+  return Object.entries(normalized)
+    .map(([field, dir]) => `${field}:${typeof dir === 'string' ? dir : Number(dir)}`)
     .join(',')
 }
 

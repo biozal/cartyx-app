@@ -12,6 +12,7 @@ vi.mock('@tanstack/react-start/server', () => ({
 class MockSchema {
   constructor(_def?: unknown) {}
   static Types = { ObjectId: String }
+  pre(_hook: string, _fn: unknown) {}
 }
 
 const mockModel = vi.fn(() => ({
