@@ -37,6 +37,7 @@ import { User } from '~/server/db/models/User'
 import { Campaign } from '~/server/db/models/Campaign'
 import { Note } from '~/server/db/models/Note'
 import { createNote, updateNote, listNotes, getNote, createNoteSchema, updateNoteSchema, listNotesSchema } from '~/server/functions/notes'
+import type { NoteListItem } from '~/server/functions/notes'
 import { serverCaptureEvent } from '~/server/utils/posthog'
 
 const mockSession = {
@@ -77,7 +78,7 @@ function makeNote(overrides: Record<string, unknown> = {}) {
 // Cast server functions to callable handler signatures
 const _createNote = createNote as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean; note: Record<string, unknown> }>
 const _updateNote = updateNote as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean; note: Record<string, unknown> }>
-const _listNotes = listNotes as unknown as (args: { data: Record<string, unknown> }) => Promise<Array<Record<string, unknown>>>
+const _listNotes = listNotes as unknown as (args: { data: Record<string, unknown> }) => Promise<NoteListItem[]>
 const _getNote = getNote as unknown as (args: { data: Record<string, unknown> }) => Promise<Record<string, unknown> | null>
 
 beforeEach(() => {
@@ -234,6 +235,17 @@ describe('updateNote', () => {
     ).rejects.toThrow('Forbidden')
   })
 
+  it('throws when user does not own the note', async () => {
+    const existing = makeNote({ createdBy: 'other-user' })
+    vi.mocked(Note.findById).mockResolvedValue(existing as never)
+
+    await expect(
+      _updateNote({
+        data: { id: 'note-1', campaignId: 'camp-1', sessionId: 'sess-1', title: 'T', note: 'B' },
+      }),
+    ).rejects.toThrow('Forbidden')
+  })
+
   it('fires note_updated analytics event', async () => {
     const existing = makeNote()
     vi.mocked(Note.findById).mockResolvedValue(existing as never)
@@ -255,10 +267,10 @@ describe('updateNote', () => {
 // ---------------------------------------------------------------------------
 
 describe('listNotes', () => {
-  it('returns notes for a campaign', async () => {
+  it('returns notes for a campaign (default visibility filters to visible notes)', async () => {
     const notes = [makeNote(), makeNote({ _id: 'note-2', title: 'Second Note' })]
     vi.mocked(Note.find).mockReturnValue({
-      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(notes) }),
+      select: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(notes) }) }),
     } as never)
 
     const result = await _listNotes({ data: { campaignId: 'camp-1' } })
@@ -266,11 +278,44 @@ describe('listNotes', () => {
     expect(result).toHaveLength(2)
     expect(result[0].id).toBe('note-1')
     expect(result[1].title).toBe('Second Note')
+    // Default visibility='all' adds $or filter for privacy safety
+    expect(vi.mocked(Note.find).mock.calls[0][0]).toMatchObject({
+      campaignId: 'camp-1',
+      $or: [{ isPublic: true }, { createdBy: 'dbuser-1' }],
+    })
+  })
+
+  it('does not return other users private notes with default visibility', async () => {
+    // Simulate: another user's private note would be filtered by the $or clause
+    vi.mocked(Note.find).mockReturnValue({
+      select: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) }),
+    } as never)
+
+    await _listNotes({ data: { campaignId: 'camp-1' } })
+
+    const filter = vi.mocked(Note.find).mock.calls[0][0] as unknown as Record<string, unknown>
+    // The $or ensures only public notes or the current user's notes are returned
+    expect(filter.$or).toEqual([{ isPublic: true }, { createdBy: 'dbuser-1' }])
+    // No unscoped query that would leak private notes
+    expect(filter).not.toHaveProperty('isPublic')
+    expect(filter).not.toHaveProperty('createdBy')
+  })
+
+  it('list responses omit note body field', async () => {
+    const notes = [makeNote()]
+    vi.mocked(Note.find).mockReturnValue({
+      select: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(notes) }) }),
+    } as never)
+
+    const result = await _listNotes({ data: { campaignId: 'camp-1' } })
+
+    // NoteListItem does not include 'note' field
+    expect(result[0]).not.toHaveProperty('note')
   })
 
   it('filters by sessionId', async () => {
     vi.mocked(Note.find).mockReturnValue({
-      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+      select: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) }),
     } as never)
 
     await _listNotes({ data: { campaignId: 'camp-1', sessionId: 'sess-2' } })
@@ -283,7 +328,7 @@ describe('listNotes', () => {
 
   it('filters by visibility=public', async () => {
     vi.mocked(Note.find).mockReturnValue({
-      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+      select: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) }),
     } as never)
 
     await _listNotes({ data: { campaignId: 'camp-1', visibility: 'public' } })
@@ -295,7 +340,7 @@ describe('listNotes', () => {
 
   it('filters by visibility=private (own notes only)', async () => {
     vi.mocked(Note.find).mockReturnValue({
-      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+      select: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) }),
     } as never)
 
     await _listNotes({ data: { campaignId: 'camp-1', visibility: 'private' } })
@@ -308,7 +353,7 @@ describe('listNotes', () => {
 
   it('applies text search filter', async () => {
     vi.mocked(Note.find).mockReturnValue({
-      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+      select: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) }),
     } as never)
 
     await _listNotes({ data: { campaignId: 'camp-1', search: 'dragon' } })
@@ -320,7 +365,7 @@ describe('listNotes', () => {
 
   it('ignores empty search string', async () => {
     vi.mocked(Note.find).mockReturnValue({
-      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+      select: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) }),
     } as never)
 
     await _listNotes({ data: { campaignId: 'camp-1', search: '   ' } })

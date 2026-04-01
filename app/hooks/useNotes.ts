@@ -5,7 +5,7 @@ import {
   updateNote,
   getNote,
 } from '~/server/functions/notes'
-import type { NoteData } from '~/server/functions/notes'
+import type { NoteData, NoteListItem } from '~/server/functions/notes'
 import { captureException } from '~/providers/PostHogProvider'
 import { queryKeys } from '~/utils/queryKeys'
 
@@ -16,22 +16,26 @@ interface ListNotesFilters {
 }
 
 export function useNotes(campaignId: string, filters?: ListNotesFilters) {
+  const sessionId = filters?.sessionId
+  const search = filters?.search
+  const visibility = filters?.visibility
+
   const { data: notes = [], isLoading, error } = useQuery({
-    queryKey: [...queryKeys.notes.list(campaignId), filters],
+    queryKey: queryKeys.notes.list(campaignId, sessionId, search, visibility),
     queryFn: () =>
       listNotes({
         data: {
           campaignId,
-          sessionId: filters?.sessionId,
-          search: filters?.search,
-          visibility: filters?.visibility,
+          sessionId,
+          search,
+          visibility,
         },
       }),
     enabled: !!campaignId,
   })
 
   return {
-    notes: notes as NoteData[],
+    notes: notes as NoteListItem[],
     isLoading,
     error: error instanceof Error ? error.message : error ? String(error) : null,
   }
@@ -66,7 +70,7 @@ export function useCreateNote() {
     mutationFn: async (input: CreateNoteInput) =>
       createNote({ data: input }),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.notes.list(variables.campaignId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.notes.all })
     },
     onError: (e) => {
       captureException(e, { action: 'createNote' })
@@ -104,7 +108,7 @@ export function useUpdateNote() {
     mutationFn: async (input: UpdateNoteInput) =>
       updateNote({ data: input }),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.notes.list(variables.campaignId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.notes.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.notes.detail(variables.id) })
     },
     onError: (e, variables) => {

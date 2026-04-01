@@ -58,6 +58,7 @@ noteSchema.pre('findOneAndUpdate', function () {
 if (typeof (noteSchema as { index?: unknown }).index === 'function') {
   noteSchema.index({ sessionId: 1 })
   noteSchema.index({ campaignId: 1 })
+  noteSchema.index({ campaignId: 1, updatedAt: -1 })
   noteSchema.index({ createdBy: 1 })
   noteSchema.index({ tags: 1 })
   noteSchema.index({ isPublic: 1 })

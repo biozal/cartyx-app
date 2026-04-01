@@ -37,6 +37,7 @@ const { userMock, campaignMock, playerMock, sessionMock, gmScreenMock, noteMock 
     noteMock: make('Note', 'notes', [
       [{ sessionId: 1 }, {}],
       [{ campaignId: 1 }, {}],
+      [{ campaignId: 1, updatedAt: -1 }, {}],
       [{ createdBy: 1 }, {}],
       [{ tags: 1 }, {}],
       [{ isPublic: 1 }, {}],
@@ -114,6 +115,7 @@ describe('inspectIndexes', () => {
       { key: { _id: 1 } },
       { key: { sessionId: 1 } },
       { key: { campaignId: 1 } },
+      { key: { campaignId: 1, updatedAt: -1 } },
       { key: { createdBy: 1 } },
       { key: { tags: 1 } },
       { key: { isPublic: 1 } },
@@ -184,7 +186,7 @@ describe('inspectIndexes', () => {
       { key: { _id: 1 } },
       { key: { campaignId: 1, createdAt: -1 } },
       { key: { campaignId: 1, sessionId: 1 } },
-      { key: { campaignId: 1, title: 'text', note: 'text' } },
+      { key: { _fts: 'text', _ftsx: 1 } },
     ])
 
     const result = await inspectIndexes()
@@ -236,7 +238,7 @@ describe('inspectIndexes', () => {
       { key: { _id: 1 } },
       { key: { campaignId: 1, createdAt: -1 } },
       { key: { campaignId: 1, sessionId: 1 } },
-      { key: { campaignId: 1, title: 'text', note: 'text' } },
+      { key: { _fts: 'text', _ftsx: 1 } },
     ])
 
     const result = await inspectIndexes()
@@ -349,7 +351,7 @@ describe('inspectIndexes', () => {
       { key: { _id: 1 } },
       { key: { campaignId: 1, createdAt: -1 } },
       { key: { campaignId: 1, sessionId: 1 } },
-      { key: { campaignId: 1, title: 'text', note: 'text' } },
+      { key: { _fts: 'text', _ftsx: 1 } },
     ])
 
     const result = await inspectIndexes()

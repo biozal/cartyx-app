@@ -20,6 +20,19 @@ export interface NoteData {
   updatedAt: string
 }
 
+/** Lightweight shape returned by listNotes — omits the full note body. */
+export interface NoteListItem {
+  id: string
+  campaignId: string
+  sessionId: string
+  createdBy: string
+  title: string
+  tags: string[]
+  isPublic: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 function serializeNote(n: {
   _id: unknown
   campaignId: unknown
@@ -41,8 +54,32 @@ function serializeNote(n: {
     note: n.note ?? '',
     tags: n.tags ?? [],
     isPublic: n.isPublic ?? false,
-    createdAt: n.createdAt ? n.createdAt.toISOString() : new Date().toISOString(),
-    updatedAt: n.updatedAt ? n.updatedAt.toISOString() : new Date().toISOString(),
+    createdAt: n.createdAt instanceof Date ? n.createdAt.toISOString() : '',
+    updatedAt: n.updatedAt instanceof Date ? n.updatedAt.toISOString() : '',
+  }
+}
+
+function serializeNoteListItem(n: {
+  _id: unknown
+  campaignId: unknown
+  sessionId: unknown
+  createdBy: unknown
+  title?: string
+  tags?: string[]
+  isPublic?: boolean
+  createdAt?: Date
+  updatedAt?: Date
+}): NoteListItem {
+  return {
+    id: String(n._id),
+    campaignId: String(n.campaignId),
+    sessionId: String(n.sessionId),
+    createdBy: String(n.createdBy),
+    title: n.title ?? '',
+    tags: n.tags ?? [],
+    isPublic: n.isPublic ?? false,
+    createdAt: n.createdAt instanceof Date ? n.createdAt.toISOString() : '',
+    updatedAt: n.updatedAt instanceof Date ? n.updatedAt.toISOString() : '',
   }
 }
 
@@ -159,6 +196,7 @@ export const updateNote = createServerFn({ method: 'POST' })
       const existing = await Note.findById(data.id)
       if (!existing) throw new Error('Note not found')
       if (String(existing.campaignId) !== data.campaignId) throw new Error('Forbidden')
+      if (String(existing.createdBy) !== userId) throw new Error('Forbidden')
 
       existing.sessionId = data.sessionId
       existing.title = data.title.trim()
@@ -214,6 +252,9 @@ export const listNotes = createServerFn({ method: 'GET' })
       } else if (data.visibility === 'private') {
         filter.isPublic = false
         filter.createdBy = userId
+      } else {
+        // visibility='all' (default): only notes the user is allowed to see
+        filter.$or = [{ isPublic: true }, { createdBy: userId }]
       }
 
       if (data.search && data.search.trim()) {
@@ -221,6 +262,7 @@ export const listNotes = createServerFn({ method: 'GET' })
       }
 
       const docs = await Note.find(filter)
+        .select('-note')
         .sort({ updatedAt: -1 })
         .lean()
 
@@ -230,12 +272,11 @@ export const listNotes = createServerFn({ method: 'GET' })
         sessionId: unknown
         createdBy: unknown
         title?: string
-        note?: string
         tags?: string[]
         isPublic?: boolean
         createdAt?: Date
         updatedAt?: Date
-      }>).map(serializeNote)
+      }>).map(serializeNoteListItem)
     } catch (e) {
       serverCaptureException(e, undefined, { action: 'listNotes', campaignId: data.campaignId })
       throw e

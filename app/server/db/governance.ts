@@ -67,6 +67,7 @@ export const INDEX_GOVERNANCE: Record<string, GovernanceEntry[]> = {
   Note: [
     { key: { sessionId: 1 }, severity: 'optional' },
     { key: { campaignId: 1 }, severity: 'optional' },
+    { key: { campaignId: 1, updatedAt: -1 }, severity: 'optional' },
     { key: { createdBy: 1 }, severity: 'optional' },
     { key: { tags: 1 }, severity: 'optional' },
     { key: { isPublic: 1 }, severity: 'optional' },
@@ -83,8 +84,16 @@ export const INDEX_GOVERNANCE: Record<string, GovernanceEntry[]> = {
  */
 export function normalizeIndexKey(key: Record<string, unknown>): Record<string, unknown> {
   const hasText = Object.values(key).some((v) => v === 'text')
-  if (hasText) return { _fts: 'text', _ftsx: 1 }
-  return key
+  if (!hasText) return key
+  // Preserve non-text prefix fields (e.g. campaignId in a compound text index)
+  // and collapse text fields to MongoDB's canonical { _fts: 'text', _ftsx: 1 }.
+  const prefix: Record<string, unknown> = {}
+  for (const [field, dir] of Object.entries(key)) {
+    if (dir !== 'text' && field !== '_fts' && field !== '_ftsx') {
+      prefix[field] = dir
+    }
+  }
+  return { ...prefix, _fts: 'text', _ftsx: 1 }
 }
 
 /**
