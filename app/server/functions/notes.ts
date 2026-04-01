@@ -284,8 +284,8 @@ export const listNotes = createServerFn({ method: 'GET' })
 // ---------------------------------------------------------------------------
 
 const getNoteSchema = z.object({
-  id: z.string().min(1),
-  campaignId: z.string().min(1),
+  id: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
 })
 
 export { getNoteSchema }
