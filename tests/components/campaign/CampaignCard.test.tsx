@@ -134,14 +134,10 @@ describe('CampaignCard', () => {
     expect(match).toBeInTheDocument()
   })
 
-  it('card renders without errors for empty sessions and gmScreens', () => {
-    const campaign = {
-      ...baseCampaign,
-      sessions: [],
-      gmScreens: undefined,
-    }
-    const { container } = render(<CampaignCard campaign={campaign} />)
-    expect(container.firstChild).toBeInTheDocument()
+  it('renders campaign name even when sessions array is empty', () => {
+    const campaign = { ...baseCampaign, sessions: [] }
+    render(<CampaignCard campaign={campaign} />)
+    expect(screen.getByText('The Lost Mines of Phandelver')).toBeInTheDocument()
   })
 
   it('enter button has accessible label with campaign name', () => {

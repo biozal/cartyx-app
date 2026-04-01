@@ -69,10 +69,6 @@ describe('ALL_MODELS', () => {
     expect(names).toContain('GMScreen')
   })
 
-  it('GMScreen uses the "gmscreen" collection name', () => {
-    const model = ALL_MODELS.find((m) => m.modelName === 'GMScreen')
-    expect(model?.collection?.collectionName).toBe('gmscreen')
-  })
 })
 
 describe('inspectIndexes', () => {

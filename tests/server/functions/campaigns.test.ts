@@ -830,6 +830,17 @@ describe('createCampaign — default document creation regression (#302)', () =>
     expect(GMScreen.create).toHaveBeenCalledTimes(1)
   })
 
+  it('Session 0 has name "Session 0" and gm set to the campaign owner', async () => {
+    await _createCampaign({ data: { name: 'My Campaign', description: '' } })
+
+    const sessionCreateCall = vi.mocked(Session.create).mock.calls[0][0] as Array<{
+      name: string
+      gm: string
+    }>
+    expect(sessionCreateCall[0].name).toBe('Session 0')
+    expect(sessionCreateCall[0].gm).toBe('dbuser-1')
+  })
+
   it('Session 0 has a startDate set to a Date value', async () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } })
 
@@ -902,6 +913,20 @@ describe('createCampaign — default document creation regression (#302)', () =>
     // Campaign.create is called once (after the collision check passes)
     expect(Campaign.create).toHaveBeenCalledTimes(1)
     // Defaults are still created exactly once
+    expect(Session.create).toHaveBeenCalledTimes(1)
+    expect(GMScreen.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not create duplicate defaults on duplicate-key (11000) retry', async () => {
+    // First Campaign.create throws duplicate key error, second succeeds
+    vi.mocked(Campaign.create)
+      .mockRejectedValueOnce(Object.assign(new Error('E11000 duplicate key'), { code: 11000 }))
+      .mockResolvedValueOnce([makeCampaign()] as never)
+
+    await _createCampaign({ data: { name: 'My Campaign', description: '' } })
+
+    expect(Campaign.create).toHaveBeenCalledTimes(2)
+    // Defaults are still created exactly once — only after the successful attempt
     expect(Session.create).toHaveBeenCalledTimes(1)
     expect(GMScreen.create).toHaveBeenCalledTimes(1)
   })
