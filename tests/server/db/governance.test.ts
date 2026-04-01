@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { INDEX_GOVERNANCE, getSeverity } from '~/server/db/governance'
+import { INDEX_GOVERNANCE, getSeverity, normalizeIndexKey } from '~/server/db/governance'
 
 describe('INDEX_GOVERNANCE registry', () => {
   it('contains entries for all six models', () => {
@@ -41,5 +41,37 @@ describe('getSeverity', () => {
 
   it('returns undefined for unregistered index key', () => {
     expect(getSeverity('User', { firstName: 1 })).toBeUndefined()
+  })
+
+  it('returns optional for Note campaignId+updatedAt compound index', () => {
+    expect(getSeverity('Note', { campaignId: 1, updatedAt: -1 })).toBe('optional')
+  })
+
+  it('returns optional for Note text index via schema-declared key form', () => {
+    expect(getSeverity('Note', { title: 'text', note: 'text' })).toBe('optional')
+  })
+})
+
+describe('normalizeIndexKey', () => {
+  it('collapses pure text index to canonical MongoDB form', () => {
+    expect(normalizeIndexKey({ title: 'text', note: 'text' })).toEqual({
+      _fts: 'text',
+      _ftsx: 1,
+    })
+  })
+
+  it('preserves non-text prefix fields in compound text indexes', () => {
+    expect(normalizeIndexKey({ campaignId: 1, title: 'text', note: 'text' })).toEqual({
+      campaignId: 1,
+      _fts: 'text',
+      _ftsx: 1,
+    })
+  })
+
+  it('returns non-text index keys unchanged', () => {
+    expect(normalizeIndexKey({ campaignId: 1, updatedAt: -1 })).toEqual({
+      campaignId: 1,
+      updatedAt: -1,
+    })
   })
 })

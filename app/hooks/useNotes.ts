@@ -1,0 +1,132 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  listNotes,
+  createNote,
+  updateNote,
+  getNote,
+} from '~/server/functions/notes'
+import type { NoteData, NoteListItem } from '~/server/functions/notes'
+import { captureException } from '~/providers/PostHogProvider'
+import { queryKeys } from '~/utils/queryKeys'
+
+interface ListNotesFilters {
+  sessionId?: string
+  search?: string
+  visibility?: 'all' | 'public' | 'private'
+}
+
+export function useNotes(campaignId: string, filters?: ListNotesFilters) {
+  const sessionId = filters?.sessionId
+  const search = filters?.search
+  const visibility = filters?.visibility
+
+  const { data: notes = [], isLoading, error } = useQuery({
+    queryKey: queryKeys.notes.list(campaignId, sessionId, search, visibility),
+    queryFn: () =>
+      listNotes({
+        data: {
+          campaignId,
+          sessionId,
+          search,
+          visibility,
+        },
+      }),
+    enabled: !!campaignId,
+  })
+
+  return {
+    notes: notes as NoteListItem[],
+    isLoading,
+    error: error instanceof Error ? error.message : error ? String(error) : null,
+  }
+}
+
+export function useNote(id: string, campaignId: string) {
+  const { data: note = null, isLoading, error } = useQuery({
+    queryKey: queryKeys.notes.detail(id),
+    queryFn: () => getNote({ data: { id, campaignId } }),
+    enabled: !!id && !!campaignId,
+  })
+
+  return {
+    note: note as NoteData | null,
+    isLoading,
+    error: error instanceof Error ? error.message : error ? String(error) : null,
+  }
+}
+
+interface CreateNoteInput {
+  campaignId: string
+  sessionId: string
+  title: string
+  note: string
+  tags?: string[]
+  isPublic?: boolean
+}
+
+export function useCreateNote() {
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: async (input: CreateNoteInput) =>
+      createNote({ data: input }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notes.all })
+    },
+    onError: (e) => {
+      captureException(e, { action: 'createNote' })
+    },
+  })
+
+  const create = async (input: CreateNoteInput) => {
+    try {
+      return await mutation.mutateAsync(input)
+    } catch {
+      return null
+    }
+  }
+
+  return {
+    create,
+    isLoading: mutation.isPending,
+    error: mutation.error instanceof Error ? mutation.error.message : mutation.error ? String(mutation.error) : null,
+  }
+}
+
+interface UpdateNoteInput {
+  id: string
+  campaignId: string
+  sessionId: string
+  title: string
+  note: string
+  tags?: string[]
+  isPublic?: boolean
+}
+
+export function useUpdateNote() {
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: async (input: UpdateNoteInput) =>
+      updateNote({ data: input }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notes.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.notes.detail(variables.id) })
+    },
+    onError: (e, variables) => {
+      captureException(e, { action: 'updateNote', noteId: variables.id })
+    },
+  })
+
+  const update = async (input: UpdateNoteInput) => {
+    try {
+      return await mutation.mutateAsync(input)
+    } catch {
+      return null
+    }
+  }
+
+  return {
+    update,
+    isLoading: mutation.isPending,
+    error: mutation.error instanceof Error ? mutation.error.message : mutation.error ? String(mutation.error) : null,
+  }
+}

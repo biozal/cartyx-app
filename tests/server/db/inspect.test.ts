@@ -37,6 +37,7 @@ const { userMock, campaignMock, playerMock, sessionMock, gmScreenMock, noteMock 
     noteMock: make('Note', 'notes', [
       [{ sessionId: 1 }, {}],
       [{ campaignId: 1 }, {}],
+      [{ campaignId: 1, updatedAt: -1 }, {}],
       [{ createdBy: 1 }, {}],
       [{ tags: 1 }, {}],
       [{ isPublic: 1 }, {}],
@@ -114,6 +115,7 @@ describe('inspectIndexes', () => {
       { key: { _id: 1 } },
       { key: { sessionId: 1 } },
       { key: { campaignId: 1 } },
+      { key: { campaignId: 1, updatedAt: -1 } },
       { key: { createdBy: 1 } },
       { key: { tags: 1 } },
       { key: { isPublic: 1 } },
@@ -180,6 +182,11 @@ describe('inspectIndexes', () => {
       { key: { _id: 1 } },
       { key: { campaignId: 1 } },
     ])
+    const noteSchemaIndexes = noteMock.schema.indexes()
+    noteMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      ...noteSchemaIndexes.map(([key, options]: [Record<string, number>, Record<string, unknown> | undefined]) => ({ key, ...(options || {}) })),
+    ])
 
     const result = await inspectIndexes()
     expect(result.ok).toBe(false)
@@ -225,6 +232,12 @@ describe('inspectIndexes', () => {
     gmScreenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
       { key: { campaignId: 1 } },
+    ])
+    noteMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { campaignId: 1, createdAt: -1 } },
+      { key: { campaignId: 1, sessionId: 1 } },
+      { key: { _fts: 'text', _ftsx: 1 } },
     ])
 
     const result = await inspectIndexes()
@@ -332,6 +345,12 @@ describe('inspectIndexes', () => {
     gmScreenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
       { key: { campaignId: 1 } },
+    ])
+    noteMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { campaignId: 1, createdAt: -1 } },
+      { key: { campaignId: 1, sessionId: 1 } },
+      { key: { _fts: 'text', _ftsx: 1 } },
     ])
 
     const result = await inspectIndexes()
