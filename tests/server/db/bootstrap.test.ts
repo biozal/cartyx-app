@@ -224,7 +224,6 @@ describe('bootstrapDB', () => {
 
     // Clear mocks to isolate post-timeout emissions.
     posthogMock.serverCaptureEvent.mockClear()
-    vi.mocked(console.log).mockClear()
 
     // Let the underlying work complete after the timeout.
     resolveEnsure()
@@ -236,10 +235,6 @@ describe('bootstrapDB', () => {
       (c: unknown[]) => c[1] === 'db.bootstrap.success',
     )
     expect(successCalls).toHaveLength(0)
-    const successLogs = vi.mocked(console.log).mock.calls.filter(
-      (c: unknown[]) => typeof c[0] === 'string' && c[0].includes('[bootstrap] success'),
-    )
-    expect(successLogs).toHaveLength(0)
   })
 
   it('prevents overlapping bootstrap attempts after timeout', async () => {
@@ -395,11 +390,13 @@ describe('bootstrapDB', () => {
     )
   })
 
-  it('logs structured start/success to console on dev sync', async () => {
+  it('does not use console.log for bootstrap lifecycle events', async () => {
     await bootstrapDB(devPolicy)
 
     const logSpy = vi.mocked(console.log)
-    expect(logSpy.mock.calls.some((c) => c[0].includes('[bootstrap] start env=development'))).toBe(true)
-    expect(logSpy.mock.calls.some((c) => c[0].includes('[bootstrap] success env=development action=sync'))).toBe(true)
+    const bootstrapLogs = logSpy.mock.calls.filter(
+      (c) => typeof c[0] === 'string' && c[0].includes('[bootstrap]'),
+    )
+    expect(bootstrapLogs).toHaveLength(0)
   })
 })
