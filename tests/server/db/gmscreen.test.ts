@@ -54,33 +54,49 @@ describe('GMScreen schema validators', () => {
   let indexes: [Record<string, number>, Record<string, unknown>][]
 
   beforeAll(async () => {
-    const realMongoose = await vi.importActual<typeof import('mongoose')>('mongoose')
+    // Ensure we use the real mongoose implementation for this test, not the global mock.
+    if (typeof vi.unmock === 'function') {
+      vi.unmock('mongoose')
+    }
 
-    // Re-evaluate the model source with real mongoose by building the schemas
-    // exactly as GMScreen.ts does, driven by the same exported constants.
-    const windowSchema = new realMongoose.Schema(
-      {
-        collection: { type: String, required: true },
-        documentId: { type: realMongoose.Schema.Types.ObjectId, required: true },
-        state: { type: String, enum: WINDOW_STATES, default: 'open' },
-        x: { type: Number, default: null },
-        y: { type: Number, default: null },
-        width: { type: Number, default: null },
-        height: { type: Number, default: null },
-        zIndex: { type: Number, default: 0 },
-      },
-      { _id: true },
-    )
+    // Import the real GMScreen model so we can inspect its actual schema.
+    const realModelModule = await vi.importActual<
+      typeof import('~/server/db/models/GMScreen')
+    >('~/server/db/models/GMScreen')
 
-    const stackItemSchema = new realMongoose.Schema(
-      {
-        collection: { type: String, required: true },
-        documentId: { type: realMongoose.Schema.Types.ObjectId, required: true },
-        label: { type: String, default: '' },
-      },
-      { _id: true },
-    )
+    const RealGMScreen: mongoose.Model<mongoose.Document> =
+      // Support both named and default exports just in case.
+      (realModelModule as any).GMScreen || (realModelModule as any).default
 
+    const windowsPath: any = (RealGMScreen as any).schema.path('windows')
+    const stacksPath: any = (RealGMScreen as any).schema.path('stacks')
+    const stackItemsPath: any = (RealGMScreen as any).schema.path('stackItems')
+
+    const extractValidator = (schemaPath: any): ValidatorFn => {
+      if (!schemaPath) {
+        throw new Error('Expected schema path to be defined for validator extraction')
+      }
+
+      const v = schemaPath.options?.validate
+
+      if (Array.isArray(v) && v.length > 0) {
+        return (v[0] as any).validator as ValidatorFn
+      }
+
+      if (v && typeof v === 'object' && 'validator' in v) {
+        return (v as any).validator as ValidatorFn
+      }
+
+      return v as ValidatorFn
+    }
+
+    windowsValidator = extractValidator(windowsPath)
+    stacksValidator = extractValidator(stacksPath)
+    stackItemsValidator = extractValidator(stackItemsPath)
+
+    // Capture the indexes defined on the real schema.
+    indexes = (RealGMScreen as any).schema.indexes()
+  })
     const stackSchema = new realMongoose.Schema(
       {
         name: { type: String, required: true },
