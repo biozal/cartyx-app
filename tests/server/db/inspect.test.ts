@@ -182,11 +182,10 @@ describe('inspectIndexes', () => {
       { key: { _id: 1 } },
       { key: { campaignId: 1 } },
     ])
+    const noteSchemaIndexes = noteMock.schema.indexes()
     noteMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { campaignId: 1, createdAt: -1 } },
-      { key: { campaignId: 1, sessionId: 1 } },
-      { key: { _fts: 'text', _ftsx: 1 } },
+      ...noteSchemaIndexes.map(([key, options]) => ({ key, ...(options || {}) })),
     ])
 
     const result = await inspectIndexes()
