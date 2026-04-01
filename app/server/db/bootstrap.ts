@@ -94,7 +94,11 @@ async function runBootstrap(policy: BootstrapPolicy): Promise<void> {
   // Also carries the current action for structured failure logging.
   const token = { cancelled: false, action: undefined as string | undefined }
 
-  console.log(`[bootstrap] start env=${env} sync=${policy.syncIndexes} verify=${policy.verifyCriticalIndexes}`)
+  // Bootstrap lifecycle is observed via PostHog events (db.bootstrap.start,
+  // db.bootstrap.success, etc.) when PostHog is configured. In environments
+  // without POSTHOG_KEY (e.g. common in local dev), these events are a no-op
+  // and only errors/warnings go to stderr via console.error/warn. We avoid
+  // console.log here to prevent noisy stdout logging in all environments.
   serverCaptureEvent('server', 'db.bootstrap.start', {
     bootstrap_env: env,
     sync_indexes: policy.syncIndexes,
@@ -150,7 +154,6 @@ async function doBootstrapWork(
     await syncCollectionsAndIndexes()
     if (token.cancelled) return
     const durationMs = Math.round(performance.now() - start)
-    console.log(`[bootstrap] success env=${env} action=sync duration_ms=${durationMs}`)
     serverCaptureEvent('server', 'db.bootstrap.success', {
       bootstrap_env: env,
       action: 'sync',
@@ -166,7 +169,6 @@ async function doBootstrapWork(
 
   if (!policy.verifyCriticalIndexes) {
     const durationMs = Math.round(performance.now() - start)
-    console.log(`[bootstrap] success env=${env} action=ensure_collections duration_ms=${durationMs}`)
     serverCaptureEvent('server', 'db.bootstrap.success', {
       bootstrap_env: env,
       action: 'ensure_collections',
@@ -184,9 +186,6 @@ async function doBootstrapWork(
   const modelsChecked = result.diffs.length
 
   if (result.ok) {
-    console.log(
-      `[bootstrap] success env=${env} action=verify duration_ms=${durationMs} models_checked=${modelsChecked}`,
-    )
     serverCaptureEvent('server', 'db.bootstrap.success', {
       bootstrap_env: env,
       action: 'verify',
@@ -255,11 +254,7 @@ async function doBootstrapWork(
       details,
     })
   } else {
-    // Optional drift only — log success with advisory note.
-    console.log(
-      `[bootstrap] success env=${env} action=verify duration_ms=${durationMs}` +
-        ` models_checked=${modelsChecked} optional_drift=true missing=${totalMissing} mismatches=${totalMismatches}`,
-    )
+    // Optional drift only — PostHog event captures advisory details.
     serverCaptureEvent('server', 'db.bootstrap.success', {
       bootstrap_env: env,
       action: 'verify',
