@@ -55,7 +55,8 @@ const stackSchema = new mongoose.Schema(
       type: [stackItemSchema],
       default: [],
       validate: {
-        validator: (v: unknown[]) => v.length <= GMSCREEN_LIMITS.MAX_STACK_ITEMS,
+        validator: (v: unknown) =>
+          Array.isArray(v) && v.length <= GMSCREEN_LIMITS.MAX_STACK_ITEMS,
         message: `A stack cannot contain more than ${GMSCREEN_LIMITS.MAX_STACK_ITEMS} items.`,
       },
     },
@@ -85,7 +86,8 @@ const gmScreenSchema = new mongoose.Schema(
       type: [windowSchema],
       default: [],
       validate: {
-        validator: (v: unknown[]) => v.length <= GMSCREEN_LIMITS.MAX_WINDOWS,
+        validator: (v: unknown) =>
+          Array.isArray(v) && v.length <= GMSCREEN_LIMITS.MAX_WINDOWS,
         message: `A screen cannot contain more than ${GMSCREEN_LIMITS.MAX_WINDOWS} windows.`,
       },
     },
@@ -93,7 +95,8 @@ const gmScreenSchema = new mongoose.Schema(
       type: [stackSchema],
       default: [],
       validate: {
-        validator: (v: unknown[]) => v.length <= GMSCREEN_LIMITS.MAX_STACKS,
+        validator: (v: unknown) =>
+          Array.isArray(v) && v.length <= GMSCREEN_LIMITS.MAX_STACKS,
         message: `A screen cannot contain more than ${GMSCREEN_LIMITS.MAX_STACKS} stacks.`,
       },
     },

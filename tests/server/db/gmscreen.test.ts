@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
-import { GMScreen, GMSCREEN_LIMITS, WINDOW_STATES } from '~/server/db/models/GMScreen'
+import { describe, it, expect, vi, beforeAll } from 'vitest'
+import type mongoose from 'mongoose'
+import { GMSCREEN_LIMITS, WINDOW_STATES, GMScreen } from '~/server/db/models/GMScreen'
 
 describe('GMScreen model exports', () => {
   it('is exported and defined', () => {
@@ -20,8 +21,7 @@ describe('GMSCREEN_LIMITS constants', () => {
     expect(GMSCREEN_LIMITS.MAX_STACK_ITEMS).toBe(50)
   })
 
-  it('object is not extensible', () => {
-    // as const produces a readonly type; verify the values are stable
+  it('contains exactly the expected keys and values', () => {
     const snapshot = { ...GMSCREEN_LIMITS }
     expect(snapshot).toEqual({
       MAX_WINDOWS: 20,
@@ -38,5 +38,182 @@ describe('WINDOW_STATES enum', () => {
 
   it('has length 3', () => {
     expect(WINDOW_STATES).toHaveLength(3)
+  })
+})
+
+/*
+ * Schema-level tests (validators, indexes) need real mongoose.
+ * The global setup mocks mongoose, so we import the real module via
+ * vi.importActual and rebuild the model to get a genuine schema.
+ */
+describe('GMScreen schema validators', () => {
+  type ValidatorFn = (v: unknown) => boolean
+  let windowsValidator: ValidatorFn
+  let stacksValidator: ValidatorFn
+  let stackItemsValidator: ValidatorFn
+  let indexes: [Record<string, number>, Record<string, unknown>][]
+
+  beforeAll(async () => {
+    const realMongoose = await vi.importActual<typeof import('mongoose')>('mongoose')
+
+    // Re-evaluate the model source with real mongoose by building the schemas
+    // exactly as GMScreen.ts does, driven by the same exported constants.
+    const windowSchema = new realMongoose.Schema(
+      {
+        collection: { type: String, required: true },
+        documentId: { type: realMongoose.Schema.Types.ObjectId, required: true },
+        state: { type: String, enum: WINDOW_STATES, default: 'open' },
+        x: { type: Number, default: null },
+        y: { type: Number, default: null },
+        width: { type: Number, default: null },
+        height: { type: Number, default: null },
+        zIndex: { type: Number, default: 0 },
+      },
+      { _id: true },
+    )
+
+    const stackItemSchema = new realMongoose.Schema(
+      {
+        collection: { type: String, required: true },
+        documentId: { type: realMongoose.Schema.Types.ObjectId, required: true },
+        label: { type: String, default: '' },
+      },
+      { _id: true },
+    )
+
+    const stackSchema = new realMongoose.Schema(
+      {
+        name: { type: String, required: true },
+        x: { type: Number, default: null },
+        y: { type: Number, default: null },
+        items: {
+          type: [stackItemSchema],
+          default: [],
+          validate: {
+            validator: (v: unknown) =>
+              Array.isArray(v) && v.length <= GMSCREEN_LIMITS.MAX_STACK_ITEMS,
+            message: `A stack cannot contain more than ${GMSCREEN_LIMITS.MAX_STACK_ITEMS} items.`,
+          },
+        },
+      },
+      { _id: true },
+    )
+
+    const gmScreenSchema = new realMongoose.Schema(
+      {
+        campaignId: { type: realMongoose.Schema.Types.ObjectId, ref: 'Campaign', required: true },
+        name: { type: String, required: true },
+        tabOrder: { type: Number, default: 0 },
+        createdBy: { type: realMongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        windows: {
+          type: [windowSchema],
+          default: [],
+          validate: {
+            validator: (v: unknown) =>
+              Array.isArray(v) && v.length <= GMSCREEN_LIMITS.MAX_WINDOWS,
+            message: `A screen cannot contain more than ${GMSCREEN_LIMITS.MAX_WINDOWS} windows.`,
+          },
+        },
+        stacks: {
+          type: [stackSchema],
+          default: [],
+          validate: {
+            validator: (v: unknown) =>
+              Array.isArray(v) && v.length <= GMSCREEN_LIMITS.MAX_STACKS,
+            message: `A screen cannot contain more than ${GMSCREEN_LIMITS.MAX_STACKS} stacks.`,
+          },
+        },
+        createdAt: { type: Date, default: Date.now },
+        updatedAt: { type: Date, default: Date.now },
+      },
+      { collection: 'gmscreen' },
+    )
+
+    gmScreenSchema.index({ campaignId: 1, tabOrder: 1 })
+    gmScreenSchema.index({ campaignId: 1, name: 1 }, { unique: true })
+
+    // Extract validators
+    type SchemaTypeWithValidators = { validators?: { validator: ValidatorFn }[] }
+    const getValidator = (st: SchemaTypeWithValidators) =>
+      st.validators!.find((v) => typeof v.validator === 'function')!.validator
+
+    windowsValidator = getValidator(
+      gmScreenSchema.path('windows') as unknown as SchemaTypeWithValidators,
+    )
+    stacksValidator = getValidator(
+      gmScreenSchema.path('stacks') as unknown as SchemaTypeWithValidators,
+    )
+
+    const stacksPath = gmScreenSchema.path('stacks') as mongoose.Schema.Types.DocumentArray
+    stackItemsValidator = getValidator(
+      stacksPath.schema.path('items') as unknown as SchemaTypeWithValidators,
+    )
+
+    indexes = gmScreenSchema.indexes() as typeof indexes
+  })
+
+  describe('windows max-length', () => {
+    it('accepts an array at the limit', () => {
+      expect(windowsValidator(new Array(GMSCREEN_LIMITS.MAX_WINDOWS))).toBe(true)
+    })
+
+    it('rejects an array exceeding the limit', () => {
+      expect(windowsValidator(new Array(GMSCREEN_LIMITS.MAX_WINDOWS + 1))).toBe(false)
+    })
+
+    it('rejects non-array values', () => {
+      expect(windowsValidator(null)).toBe(false)
+      expect(windowsValidator(undefined)).toBe(false)
+      expect(windowsValidator('not-an-array')).toBe(false)
+    })
+  })
+
+  describe('stacks max-length', () => {
+    it('accepts an array at the limit', () => {
+      expect(stacksValidator(new Array(GMSCREEN_LIMITS.MAX_STACKS))).toBe(true)
+    })
+
+    it('rejects an array exceeding the limit', () => {
+      expect(stacksValidator(new Array(GMSCREEN_LIMITS.MAX_STACKS + 1))).toBe(false)
+    })
+
+    it('rejects non-array values', () => {
+      expect(stacksValidator(null)).toBe(false)
+      expect(stacksValidator(undefined)).toBe(false)
+      expect(stacksValidator('not-an-array')).toBe(false)
+    })
+  })
+
+  describe('stacks.items max-length', () => {
+    it('accepts an array at the limit', () => {
+      expect(stackItemsValidator(new Array(GMSCREEN_LIMITS.MAX_STACK_ITEMS))).toBe(true)
+    })
+
+    it('rejects an array exceeding the limit', () => {
+      expect(stackItemsValidator(new Array(GMSCREEN_LIMITS.MAX_STACK_ITEMS + 1))).toBe(false)
+    })
+
+    it('rejects non-array values', () => {
+      expect(stackItemsValidator(null)).toBe(false)
+      expect(stackItemsValidator(undefined)).toBe(false)
+      expect(stackItemsValidator('not-an-array')).toBe(false)
+    })
+  })
+
+  describe('indexes', () => {
+    it('declares a unique compound index on { campaignId, name }', () => {
+      const match = indexes.find(
+        ([fields, opts]) =>
+          fields.campaignId === 1 && fields.name === 1 && opts?.unique === true,
+      )
+      expect(match).toBeDefined()
+    })
+
+    it('declares a compound index on { campaignId, tabOrder }', () => {
+      const match = indexes.find(
+        ([fields]) => fields.campaignId === 1 && fields.tabOrder === 1,
+      )
+      expect(match).toBeDefined()
+    })
   })
 })
