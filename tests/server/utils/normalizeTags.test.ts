@@ -33,6 +33,10 @@ describe('normalizeTag', () => {
   it('returns null for # with whitespace', () => {
     expect(normalizeTag('  #  ')).toBeNull()
   })
+
+  it('trims whitespace after stripping leading #', () => {
+    expect(normalizeTag('# tag')).toBe('tag')
+  })
 })
 
 describe('normalizeTags', () => {

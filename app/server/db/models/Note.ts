@@ -14,24 +14,34 @@ const noteSchema = new mongoose.Schema({
   campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },
 })
 
-// Normalize tags before every save
+// Normalize tags and refresh updatedAt before every save
 noteSchema.pre('save', function () {
   if (this.isModified('tags')) {
     this.tags = normalizeTags(this.tags)
   }
+  this.updatedAt = new Date()
 })
 
 noteSchema.pre('findOneAndUpdate', function () {
   const update = this.getUpdate() as Record<string, unknown> | null
-  if (update && '$set' in update) {
+  if (!update) return
+
+  // Aggregation pipeline updates are arrays — skip field-level patching
+  if (Array.isArray(update)) return
+
+  if ('$set' in update) {
     const set = update.$set as Record<string, unknown>
     if (Array.isArray(set.tags)) {
       set.tags = normalizeTags(set.tags as string[])
     }
-  } else if (update && Array.isArray((update as Record<string, unknown>).tags)) {
-    ;(update as Record<string, string[]>).tags = normalizeTags(
-      (update as Record<string, string[]>).tags,
-    )
+    set.updatedAt = new Date()
+  } else {
+    if (Array.isArray((update as Record<string, unknown>).tags)) {
+      ;(update as Record<string, string[]>).tags = normalizeTags(
+        (update as Record<string, string[]>).tags,
+      )
+    }
+    ;(update as Record<string, unknown>).updatedAt = new Date()
   }
 })
 

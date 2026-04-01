@@ -104,7 +104,7 @@ describe('inspectIndexes', () => {
       { key: { createdBy: 1 } },
       { key: { tags: 1 } },
       { key: { isPublic: 1 } },
-      { key: { title: 'text', note: 'text' } },
+      { key: { _fts: 'text', _ftsx: 1 } },
     ])
 
     const result = await inspectIndexes()
