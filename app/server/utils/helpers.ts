@@ -61,6 +61,32 @@ export function parseMaxPlayers(value: string | number | undefined): number {
  * fallback mechanism. In the normal production flow, images upload directly from
  * the browser to R2 via presigned URLs (see app/server/functions/uploads.ts).
  */
+/**
+ * Normalize a single tag for persistence:
+ * trim whitespace, lowercase, strip leading '#', reject empty results.
+ * Returns `null` for tags that normalize to an empty string.
+ */
+export function normalizeTag(raw: string): string | null {
+  const trimmed = raw.trim().toLowerCase().replace(/^#/, '')
+  return trimmed.length > 0 ? trimmed : null
+}
+
+/**
+ * Normalize an array of tags, removing duplicates and invalid entries.
+ */
+export function normalizeTags(tags: string[]): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const raw of tags) {
+    const tag = normalizeTag(raw)
+    if (tag && !seen.has(tag)) {
+      seen.add(tag)
+      result.push(tag)
+    }
+  }
+  return result
+}
+
 export const MAX_IMAGE_BASE64_LENGTH = 4 * 1024 * 1024
 
 /**
