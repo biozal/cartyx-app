@@ -35,9 +35,12 @@ const { userMock, campaignMock, playerMock, sessionMock, gmScreenMock, noteMock 
       [{ campaignId: 1 }, {}],
     ]),
     noteMock: make('Note', 'notes', [
-      [{ campaignId: 1, createdAt: -1 }, {}],
-      [{ campaignId: 1, sessionId: 1 }, {}],
-      [{ campaignId: 1, title: 'text', note: 'text' }, {}],
+      [{ sessionId: 1 }, {}],
+      [{ campaignId: 1 }, {}],
+      [{ createdBy: 1 }, {}],
+      [{ tags: 1 }, {}],
+      [{ isPublic: 1 }, {}],
+      [{ title: 'text', note: 'text' }, {}],
     ]),
   }
 })
@@ -62,6 +65,19 @@ describe('ALL_MODELS', () => {
   it('contains all six models', () => {
     expect(ALL_MODELS).toHaveLength(6)
   })
+
+  // Regression: Session and GMScreen are included in bootstrap (#302)
+
+  it('includes Session model for bootstrap collection/index sync', () => {
+    const names = ALL_MODELS.map((m) => m.modelName)
+    expect(names).toContain('Session')
+  })
+
+  it('includes GMScreen model for bootstrap collection/index sync', () => {
+    const names = ALL_MODELS.map((m) => m.modelName)
+    expect(names).toContain('GMScreen')
+  })
+
 })
 
 describe('inspectIndexes', () => {
@@ -96,9 +112,12 @@ describe('inspectIndexes', () => {
     ])
     noteMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { campaignId: 1, createdAt: -1 } },
-      { key: { campaignId: 1, sessionId: 1 } },
-      { key: { campaignId: 1, title: 'text', note: 'text' } },
+      { key: { sessionId: 1 } },
+      { key: { campaignId: 1 } },
+      { key: { createdBy: 1 } },
+      { key: { tags: 1 } },
+      { key: { isPublic: 1 } },
+      { key: { _fts: 'text', _ftsx: 1 } },
     ])
 
     const result = await inspectIndexes()
