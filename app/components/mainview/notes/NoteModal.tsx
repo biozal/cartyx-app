@@ -45,7 +45,7 @@ export function NoteModal({
       setIsPublic(fetchedNote.isPublic)
     } else if (!noteId) {
       setTitle('')
-      setSessionId(defaultSessionId ?? (sessions[0]?.id ?? ''))
+      setSessionId(defaultSessionId || sessions[0]?.id || '')
       setContent('')
       setTags('')
       setIsPublic(false)
