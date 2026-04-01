@@ -43,7 +43,7 @@ export function useNotes(campaignId: string, filters?: ListNotesFilters) {
 
 export function useNote(id: string, campaignId: string) {
   const { data: note = null, isLoading, error } = useQuery({
-    queryKey: queryKeys.notes.detail(id),
+    queryKey: queryKeys.notes.detail(id, campaignId),
     queryFn: () => getNote({ data: { id, campaignId } }),
     enabled: !!id && !!campaignId,
   })
