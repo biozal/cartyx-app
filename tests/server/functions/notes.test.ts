@@ -38,7 +38,7 @@ import { Campaign } from '~/server/db/models/Campaign'
 import { Note } from '~/server/db/models/Note'
 import { createNote, updateNote, listNotes, getNote, createNoteSchema, updateNoteSchema, listNotesSchema } from '~/server/functions/notes'
 import type { NoteListItem } from '~/server/functions/notes'
-import { serverCaptureEvent } from '~/server/utils/posthog'
+import { serverCaptureEvent, serverCaptureException } from '~/server/utils/posthog'
 
 const mockSession = {
   id: 'session-user-1',
@@ -260,6 +260,34 @@ describe('updateNote', () => {
       updated_by: 'dbuser-1',
     })
   })
+
+  it('throws when note is read-only', async () => {
+    const existing = makeNote({ isReadOnly: true })
+    vi.mocked(Note.findById).mockResolvedValue(existing as never)
+
+    await expect(
+      _updateNote({
+        data: { id: 'note-1', campaignId: 'camp-1', sessionId: 'sess-1', title: 'T', note: 'B' },
+      }),
+    ).rejects.toThrow('Note is read-only')
+    expect(existing.save).not.toHaveBeenCalled()
+  })
+
+  it('passes sessionUserId to serverCaptureException on error', async () => {
+    vi.mocked(Note.findById).mockResolvedValue(null)
+
+    await expect(
+      _updateNote({
+        data: { id: 'note-1', campaignId: 'camp-1', sessionId: 'sess-1', title: 'T', note: 'B' },
+      }),
+    ).rejects.toThrow('Note not found')
+
+    expect(serverCaptureException).toHaveBeenCalledWith(
+      expect.any(Error),
+      'session-user-1',
+      expect.objectContaining({ action: 'updateNote' }),
+    )
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -459,6 +487,46 @@ describe('createNoteSchema', () => {
     expect(result.success).toBe(false)
   })
 
+  it('rejects whitespace-only title', () => {
+    const result = createNoteSchema.safeParse({
+      campaignId: 'camp-1',
+      sessionId: 'sess-1',
+      title: '   ',
+      note: 'body',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects whitespace-only note body', () => {
+    const result = createNoteSchema.safeParse({
+      campaignId: 'camp-1',
+      sessionId: 'sess-1',
+      title: 'Title',
+      note: '   ',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects whitespace-only sessionId', () => {
+    const result = createNoteSchema.safeParse({
+      campaignId: 'camp-1',
+      sessionId: '   ',
+      title: 'Title',
+      note: 'body',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects whitespace-only campaignId', () => {
+    const result = createNoteSchema.safeParse({
+      campaignId: '   ',
+      sessionId: 'sess-1',
+      title: 'Title',
+      note: 'body',
+    })
+    expect(result.success).toBe(false)
+  })
+
   it('rejects when sessionId is missing', () => {
     const result = createNoteSchema.safeParse({
       campaignId: 'camp-1',
@@ -501,6 +569,28 @@ describe('updateNoteSchema', () => {
       sessionId: 'sess-1',
       title: '',
       note: 'body',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects whitespace-only title', () => {
+    const result = updateNoteSchema.safeParse({
+      id: 'note-1',
+      campaignId: 'camp-1',
+      sessionId: 'sess-1',
+      title: '   ',
+      note: 'body',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects whitespace-only note body', () => {
+    const result = updateNoteSchema.safeParse({
+      id: 'note-1',
+      campaignId: 'camp-1',
+      sessionId: 'sess-1',
+      title: 'Title',
+      note: '   ',
     })
     expect(result.success).toBe(false)
   })

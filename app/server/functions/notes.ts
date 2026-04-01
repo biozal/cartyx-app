@@ -6,6 +6,7 @@ import { User } from '../db/models/User'
 import { Campaign } from '../db/models/Campaign'
 import { Note } from '../db/models/Note'
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
+import { normalizeTags } from '../utils/helpers'
 
 export interface NoteData {
   id: string
@@ -83,21 +84,6 @@ function serializeNoteListItem(n: {
   }
 }
 
-/** Normalize tags: lowercase, trim, deduplicate, strip empties. */
-function normalizeTags(tags: string[] | undefined): string[] {
-  if (!tags) return []
-  const seen = new Set<string>()
-  const result: string[] = []
-  for (const raw of tags) {
-    const tag = raw.trim().toLowerCase()
-    if (tag && !seen.has(tag)) {
-      seen.add(tag)
-      result.push(tag)
-    }
-  }
-  return result
-}
-
 /**
  * Verify the authenticated user is a member of the given campaign.
  * Returns the DB user ID string, or throws.
@@ -130,10 +116,10 @@ async function requireCampaignMember(campaignId: string): Promise<{ userId: stri
 // ---------------------------------------------------------------------------
 
 const createNoteSchema = z.object({
-  campaignId: z.string().min(1),
-  sessionId: z.string().min(1),
-  title: z.string().min(1, 'Title is required'),
-  note: z.string().min(1, 'Note body is required'),
+  campaignId: z.string().trim().min(1),
+  sessionId: z.string().trim().min(1),
+  title: z.string().trim().min(1, 'Title is required'),
+  note: z.string().trim().min(1, 'Note body is required'),
   tags: z.array(z.string()).optional().default([]),
   isPublic: z.boolean().optional().default(false),
 })
@@ -143,8 +129,11 @@ export { createNoteSchema }
 export const createNote = createServerFn({ method: 'POST' })
   .inputValidator(createNoteSchema)
   .handler(async ({ data }) => {
+    let sessionUserId: string | undefined
     try {
-      const { userId, sessionUserId } = await requireCampaignMember(data.campaignId)
+      const member = await requireCampaignMember(data.campaignId)
+      sessionUserId = member.sessionUserId
+      const userId = member.userId
 
       const now = new Date()
       const doc = await Note.create({
@@ -153,7 +142,7 @@ export const createNote = createServerFn({ method: 'POST' })
         createdBy: userId,
         title: data.title.trim(),
         note: data.note.trim(),
-        tags: normalizeTags(data.tags),
+        tags: normalizeTags(data.tags ?? []),
         isPublic: data.isPublic ?? false,
         createdAt: now,
         updatedAt: now,
@@ -166,7 +155,7 @@ export const createNote = createServerFn({ method: 'POST' })
 
       return { success: true, note: serializeNote(doc) }
     } catch (e) {
-      serverCaptureException(e, undefined, { action: 'createNote', campaignId: data.campaignId })
+      serverCaptureException(e, sessionUserId, { action: 'createNote', campaignId: data.campaignId })
       throw e
     }
   })
@@ -176,11 +165,11 @@ export const createNote = createServerFn({ method: 'POST' })
 // ---------------------------------------------------------------------------
 
 const updateNoteSchema = z.object({
-  id: z.string().min(1),
-  campaignId: z.string().min(1),
-  sessionId: z.string().min(1),
-  title: z.string().min(1, 'Title is required'),
-  note: z.string().min(1, 'Note body is required'),
+  id: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
+  sessionId: z.string().trim().min(1),
+  title: z.string().trim().min(1, 'Title is required'),
+  note: z.string().trim().min(1, 'Note body is required'),
   tags: z.array(z.string()).optional().default([]),
   isPublic: z.boolean().optional(),
 })
@@ -190,18 +179,22 @@ export { updateNoteSchema }
 export const updateNote = createServerFn({ method: 'POST' })
   .inputValidator(updateNoteSchema)
   .handler(async ({ data }) => {
+    let sessionUserId: string | undefined
     try {
-      const { userId, sessionUserId } = await requireCampaignMember(data.campaignId)
+      const member = await requireCampaignMember(data.campaignId)
+      sessionUserId = member.sessionUserId
+      const userId = member.userId
 
       const existing = await Note.findById(data.id)
       if (!existing) throw new Error('Note not found')
       if (String(existing.campaignId) !== data.campaignId) throw new Error('Forbidden')
       if (String(existing.createdBy) !== userId) throw new Error('Forbidden')
+      if (existing.isReadOnly) throw new Error('Note is read-only')
 
       existing.sessionId = data.sessionId
       existing.title = data.title.trim()
       existing.note = data.note.trim()
-      existing.tags = normalizeTags(data.tags)
+      existing.tags = normalizeTags(data.tags ?? [])
       if (data.isPublic !== undefined) {
         existing.isPublic = data.isPublic
       }
@@ -216,7 +209,7 @@ export const updateNote = createServerFn({ method: 'POST' })
 
       return { success: true, note: serializeNote(existing) }
     } catch (e) {
-      serverCaptureException(e, undefined, { action: 'updateNote', noteId: data.id })
+      serverCaptureException(e, sessionUserId, { action: 'updateNote', noteId: data.id })
       throw e
     }
   })
@@ -237,8 +230,11 @@ export { listNotesSchema }
 export const listNotes = createServerFn({ method: 'GET' })
   .inputValidator(listNotesSchema)
   .handler(async ({ data }) => {
+    let sessionUserId: string | undefined
     try {
-      const { userId } = await requireCampaignMember(data.campaignId)
+      const member = await requireCampaignMember(data.campaignId)
+      sessionUserId = member.sessionUserId
+      const userId = member.userId
 
       // Build query filter
       const filter: Record<string, unknown> = { campaignId: data.campaignId }
@@ -278,7 +274,7 @@ export const listNotes = createServerFn({ method: 'GET' })
         updatedAt?: Date
       }>).map(serializeNoteListItem)
     } catch (e) {
-      serverCaptureException(e, undefined, { action: 'listNotes', campaignId: data.campaignId })
+      serverCaptureException(e, sessionUserId, { action: 'listNotes', campaignId: data.campaignId })
       throw e
     }
   })
@@ -297,8 +293,11 @@ export { getNoteSchema }
 export const getNote = createServerFn({ method: 'GET' })
   .inputValidator(getNoteSchema)
   .handler(async ({ data }) => {
+    let sessionUserId: string | undefined
     try {
-      const { userId } = await requireCampaignMember(data.campaignId)
+      const member = await requireCampaignMember(data.campaignId)
+      sessionUserId = member.sessionUserId
+      const userId = member.userId
 
       const doc = await Note.findById(data.id)
       if (!doc) return null
@@ -311,7 +310,7 @@ export const getNote = createServerFn({ method: 'GET' })
 
       return serializeNote(doc)
     } catch (e) {
-      serverCaptureException(e, undefined, { action: 'getNote', noteId: data.id })
+      serverCaptureException(e, sessionUserId, { action: 'getNote', noteId: data.id })
       throw e
     }
   })

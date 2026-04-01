@@ -26,15 +26,22 @@ noteSchema.pre('findOneAndUpdate', function () {
   if (!update) return
 
   if (Array.isArray(update)) {
+    // Aggregation pipeline: only patch existing $set stages, never mutate others
+    let hasSetStage = false
     update.forEach((stage) => {
       if (!stage || typeof stage !== 'object') return
       const stageObj = stage as Record<string, any>
-      const set = (stageObj.$set ??= {})
+      if (!('$set' in stageObj)) return
+      hasSetStage = true
+      const set = stageObj.$set as Record<string, unknown>
       if (Array.isArray(set.tags)) {
         set.tags = normalizeTags(set.tags as string[])
       }
       set.updatedAt = new Date()
     })
+    if (!hasSetStage) {
+      update.push({ $set: { updatedAt: new Date() } })
+    }
     this.setUpdate(update)
     return
   }
