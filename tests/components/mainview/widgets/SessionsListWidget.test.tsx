@@ -21,16 +21,10 @@ describe('SessionsListWidget', () => {
     expect(screen.getByText('The Bell Beneath')).toBeInTheDocument()
   })
 
-  it('renders session numbers', () => {
+  it('renders session numbers in "Session N" format', () => {
     render(<SessionsListWidget sessions={mockSessions} />)
-    expect(screen.getByText('#14')).toBeInTheDocument()
-    expect(screen.getByText('#13')).toBeInTheDocument()
-  })
-
-  it('renders session summaries', () => {
-    render(<SessionsListWidget sessions={mockSessions} />)
-    expect(screen.getByText('The party sealed the kiln gate.')).toBeInTheDocument()
-    expect(screen.getByText('A buried sanctum opened.')).toBeInTheDocument()
+    expect(screen.getByText('Session 14')).toBeInTheDocument()
+    expect(screen.getByText('Session 13')).toBeInTheDocument()
   })
 
   it('renders session dates', () => {
@@ -39,11 +33,27 @@ describe('SessionsListWidget', () => {
     expect(screen.getByText('2026-03-14')).toBeInTheDocument()
   })
 
-  it('renders scrollable container', () => {
+  it('renders sessions in a card grid', () => {
     render(<SessionsListWidget sessions={mockSessions} />)
-    const scroll = screen.getByTestId('sessions-scroll')
-    expect(scroll).toHaveClass('max-h-[400px]')
-    expect(scroll).toHaveClass('overflow-y-auto')
+    const grid = screen.getByTestId('sessions-grid')
+    expect(grid).toBeInTheDocument()
+  })
+
+  it('renders at most 5 sessions even when more are provided', () => {
+    const manySessions = Array.from({ length: 8 }, (_, i) => ({
+      id: `s${i}`,
+      number: i + 1,
+      name: `Session Name ${i + 1}`,
+      summary: 'Summary.',
+      date: '2026-01-01',
+    }))
+    render(<SessionsListWidget sessions={manySessions} />)
+    // First 5 should render
+    expect(screen.getByText('Session Name 1')).toBeInTheDocument()
+    expect(screen.getByText('Session Name 5')).toBeInTheDocument()
+    // 6th and beyond should NOT render
+    expect(screen.queryByText('Session Name 6')).not.toBeInTheDocument()
+    expect(screen.queryByText('Session Name 8')).not.toBeInTheDocument()
   })
 
   it('shows empty state when sessions is empty', () => {

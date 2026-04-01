@@ -41,7 +41,7 @@ export function ChatPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-[#080A12]">
+    <div className="flex h-full flex-col bg-[#080A12] w-full">
       <div className="border-b border-white/[0.07] p-3">
         <label htmlFor="chat-session-selector" className="sr-only">
           Session selector
@@ -49,7 +49,7 @@ export function ChatPanel() {
         <select
           id="chat-session-selector"
           defaultValue="Session 14"
-          className="w-full rounded border border-white/[0.07] bg-[#080A12] px-3 py-2 font-pixel text-xs text-white outline-none"
+          className="w-full rounded border border-white/[0.07] bg-[#080A12] px-3 py-2 font-sans font-semibold text-xs text-white outline-none"
         >
           {SESSIONS.map((session) => (
             <option key={session} value={`Session ${session}`}>
@@ -79,7 +79,7 @@ export function ChatPanel() {
                 aria-controls={`${tabsId}-${channel.id}-panel`}
                 tabIndex={isActive ? 0 : -1}
                 onClick={() => setActiveChannel(channel.id)}
-                className={`h-11 border-b-2 px-3 font-pixel text-xs transition-colors ${
+                className={`h-11 border-b-2 px-3 font-sans font-semibold text-xs transition-colors ${
                   isActive
                     ? 'border-[#2563EB] text-white'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -107,9 +107,9 @@ export function ChatPanel() {
           role="tabpanel"
           aria-labelledby={`${tabsId}-${channel.id}-tab`}
           hidden={channel.id !== activeChannel}
-          className="flex flex-1 items-center justify-center overflow-y-auto p-4"
+          className="flex flex-1 items-center justify-center overflow-y-auto p-4 w-full"
         >
-          <span className="font-pixel text-xs text-slate-500">Coming Soon</span>
+          <span className="font-sans font-semibold text-xs text-slate-500">Coming Soon</span>
         </div>
       ))}
 
@@ -119,7 +119,7 @@ export function ChatPanel() {
             type="text"
             placeholder="Message..."
             aria-label="Message input"
-            className="flex-1 rounded border border-white/[0.07] bg-[#0D1117] px-3 py-2 font-pixel text-xs text-white outline-none placeholder:text-slate-600"
+            className="flex-1 rounded border border-white/[0.07] bg-[#0D1117] px-3 py-2 font-sans font-semibold text-xs text-white outline-none placeholder:text-slate-600"
           />
           <button
             type="button"

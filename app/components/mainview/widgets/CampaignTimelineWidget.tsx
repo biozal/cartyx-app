@@ -8,8 +8,40 @@ import {
 export type { TimelineEvent }
 
 export interface CampaignTimelineWidgetProps {
+  // Timeline events are provided most-recent first; we render oldest -> newest
+  // so the horizontal rail reads naturally from left to right.
   events?: ReadonlyArray<Readonly<TimelineEvent>>
   className?: string
+}
+
+function getEventTone(event: TimelineEvent) {
+  if (event.isCurrent) return 'current'
+  if (event.importance === 'major') return 'major'
+  return 'normal'
+}
+
+function getToneClasses(tone: ReturnType<typeof getEventTone>) {
+  const isCurrent = tone === 'current'
+  const isMajor = tone === 'major'
+
+  return {
+    isCurrent,
+    isMajor,
+    dotClasses: isCurrent
+      ? 'h-4 w-4 bg-primary ring-[12px] ring-primary/10 animate-pulse motion-reduce:animate-none'
+      : isMajor
+        ? 'h-4 w-4 bg-blue-light ring-8 ring-blue-light/10'
+        : 'h-3 w-3 bg-slate-500 ring-4 ring-white/[0.05]',
+    dateClasses: isCurrent ? 'text-primary' : isMajor ? 'text-blue-light' : 'text-slate-500',
+    titleClasses: isCurrent ? 'text-white' : isMajor ? 'text-blue-light' : 'text-slate-500',
+    labelClasses: isCurrent ? 'text-primary' : isMajor ? 'text-blue-light' : 'text-slate-600',
+    summaryClasses: isCurrent || isMajor ? 'text-slate-300' : 'text-slate-400',
+  }
+}
+
+function toDisplayOrder(events: ReadonlyArray<TimelineEvent>) {
+  // Mock/service data is most-recent first; reverse it so the rail reads left-to-right.
+  return [...events].reverse()
 }
 
 export function CampaignTimelineWidget({
@@ -50,47 +82,173 @@ export function CampaignTimelineWidget({
     }
   }, [events])
 
+  const displayEvents = resolvedEvents ? toDisplayOrder(resolvedEvents) : []
+
   return (
     <Widget title="Campaign Timeline" className={className}>
       {resolvedEvents === null ? (
         <div className="flex items-center justify-center py-8">
-          <p className="font-pixel text-xs text-slate-500">Loading timeline...</p>
+          <p className="font-sans font-semibold text-xs text-slate-500">Loading timeline...</p>
         </div>
       ) : error ? (
         <div className="flex items-center justify-center py-8">
-          <p className="font-pixel text-xs text-rose-400">{error}</p>
+          <p className="font-sans font-semibold text-xs text-rose-400">{error}</p>
         </div>
       ) : resolvedEvents.length === 0 ? (
         <div className="flex items-center justify-center py-8">
-          <p className="font-pixel text-xs text-slate-500">No timeline events</p>
+          <p className="font-sans font-semibold text-xs text-slate-500">No timeline events</p>
         </div>
       ) : (
-        <div
-          data-testid="timeline-scroll"
-          className="relative max-h-[500px] overflow-y-auto pr-1"
-        >
+        <>
           <div
-            aria-hidden="true"
-            className="absolute bottom-0 left-[5px] top-0 border-l border-white/[0.07]"
-          />
+            className="relative md:hidden"
+            data-testid="timeline-vertical"
+          >
+            <div
+              aria-hidden="true"
+              data-part="timeline-rail"
+              className="absolute bottom-2 left-[0.6875rem] top-2 w-px bg-white/[0.08]"
+            />
 
-          <div className="space-y-4">
-            {resolvedEvents.map((event) => (
-              <article key={event.id} className="relative pl-7">
-                <div
-                  aria-hidden="true"
-                  className="absolute left-[0px] top-1 h-3 w-3 rounded-full bg-[#2563EB]"
-                />
+            <ol className="relative flex flex-col gap-6 pl-8">
+              {displayEvents.map((event) => {
+                const tone = getEventTone(event)
+                const {
+                  isCurrent,
+                  isMajor,
+                  dotClasses,
+                  dateClasses,
+                  titleClasses,
+                  labelClasses,
+                  summaryClasses,
+                } = getToneClasses(tone)
 
-                <p className="font-pixel text-xs text-slate-500">{event.calendarDate}</p>
-                <h3 className="mt-1 font-pixel text-xs text-white">{event.sessionName}</h3>
-                <p className="mt-1 font-pixel text-xs leading-relaxed text-slate-400">
-                  {event.summary}
-                </p>
-              </article>
-            ))}
+                return (
+                  <li
+                    key={event.id}
+                    data-layout="vertical"
+                    data-tone={tone}
+                    className="relative pl-4 text-left"
+                  >
+                    <span
+                      aria-hidden="true"
+                      data-part="timeline-marker"
+                      className={`absolute left-0 top-1.5 z-10 -translate-x-1/2 rounded-full ${dotClasses}`}
+                    />
+
+                    <p className={`font-sans font-semibold text-[0.6rem] tracking-[0.16em] ${dateClasses}`}>
+                      {event.calendarDate}
+                    </p>
+
+                    <h3
+                      className={`mt-2 max-w-[13rem] font-sans text-xs font-bold uppercase leading-tight ${titleClasses}`}
+                    >
+                      {event.sessionName}
+                    </h3>
+
+                    {isCurrent ? (
+                      <p className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                        CURRENT SESSION
+                      </p>
+                    ) : isMajor ? (
+                      <p className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                        MAJOR EVENT
+                      </p>
+                    ) : null}
+
+                    <p
+                      className={`mt-2 max-w-[15rem] text-[0.58rem] leading-relaxed ${summaryClasses}`}
+                      title={event.summary}
+                    >
+                      {event.summary}
+                    </p>
+                  </li>
+                )
+              })}
+            </ol>
           </div>
-        </div>
+
+          <div
+            data-testid="timeline-scroll"
+            className="relative hidden overflow-x-auto overflow-y-hidden pb-2 md:block"
+            tabIndex={0}
+            aria-label="Campaign timeline, horizontally scrollable events"
+          >
+            <div className="relative min-w-[760px] px-4 pt-2">
+              <div
+                aria-hidden="true"
+                data-part="timeline-rail"
+                className="absolute left-4 right-4 top-16 z-0 h-px bg-white/[0.08]"
+              />
+
+              <ol className="grid grid-flow-col auto-cols-[minmax(10.5rem,1fr)] gap-4">
+                {displayEvents.map((event) => {
+                  const tone = getEventTone(event)
+                  const {
+                    isCurrent,
+                    isMajor,
+                    dotClasses,
+                    dateClasses,
+                    titleClasses,
+                    labelClasses,
+                    summaryClasses,
+                  } = getToneClasses(tone)
+
+                  return (
+                    <li
+                      key={event.id}
+                      data-layout="horizontal"
+                      data-tone={tone}
+                      className="grid min-h-[12rem] grid-rows-[2.5rem_2rem_1fr] px-1 text-center"
+                    >
+                      <div className="flex items-end justify-center pb-3">
+                        <p className={`font-sans font-semibold text-[0.6rem] tracking-[0.16em] ${dateClasses}`}>
+                          {event.calendarDate}
+                        </p>
+                      </div>
+
+                      <div
+                        data-part="timeline-marker-row"
+                        className="relative z-10 flex items-center justify-center"
+                      >
+                        <span
+                          aria-hidden="true"
+                          data-part="timeline-marker"
+                          className={`rounded-full ${dotClasses}`}
+                        />
+                      </div>
+
+                      <div className="flex flex-col items-center justify-start pt-3">
+                        <h3
+                          className={`max-w-[9rem] font-sans text-xs font-bold uppercase leading-tight ${titleClasses}`}
+                        >
+                          {event.sessionName}
+                        </h3>
+
+                        {isCurrent ? (
+                          <p className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                            CURRENT SESSION
+                          </p>
+                        ) : isMajor ? (
+                          <p className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                            MAJOR EVENT
+                          </p>
+                        ) : null}
+
+                        <p
+                          className={`mt-2 max-w-[9rem] text-[0.58rem] leading-relaxed line-clamp-3 ${summaryClasses}`}
+                          title={event.summary}
+                        >
+                          {event.summary}
+                        </p>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ol>
+            </div>
+          </div>
+        </>
       )}
     </Widget>
   )

@@ -50,6 +50,7 @@ const baseCampaign: CampaignData = {
     { id: '2', characterName: 'Lyra', characterClass: 'Wizard', avatar: null, userId: 'u2' },
   ],
   nextSession: { day: 'Friday', time: '19:00' },
+  sessions: [],
   isOwner: true,
   isMember: true,
   scheduleText: 'Weekly · Friday · at 7:00 PM · CST',
@@ -92,10 +93,15 @@ describe('CampaignCard', () => {
     expect(screen.queryByText(/edit campaign/i)).not.toBeInTheDocument()
   })
 
-  it('shows summary and play route actions', () => {
-    render(<CampaignCard campaign={{ ...baseCampaign, isOwner: false, inviteCode: '' }} />)
-    expect(screen.getByText(/view summary/i).closest('a')).toHaveAttribute('href', '/campaigns/camp-1/summary')
-    expect(screen.getByRole('link', { name: /enter campaign/i }).closest('a')).toHaveAttribute('href', '/campaigns/camp-1/play?tab=dashboard')
+  it('shows enter and optionally edit route actions', () => {
+    const { rerender } = render(<CampaignCard campaign={{ ...baseCampaign, isOwner: false }} />)
+    expect(screen.getByText(/enter/i).closest('a')).toHaveAttribute('href', '/campaigns/camp-1/play?tab=dashboard')
+    expect(screen.queryByText(/edit campaign/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/view summary/i)).not.toBeInTheDocument()
+
+    rerender(<CampaignCard campaign={baseCampaign} />) // owner = true
+    expect(screen.getByText(/enter/i).closest('a')).toHaveAttribute('href', '/campaigns/camp-1/play?tab=dashboard')
+    expect(screen.getByText(/edit campaign/i).closest('a')).toHaveAttribute('href', '/campaigns/camp-1/edit')
   })
 
   it('renders external links', () => {
@@ -111,5 +117,33 @@ describe('CampaignCard', () => {
   it('renders ACTIVE status badge', () => {
     render(<CampaignCard campaign={baseCampaign} />)
     expect(screen.getByText('ACTIVE')).toBeInTheDocument()
+  })
+
+  // Regression: responsive layout (#302)
+
+  it('card uses responsive flex layout (stacks on mobile, row on md+)', () => {
+    const { container } = render(<CampaignCard campaign={baseCampaign} />)
+    // Find the content area that uses responsive flex layout
+    const flexContainers = container.querySelectorAll('div')
+    const match = Array.from(flexContainers).find(
+      (el) =>
+        el.classList.contains('flex') &&
+        el.classList.contains('flex-col') &&
+        el.classList.contains('md:flex-row'),
+    )
+    expect(match).toBeInTheDocument()
+  })
+
+  it('renders campaign name even when sessions array is empty', () => {
+    const campaign = { ...baseCampaign, sessions: [] }
+    render(<CampaignCard campaign={campaign} />)
+    expect(screen.getByText('The Lost Mines of Phandelver')).toBeInTheDocument()
+  })
+
+  it('enter button has accessible label with campaign name', () => {
+    render(<CampaignCard campaign={baseCampaign} />)
+    const enterButton = screen.getByLabelText('Enter campaign: The Lost Mines of Phandelver')
+    expect(enterButton).toBeInTheDocument()
+    expect(enterButton.closest('a')).toHaveAttribute('href', '/campaigns/camp-1/play?tab=dashboard')
   })
 })

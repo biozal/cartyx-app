@@ -4,14 +4,16 @@ import { ChevronRight, ChevronDown, Maximize2, X } from 'lucide-react'
 
 /** Shared styles used by both Widget and WidgetSlot */
 export const WIDGET_STYLES = {
-  section: 'rounded-lg border border-white/[0.07] bg-[#0D1117]',
-  header: 'flex items-center justify-between border-b border-white/[0.07] px-4 py-3',
-  title: 'font-pixel text-xs text-slate-300',
-  content: 'min-h-[200px] p-4',
+  section: 'rounded-lg border border-outline-variant bg-surface-container p-6',
+  header: 'flex items-center justify-between mb-6',
+  title: 'font-sans font-semibold text-[11px] text-primary uppercase tracking-widest',
+  content: 'min-h-[200px]',
 } as const
 
 export interface WidgetProps {
   title: string
+  /** Optional custom header content. When provided, replaces the default title text. */
+  headerContent?: ReactNode
   children: ReactNode
   className?: string
   defaultMinimized?: boolean
@@ -19,6 +21,7 @@ export interface WidgetProps {
 
 export function Widget({
   title,
+  headerContent,
   children,
   className = '',
   defaultMinimized = false,
@@ -61,7 +64,19 @@ export function Widget({
             {isMinimized ? (
               <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 text-slate-500" />
             ) : null}
-            <h2 id={titleId} className={WIDGET_STYLES.title}>{title}</h2>
+            {headerContent ? (
+              <>
+                {headerContent}
+                {/* Ensure an element with id={titleId} always exists for aria-labelledby */}
+                <h2 id={titleId} className="sr-only">
+                  {title}
+                </h2>
+              </>
+            ) : (
+              <h2 id={titleId} className={WIDGET_STYLES.title}>
+                {title}
+              </h2>
+            )}
           </div>
 
           <div className="flex items-center gap-1">

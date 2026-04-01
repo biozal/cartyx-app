@@ -27,14 +27,14 @@ export const InDashboardGrid: Story = {
         <CatchUpWidget />
 
         <Widget title="Threat Monitor">
-          <div className="space-y-2 font-pixel text-xs text-slate-400">
+          <div className="space-y-2 font-sans font-semibold text-xs text-slate-400">
             <p>Watchtower wards: unstable</p>
             <p>Corruption spread: 38%</p>
           </div>
         </Widget>
 
         <Widget title="Supply Ledger">
-          <div className="space-y-2 font-pixel text-xs text-slate-400">
+          <div className="space-y-2 font-sans font-semibold text-xs text-slate-400">
             <p>Rations: 6</p>
             <p>Potions: 2</p>
           </div>

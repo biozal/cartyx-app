@@ -40,9 +40,10 @@ Complete guide to setting up Cartyx infrastructure from scratch.
 5. [Vercel Setup](#4-vercel-setup)
 6. [Environment Variables Reference](#5-environment-variables-reference)
 7. [Local Development](#6-local-development)
-8. [CI/CD Pipeline](#7-cicd-pipeline)
-9. [DNS Configuration](#8-dns-configuration)
-10. [Troubleshooting](#troubleshooting)
+8. [MongoDB Administration](#7-mongodb-administration)
+9. [CI/CD Pipeline](#8-cicd-pipeline)
+10. [DNS Configuration](#9-dns-configuration)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -321,7 +322,7 @@ git push origin dev
 | `CDN_URL` | `https://cdn-dev.cartyx.io` |
 | `POSTHOG_KEY` | dev PostHog project API key (or same as prod) |
 
-### PostHog (Optional)
+### PostHog Analytics and Feature Flags (Optional)
 
 | Variable | Description |
 |---|---|
@@ -329,6 +330,8 @@ git push origin dev
 | `VITE_PUBLIC_POSTHOG_HOST` | PostHog host (default: `https://app.posthog.com`) |
 | `POSTHOG_KEY` | Server-side PostHog project key |
 | `POSTHOG_HOST` | Server-side PostHog host |
+
+Client-side feature flags use the same `VITE_PUBLIC_POSTHOG_*` variables as analytics. When a user signs in or out, the app refreshes their PostHog identity so person-targeted flags update without a redeploy.
 
 ### Local Development Only
 
@@ -367,23 +370,192 @@ If you just want to explore the UI without setting up OAuth:
 - The app will show login buttons as "not configured" for providers without env vars
 - You can still view unauthenticated pages
 
+### Local MongoDB and transactions
+
+MongoDB transactions require a **replica set**. Atlas clusters (including the free
+M0 tier) are always replica sets, so transactions work out of the box in deployed
+environments. Local development with a standalone `mongod` will fail if any code
+path uses `session.startTransaction()`.
+
+**Recommended local setup — Docker replica set:**
+
+```bash
+# Start a single-node replica set (sufficient for local dev)
+docker run -d --name mongo-rs -p 27017:27017 mongo:7 \
+  --replSet rs0
+
+# Initiate the replica set (one-time)
+docker exec mongo-rs mongosh --eval "rs.initiate()"
+```
+
+Then set your local `.env`:
+
+```
+MONGODB_URI=mongodb://localhost:27017/cartyx?replicaSet=rs0&directConnection=true
+```
+
+**Alternative — mongosh `--replSet` flag:** If you install MongoDB locally
+(e.g. via Homebrew), start `mongod` with `--replSet rs0` and initiate via
+`mongosh` as above.
+
+If you do not need transactions locally, a plain standalone `mongod` works
+for most development. The bootstrap will create collections and indexes
+regardless of replica set status.
+
 ### Local with R2 Images
 
 Image uploads work locally without R2 — files save to `public/uploads/`. To test R2 locally, add the R2 env vars to your `.env` file and set `CDN_URL`.
 
 ---
 
-## 7. CI/CD Pipeline
+## 7. MongoDB Administration
+
+Cartyx provides a CLI tool for controlled database index management.
+
+### Commands
+
+```bash
+# Read-only check — exits 0 if indexes match, 1 if there is drift
+npm run db:verify
+
+# Create missing collections and indexes
+npm run db:sync
+```
+
+Both commands require `MONGODB_URI` to be set.
+
+### When to use each command
+
+| Scenario | Command |
+|---|---|
+| **Pre-deploy CI gate** | `npm run db:verify` — fails the pipeline if indexes are missing |
+| **New environment setup** | `npm run db:sync` — creates all collections and indexes from scratch |
+| **After adding a new index in code** | `npm run db:verify` to confirm drift, then `npm run db:sync` to apply |
+| **Routine health check** | `npm run db:verify` — safe to run at any time, never mutates the DB |
+
+### Runtime bootstrap policy
+
+On every first database access, the app runs a lightweight bootstrap pass. The
+behaviour is **environment-aware** — each environment gets a different policy:
+
+| Environment | Detection | Collections | Indexes | Critical check | Failure mode |
+|-------------|-----------|-------------|---------|----------------|--------------|
+| **production** | `VERCEL_ENV=production` or `NODE_ENV=production` | ensure | — | yes | **abort startup** |
+| **staging** | `VERCEL_ENV=preview` (dev branch + PR previews) | ensure | — | yes | warn only |
+| **development** | local dev (`NODE_ENV != production`, no Vercel) | ensure | sync | — | — |
+
+**Production** — the lightweight path ensures collections exist, then verifies
+that all critical indexes (uniqueness constraints, auth lookups) are present.
+If any critical index is missing, startup aborts with a `BootstrapError` that
+names the missing indexes and tells operators to run `npm run db:sync`. Mongoose
+`autoIndex` is disabled. Non-critical (performance-only) index drift does not
+block startup.
+
+**Staging** — same lightweight verification, but critical drift produces a
+console warning instead of aborting. This keeps preview deploys functional while
+still surfacing problems. `autoIndex` is disabled.
+
+**Development** — full sync: collections and indexes are created automatically
+on startup for developer convenience. `autoIndex` is enabled. This is the only
+environment where heavy index work happens at boot.
+
+All bootstrap work is bounded by a timeout (production: 10 s, staging: 15 s,
+development: 30 s) so startup cannot hang indefinitely without an actionable
+error.
+
+#### Overriding the environment
+
+Set `BOOTSTRAP_ENV` to `production`, `staging`, or `development` to override
+automatic detection. This is useful for testing production bootstrap behaviour
+locally:
+
+```bash
+BOOTSTRAP_ENV=production npm run dev
+```
+
+### Production index rollout
+
+When you add, change, or remove an index in a Mongoose schema file, follow this
+workflow to roll it out safely:
+
+1. **Declare the index** in the schema file (`app/server/db/models/*.ts`).
+2. **Classify it** in `app/server/db/governance.ts` — choose `critical` (correctness
+   constraint) or `optional` (performance only).
+3. **Run `npm run db:verify` locally** to confirm the drift is detected.
+4. **Run `npm run db:sync` against the target database** before deploying the new code.
+   For production, this means running the command with `MONGODB_URI` pointing at
+   the production cluster. The sync is idempotent — safe to run multiple times.
+5. **Deploy the new code.** On startup, the production bootstrap will verify that
+   the new index exists. If it is classified as `critical` and was not synced in
+   step 4, startup will abort with a `BootstrapError`.
+
+**Why sync before deploy?** Production bootstrap never creates indexes — it only
+verifies. This is intentional: index creation on large collections can take minutes
+and lock writes, so it must happen as an explicit operator action, not as a
+side-effect of a cold start or scaling event.
+
+**Index removal** follows the same pattern in reverse: deploy code that no longer
+references the index first, then drop the index from MongoDB manually (Mongoose
+does not auto-drop indexes). `db:verify` will report the extra index so you know
+when cleanup is needed.
+
+**CI gate:** Add `npm run db:verify` to your CI pipeline to catch index drift
+before code reaches production. The command exits non-zero when critical indexes
+are missing, blocking the deploy.
+
+### Bootstrap observability
+
+The runtime bootstrap emits structured log events and PostHog analytics events
+at each phase so operators can monitor startup health:
+
+| Event | When | Key fields |
+|---|---|---|
+| `db.bootstrap.start` | Bootstrap begins | `bootstrap_env`, `sync_indexes`, `verify_critical`, `timeout_ms` |
+| `db.bootstrap.success` | Bootstrap completes without error | `bootstrap_env`, `action`, `duration_ms`; when action=`verify`: `models_checked`, `indexes_ok`; when action=`verify` with optional drift: `optional_drift`, `missing_indexes`, `option_mismatches` |
+| `db.bootstrap.warning` | Staging detects critical drift but continues | `bootstrap_env`, `action`, `duration_ms`, `missing_indexes`, `option_mismatches`, `critical_drift`, `details` |
+| `db.bootstrap.failure` | Fatal error or production critical drift | `bootstrap_env`, `action`, `duration_ms`; on critical drift: `missing_indexes`, `option_mismatches`, `critical_drift`, `details`; on unexpected error: `error` |
+
+Console logs follow a structured `key=value` format for easy parsing:
+
+```
+[bootstrap] start env=production sync=false verify=true
+[bootstrap] success env=production action=verify duration_ms=42 models_checked=5
+[bootstrap] warning env=staging action=verify duration_ms=38 missing=1 mismatches=0 critical_drift=true
+[bootstrap] failure env=production action=verify duration_ms=15 error=timed out after 10000ms
+```
+
+All events are also sent to PostHog via `serverCaptureEvent` when a PostHog key
+is configured. Use these events to build dashboards or alerts for bootstrap
+duration regressions, unexpected drift, or startup failures.
+
+### Schema as source of truth
+
+All indexes are declared in the Mongoose schema files under `app/server/db/models/`.
+The `db:verify` and `db:sync` commands read these declarations and compare/apply them
+against the live database. There is no separate migration system — the schema files
+are the single source of truth.
+
+---
+
+## 8. CI/CD Pipeline
 
 ### Pull Request Checks (`ci.yml`)
 
-Every PR automatically runs:
-1. **Type check** — `npm run typecheck`
-2. **Lint** — `npm run lint`
-3. **Test** — `npm run test:ci` (with coverage)
-4. **Build** — `npm run build`
+Every PR automatically runs two required jobs plus one non-blocking job:
 
-All must pass before merging.
+**Required (must pass to merge):**
+1. **Lint & Test** — type check, lint, unit tests (with coverage)
+2. **Build** — production build verification
+
+**Non-blocking (runs in parallel, failures do not block merge):**
+3. **Storybook Tests** — interaction tests via Vitest + Playwright
+
+Storybook tests run as a separate non-blocking job because core component
+behavior is already covered by unit tests and app-level Playwright/E2E tests.
+Storybook's primary value is as a UI showcase and component reference for
+design/development workflows, not as a release gate. Keeping these interaction
+tests non-blocking preserves visibility into Storybook health without blocking
+delivery on flaky or low-signal failures.
 
 ### Vercel Deployments
 
@@ -408,7 +580,7 @@ Vercel deploys are triggered automatically on every push:
 
 ---
 
-## 8. DNS Configuration
+## 9. DNS Configuration
 
 All DNS is managed in Cloudflare. Required records:
 

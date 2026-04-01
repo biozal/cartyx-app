@@ -71,14 +71,15 @@ describe('Topbar', () => {
     render(<Topbar />)
 
     // Menu not visible initially
-    expect(screen.queryByText('🚪 Sign Out')).not.toBeInTheDocument()
+    expect(screen.queryByText('Sign Out')).not.toBeInTheDocument()
 
     // Click to open
     fireEvent.click(screen.getByText('Dave'))
-    expect(screen.getByText('🚪 Sign Out')).toBeInTheDocument()
+    expect(screen.getByText('User Profile information')).toBeInTheDocument()
+    expect(screen.getByText('Sign Out')).toBeInTheDocument()
 
     // Click sign out calls logout
-    fireEvent.click(screen.getByText('🚪 Sign Out'))
+    fireEvent.click(screen.getByText('Sign Out'))
     expect(logoutMock).toHaveBeenCalled()
   })
 })

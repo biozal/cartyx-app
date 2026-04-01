@@ -22,7 +22,7 @@ npm run dev            # http://localhost:3000
 - **Session Scheduling** — Weekly/bi-weekly/monthly with timezone support
 - **Image Uploads** — Campaign images stored on Cloudflare R2
 - **Access Control** — GM and player roles with owner-only actions
-- **Product Analytics** — PostHog integration for usage insights
+- **Product Analytics & Feature Flags** — PostHog integration for usage insights and progressive feature rollouts
 
 ## Tech Stack
 
@@ -78,6 +78,33 @@ npm test               # Run tests
 npm run test:watch     # TDD watch mode
 npm run test:coverage  # Coverage report
 ```
+
+## Feature Flags
+
+Client-side feature flags are available through [`app/utils/featureFlags.tsx`](app/utils/featureFlags.tsx), which wraps PostHog's React hooks with a small app-level API:
+
+```tsx
+import { FeatureFlagGate, useFeatureFlag } from '~/utils/featureFlags'
+
+function ExperimentalPanel() {
+  const { isEnabled, isLoading, payload } = useFeatureFlag('experimental-panel')
+
+  if (isLoading) return null
+  if (!isEnabled) return null
+
+  return <section>{JSON.stringify(payload)}</section>
+}
+
+function Page() {
+  return (
+    <FeatureFlagGate flag="experimental-panel" fallback={null}>
+      <ExperimentalPanel />
+    </FeatureFlagGate>
+  )
+}
+```
+
+Set `VITE_PUBLIC_POSTHOG_KEY` locally or in Vercel for client-side flag evaluation. User identification is synchronized through the shared PostHog provider so person-targeted flags refresh after sign-in/sign-out.
 
 ## Component Library
 

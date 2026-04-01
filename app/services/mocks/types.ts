@@ -32,6 +32,8 @@ export interface TimelineEvent {
   calendarDate: string
   sessionName: string
   summary: string
+  importance?: 'major'
+  isCurrent?: boolean
 }
 
 export interface RecentlyUpdatedItem {
@@ -41,4 +43,3 @@ export interface RecentlyUpdatedItem {
   updatedAt: string
   summary: string
 }
-

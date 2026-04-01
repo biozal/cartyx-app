@@ -44,11 +44,13 @@ export default [js.configs.recommended, {
 }, {
   ignores: [
     'node_modules',
+    'vendor',
     '.output',
     '.vinxi',
     'dist',
     'storybook-static',
     'coverage',
+    'storybook-static',
     'app/routeTree.gen.ts',
     'server.cjs',
     'prod-server.js',

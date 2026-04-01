@@ -85,7 +85,7 @@ function EditCampaignPage() {
       imageFile,
     })
     if (result) {
-      navigate({ to: '/campaigns/$campaignId/summary', params: { campaignId: campaign.id } })
+      navigate({ to: '/campaigns' })
     }
   }
 
@@ -101,7 +101,7 @@ function EditCampaignPage() {
         <Link to="/campaigns" className="inline-flex items-center gap-1.5 text-slate-500 text-sm hover:text-slate-400 transition-colors mb-8">
           ← Back to Campaigns
         </Link>
-        <h1 className="font-pixel text-[13px] text-white tracking-widest mb-9">EDIT CAMPAIGN</h1>
+        <h1 className="font-sans font-semibold text-[13px] text-white tracking-widest mb-9">EDIT CAMPAIGN</h1>
 
         {submitError && (
           <StatusBanner variant="error" message={submitError} className="mb-5" />

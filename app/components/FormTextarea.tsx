@@ -16,6 +16,8 @@ export interface FormTextareaProps {
   maxLength?: number
   /** Whether the textarea is disabled. */
   disabled?: boolean
+  /** Whether the field is required. */
+  required?: boolean
   /** Error message — renders red border and text below textarea. */
   error?: string
   /** Additional CSS classes applied to the label. */
@@ -34,6 +36,7 @@ export function FormTextarea({
   rows = 4,
   maxLength,
   disabled = false,
+  required = false,
   error,
   labelClassName = '',
   className = '',
@@ -72,6 +75,7 @@ export function FormTextarea({
         rows={rows}
         maxLength={maxLength}
         disabled={disabled}
+        required={required}
         className={textareaCls}
         aria-describedby={error ? `${textareaId}-error` : maxLength !== undefined ? counterId : undefined}
         aria-invalid={error ? true : undefined}

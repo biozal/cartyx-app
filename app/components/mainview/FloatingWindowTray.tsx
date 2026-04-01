@@ -20,7 +20,7 @@ export function FloatingWindowTray({ windows, onRestore }: FloatingWindowTrayPro
           key={window.id}
           type="button"
           onClick={() => onRestore(window.id)}
-          className="rounded border border-white/[0.07] bg-[#1a1d2e] px-3 py-1.5 font-pixel text-xs text-slate-300 transition-colors hover:bg-white/[0.05]"
+          className="rounded border border-white/[0.07] bg-[#1a1d2e] px-3 py-1.5 font-sans font-semibold text-xs text-slate-300 transition-colors hover:bg-white/[0.05]"
         >
           {window.title}
         </button>

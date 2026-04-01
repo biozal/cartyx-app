@@ -1,34 +1,60 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useAuthContext } from './AuthProvider'
 import {
+  getPostHogInstance,
   setPostHogInstance,
   isPostHogReady,
-  getPostHogInstance,
   capturePageView,
 } from '~/utils/posthog-client'
 
 // Re-export capture helpers so existing imports from PostHogProvider still work
 export { captureException, captureEvent, capturePageView } from '~/utils/posthog-client'
 
-function PostHogInit() {
+type PostHogClient = typeof import('posthog-js').default
+type PostHogProviderComponent = typeof import('@posthog/react').PostHogProvider
+
+export function PostHogProvider({ children }: { children: ReactNode }) {
   const { user } = useAuthContext()
   const router = useRouter()
   const unsubRef = useRef<(() => void) | null>(null)
-  const cancelledRef = useRef(false)
+  const [client, setClient] = useState<PostHogClient | null>(() =>
+    typeof window === 'undefined' ? null : getPostHogInstance()
+  )
+  const [ProviderComponent, setProviderComponent] = useState<PostHogProviderComponent | null>(null)
 
-  // Initialize PostHog client-side only
   useEffect(() => {
     const key = import.meta.env.VITE_PUBLIC_POSTHOG_KEY
     const host = import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://app.posthog.com'
+    const shouldLoadProvider = isPostHogReady() || Boolean(key)
+    let cancelled = false
 
-    if (!key || isPostHogReady() || typeof window === 'undefined') return
+    if (typeof window === 'undefined') return
 
-    cancelledRef.current = false
+    if (shouldLoadProvider) {
+      void import('@posthog/react').then(({ PostHogProvider: PostHogReactProvider }) => {
+        if (!cancelled) setProviderComponent(() => PostHogReactProvider)
+      })
+    }
 
-    import('posthog-js').then(({ default: posthog }) => {
-      // Guard against unmount during async import
-      if (cancelledRef.current) return
+    if (isPostHogReady()) {
+      const existingClient = getPostHogInstance()
+
+      if (existingClient) setClient(existingClient)
+
+      return () => {
+        cancelled = true
+      }
+    }
+
+    if (!key) {
+      return () => {
+        cancelled = true
+      }
+    }
+
+    void import('posthog-js').then(({ default: posthog }) => {
+      if (cancelled) return
 
       posthog.init(key, {
         api_host: host,
@@ -37,47 +63,48 @@ function PostHogInit() {
         capture_exceptions: true,
       })
       setPostHogInstance(posthog)
-
-      // Capture initial pageview
+      setClient(posthog)
       capturePageView(window.location.href)
-
-      // Subscribe to route changes for manual pageview tracking
-      unsubRef.current = router.subscribe('onResolved', (event) => {
-        capturePageView(window.location.origin + event.toLocation.href)
-      })
     })
 
     return () => {
-      cancelledRef.current = true
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!client) return
+
+    unsubRef.current = router.subscribe('onResolved', (event) => {
+      capturePageView(window.location.origin + event.toLocation.href)
+    })
+
+    return () => {
       unsubRef.current?.()
       unsubRef.current = null
     }
-  }, [router])
+  }, [client, router])
 
-  // Identify/reset on auth changes
   useEffect(() => {
-    const ph = getPostHogInstance()
-    if (!isPostHogReady() || !ph) return
+    if (!client || !isPostHogReady()) return
+
     if (user) {
-      ph.identify(user.id, {
+      client.identify(user.id, {
         name: user.name,
         email: user.email,
         provider: user.provider,
         role: user.role,
       })
+      client.reloadFeatureFlags()
     } else {
-      ph.reset()
+      client.reset()
+      client.reloadFeatureFlags()
     }
-  }, [user])
+  }, [client, user])
 
-  return null
-}
+  if (client && ProviderComponent) {
+    return <ProviderComponent client={client}>{children}</ProviderComponent>
+  }
 
-export function PostHogProvider({ children }: { children: ReactNode }) {
-  return (
-    <>
-      <PostHogInit />
-      {children}
-    </>
-  )
+  return <>{children}</>
 }

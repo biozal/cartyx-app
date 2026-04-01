@@ -18,6 +18,8 @@ export interface FormSelectProps {
   options: SelectOption[]
   /** Whether the select is disabled. */
   disabled?: boolean
+  /** Whether the field is required. */
+  required?: boolean
   /** Additional CSS classes applied to the label. */
   labelClassName?: string
   /** Additional CSS classes applied to the wrapper. */
@@ -30,6 +32,7 @@ export function FormSelect({
   onChange,
   options,
   disabled = false,
+  required = false,
   labelClassName = '',
   className = '',
 }: FormSelectProps) {
@@ -55,6 +58,7 @@ export function FormSelect({
         value={value}
         onChange={onChange}
         disabled={disabled}
+        required={required}
         className={selectCls}
       >
         {options.map((opt) => (

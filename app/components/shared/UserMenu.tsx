@@ -1,8 +1,19 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link } from '@tanstack/react-router'
+import { faArrowRightFromBracket, faGear } from '@fortawesome/pro-solid-svg-icons'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Link, type LinkProps } from '@tanstack/react-router'
 import { useAuth } from '~/hooks/useAuth'
 
-export function UserMenu() {
+interface UserMenuAction {
+  label: string
+  to: LinkProps['to']
+}
+
+interface UserMenuProps {
+  contextualAction?: UserMenuAction
+}
+
+export function UserMenu({ contextualAction }: UserMenuProps) {
   const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -47,19 +58,30 @@ export function UserMenu() {
 
         {menuOpen && (
           <div className="absolute right-0 top-full mt-2 w-44 bg-[#0D1117] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50">
+            {contextualAction ? (
+              <Link
+                to={contextualAction.to}
+                className="flex items-center gap-2 px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.04] hover:text-white transition-colors"
+                onClick={() => setMenuOpen(false)}
+              >
+                {contextualAction.label}
+              </Link>
+            ) : null}
             <Link
               to="/dashboard"
               className="flex items-center gap-2 px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.04] hover:text-white transition-colors"
               onClick={() => setMenuOpen(false)}
             >
-              ⚙️ Dashboard
+              <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
+              <span>User Profile information</span>
             </Link>
             <button
               type="button"
               onClick={() => { setMenuOpen(false); logout() }}
               className="w-full flex items-center gap-2 px-4 py-3 text-sm text-red-400 hover:bg-white/[0.04] transition-colors"
             >
-              🚪 Sign Out
+              <FontAwesomeIcon icon={faArrowRightFromBracket} className="h-4 w-4" />
+              <span>Sign Out</span>
             </button>
           </div>
         )}

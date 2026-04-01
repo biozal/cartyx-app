@@ -54,7 +54,7 @@ export function WikiPanel() {
   const [selectedCategory, setSelectedCategory] = useState<WikiCategoryId | null>(null)
 
   return (
-    <div className="h-full flex flex-col bg-[#080A12]">
+    <div className="h-full flex flex-col bg-[#080A12] w-full">
       <div className={selectedCategory ? 'max-h-72 shrink-0 overflow-y-auto' : 'flex-1 overflow-y-auto'}>
         {WIKI_CATEGORIES.map((category, index) => {
           const Icon = category.icon
@@ -74,7 +74,7 @@ export function WikiPanel() {
             >
               <Icon className="mr-3 h-4 w-4 shrink-0 text-slate-400" />
               <span
-                className={`font-pixel text-xs ${
+                className={`font-sans font-semibold text-xs ${
                   isSelected ? 'text-white' : 'text-slate-300'
                 }`}
               >
@@ -86,19 +86,19 @@ export function WikiPanel() {
       </div>
 
       {selectedCategory ? (
-        <div className="flex flex-1 flex-col border-t border-white/[0.07]">
+        <div className="flex flex-1 flex-col border-t border-white/[0.07] w-full">
           <button
             type="button"
             aria-label="Back"
             onClick={() => setSelectedCategory(null)}
-            className="flex items-center gap-2 border-b border-white/[0.07] px-4 py-3 font-pixel text-xs text-slate-300 transition-colors hover:bg-white/[0.05] hover:text-white"
+            className="flex items-center gap-2 border-b border-white/[0.07] px-4 py-3 font-sans font-semibold text-xs text-slate-300 transition-colors hover:bg-white/[0.05] hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Back</span>
           </button>
 
           <div className="flex flex-1 items-center justify-center p-4">
-            <span className="font-pixel text-xs text-slate-500">
+            <span className="font-sans font-semibold text-xs text-slate-500">
               {WIKI_CATEGORIES.find(category => category.id === selectedCategory)?.label} - Coming
               {' '}Soon
             </span>

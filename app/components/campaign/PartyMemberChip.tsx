@@ -17,7 +17,7 @@ export function PartyMemberChip({ characterName, characterClass, avatar }: Party
         )}
       </div>
       <div className="min-w-0">
-        <div className="text-[10px] font-pixel text-slate-200 truncate leading-relaxed">{characterName}</div>
+        <div className="text-[10px] font-sans font-semibold text-slate-200 truncate leading-relaxed">{characterName}</div>
         <div className="text-xs text-slate-500 truncate">{characterClass}</div>
       </div>
     </div>

@@ -1,5 +1,4 @@
 import React from 'react'
-import { Link } from '@tanstack/react-router'
 import { CampaignHeroBanner } from './CampaignHeroBanner'
 import { CampaignDescription } from './CampaignDescription'
 import { NextSessionBadge } from './NextSessionBadge'
@@ -24,9 +23,9 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
         status={campaign.status}
       />
 
-      <div className="p-6 flex flex-col md:flex-row gap-6">
+      <div className="p-8 flex flex-col md:flex-row gap-8">
         {/* Left column: description, next session, party */}
-        <div className="flex-1 flex flex-col gap-5 min-w-0">
+        <div className="flex-1 flex flex-col gap-6 min-w-0">
           <CampaignDescription description={campaign.description} />
           <NextSessionBadge
             nextSession={campaign.nextSession}
@@ -49,11 +48,13 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
               as="link"
               variant="primary"
               size="md"
-              to="/campaigns/$campaignId/summary"
+              to="/campaigns/$campaignId/play"
               params={{ campaignId: campaign.id }}
+              search={{ tab: 'dashboard' }}
               fullWidth
+              aria-label={`Enter campaign: ${campaign.name}`}
             >
-              View Summary
+              Enter
             </PixelButton>
             {campaign.isOwner && (
               <PixelButton
@@ -68,15 +69,6 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
                 Edit Campaign
               </PixelButton>
             )}
-            <Link
-              to="/campaigns/$campaignId/play"
-              params={{ campaignId: campaign.id }}
-              search={{ tab: 'dashboard' }}
-              aria-label={`Enter campaign: ${campaign.name}`}
-              className="font-pixel text-xs text-[#2563EB] hover:text-white transition-colors text-center"
-            >
-              <span aria-hidden="true">Enter →</span>
-            </Link>
           </div>
         </div>
       </div>

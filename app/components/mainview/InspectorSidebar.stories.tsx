@@ -33,9 +33,9 @@ export const WikiTab: Story = {
   },
 }
 
-export const NotepadTab: Story = {
+export const NotesTab: Story = {
   args: {
-    defaultTab: 'notepad',
+    defaultTab: 'notes',
   },
 }
 

@@ -17,14 +17,14 @@ export function TermsPage() {
           ← Back
         </Link>
 
-        <h1 className="font-pixel text-[14px] text-white tracking-widest mb-2">
+        <h1 className="font-sans font-semibold text-[14px] text-white tracking-widest mb-2">
           TERMS OF SERVICE
         </h1>
         <p className="text-xs text-slate-500 mb-10">Last updated: March 2026</p>
 
         <div className="space-y-8 text-sm text-slate-300 leading-relaxed">
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               ACCEPTANCE OF TERMS
             </h2>
             <p>
@@ -35,7 +35,7 @@ export function TermsPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               THE SERVICE
             </h2>
             <p>
@@ -47,7 +47,7 @@ export function TermsPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               USER ACCOUNTS
             </h2>
             <p>
@@ -59,7 +59,7 @@ export function TermsPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               USER-GENERATED CONTENT
             </h2>
             <p>
@@ -72,7 +72,7 @@ export function TermsPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               NO WARRANTY
             </h2>
             <p className="uppercase font-medium text-slate-200">
@@ -88,7 +88,7 @@ export function TermsPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               LIMITATION OF LIABILITY
             </h2>
             <p>
@@ -106,7 +106,7 @@ export function TermsPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               GOVERNING LAW
             </h2>
             <p>
@@ -117,7 +117,7 @@ export function TermsPage() {
           </section>
 
           <section>
-            <h2 className="font-pixel text-[9px] text-blue-400 tracking-wider mb-3">
+            <h2 className="font-sans font-semibold text-[9px] text-blue-400 tracking-wider mb-3">
               CHANGES TO THESE TERMS
             </h2>
             <p>
