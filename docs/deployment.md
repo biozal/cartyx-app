@@ -550,12 +550,12 @@ Every PR automatically runs two required jobs plus one non-blocking job:
 **Non-blocking (runs in parallel, failures do not block merge):**
 3. **Storybook Tests** — interaction tests via Vitest + Playwright
 
-Storybook tests run as a separate non-blocking job because unit tests and
-Playwright-backed Storybook interaction tests already cover component behavior.
+Storybook tests run as a separate non-blocking job because core component
+behavior is already covered by unit tests and app-level Playwright/E2E tests.
 Storybook's primary value is as a UI showcase and component reference for
-design/development workflows, not as a release gate. Keeping it non-blocking
-preserves visibility into Storybook health without blocking delivery on flaky
-or low-signal failures.
+design/development workflows, not as a release gate. Keeping these interaction
+tests non-blocking preserves visibility into Storybook health without blocking
+delivery on flaky or low-signal failures.
 
 ### Vercel Deployments
 
