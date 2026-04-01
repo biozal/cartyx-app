@@ -8,16 +8,21 @@ import userEvent from '@testing-library/user-event'
 // the React wrapper behaviour without needing a real CM instance.
 let lastCmOnChange: ((value: string) => void) | undefined
 let lastCmValue: string | undefined
-
+let lastContentDOM: HTMLDivElement | undefined
 vi.mock('@codemirror/view', () => {
   class FakeEditorView {
     dom: HTMLDivElement
+    contentDOM: HTMLDivElement
     state = { doc: { toString: () => lastCmValue ?? '' } }
 
     constructor(opts: { state: { doc: string }; parent: HTMLElement }) {
       lastCmValue = opts.state.doc
       this.dom = document.createElement('div')
       this.dom.setAttribute('data-testid', 'cm-mock')
+      this.contentDOM = document.createElement('div')
+      this.contentDOM.setAttribute('contenteditable', 'true')
+      this.dom.appendChild(this.contentDOM)
+      lastContentDOM = this.contentDOM
       opts.parent.appendChild(this.dom)
     }
     dispatch(tr: { changes?: { insert: string }; effects?: unknown }) {
@@ -62,10 +67,6 @@ vi.mock('@codemirror/lang-markdown', () => ({
   markdownLanguage: {},
 }))
 
-vi.mock('@codemirror/language-data', () => ({
-  languages: [],
-}))
-
 vi.mock('@codemirror/commands', () => ({
   defaultKeymap: [],
   history: () => [],
@@ -85,6 +86,7 @@ import { MarkdownEditor } from '~/components/shared/MarkdownEditor'
 beforeEach(() => {
   lastCmOnChange = undefined
   lastCmValue = undefined
+  lastContentDOM = undefined
 })
 
 describe('MarkdownEditor', () => {
@@ -125,19 +127,37 @@ describe('MarkdownEditor', () => {
     expect(screen.getByRole('tab', { name: 'Edit' })).toHaveAttribute('aria-selected', 'false')
   })
 
-  it('switches tabs via arrow keys', async () => {
+  it('switches tabs via arrow keys and moves focus', async () => {
     const user = userEvent.setup()
     render(<MarkdownEditor value="" onChange={vi.fn()} />)
 
     const editTab = screen.getByRole('tab', { name: 'Edit' })
     editTab.focus()
     await user.keyboard('{ArrowRight}')
-    expect(screen.getByRole('tab', { name: 'Preview' })).toHaveAttribute('aria-selected', 'true')
-
     const previewTab = screen.getByRole('tab', { name: 'Preview' })
-    previewTab.focus()
+    expect(previewTab).toHaveAttribute('aria-selected', 'true')
+    expect(document.activeElement).toBe(previewTab)
+
     await user.keyboard('{ArrowLeft}')
     expect(screen.getByRole('tab', { name: 'Edit' })).toHaveAttribute('aria-selected', 'true')
+    expect(document.activeElement).toBe(editTab)
+  })
+
+  it('supports Home/End keys for tab navigation', async () => {
+    const user = userEvent.setup()
+    render(<MarkdownEditor value="" onChange={vi.fn()} />)
+
+    const editTab = screen.getByRole('tab', { name: 'Edit' })
+    const previewTab = screen.getByRole('tab', { name: 'Preview' })
+
+    editTab.focus()
+    await user.keyboard('{End}')
+    expect(previewTab).toHaveAttribute('aria-selected', 'true')
+    expect(document.activeElement).toBe(previewTab)
+
+    await user.keyboard('{Home}')
+    expect(editTab).toHaveAttribute('aria-selected', 'true')
+    expect(document.activeElement).toBe(editTab)
   })
 
   // ── Preview rendering ────────────────────────────────────
@@ -185,6 +205,18 @@ describe('MarkdownEditor', () => {
 
     rerender(<MarkdownEditor value="updated" onChange={vi.fn()} />)
     expect(lastCmValue).toBe('updated')
+  })
+
+  it('does not fire onChange during programmatic value sync', () => {
+    const handleChange = vi.fn()
+    const { rerender } = render(<MarkdownEditor value="initial" onChange={handleChange} />)
+
+    // Clear any calls from initial render
+    handleChange.mockClear()
+
+    // Rerender with a new value — the sync effect should NOT trigger onChange
+    rerender(<MarkdownEditor value="updated externally" onChange={handleChange} />)
+    expect(handleChange).not.toHaveBeenCalled()
   })
 
   // ── Error / hint display ─────────────────────────────────
@@ -246,5 +278,32 @@ describe('MarkdownEditor', () => {
     const editPanelId = editTab.getAttribute('aria-controls')
     expect(editPanelId).toBeTruthy()
     expect(document.getElementById(editPanelId!)).toBeInTheDocument()
+  })
+
+  it('sets id on CodeMirror contentDOM for label association', () => {
+    render(<MarkdownEditor value="" onChange={vi.fn()} id="my-editor" label="Content" />)
+    expect(lastContentDOM).toBeDefined()
+    expect(lastContentDOM!.id).toBe('my-editor')
+  })
+
+  it('sets aria-invalid and aria-describedby on contentDOM when error is present', () => {
+    render(<MarkdownEditor value="" onChange={vi.fn()} id="ed" error="Required" />)
+    expect(lastContentDOM).toBeDefined()
+    expect(lastContentDOM!.getAttribute('aria-invalid')).toBe('true')
+    expect(lastContentDOM!.getAttribute('aria-describedby')).toBe('ed-error')
+  })
+
+  it('sets aria-describedby pointing to hint when no error', () => {
+    render(<MarkdownEditor value="" onChange={vi.fn()} id="ed" hint="Markdown supported" />)
+    expect(lastContentDOM).toBeDefined()
+    expect(lastContentDOM!.getAttribute('aria-describedby')).toBe('ed-hint')
+    expect(lastContentDOM!.hasAttribute('aria-invalid')).toBe(false)
+  })
+
+  it('sets role=textbox and aria-multiline on contentDOM', () => {
+    render(<MarkdownEditor value="" onChange={vi.fn()} />)
+    expect(lastContentDOM).toBeDefined()
+    expect(lastContentDOM!.getAttribute('role')).toBe('textbox')
+    expect(lastContentDOM!.getAttribute('aria-multiline')).toBe('true')
   })
 })

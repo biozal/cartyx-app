@@ -4,7 +4,6 @@ import remarkGfm from 'remark-gfm'
 import { EditorView, placeholder as cmPlaceholder, keymap } from '@codemirror/view'
 import { EditorState, Compartment } from '@codemirror/state'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { languages } from '@codemirror/language-data'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { syntaxHighlighting } from '@codemirror/language'
 import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark'
@@ -37,6 +36,7 @@ export interface MarkdownEditorProps {
 }
 
 const readOnlyCompartment = new Compartment()
+const placeholderCompartment = new Compartment()
 
 const editorTheme = EditorView.theme({
   '&': {
@@ -114,6 +114,9 @@ export function MarkdownEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
+  const isProgrammaticRef = useRef(false)
+  const editTabRef = useRef<HTMLButtonElement>(null)
+  const previewTabRef = useRef<HTMLButtonElement>(null)
   onChangeRef.current = onChange
 
   useEffect(() => {
@@ -123,15 +126,15 @@ export function MarkdownEditor({
     const state = EditorState.create({
       doc: value,
       extensions: [
-        markdown({ base: markdownLanguage, codeLanguages: languages }),
+        markdown({ base: markdownLanguage }),
         syntaxHighlighting(oneDarkHighlightStyle),
         editorTheme,
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
         readOnlyCompartment.of(EditorState.readOnly.of(disabled)),
-        placeholder ? cmPlaceholder(placeholder) : [],
+        placeholderCompartment.of(placeholder ? cmPlaceholder(placeholder) : []),
         EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
+          if (update.docChanged && !isProgrammaticRef.current) {
             onChangeRef.current(update.state.doc.toString())
           }
         }),
@@ -142,23 +145,30 @@ export function MarkdownEditor({
     const view = new EditorView({ state, parent: container })
     viewRef.current = view
 
+    // Associate focusable content element with label, aria attributes
+    view.contentDOM.id = editorId
+    view.contentDOM.setAttribute('role', 'textbox')
+    view.contentDOM.setAttribute('aria-multiline', 'true')
+
     return () => {
       view.destroy()
       viewRef.current = null
     }
-    // Mount once — value/placeholder handled via separate effects
+    // Mount once — value/placeholder/disabled handled via separate effects
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Sync external value changes into CodeMirror
+  // Sync external value changes into CodeMirror (guarded to prevent bounce-back)
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
     const current = view.state.doc.toString()
     if (current !== value) {
+      isProgrammaticRef.current = true
       view.dispatch({
         changes: { from: 0, to: current.length, insert: value },
       })
+      isProgrammaticRef.current = false
     }
   }, [value])
 
@@ -171,11 +181,57 @@ export function MarkdownEditor({
     })
   }, [disabled])
 
+  // Sync placeholder reactively
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({
+      effects: placeholderCompartment.reconfigure(
+        placeholder ? cmPlaceholder(placeholder) : [],
+      ),
+    })
+  }, [placeholder])
+
+  // Sync aria-describedby and aria-invalid onto the CodeMirror content element
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    const el = view.contentDOM
+
+    const describedBy = error
+      ? `${editorId}-error`
+      : hint
+        ? `${editorId}-hint`
+        : undefined
+    if (describedBy) {
+      el.setAttribute('aria-describedby', describedBy)
+    } else {
+      el.removeAttribute('aria-describedby')
+    }
+
+    if (error) {
+      el.setAttribute('aria-invalid', 'true')
+    } else {
+      el.removeAttribute('aria-invalid')
+    }
+  }, [error, hint, editorId])
+
   const handleTabKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLButtonElement>) => {
-      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      let nextMode: MarkdownEditorMode | null = null
+
+      if (e.key === 'ArrowRight' || e.key === 'End') {
         e.preventDefault()
-        setMode((prev) => (prev === 'edit' ? 'preview' : 'edit'))
+        nextMode = 'preview'
+      } else if (e.key === 'ArrowLeft' || e.key === 'Home') {
+        e.preventDefault()
+        nextMode = 'edit'
+      }
+
+      if (nextMode !== null) {
+        setMode(nextMode)
+        const targetRef = nextMode === 'edit' ? editTabRef : previewTabRef
+        targetRef.current?.focus()
       }
     },
     [],
@@ -208,6 +264,7 @@ export function MarkdownEditor({
       {/* Tab bar */}
       <div className="flex border-b border-white/10" role="tablist" aria-label="Editor mode">
         <button
+          ref={editTabRef}
           type="button"
           role="tab"
           aria-selected={mode === 'edit'}
@@ -226,6 +283,7 @@ export function MarkdownEditor({
           Edit
         </button>
         <button
+          ref={previewTabRef}
           type="button"
           role="tab"
           aria-selected={mode === 'preview'}
@@ -287,7 +345,7 @@ export function MarkdownEditor({
         </p>
       )}
       {!error && hint && (
-        <p className="text-xs text-slate-600 mt-1.5 px-4 pb-3">{hint}</p>
+        <p id={`${editorId}-hint`} className="text-xs text-slate-600 mt-1.5 px-4 pb-3">{hint}</p>
       )}
     </div>
   )
