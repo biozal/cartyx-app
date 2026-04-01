@@ -101,7 +101,7 @@ export function NotesListWidget({
                   {note.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-sans font-bold text-[9px] uppercase tracking-tight"
+                      className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-sans font-bold text-[9px] tracking-tight"
                     >
                       #{tag}
                     </span>
