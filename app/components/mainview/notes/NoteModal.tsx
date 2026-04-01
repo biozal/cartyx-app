@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Globe, Lock, AlertCircle } from 'lucide-react'
 import { FormInput } from '~/components/FormInput'
-import { FormTextarea } from '~/components/FormTextarea'
 import { FormSelect } from '~/components/FormSelect'
 import { PixelButton } from '~/components/PixelButton'
+import { MarkdownEditor } from '~/components/shared/MarkdownEditor'
 import { Session } from '~/services/mocks/sessionsService'
 import { useCreateNote, useUpdateNote, useNote } from '~/hooks/useNotes'
 
@@ -12,9 +12,15 @@ interface NoteModalProps {
   isOpen: boolean
   onClose: () => void
   campaignId: string
-  noteId?: string // If provided, we are editing
+  noteId?: string
   sessions: Session[]
   defaultSessionId?: string
+}
+
+interface FieldErrors {
+  title?: string
+  sessionId?: string
+  content?: string
 }
 
 export function NoteModal({
@@ -25,32 +31,46 @@ export function NoteModal({
   sessions,
   defaultSessionId,
 }: NoteModalProps) {
-  const { note: fetchedNote, isLoading: isLoadingNote } = useNote(noteId ?? '', campaignId)
+  const { note: fetchedNote, isLoading: isFetchingNote } = useNote(noteId ?? '', campaignId)
   const { create, isLoading: isCreating } = useCreateNote()
   const { update, isLoading: isUpdating } = useUpdateNote()
 
   const [title, setTitle] = useState('')
   const [sessionId, setSessionId] = useState('')
   const [content, setContent] = useState('')
-  const [tags, setTags] = useState('')
+  const [tags, setTags] = useState<string[]>([])
+  const [tagInput, setTagInput] = useState('')
   const [isPublic, setIsPublic] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+  const [hasSubmitted, setHasSubmitted] = useState(false)
 
+  const tagInputId = useId()
+
+  // Reset form to blank when switching noteId or opening the modal,
+  // so stale values from a previous note never flash.
+  useEffect(() => {
+    setTitle('')
+    setSessionId(noteId ? '' : defaultSessionId || sessions[0]?.id || '')
+    setContent('')
+    setTags([])
+    setIsPublic(false)
+    setTagInput('')
+    setError(null)
+    setFieldErrors({})
+    setHasSubmitted(false)
+  }, [noteId, defaultSessionId, sessions, isOpen])
+
+  // Populate form once the fetched note resolves in edit mode
   useEffect(() => {
     if (noteId && fetchedNote) {
       setTitle(fetchedNote.title)
       setSessionId(fetchedNote.sessionId)
       setContent(fetchedNote.note)
-      setTags(fetchedNote.tags.join(', '))
+      setTags(fetchedNote.tags)
       setIsPublic(fetchedNote.isPublic)
-    } else if (!noteId) {
-      setTitle('')
-      setSessionId(defaultSessionId || sessions[0]?.id || '')
-      setContent('')
-      setTags('')
-      setIsPublic(false)
     }
-  }, [noteId, fetchedNote, defaultSessionId, sessions, isOpen])
+  }, [noteId, fetchedNote])
 
   const sessionOptions = useMemo(() => sessions.map((s) => ({
     value: s.id,
@@ -59,23 +79,68 @@ export function NoteModal({
 
   const isSessionMissing = sessions.length === 0
 
+  const validate = useCallback((): FieldErrors => {
+    const errors: FieldErrors = {}
+    if (!title.trim()) errors.title = 'Title is required'
+    if (!sessionId) errors.sessionId = 'Session is required'
+    if (!content.trim()) errors.content = 'Note body is required'
+    return errors
+  }, [title, sessionId, content])
+
+  useEffect(() => {
+    if (hasSubmitted) {
+      setFieldErrors(validate())
+    }
+  }, [hasSubmitted, validate])
+
+  const addTag = useCallback((raw: string) => {
+    const cleaned = raw.replace(/^#/, '').trim().toLowerCase()
+    if (cleaned) {
+      setTags((prev) => (prev.includes(cleaned) ? prev : [...prev, cleaned]))
+    }
+    setTagInput('')
+  }, [])
+
+  const handleTagKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      addTag(tagInput)
+    } else if (e.key === 'Backspace' && tagInput === '') {
+      setTags((prev) => (prev.length > 0 ? prev.slice(0, -1) : prev))
+    }
+  }, [tagInput, addTag])
+
+  const removeTag = useCallback((tagToRemove: string) => {
+    setTags((prev) => prev.filter((t) => t !== tagToRemove))
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (isSessionMissing) return
-    
+
+    setHasSubmitted(true)
     setError(null)
 
-    const tagArray = tags
-      .split(',')
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0)
+    const errors = validate()
+    setFieldErrors(errors)
+    if (Object.keys(errors).length > 0) return
+
+    // Flush any pending tag input into state so it's visible and not reprocessed
+    const pendingTag = tagInput.replace(/^#/, '').trim().toLowerCase()
+    let finalTags = tags
+    if (pendingTag) {
+      const merged = tags.includes(pendingTag) ? tags : [...tags, pendingTag]
+      setTags(merged)
+      setTagInput('')
+      finalTags = merged
+    }
 
     const input = {
       campaignId,
       sessionId,
-      title,
-      note: content,
-      tags: tagArray,
+      title: title.trim(),
+      note: content.trim(),
+      tags: finalTags,
       isPublic,
     }
 
@@ -97,11 +162,13 @@ export function NoteModal({
 
   if (!isOpen) return null
 
-  const isLoading = (noteId && isLoadingNote) || isCreating || isUpdating
+  const isLoadingNote = !!(noteId && isFetchingNote)
+  const isSaving = isCreating || isUpdating
+  const isDisabled = isLoadingNote || isSaving
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-2 sm:p-4 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
@@ -109,11 +176,11 @@ export function NoteModal({
       aria-modal="true"
       aria-labelledby="note-modal-title"
     >
-      <form 
+      <form
         onSubmit={handleSubmit}
-        className="w-full max-w-2xl bg-[#0D1117] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+        className="w-full h-full max-w-[90vw] max-h-[90vh] sm:max-w-[90vw] sm:max-h-[90vh] bg-[#0D1117] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
       >
-        <header className="flex items-center justify-between px-6 py-4 border-b border-white/[0.07]">
+        <header className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/[0.07] shrink-0">
           <h2 id="note-modal-title" className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest">
             {noteId ? 'Edit Note' : 'Create Note'}
           </h2>
@@ -127,7 +194,7 @@ export function NoteModal({
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 min-h-0">
           {error && (
             <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-400 text-xs font-semibold">
               {error}
@@ -152,37 +219,85 @@ export function NoteModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. The Traitor's Meeting"
-              required
-              disabled={isLoading || isSessionMissing}
+              disabled={isDisabled || isSessionMissing}
+              error={fieldErrors.title}
             />
             <FormSelect
               label="Session"
               value={sessionId}
               onChange={(e) => setSessionId(e.target.value)}
               options={sessionOptions}
-              disabled={isLoading || isSessionMissing}
-              required
+              disabled={isDisabled || isSessionMissing}
             />
           </div>
 
-          <FormTextarea
+          {fieldErrors.sessionId && (
+            <p className="text-xs text-red-400 -mt-3" role="alert">{fieldErrors.sessionId}</p>
+          )}
+
+          <MarkdownEditor
             label="Note"
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={setContent}
             placeholder="What happened? What did you discover?..."
-            textareaClassName="min-h-[200px]"
-            disabled={isLoading || isSessionMissing}
-            required
+            disabled={isDisabled || isSessionMissing}
+            error={fieldErrors.content}
+            minHeight="16rem"
+            id="note-modal-editor"
           />
 
-          <FormInput
-            label="Tags"
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            placeholder="lore, npc, secret (comma separated)"
-            hint="Tags will be prefixed with # in the list"
-            disabled={isLoading || isSessionMissing}
-          />
+          {/* Tag chips input */}
+          <div>
+            <label htmlFor={tagInputId} className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+              Tags
+            </label>
+            <div
+              className={[
+                'flex flex-wrap items-center gap-1.5 bg-white/[0.04] border rounded-xl px-3 py-2 min-h-[44px] transition-all',
+                'focus-within:border-blue-500/50 border-white/10',
+                (isDisabled || isSessionMissing) ? 'opacity-50 cursor-not-allowed' : '',
+              ].filter(Boolean).join(' ')}
+              onClick={() => document.getElementById(tagInputId)?.focus()}
+            >
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-sans font-bold text-[11px] tracking-tight"
+                >
+                  #{tag}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeTag(tag)
+                    }}
+                    className="ml-0.5 text-blue-400/60 hover:text-blue-300 transition-colors"
+                    aria-label={`Remove tag ${tag}`}
+                    disabled={isDisabled || isSessionMissing}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+              <input
+                id={tagInputId}
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={handleTagKeyDown}
+                onBlur={() => {
+                  if (tagInput.trim()) addTag(tagInput)
+                }}
+                placeholder={tags.length === 0 ? 'Type a tag and press Enter' : ''}
+                disabled={isDisabled || isSessionMissing}
+                className="flex-1 min-w-[120px] bg-transparent border-none outline-none text-slate-200 text-sm placeholder-slate-700"
+                aria-label="Add tag"
+              />
+            </div>
+            <p className="text-xs text-slate-700 mt-1.5">
+              Tags are displayed with # prefix. Press Enter or comma to add.
+            </p>
+          </div>
 
           <div className="flex items-center gap-6 pt-2">
             <label className={`flex items-center gap-3 cursor-pointer group ${isSessionMissing ? 'pointer-events-none opacity-50' : ''}`}>
@@ -192,11 +307,11 @@ export function NoteModal({
                 checked={!isPublic}
                 onChange={() => setIsPublic(false)}
                 className="sr-only"
-                disabled={isLoading || isSessionMissing}
+                disabled={isDisabled || isSessionMissing}
               />
               <div className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
-                !isPublic 
-                  ? 'bg-blue-600/10 border-blue-500/50 text-blue-300 shadow-sm shadow-blue-500/10' 
+                !isPublic
+                  ? 'bg-blue-600/10 border-blue-500/50 text-blue-300 shadow-sm shadow-blue-500/10'
                   : 'bg-white/[0.03] border-white/[0.07] text-slate-500 hover:border-white/20'
               }`}>
                 <Lock className="h-3.5 w-3.5" />
@@ -211,11 +326,11 @@ export function NoteModal({
                 checked={isPublic}
                 onChange={() => setIsPublic(true)}
                 className="sr-only"
-                disabled={isLoading || isSessionMissing}
+                disabled={isDisabled || isSessionMissing}
               />
               <div className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
-                isPublic 
-                  ? 'bg-emerald-600/10 border-emerald-500/50 text-emerald-300 shadow-sm shadow-emerald-500/10' 
+                isPublic
+                  ? 'bg-emerald-600/10 border-emerald-500/50 text-emerald-300 shadow-sm shadow-emerald-500/10'
                   : 'bg-white/[0.03] border-white/[0.07] text-slate-500 hover:border-white/20'
               }`}>
                 <Globe className="h-3.5 w-3.5" />
@@ -225,12 +340,12 @@ export function NoteModal({
           </div>
         </div>
 
-        <footer className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/[0.07] bg-white/[0.01]">
+        <footer className="flex items-center justify-end gap-3 px-4 sm:px-6 py-4 border-t border-white/[0.07] bg-white/[0.01] shrink-0">
           <PixelButton
             variant="secondary"
             size="sm"
             onClick={onClose}
-            disabled={isLoading}
+            disabled={isSaving}
             type="button"
           >
             Cancel
@@ -238,10 +353,10 @@ export function NoteModal({
           <PixelButton
             variant="primary"
             size="sm"
-            disabled={isLoading || isSessionMissing}
+            disabled={isDisabled || isSessionMissing}
             type="submit"
           >
-            {isLoading ? 'Saving...' : noteId ? 'Update Note' : 'Create Note'}
+            {isSaving ? 'Saving...' : isLoadingNote ? 'Loading...' : noteId ? 'Update Note' : 'Create Note'}
           </PixelButton>
         </footer>
       </form>
