@@ -186,6 +186,18 @@ export function MarkdownEditor({
     })
   }, [placeholder])
 
+  // Sync id and aria-labelledby when id/label props change
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.contentDOM.id = editorId
+    if (label) {
+      view.contentDOM.setAttribute('aria-labelledby', labelId)
+    } else {
+      view.contentDOM.removeAttribute('aria-labelledby')
+    }
+  }, [editorId, label, labelId])
+
   // Sync aria-describedby and aria-invalid onto the CodeMirror content element
   useEffect(() => {
     const view = viewRef.current

@@ -289,6 +289,22 @@ describe('MarkdownEditor', () => {
     expect(lastContentDOM!.getAttribute('aria-labelledby')).toBe('my-editor-label')
   })
 
+  it('reactively syncs id and aria-labelledby when id/label props change', () => {
+    const { rerender } = render(
+      <MarkdownEditor value="" onChange={vi.fn()} id="first" label="First label" />,
+    )
+    expect(lastContentDOM!.id).toBe('first')
+    expect(lastContentDOM!.getAttribute('aria-labelledby')).toBe('first-label')
+
+    rerender(<MarkdownEditor value="" onChange={vi.fn()} id="second" label="Second label" />)
+    expect(lastContentDOM!.id).toBe('second')
+    expect(lastContentDOM!.getAttribute('aria-labelledby')).toBe('second-label')
+
+    rerender(<MarkdownEditor value="" onChange={vi.fn()} id="third" />)
+    expect(lastContentDOM!.id).toBe('third')
+    expect(lastContentDOM!.hasAttribute('aria-labelledby')).toBe(false)
+  })
+
   it('does not set aria-labelledby when no label is provided', () => {
     render(<MarkdownEditor value="" onChange={vi.fn()} id="my-editor" />)
     expect(lastContentDOM).toBeDefined()
