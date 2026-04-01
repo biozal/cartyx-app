@@ -9,7 +9,7 @@ const { DEV_FLAGS, enabledFlags } = vi.hoisted(() => {
   const DEV_FLAGS = {
     chat: 'dev-inspector-chat',
     wiki: 'dev-inspector-wiki',
-    notepad: 'dev-inspector-notepad',
+    notes: 'dev-inspector-notes',
     settings: 'dev-inspector-settings',
   }
 
@@ -17,7 +17,7 @@ const { DEV_FLAGS, enabledFlags } = vi.hoisted(() => {
   const enabledFlags = new Set<string>([
     DEV_FLAGS.chat,
     DEV_FLAGS.wiki,
-    DEV_FLAGS.notepad,
+    DEV_FLAGS.notes,
     DEV_FLAGS.settings,
   ])
 
@@ -32,15 +32,19 @@ vi.mock('~/utils/featureFlags', () => ({
   }),
 }))
 
+vi.mock('~/components/mainview/NotesPanel', () => ({
+  NotesPanel: () => <div data-testid="notes-panel"><h2>Notes</h2></div>
+}))
+
 beforeEach(() => {
   isLoadingFlags = false
   vi.stubEnv('VITE_PUBLIC_FF_CHAT', DEV_FLAGS.chat)
   vi.stubEnv('VITE_PUBLIC_FF_WIKI', DEV_FLAGS.wiki)
-  vi.stubEnv('VITE_PUBLIC_FF_NOTEPAD', DEV_FLAGS.notepad)
+  vi.stubEnv('VITE_PUBLIC_FF_NOTES', DEV_FLAGS.notes)
   vi.stubEnv('VITE_PUBLIC_FF_SETTINGS', DEV_FLAGS.settings)
   enabledFlags.add(DEV_FLAGS.chat)
   enabledFlags.add(DEV_FLAGS.wiki)
-  enabledFlags.add(DEV_FLAGS.notepad)
+  enabledFlags.add(DEV_FLAGS.notes)
   enabledFlags.add(DEV_FLAGS.settings)
 })
 
@@ -60,7 +64,7 @@ describe('InspectorSidebar', () => {
     render(<InspectorSidebar />)
     expect(screen.getByTestId('inspector-tab-chat')).toBeInTheDocument()
     expect(screen.getByTestId('inspector-tab-wiki')).toBeInTheDocument()
-    expect(screen.getByTestId('inspector-tab-notepad')).toBeInTheDocument()
+    expect(screen.getByTestId('inspector-tab-notes')).toBeInTheDocument()
     expect(screen.getByTestId('inspector-tab-settings')).toBeInTheDocument()
   })
 
@@ -73,15 +77,14 @@ describe('InspectorSidebar', () => {
     )
   })
 
-  it('switches to notepad panel when notepad tab is clicked', async () => {
+  it('switches to notes panel when notes tab is clicked', async () => {
     const user = userEvent.setup()
     render(<InspectorSidebar />)
-    await user.click(screen.getByTestId('inspector-tab-notepad'))
+    await user.click(screen.getByTestId('inspector-tab-notes'))
     expect(screen.getByTestId('inspector-panel')).toContainElement(
-      screen.getByTestId('notepad-panel')
+      screen.getByTestId('notes-panel')
     )
-    expect(screen.getByRole('heading', { name: 'Notepad' })).toBeInTheDocument()
-    expect(screen.getByTestId('notepad-panel')).toHaveTextContent('Coming Soon')
+    expect(screen.getByRole('heading', { name: 'Notes' })).toBeInTheDocument()
   })
 
   it('switches to settings panel when settings tab is clicked', async () => {
@@ -96,9 +99,9 @@ describe('InspectorSidebar', () => {
   })
 
   it('respects defaultTab prop', () => {
-    render(<InspectorSidebar defaultTab="notepad" />)
+    render(<InspectorSidebar defaultTab="notes" />)
     expect(screen.getByTestId('inspector-panel')).toContainElement(
-      screen.getByTestId('notepad-panel')
+      screen.getByTestId('notes-panel')
     )
   })
 
@@ -159,10 +162,10 @@ describe('InspectorSidebar', () => {
       expect(screen.getByTestId('inspector-tab-chat')).toBeInTheDocument()
     })
 
-    it('hides notepad tab when VITE_PUBLIC_FF_NOTEPAD env var is not set', () => {
-      vi.stubEnv('VITE_PUBLIC_FF_NOTEPAD', '')
+    it('hides notes tab when VITE_PUBLIC_FF_NOTES env var is not set', () => {
+      vi.stubEnv('VITE_PUBLIC_FF_NOTES', '')
       render(<InspectorSidebar />)
-      expect(screen.queryByTestId('inspector-tab-notepad')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('inspector-tab-notes')).not.toBeInTheDocument()
       expect(screen.getByTestId('inspector-tab-chat')).toBeInTheDocument()
     })
 
@@ -187,10 +190,10 @@ describe('InspectorSidebar', () => {
       expect(screen.getByTestId('inspector-tab-chat')).toBeInTheDocument()
     })
 
-    it('hides notepad tab when the PostHog flag is disabled', () => {
-      enabledFlags.delete(DEV_FLAGS.notepad)
+    it('hides notes tab when the PostHog flag is disabled', () => {
+      enabledFlags.delete(DEV_FLAGS.notes)
       render(<InspectorSidebar />)
-      expect(screen.queryByTestId('inspector-tab-notepad')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('inspector-tab-notes')).not.toBeInTheDocument()
       expect(screen.getByTestId('inspector-tab-chat')).toBeInTheDocument()
     })
 

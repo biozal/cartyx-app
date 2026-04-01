@@ -1,0 +1,110 @@
+import React from 'react'
+import { NoteListItem } from '~/server/functions/notes'
+import { Session } from '~/services/mocks/sessionsService'
+import { formatDate, fromNow } from '~/utils/date'
+import { Calendar, Tag, Lock, Globe } from 'lucide-react'
+
+interface NotesListWidgetProps {
+  notes: NoteListItem[]
+  sessions: Session[]
+  isLoading: boolean
+  error: string | null
+  onNoteClick: (note: NoteListItem) => void
+}
+
+export function NotesListWidget({
+  notes,
+  sessions,
+  isLoading,
+  error,
+  onNoteClick,
+}: NotesListWidgetProps) {
+  if (isLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-8">
+        <p className="font-sans font-semibold text-xs text-slate-500 animate-pulse">
+          Loading notes...
+        </p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-8 text-center">
+        <p className="font-sans font-semibold text-xs text-rose-400">
+          {error}
+        </p>
+      </div>
+    )
+  }
+
+  if (notes.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+        <div className="h-12 w-12 rounded-full bg-white/[0.03] flex items-center justify-center mb-3">
+          <Tag className="h-6 w-6 text-slate-600" />
+        </div>
+        <p className="font-sans font-semibold text-xs text-slate-500">
+          No notes found matching your filters.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto min-h-0">
+      <div className="flex flex-col">
+        {notes.map((note) => {
+          const session = sessions.find((s) => s.id === note.sessionId)
+          return (
+            <button
+              key={note.id}
+              type="button"
+              onClick={() => onNoteClick(note)}
+              className="flex flex-col gap-2 p-4 text-left border-b border-white/[0.05] hover:bg-white/[0.03] transition-colors group"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="font-sans font-bold text-sm text-slate-200 group-hover:text-blue-400 transition-colors line-clamp-1">
+                  {note.title}
+                </h3>
+                <div className="shrink-0 pt-0.5">
+                  {note.isPublic ? (
+                    <Globe className="h-3 w-3 text-slate-600" aria-label="Public note" />
+                  ) : (
+                    <Lock className="h-3 w-3 text-slate-600" aria-label="Private note" />
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <div className="flex items-center gap-1.5 text-slate-500">
+                  <Calendar className="h-3 w-3" />
+                  <span className="font-sans font-semibold text-[10px] uppercase tracking-wider">
+                    {session ? `Session ${session.number}` : 'No Session'}
+                  </span>
+                </div>
+                <div className="text-slate-600 font-sans text-[10px] uppercase tracking-wider">
+                  Updated {fromNow(note.updatedAt)}
+                </div>
+              </div>
+
+              {note.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-0.5">
+                  {note.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-sans font-bold text-[9px] uppercase tracking-tight"
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}

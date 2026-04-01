@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import { ChatPanel } from './ChatPanel'
-import { NotepadPanel } from './NotepadPanel'
+import { NotesPanel } from './NotesPanel'
 import { SettingsPanel } from './SettingsPanel'
 import { WikiPanel } from './WikiPanel'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -9,7 +9,7 @@ import { faMessage, faBook, faNoteSticky, faGear } from '@fortawesome/pro-solid-
 import { ChevronRight } from 'lucide-react'
 import { useOptionalFeatureFlag } from '~/utils/featureFlags'
 
-export type InspectorTab = 'chat' | 'wiki' | 'notepad' | 'settings'
+export type InspectorTab = 'chat' | 'wiki' | 'notes' | 'settings'
 
 export interface InspectorSidebarProps {
   defaultTab?: InspectorTab
@@ -19,7 +19,7 @@ export interface InspectorSidebarProps {
 const ALL_TABS: { id: InspectorTab; icon: IconDefinition; label: string }[] = [
   { id: 'chat', icon: faMessage, label: 'Chat' },
   { id: 'wiki', icon: faBook, label: 'Wiki' },
-  { id: 'notepad', icon: faNoteSticky, label: 'Notepad' },
+  { id: 'notes', icon: faNoteSticky, label: 'Notes' },
   { id: 'settings', icon: faGear, label: 'Settings' },
 ]
 
@@ -34,23 +34,23 @@ function panelId(id: InspectorTab) {
 export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: InspectorSidebarProps) {
   const chatFlagName = import.meta.env.VITE_PUBLIC_FF_CHAT ?? ''
   const wikiFlagName = import.meta.env.VITE_PUBLIC_FF_WIKI ?? ''
-  const notepadFlagName = import.meta.env.VITE_PUBLIC_FF_NOTEPAD ?? ''
+  const notesFlagName = import.meta.env.VITE_PUBLIC_FF_NOTES ?? ''
   const settingsFlagName = import.meta.env.VITE_PUBLIC_FF_SETTINGS ?? ''
 
   const chatFlag = useOptionalFeatureFlag(chatFlagName)
   const wikiFlag = useOptionalFeatureFlag(wikiFlagName)
-  const notepadFlag = useOptionalFeatureFlag(notepadFlagName)
+  const notesFlag = useOptionalFeatureFlag(notesFlagName)
   const settingsFlag = useOptionalFeatureFlag(settingsFlagName)
 
   const tabs = useMemo(() => ALL_TABS.filter(tab => {
     if (tab.id === 'chat') return chatFlag.isEnabled
     if (tab.id === 'wiki') return wikiFlag.isEnabled
-    if (tab.id === 'notepad') return notepadFlag.isEnabled
+    if (tab.id === 'notes') return notesFlag.isEnabled
     if (tab.id === 'settings') return settingsFlag.isEnabled
     return true
-  }), [chatFlag.isEnabled, wikiFlag.isEnabled, notepadFlag.isEnabled, settingsFlag.isEnabled])
+  }), [chatFlag.isEnabled, wikiFlag.isEnabled, notesFlag.isEnabled, settingsFlag.isEnabled])
 
-  const isLoading = chatFlag.isLoading || wikiFlag.isLoading || notepadFlag.isLoading || settingsFlag.isLoading
+  const isLoading = chatFlag.isLoading || wikiFlag.isLoading || notesFlag.isLoading || settingsFlag.isLoading
 
   const initialTab = tabs.some(t => t.id === defaultTab) ? defaultTab : (tabs[0]?.id ?? 'chat')
   const [activeTab, setActiveTab] = useState<InspectorTab>(initialTab)
@@ -169,8 +169,8 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
                 <ChatPanel />
               ) : tab.id === 'wiki' ? (
                 <WikiPanel />
-              ) : tab.id === 'notepad' ? (
-                <NotepadPanel />
+              ) : tab.id === 'notes' ? (
+                <NotesPanel />
               ) : tab.id === 'settings' ? (
                 <SettingsPanel />
               ) : (
