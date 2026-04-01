@@ -7,7 +7,7 @@ import { WikiPanel } from './WikiPanel'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faMessage, faBook, faNoteSticky, faGear } from '@fortawesome/pro-solid-svg-icons'
 import { ChevronRight } from 'lucide-react'
-import { useOptionalFeatureFlagEnabled } from '~/utils/featureFlags'
+import { useOptionalFeatureFlag } from '~/utils/featureFlags'
 
 export type InspectorTab = 'chat' | 'wiki' | 'notepad' | 'settings'
 
@@ -33,29 +33,34 @@ function panelId(id: InspectorTab) {
 
 export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: InspectorSidebarProps) {
   const chatFlagName = import.meta.env.VITE_PUBLIC_FF_CHAT ?? ''
+  const wikiFlagName = import.meta.env.VITE_PUBLIC_FF_WIKI ?? ''
   const notepadFlagName = import.meta.env.VITE_PUBLIC_FF_NOTEPAD ?? ''
   const settingsFlagName = import.meta.env.VITE_PUBLIC_FF_SETTINGS ?? ''
 
-  const chatEnabled = useOptionalFeatureFlagEnabled(chatFlagName)
-  const notepadEnabled = useOptionalFeatureFlagEnabled(notepadFlagName)
-  const settingsEnabled = useOptionalFeatureFlagEnabled(settingsFlagName)
+  const chatFlag = useOptionalFeatureFlag(chatFlagName)
+  const wikiFlag = useOptionalFeatureFlag(wikiFlagName)
+  const notepadFlag = useOptionalFeatureFlag(notepadFlagName)
+  const settingsFlag = useOptionalFeatureFlag(settingsFlagName)
 
   const tabs = useMemo(() => ALL_TABS.filter(tab => {
-    if (tab.id === 'chat') return chatEnabled
-    if (tab.id === 'notepad') return notepadEnabled
-    if (tab.id === 'settings') return settingsEnabled
-    return true // wiki is always visible
-  }), [chatEnabled, notepadEnabled, settingsEnabled])
+    if (tab.id === 'chat') return chatFlag.isEnabled
+    if (tab.id === 'wiki') return wikiFlag.isEnabled
+    if (tab.id === 'notepad') return notepadFlag.isEnabled
+    if (tab.id === 'settings') return settingsFlag.isEnabled
+    return true
+  }), [chatFlag.isEnabled, wikiFlag.isEnabled, notepadFlag.isEnabled, settingsFlag.isEnabled])
 
-  const initialTab = tabs.some(t => t.id === defaultTab) ? defaultTab : 'wiki'
+  const isLoading = chatFlag.isLoading || wikiFlag.isLoading || notepadFlag.isLoading || settingsFlag.isLoading
+
+  const initialTab = tabs.some(t => t.id === defaultTab) ? defaultTab : (tabs[0]?.id ?? 'chat')
   const [activeTab, setActiveTab] = useState<InspectorTab>(initialTab)
   const hasInteracted = useRef(false)
   const tablistRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!tabs.some(t => t.id === activeTab)) {
-      // Active tab became unavailable (flag disabled) — fall back to wiki
-      setActiveTab('wiki')
+      // Active tab became unavailable (flag disabled) — fall back to first available
+      setActiveTab(tabs[0]?.id ?? 'chat')
     } else if (!hasInteracted.current && activeTab !== defaultTab && tabs.some(t => t.id === defaultTab)) {
       // Flags finished loading and defaultTab is now available; restore it
       // only if the user has not manually navigated away
@@ -64,6 +69,8 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
   }, [tabs, activeTab, defaultTab])
 
   function handleKeyDown(e: React.KeyboardEvent) {
+    if (tabs.length === 0) return
+
     const currentIndex = tabs.findIndex(t => t.id === activeTab)
     let nextIndex = currentIndex
 
@@ -141,36 +148,42 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
       </div>
 
       {/* Tab panels — one per tab, only active is visible */}
-      {tabs.map((tab) => {
-        const isActive = tab.id === activeTab
-        return (
-          <div
-            key={tab.id}
-            id={panelId(tab.id)}
-            data-testid={isActive ? 'inspector-panel' : undefined}
-            role="tabpanel"
-            aria-labelledby={tabId(tab.id)}
-            hidden={!isActive}
-            className="flex flex-1 w-full"
-          >
-            {tab.id === 'chat' ? (
-              <ChatPanel />
-            ) : tab.id === 'wiki' ? (
-              <WikiPanel />
-            ) : tab.id === 'notepad' ? (
-              <NotepadPanel />
-            ) : tab.id === 'settings' ? (
-              <SettingsPanel />
-            ) : (
-              <div className="flex flex-1 items-center justify-center">
-                <span className="font-sans font-semibold text-xs text-slate-600">
-                  {tab.label} — Coming Soon
-                </span>
-              </div>
-            )}
-          </div>
-        )
-      })}
+      {isLoading && tabs.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center">
+          <p className="font-sans font-semibold text-xs text-slate-500">Loading panels...</p>
+        </div>
+      ) : (
+        tabs.map((tab) => {
+          const isActive = tab.id === activeTab
+          return (
+            <div
+              key={tab.id}
+              id={panelId(tab.id)}
+              data-testid={isActive ? 'inspector-panel' : undefined}
+              role="tabpanel"
+              aria-labelledby={tabId(tab.id)}
+              hidden={!isActive}
+              className="flex flex-1 w-full"
+            >
+              {tab.id === 'chat' ? (
+                <ChatPanel />
+              ) : tab.id === 'wiki' ? (
+                <WikiPanel />
+              ) : tab.id === 'notepad' ? (
+                <NotepadPanel />
+              ) : tab.id === 'settings' ? (
+                <SettingsPanel />
+              ) : (
+                <div className="flex flex-1 items-center justify-center">
+                  <span className="font-sans font-semibold text-xs text-slate-600">
+                    {tab.label} — Coming Soon
+                  </span>
+                </div>
+              )}
+            </div>
+          )
+        })
+      )}
     </div>
   )
 }
