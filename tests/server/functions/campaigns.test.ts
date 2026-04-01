@@ -352,7 +352,7 @@ describe('getCampaign', () => {
 
     expect(Session.find).toHaveBeenCalledWith(
       { campaignId: 'camp-1' },
-      '_id name number startDate endDate'
+      '_id name number startDate endDate isActive'
     )
     expect(result.sessions).toHaveLength(1)
     expect(result.sessions[0].name).toBe('Session 0')
@@ -1019,6 +1019,25 @@ describe('getCampaign — enter-campaign loading regression (#302)', () => {
     expect(result.sessions[0].endDate).toBeNull()
     expect(result.sessions[1].startDate).toBe('2026-01-08T18:00:00.000Z')
     expect(result.sessions[1].endDate).toBe('2026-01-08T22:00:00.000Z')
+  })
+
+  it('includes isActive in serialized session data', async () => {
+    const campaign = makeCampaign()
+    vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    const sessionDocs = [
+      { _id: 'sess-0', name: 'Session 0', number: 0, startDate: new Date('2026-01-01'), endDate: null, isActive: true },
+      { _id: 'sess-1', name: 'Session 1', number: 1, startDate: new Date('2026-01-08'), endDate: new Date('2026-01-08T23:00:00Z'), isActive: false },
+    ]
+    vi.mocked(Session.find).mockReturnValue({
+      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(sessionDocs) }),
+    } as never)
+
+    const result = await _getCampaign({ data: { id: 'camp-1' } }) as {
+      sessions: Array<{ id: string; isActive: boolean }>
+    }
+
+    expect(result.sessions[0].isActive).toBe(true)
+    expect(result.sessions[1].isActive).toBe(false)
   })
 
   it('returns multiple gmScreens for GM entering campaign', async () => {

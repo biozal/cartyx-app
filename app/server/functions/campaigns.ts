@@ -36,6 +36,7 @@ export interface CampaignData {
     number: number
     startDate: string
     endDate: string | null
+    isActive: boolean
   }>
   gmScreens?: Array<{
     id: string
@@ -201,7 +202,7 @@ export const getCampaign = createServerFn({ method: 'GET' })
         ).lean(),
         Session.find(
           { campaignId: c._id },
-          '_id name number startDate endDate'
+          '_id name number startDate endDate isActive'
         ).sort({ number: 1 }).lean(),
         isOwner
           ? GMScreen.find(
@@ -221,12 +222,13 @@ export const getCampaign = createServerFn({ method: 'GET' })
         userId: String(p.userId),
       }))
 
-      const sessions = (sessionDocs as Array<{ _id: unknown; name: unknown; number: unknown; startDate: unknown; endDate: unknown }>).map(s => ({
+      const sessions = (sessionDocs as Array<{ _id: unknown; name: unknown; number: unknown; startDate: unknown; endDate: unknown; isActive: unknown }>).map(s => ({
         id: String(s._id),
         name: s.name as string,
         number: s.number as number,
         startDate: (s.startDate as Date).toISOString(),
         endDate: s.endDate ? (s.endDate as Date).toISOString() : null,
+        isActive: Boolean(s.isActive),
       }))
 
       const gmScreens = gmScreenDocs
