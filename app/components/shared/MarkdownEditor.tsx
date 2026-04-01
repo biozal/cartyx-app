@@ -7,6 +7,7 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { syntaxHighlighting } from '@codemirror/language'
 import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark'
+import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses'
 
 export type MarkdownEditorMode = 'edit' | 'preview'
 
@@ -76,25 +77,6 @@ const editorTheme = EditorView.theme({
   },
 })
 
-const proseClasses = [
-  'prose prose-invert max-w-none',
-  'prose-headings:text-slate-200 prose-headings:font-sans prose-headings:font-semibold',
-  'prose-h1:mb-2 prose-h1:mt-4 prose-h1:text-2xl prose-h1:font-bold prose-h1:text-primary',
-  'prose-h2:mb-2 prose-h2:mt-4 prose-h2:text-xl prose-h2:font-bold prose-h2:text-primary',
-  'prose-h3:mb-1 prose-h3:mt-3 prose-h3:text-lg prose-h3:font-semibold',
-  'prose-h4:mb-1 prose-h4:mt-3 prose-h4:text-base prose-h4:font-semibold',
-  'prose-h5:mb-1 prose-h5:mt-3 prose-h5:text-sm prose-h5:font-semibold',
-  'prose-h6:mb-1 prose-h6:mt-3 prose-h6:text-sm',
-  'prose-p:text-slate-400',
-  'prose-strong:text-slate-300',
-  'prose-a:text-blue-brand',
-  'prose-li:text-slate-400',
-  'prose-blockquote:text-slate-400 prose-blockquote:border-slate-600',
-  'prose-th:text-slate-300 prose-td:text-slate-400',
-  'prose-code:text-slate-300',
-  'text-sm',
-].join(' ')
-
 export function MarkdownEditor({
   value,
   onChange,
@@ -110,6 +92,7 @@ export function MarkdownEditor({
 }: MarkdownEditorProps) {
   const generatedId = useId()
   const editorId = id ?? generatedId
+  const labelId = `${editorId}-label`
   const [mode, setMode] = useState<MarkdownEditorMode>(defaultMode)
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -145,10 +128,16 @@ export function MarkdownEditor({
     const view = new EditorView({ state, parent: container })
     viewRef.current = view
 
-    // Associate focusable content element with label, aria attributes
+    // Associate focusable content element with accessible name and role
     view.contentDOM.id = editorId
     view.contentDOM.setAttribute('role', 'textbox')
     view.contentDOM.setAttribute('aria-multiline', 'true')
+    if (label) {
+      view.contentDOM.setAttribute('aria-labelledby', labelId)
+    }
+    if (disabled) {
+      view.contentDOM.setAttribute('aria-disabled', 'true')
+    }
 
     return () => {
       view.destroy()
@@ -172,13 +161,18 @@ export function MarkdownEditor({
     }
   }, [value])
 
-  // Sync disabled/readOnly
+  // Sync disabled/readOnly and aria-disabled
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
     view.dispatch({
       effects: readOnlyCompartment.reconfigure(EditorState.readOnly.of(disabled)),
     })
+    if (disabled) {
+      view.contentDOM.setAttribute('aria-disabled', 'true')
+    } else {
+      view.contentDOM.removeAttribute('aria-disabled')
+    }
   }, [disabled])
 
   // Sync placeholder reactively
@@ -253,12 +247,13 @@ export function MarkdownEditor({
   return (
     <div className={wrapperCls}>
       {label && (
-        <label
-          htmlFor={editorId}
-          className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide px-4 pt-3"
+        <span
+          id={labelId}
+          className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide px-4 pt-3 cursor-pointer"
+          onClick={() => viewRef.current?.focus()}
         >
           {label}
-        </label>
+        </span>
       )}
 
       {/* Tab bar */}
@@ -324,7 +319,7 @@ export function MarkdownEditor({
         style={{ minHeight }}
       >
         {value.trim() ? (
-          <div className={proseClasses}>
+          <div className={`${MARKDOWN_PROSE_CLASSES} text-sm`}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {value}
             </ReactMarkdown>

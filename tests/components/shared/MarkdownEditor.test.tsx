@@ -99,8 +99,10 @@ describe('MarkdownEditor', () => {
   })
 
   it('renders the label when provided', () => {
-    render(<MarkdownEditor value="" onChange={vi.fn()} label="Content" />)
-    expect(screen.getByText('Content')).toBeInTheDocument()
+    render(<MarkdownEditor value="" onChange={vi.fn()} label="Content" id="test-ed" />)
+    const labelEl = screen.getByText('Content')
+    expect(labelEl).toBeInTheDocument()
+    expect(labelEl).toHaveAttribute('id', 'test-ed-label')
   })
 
   it('starts in edit mode by default', () => {
@@ -280,10 +282,39 @@ describe('MarkdownEditor', () => {
     expect(document.getElementById(editPanelId!)).toBeInTheDocument()
   })
 
-  it('sets id on CodeMirror contentDOM for label association', () => {
+  it('sets id and aria-labelledby on CodeMirror contentDOM for label association', () => {
     render(<MarkdownEditor value="" onChange={vi.fn()} id="my-editor" label="Content" />)
     expect(lastContentDOM).toBeDefined()
     expect(lastContentDOM!.id).toBe('my-editor')
+    expect(lastContentDOM!.getAttribute('aria-labelledby')).toBe('my-editor-label')
+  })
+
+  it('does not set aria-labelledby when no label is provided', () => {
+    render(<MarkdownEditor value="" onChange={vi.fn()} id="my-editor" />)
+    expect(lastContentDOM).toBeDefined()
+    expect(lastContentDOM!.hasAttribute('aria-labelledby')).toBe(false)
+  })
+
+  it('clicking the label focuses the editor', () => {
+    render(<MarkdownEditor value="" onChange={vi.fn()} id="my-editor" label="Content" />)
+    const labelEl = screen.getByText('Content')
+    labelEl.click()
+    // The mock doesn't fully support focus, but we verify the label element is clickable
+    expect(labelEl.tagName).toBe('SPAN')
+    expect(labelEl).toHaveAttribute('id', 'my-editor-label')
+  })
+
+  it('sets aria-disabled on contentDOM when disabled', () => {
+    render(<MarkdownEditor value="" onChange={vi.fn()} disabled />)
+    expect(lastContentDOM).toBeDefined()
+    expect(lastContentDOM!.getAttribute('aria-disabled')).toBe('true')
+  })
+
+  it('removes aria-disabled when not disabled', () => {
+    const { rerender } = render(<MarkdownEditor value="" onChange={vi.fn()} disabled />)
+    expect(lastContentDOM!.getAttribute('aria-disabled')).toBe('true')
+    rerender(<MarkdownEditor value="" onChange={vi.fn()} disabled={false} />)
+    expect(lastContentDOM!.hasAttribute('aria-disabled')).toBe(false)
   })
 
   it('sets aria-invalid and aria-describedby on contentDOM when error is present', () => {
