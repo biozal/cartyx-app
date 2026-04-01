@@ -215,6 +215,47 @@ export const updateNote = createServerFn({ method: 'POST' })
   })
 
 // ---------------------------------------------------------------------------
+// deleteNote
+// ---------------------------------------------------------------------------
+
+const deleteNoteSchema = z.object({
+  id: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
+})
+
+export { deleteNoteSchema }
+
+export const deleteNote = createServerFn({ method: 'POST' })
+  .inputValidator(deleteNoteSchema)
+  .handler(async ({ data }) => {
+    let sessionUserId: string | undefined
+    try {
+      const member = await requireCampaignMember(data.campaignId)
+      sessionUserId = member.sessionUserId
+      const userId = member.userId
+
+      const existing = await Note.findById(data.id)
+      if (!existing) throw new Error('Note not found')
+      if (String(existing.campaignId) !== data.campaignId) throw new Error('Forbidden')
+      if (String(existing.createdBy) !== userId) throw new Error('Forbidden')
+      if (existing.isReadOnly) throw new Error('Note is read-only')
+
+      await existing.deleteOne()
+
+      serverCaptureEvent(sessionUserId, 'note_deleted', {
+        campaign_id: data.campaignId,
+        note_id: data.id,
+        deleted_by: userId,
+      })
+
+      return { success: true }
+    } catch (e) {
+      serverCaptureException(e, sessionUserId, { action: 'deleteNote', noteId: data.id })
+      throw e
+    }
+  })
+
+// ---------------------------------------------------------------------------
 // listNotes
 // ---------------------------------------------------------------------------
 

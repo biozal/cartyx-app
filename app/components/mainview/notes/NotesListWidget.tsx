@@ -1,12 +1,14 @@
 import React, { useMemo } from 'react'
 import { NoteListItem } from '~/server/functions/notes'
-import { Session } from '~/services/mocks/sessionsService'
+import type { CampaignData } from '~/server/functions/campaigns'
 import { fromNow } from '~/utils/date'
 import { Calendar, Tag, Lock, Globe } from 'lucide-react'
 
+type Session = CampaignData['sessions'][number]
+
 interface NotesListWidgetProps {
   notes: NoteListItem[]
-  sessions: Session[]
+  sessions: CampaignData['sessions']
   isLoading: boolean
   error: string | null
   onNoteClick: (note: NoteListItem) => void

@@ -220,11 +220,12 @@ describe('InspectorSidebar', () => {
       expect(screen.queryByRole('tab')).not.toBeInTheDocument()
     })
 
-    it('shows no tabs when all flagged tabs are disabled', () => {
+    it('shows "No panels available" when all flagged tabs are disabled and not loading', () => {
       enabledFlags.clear()
       render(<InspectorSidebar />)
       expect(screen.queryByRole('tab')).not.toBeInTheDocument()
       expect(screen.queryByText('Loading panels...')).not.toBeInTheDocument()
+      expect(screen.getByText('No panels available')).toBeInTheDocument()
     })
 
     it('switches active panel to chat when the active tab flag (wiki) is toggled off at runtime', async () => {

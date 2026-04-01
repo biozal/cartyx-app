@@ -1,41 +1,29 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { NotesFilterWidget } from './NotesFilterWidget'
 import { NotesListWidget } from './NotesListWidget'
 import { NoteModal } from './NoteModal'
 import { useNotes } from '~/hooks/useNotes'
-import { getSessions, Session } from '~/services/mocks/sessionsService'
+import { useCampaign } from '~/hooks/useCampaigns'
 import { NoteListItem } from '~/server/functions/notes'
 
 export function NotesPanel() {
   const { campaignId } = useParams({ from: '/campaigns/$campaignId/play' })
-  
+  const { campaign } = useCampaign(campaignId)
+
   const [search, setSearch] = useState('')
   const [sessionId, setSessionId] = useState('')
   const [visibility, setVisibility] = useState<'all' | 'public' | 'private'>('all')
-  const [sessions, setSessions] = useState<Session[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedNoteId, setSelectedNoteId] = useState<string | undefined>()
+
+  const sessions = campaign?.sessions ?? []
 
   const { notes, isLoading, error } = useNotes(campaignId, {
     search: search || undefined,
     sessionId: sessionId || undefined,
     visibility,
   })
-
-  useEffect(() => {
-    let mounted = true
-    getSessions()
-      .then((data) => {
-        if (mounted) setSessions(data)
-      })
-      .catch((err) => {
-        console.error('Failed to load sessions:', err)
-      })
-    return () => {
-      mounted = false
-    }
-  }, [])
 
   const handleCreateClick = () => {
     setSelectedNoteId(undefined)
