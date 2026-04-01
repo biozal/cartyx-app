@@ -394,7 +394,9 @@ export const createCampaign = createServerFn({ method: 'POST' })
             }], { session: mongoSession }),
             GMScreen.create([{
               campaignId: campaign._id,
-              name: 'Default',
+              name: 'General',
+              tabOrder: 0,
+              createdBy: dbUser._id,
             }], { session: mongoSession }),
           ])
 

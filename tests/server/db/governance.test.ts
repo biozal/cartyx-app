@@ -31,8 +31,12 @@ describe('getSeverity', () => {
     expect(getSeverity('Player', { campaignId: 1, userId: 1 })).toBe('critical')
   })
 
-  it('returns optional for GMScreen campaignId index', () => {
-    expect(getSeverity('GMScreen', { campaignId: 1 })).toBe('optional')
+  it('returns optional for GMScreen campaignId+tabOrder index', () => {
+    expect(getSeverity('GMScreen', { campaignId: 1, tabOrder: 1 })).toBe('optional')
+  })
+
+  it('returns critical for GMScreen campaignId+name unique index', () => {
+    expect(getSeverity('GMScreen', { campaignId: 1, name: 1 })).toBe('critical')
   })
 
   it('returns undefined for unknown model', () => {
