@@ -64,6 +64,11 @@ export const INDEX_GOVERNANCE: Record<string, GovernanceEntry[]> = {
   GMScreen: [
     { key: { campaignId: 1 }, severity: 'optional' },
   ],
+  Note: [
+    { key: { campaignId: 1, createdAt: -1 }, severity: 'optional' },
+    { key: { campaignId: 1, sessionId: 1 }, severity: 'optional' },
+    { key: { campaignId: 1, title: 'text', note: 'text' }, severity: 'optional' },
+  ],
 }
 
 /**

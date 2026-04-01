@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { userMock, campaignMock, playerMock, sessionMock, gmScreenMock } = vi.hoisted(() => {
+const { userMock, campaignMock, playerMock, sessionMock, gmScreenMock, noteMock } = vi.hoisted(() => {
   function make(
     name: string,
     collectionName: string,
@@ -34,6 +34,11 @@ const { userMock, campaignMock, playerMock, sessionMock, gmScreenMock } = vi.hoi
     gmScreenMock: make('GMScreen', 'gmscreen', [
       [{ campaignId: 1 }, {}],
     ]),
+    noteMock: make('Note', 'notes', [
+      [{ campaignId: 1, createdAt: -1 }, {}],
+      [{ campaignId: 1, sessionId: 1 }, {}],
+      [{ campaignId: 1, title: 'text', note: 'text' }, {}],
+    ]),
   }
 })
 
@@ -42,6 +47,7 @@ vi.mock('~/server/db/models/Campaign', () => ({ Campaign: campaignMock }))
 vi.mock('~/server/db/models/Player', () => ({ Player: playerMock }))
 vi.mock('~/server/db/models/Session', () => ({ Session: sessionMock }))
 vi.mock('~/server/db/models/GMScreen', () => ({ GMScreen: gmScreenMock }))
+vi.mock('~/server/db/models/Note', () => ({ Note: noteMock }))
 
 import {
   inspectIndexes,
@@ -50,11 +56,11 @@ import {
   ALL_MODELS,
 } from '~/server/db/inspect'
 
-const allMocks = [userMock, campaignMock, playerMock, sessionMock, gmScreenMock]
+const allMocks = [userMock, campaignMock, playerMock, sessionMock, gmScreenMock, noteMock]
 
 describe('ALL_MODELS', () => {
-  it('contains all five models', () => {
-    expect(ALL_MODELS).toHaveLength(5)
+  it('contains all six models', () => {
+    expect(ALL_MODELS).toHaveLength(6)
   })
 })
 
@@ -87,6 +93,12 @@ describe('inspectIndexes', () => {
     gmScreenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
       { key: { campaignId: 1 } },
+    ])
+    noteMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { campaignId: 1, createdAt: -1 } },
+      { key: { campaignId: 1, sessionId: 1 } },
+      { key: { campaignId: 1, title: 'text', note: 'text' } },
     ])
 
     const result = await inspectIndexes()
@@ -149,6 +161,12 @@ describe('inspectIndexes', () => {
       { key: { _id: 1 } },
       { key: { campaignId: 1 } },
     ])
+    noteMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { campaignId: 1, createdAt: -1 } },
+      { key: { campaignId: 1, sessionId: 1 } },
+      { key: { campaignId: 1, title: 'text', note: 'text' } },
+    ])
 
     const result = await inspectIndexes()
     expect(result.ok).toBe(false)
@@ -194,6 +212,12 @@ describe('inspectIndexes', () => {
     gmScreenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
       { key: { campaignId: 1 } },
+    ])
+    noteMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { campaignId: 1, createdAt: -1 } },
+      { key: { campaignId: 1, sessionId: 1 } },
+      { key: { campaignId: 1, title: 'text', note: 'text' } },
     ])
 
     const result = await inspectIndexes()
@@ -301,6 +325,12 @@ describe('inspectIndexes', () => {
     gmScreenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
       { key: { campaignId: 1 } },
+    ])
+    noteMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { campaignId: 1, createdAt: -1 } },
+      { key: { campaignId: 1, sessionId: 1 } },
+      { key: { campaignId: 1, title: 'text', note: 'text' } },
     ])
 
     const result = await inspectIndexes()
