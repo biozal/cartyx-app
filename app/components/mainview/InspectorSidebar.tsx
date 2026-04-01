@@ -152,6 +152,10 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
         <div className="flex flex-1 items-center justify-center">
           <p className="font-sans font-semibold text-xs text-slate-500">Loading panels...</p>
         </div>
+      ) : tabs.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center">
+          <p className="font-sans font-semibold text-xs text-slate-500">No panels available</p>
+        </div>
       ) : (
         tabs.map((tab) => {
           const isActive = tab.id === activeTab

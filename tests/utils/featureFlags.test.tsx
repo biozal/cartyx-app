@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   FeatureFlagGate,
@@ -6,6 +6,7 @@ import {
   useFeatureFlagEnabled,
   useFeatureFlagPayload,
   useFeatureFlagVariant,
+  useOptionalFeatureFlag,
   useOptionalFeatureFlagEnabled,
 } from '~/utils/featureFlags'
 
@@ -28,6 +29,16 @@ vi.mock('@posthog/react', () => ({
 function OptionalFlagProbe({ flag }: { flag: string }) {
   const enabled = useOptionalFeatureFlagEnabled(flag)
   return <div data-testid="result">{String(enabled)}</div>
+}
+
+function OptionalFlagStateProbe({ flag }: { flag: string }) {
+  const state = useOptionalFeatureFlag(flag)
+  return (
+    <>
+      <div data-testid="isLoading">{String(state.isLoading)}</div>
+      <div data-testid="isEnabled">{String(state.isEnabled)}</div>
+    </>
+  )
 }
 
 function FeatureFlagStateProbe({ flag }: { flag: string }) {
@@ -154,6 +165,44 @@ describe('featureFlags utilities', () => {
       mockUsePostHogFeatureFlagEnabled.mockReturnValue(true)
       render(<OptionalFlagProbe flag="inspector-chat" />)
       expect(screen.getByTestId('result')).toHaveTextContent('true')
+    })
+  })
+
+  describe('useOptionalFeatureFlag timeout', () => {
+    it('reports isLoading true while PostHog has not resolved and timeout has not elapsed', () => {
+      mockUsePostHogFeatureFlagEnabled.mockReturnValue(undefined)
+      render(<OptionalFlagStateProbe flag="inspector-chat" />)
+      expect(screen.getByTestId('isLoading')).toHaveTextContent('true')
+      expect(screen.getByTestId('isEnabled')).toHaveTextContent('false')
+    })
+
+    it('reports isLoading false for an empty flag name even when PostHog returns undefined', () => {
+      mockUsePostHogFeatureFlagEnabled.mockReturnValue(undefined)
+      render(<OptionalFlagStateProbe flag="" />)
+      expect(screen.getByTestId('isLoading')).toHaveTextContent('false')
+    })
+
+    it('stops loading after timeout when PostHog never resolves', () => {
+      vi.useFakeTimers()
+      mockUsePostHogFeatureFlagEnabled.mockReturnValue(undefined)
+      render(<OptionalFlagStateProbe flag="inspector-chat" />)
+
+      expect(screen.getByTestId('isLoading')).toHaveTextContent('true')
+
+      act(() => { vi.advanceTimersByTime(3000) })
+
+      expect(screen.getByTestId('isLoading')).toHaveTextContent('false')
+      expect(screen.getByTestId('isEnabled')).toHaveTextContent('false')
+
+      vi.useRealTimers()
+    })
+
+    it('clears loading immediately when PostHog resolves before timeout', () => {
+      mockUsePostHogFeatureFlagEnabled.mockReturnValue(true)
+      render(<OptionalFlagStateProbe flag="inspector-chat" />)
+
+      expect(screen.getByTestId('isLoading')).toHaveTextContent('false')
+      expect(screen.getByTestId('isEnabled')).toHaveTextContent('true')
     })
   })
 

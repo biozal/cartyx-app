@@ -3,6 +3,7 @@ import {
   listNotes,
   createNote,
   updateNote,
+  deleteNote,
   getNote,
 } from '~/server/functions/notes'
 import type { NoteData, NoteListItem } from '~/server/functions/notes'
@@ -126,6 +127,40 @@ export function useUpdateNote() {
 
   return {
     update,
+    isLoading: mutation.isPending,
+    error: mutation.error instanceof Error ? mutation.error.message : mutation.error ? String(mutation.error) : null,
+  }
+}
+
+interface DeleteNoteInput {
+  id: string
+  campaignId: string
+}
+
+export function useDeleteNote() {
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: async (input: DeleteNoteInput) =>
+      deleteNote({ data: input }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notes.all })
+      queryClient.removeQueries({ queryKey: queryKeys.notes.detail(variables.id) })
+    },
+    onError: (e, variables) => {
+      captureException(e, { action: 'deleteNote', noteId: variables.id })
+    },
+  })
+
+  const remove = async (input: DeleteNoteInput) => {
+    try {
+      return await mutation.mutateAsync(input)
+    } catch {
+      return null
+    }
+  }
+
+  return {
+    remove,
     isLoading: mutation.isPending,
     error: mutation.error instanceof Error ? mutation.error.message : mutation.error ? String(mutation.error) : null,
   }

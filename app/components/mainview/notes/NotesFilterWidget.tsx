@@ -1,6 +1,6 @@
 import React from 'react'
 import { Plus, Search } from 'lucide-react'
-import { Session } from '~/services/mocks/sessionsService'
+import type { CampaignData } from '~/server/functions/campaigns'
 
 interface NotesFilterWidgetProps {
   search: string
@@ -9,7 +9,7 @@ interface NotesFilterWidgetProps {
   onSessionChange: (value: string) => void
   visibility: 'all' | 'public' | 'private'
   onVisibilityChange: (value: 'all' | 'public' | 'private') => void
-  sessions: Session[]
+  sessions: CampaignData['sessions']
   onCreateClick: () => void
 }
 

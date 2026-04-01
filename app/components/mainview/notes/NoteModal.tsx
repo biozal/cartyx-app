@@ -5,15 +5,15 @@ import { FormInput } from '~/components/FormInput'
 import { FormSelect } from '~/components/FormSelect'
 import { PixelButton } from '~/components/PixelButton'
 import { MarkdownEditor } from '~/components/shared/MarkdownEditor'
-import { Session } from '~/services/mocks/sessionsService'
-import { useCreateNote, useUpdateNote, useNote } from '~/hooks/useNotes'
+import type { CampaignData } from '~/server/functions/campaigns'
+import { useCreateNote, useUpdateNote, useDeleteNote, useNote } from '~/hooks/useNotes'
 
 interface NoteModalProps {
   isOpen: boolean
   onClose: () => void
   campaignId: string
   noteId?: string
-  sessions: Session[]
+  sessions: CampaignData['sessions']
   defaultSessionId?: string
 }
 
@@ -34,6 +34,7 @@ export function NoteModal({
   const { note: fetchedNote, isLoading: isFetchingNote } = useNote(noteId ?? '', campaignId)
   const { create, isLoading: isCreating } = useCreateNote()
   const { update, isLoading: isUpdating } = useUpdateNote()
+  const { remove, isLoading: isDeleting } = useDeleteNote()
 
   const [title, setTitle] = useState('')
   const [sessionId, setSessionId] = useState('')
@@ -44,6 +45,7 @@ export function NoteModal({
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [hasSubmitted, setHasSubmitted] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const tagInputId = useId()
 
@@ -59,6 +61,7 @@ export function NoteModal({
     setError(null)
     setFieldErrors({})
     setHasSubmitted(false)
+    setShowDeleteConfirm(false)
   }, [noteId, defaultSessionId, sessions, isOpen])
 
   // Populate form once the fetched note resolves in edit mode
@@ -160,11 +163,23 @@ export function NoteModal({
     }
   }
 
+  const handleDelete = async () => {
+    if (!noteId) return
+    setError(null)
+    const result = await remove({ id: noteId, campaignId })
+    if (result) {
+      onClose()
+    } else {
+      setError('Failed to delete note. Please try again.')
+      setShowDeleteConfirm(false)
+    }
+  }
+
   if (!isOpen) return null
 
   const isLoadingNote = !!(noteId && isFetchingNote)
   const isSaving = isCreating || isUpdating
-  const isDisabled = isLoadingNote || isSaving
+  const isDisabled = isLoadingNote || isSaving || isDeleting
 
   return createPortal(
     <div
@@ -340,24 +355,62 @@ export function NoteModal({
           </div>
         </div>
 
-        <footer className="flex items-center justify-end gap-3 px-4 sm:px-6 py-4 border-t border-white/[0.07] bg-white/[0.01] shrink-0">
-          <PixelButton
-            variant="secondary"
-            size="sm"
-            onClick={onClose}
-            disabled={isSaving}
-            type="button"
-          >
-            Cancel
-          </PixelButton>
-          <PixelButton
-            variant="primary"
-            size="sm"
-            disabled={isDisabled || isSessionMissing}
-            type="submit"
-          >
-            {isSaving ? 'Saving...' : isLoadingNote ? 'Loading...' : noteId ? 'Update Note' : 'Create Note'}
-          </PixelButton>
+        <footer className="flex items-center justify-between px-4 sm:px-6 py-4 border-t border-white/[0.07] bg-white/[0.01] shrink-0">
+          <div>
+            {noteId && !showDeleteConfirm && (
+              <PixelButton
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isDisabled}
+                type="button"
+              >
+                <span className="text-rose-400">Delete</span>
+              </PixelButton>
+            )}
+            {noteId && showDeleteConfirm && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-rose-400 font-semibold">Delete this note?</span>
+                <PixelButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  type="button"
+                >
+                  <span className="text-rose-400">{isDeleting ? 'Deleting...' : 'Yes, delete'}</span>
+                </PixelButton>
+                <PixelButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  type="button"
+                >
+                  Cancel
+                </PixelButton>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <PixelButton
+              variant="secondary"
+              size="sm"
+              onClick={onClose}
+              disabled={isSaving || isDeleting}
+              type="button"
+            >
+              Cancel
+            </PixelButton>
+            <PixelButton
+              variant="primary"
+              size="sm"
+              disabled={isDisabled || isSessionMissing}
+              type="submit"
+            >
+              {isSaving ? 'Saving...' : isLoadingNote ? 'Loading...' : noteId ? 'Update Note' : 'Create Note'}
+            </PixelButton>
+          </div>
         </footer>
       </form>
     </div>,

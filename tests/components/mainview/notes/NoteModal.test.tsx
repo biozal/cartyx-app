@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { NoteModal } from '~/components/mainview/notes/NoteModal'
-import { useCreateNote, useUpdateNote, useNote } from '~/hooks/useNotes'
+import { useCreateNote, useUpdateNote, useDeleteNote, useNote } from '~/hooks/useNotes'
 
 // Mock hooks
 vi.mock('~/hooks/useNotes')
@@ -85,8 +85,8 @@ vi.mock('@codemirror/theme-one-dark', () => ({
 }))
 
 const mockSessions = [
-  { id: 'session-1', number: 1, name: 'First Session', date: '2026-01-01', summary: '' },
-  { id: 'session-2', number: 2, name: 'Second Session', date: '2026-01-08', summary: '' },
+  { id: 'session-1', number: 1, name: 'First Session', startDate: '2026-01-01T00:00:00.000Z', endDate: null },
+  { id: 'session-2', number: 2, name: 'Second Session', startDate: '2026-01-08T00:00:00.000Z', endDate: null },
 ]
 
 const mockNote = {
@@ -104,6 +104,7 @@ const mockNote = {
 
 const mockCreate = vi.fn()
 const mockUpdate = vi.fn()
+const mockRemove = vi.fn()
 
 function renderModal(overrides: Partial<React.ComponentProps<typeof NoteModal>> = {}) {
   const props = {
@@ -136,6 +137,11 @@ describe('NoteModal', () => {
     })
     ;(useUpdateNote as ReturnType<typeof vi.fn>).mockReturnValue({
       update: mockUpdate,
+      isLoading: false,
+      error: null,
+    })
+    ;(useDeleteNote as ReturnType<typeof vi.fn>).mockReturnValue({
+      remove: mockRemove,
       isLoading: false,
       error: null,
     })
@@ -492,6 +498,96 @@ describe('NoteModal', () => {
     const form = screen.getByRole('dialog').querySelector('form')
     expect(form!.className).toContain('w-full')
     expect(form!.className).toContain('h-full')
+  })
+
+  // ── Error handling ──────────────────────────────────────
+
+  // ── Delete ─────────────────────────────────────────────
+
+  it('does not show delete button in create mode', () => {
+    renderModal()
+    expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument()
+  })
+
+  it('shows delete button in edit mode', () => {
+    ;(useNote as ReturnType<typeof vi.fn>).mockReturnValue({
+      note: mockNote,
+      isLoading: false,
+      error: null,
+    })
+    renderModal({ noteId: 'note-1' })
+    expect(screen.getByRole('button', { name: /delete/i })).toBeInTheDocument()
+  })
+
+  it('shows confirmation when delete is clicked', async () => {
+    const user = userEvent.setup()
+    ;(useNote as ReturnType<typeof vi.fn>).mockReturnValue({
+      note: mockNote,
+      isLoading: false,
+      error: null,
+    })
+    renderModal({ noteId: 'note-1' })
+
+    await user.click(screen.getByRole('button', { name: /delete/i }))
+
+    expect(screen.getByText('Delete this note?')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /yes, delete/i })).toBeInTheDocument()
+  })
+
+  it('calls remove and closes modal on confirmed delete', async () => {
+    const user = userEvent.setup()
+    mockRemove.mockResolvedValue({ success: true })
+    ;(useNote as ReturnType<typeof vi.fn>).mockReturnValue({
+      note: mockNote,
+      isLoading: false,
+      error: null,
+    })
+    const { props } = renderModal({ noteId: 'note-1' })
+
+    await user.click(screen.getByRole('button', { name: /delete/i }))
+    await user.click(screen.getByRole('button', { name: /yes, delete/i }))
+
+    await waitFor(() => {
+      expect(mockRemove).toHaveBeenCalledWith({ id: 'note-1', campaignId: 'campaign-123' })
+      expect(props.onClose).toHaveBeenCalled()
+    })
+  })
+
+  it('shows error when delete fails', async () => {
+    const user = userEvent.setup()
+    mockRemove.mockResolvedValue(null)
+    ;(useNote as ReturnType<typeof vi.fn>).mockReturnValue({
+      note: mockNote,
+      isLoading: false,
+      error: null,
+    })
+    renderModal({ noteId: 'note-1' })
+
+    await user.click(screen.getByRole('button', { name: /delete/i }))
+    await user.click(screen.getByRole('button', { name: /yes, delete/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to delete note. Please try again.')).toBeInTheDocument()
+    })
+  })
+
+  it('hides confirmation when cancel is clicked in delete confirm', async () => {
+    const user = userEvent.setup()
+    ;(useNote as ReturnType<typeof vi.fn>).mockReturnValue({
+      note: mockNote,
+      isLoading: false,
+      error: null,
+    })
+    renderModal({ noteId: 'note-1' })
+
+    await user.click(screen.getByRole('button', { name: /delete/i }))
+    expect(screen.getByText('Delete this note?')).toBeInTheDocument()
+
+    // Click the Cancel next to "Yes, delete" (not the main Cancel button)
+    const cancelButtons = screen.getAllByRole('button', { name: /cancel/i })
+    await user.click(cancelButtons[0])
+
+    expect(screen.queryByText('Delete this note?')).not.toBeInTheDocument()
   })
 
   // ── Error handling ──────────────────────────────────────
