@@ -541,13 +541,21 @@ are the single source of truth.
 
 ### Pull Request Checks (`ci.yml`)
 
-Every PR automatically runs:
-1. **Type check** — `npm run typecheck`
-2. **Lint** — `npm run lint`
-3. **Test** — `npm run test:ci` (with coverage)
-4. **Build** — `npm run build`
+Every PR automatically runs two required jobs plus one non-blocking job:
 
-All must pass before merging.
+**Required (must pass to merge):**
+1. **Lint & Test** — type check, lint, unit tests (with coverage)
+2. **Build** — production build verification
+
+**Non-blocking (runs in parallel, failures do not block merge):**
+3. **Storybook Tests** — interaction tests via Vitest + Playwright
+
+Storybook tests run as a separate non-blocking job because core component
+behavior is already covered by unit tests and app-level Playwright/E2E tests.
+Storybook's primary value is as a UI showcase and component reference for
+design/development workflows, not as a release gate. Keeping these interaction
+tests non-blocking preserves visibility into Storybook health without blocking
+delivery on flaky or low-signal failures.
 
 ### Vercel Deployments
 
