@@ -118,4 +118,32 @@ describe('CampaignCard', () => {
     render(<CampaignCard campaign={baseCampaign} />)
     expect(screen.getByText('ACTIVE')).toBeInTheDocument()
   })
+
+  // Regression: responsive layout (#302)
+
+  it('card uses responsive flex layout (stacks on mobile, row on md+)', () => {
+    const { container } = render(<CampaignCard campaign={baseCampaign} />)
+    // Find the content area that uses responsive flex layout
+    const flexContainers = container.querySelectorAll('div')
+    const match = Array.from(flexContainers).find(
+      (el) =>
+        el.classList.contains('flex') &&
+        el.classList.contains('flex-col') &&
+        el.classList.contains('md:flex-row'),
+    )
+    expect(match).toBeInTheDocument()
+  })
+
+  it('renders campaign name even when sessions array is empty', () => {
+    const campaign = { ...baseCampaign, sessions: [] }
+    render(<CampaignCard campaign={campaign} />)
+    expect(screen.getByText('The Lost Mines of Phandelver')).toBeInTheDocument()
+  })
+
+  it('enter button has accessible label with campaign name', () => {
+    render(<CampaignCard campaign={baseCampaign} />)
+    const enterButton = screen.getByLabelText('Enter campaign: The Lost Mines of Phandelver')
+    expect(enterButton).toBeInTheDocument()
+    expect(enterButton.closest('a')).toHaveAttribute('href', '/campaigns/camp-1/play?tab=dashboard')
+  })
 })

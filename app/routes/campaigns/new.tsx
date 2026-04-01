@@ -26,7 +26,7 @@ export const Route = createFileRoute('/campaigns/new')({
 const STEPS = ['THE QUEST', 'THE SCHEDULE', 'THE GATHERING', 'THE ROSTER', 'REVIEW']
 import { TIMEZONES } from '~/constants/timezones'
 
-function NewCampaignPage() {
+export function NewCampaignPage() {
   const navigate = useNavigate()
   const { create, isLoading, error: submitError } = useCreateCampaign()
 

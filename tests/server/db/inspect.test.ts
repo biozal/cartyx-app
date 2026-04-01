@@ -65,6 +65,19 @@ describe('ALL_MODELS', () => {
   it('contains all six models', () => {
     expect(ALL_MODELS).toHaveLength(6)
   })
+
+  // Regression: Session and GMScreen are included in bootstrap (#302)
+
+  it('includes Session model for bootstrap collection/index sync', () => {
+    const names = ALL_MODELS.map((m) => m.modelName)
+    expect(names).toContain('Session')
+  })
+
+  it('includes GMScreen model for bootstrap collection/index sync', () => {
+    const names = ALL_MODELS.map((m) => m.modelName)
+    expect(names).toContain('GMScreen')
+  })
+
 })
 
 describe('inspectIndexes', () => {
