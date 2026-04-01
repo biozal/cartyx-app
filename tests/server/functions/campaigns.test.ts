@@ -380,7 +380,8 @@ describe('getCampaign', () => {
 
     const result = await _getCampaign({ data: { id: 'camp-1' } }) as { gmScreens?: unknown[] }
 
-    expect(!result.gmScreens || result.gmScreens.length === 0).toBe(true)
+    expect(GMScreen.find).not.toHaveBeenCalled()
+    expect(result.gmScreens).toBeUndefined()
   })
 })
 
@@ -441,6 +442,7 @@ describe('createCampaign', () => {
 
     await _createCampaign({ data: { name: 'My Campaign', description: '' } })
 
+    expect(Campaign.create).toHaveBeenCalledTimes(1)
     const createCall = vi.mocked(Campaign.create).mock.calls[0][0] as Array<{ members: Array<{ role: string }> }>
     expect(createCall[0].members).toHaveLength(1)
     expect(createCall[0].members[0].role).toBe('gm')
@@ -451,6 +453,7 @@ describe('createCampaign', () => {
 
     await _createCampaign({ data: { name: 'My Campaign', description: '', links: [{ name: 'Discord', url: 'https://discord.gg/test' }] } })
 
+    expect(Campaign.create).toHaveBeenCalledTimes(1)
     const createCall = vi.mocked(Campaign.create).mock.calls[0][0] as Array<{ links: Array<{ name: string; url: string }> }>
     expect(createCall[0].links).toEqual([{ name: 'Discord', url: 'https://discord.gg/test' }])
   })
@@ -759,6 +762,7 @@ describe('createCampaign with imagePath (direct R2 upload)', () => {
       },
     })
 
+    expect(Campaign.create).toHaveBeenCalledTimes(1)
     const createCall = vi.mocked(Campaign.create).mock.calls[0][0] as Array<{ imagePath: string }>
     expect(createCall[0].imagePath).toBe('https://cdn.example.com/uploads/campaigns/img.webp')
   })
@@ -829,6 +833,7 @@ describe('createCampaign — default document creation regression (#302)', () =>
   it('Session 0 has a startDate set to a Date value', async () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } })
 
+    expect(Session.create).toHaveBeenCalledTimes(1)
     const sessionCreateCall = vi.mocked(Session.create).mock.calls[0][0] as Array<{
       startDate: unknown
       endDate: unknown
@@ -839,6 +844,7 @@ describe('createCampaign — default document creation regression (#302)', () =>
   it('Session 0 has endDate explicitly set to null', async () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } })
 
+    expect(Session.create).toHaveBeenCalledTimes(1)
     const sessionCreateCall = vi.mocked(Session.create).mock.calls[0][0] as Array<{
       endDate: unknown
     }>
@@ -848,6 +854,7 @@ describe('createCampaign — default document creation regression (#302)', () =>
   it('Session 0 has number 0, not 1', async () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } })
 
+    expect(Session.create).toHaveBeenCalledTimes(1)
     const sessionCreateCall = vi.mocked(Session.create).mock.calls[0][0] as Array<{
       number: number
     }>
@@ -857,6 +864,7 @@ describe('createCampaign — default document creation regression (#302)', () =>
   it('GMScreen default name is "Default" with no widgets', async () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } })
 
+    expect(GMScreen.create).toHaveBeenCalledTimes(1)
     const gmCreateCall = vi.mocked(GMScreen.create).mock.calls[0][0] as Array<{
       name: string
       widgets?: unknown[]
@@ -903,6 +911,8 @@ describe('createCampaign — default document creation regression (#302)', () =>
 
     await _createCampaign({ data: { name: 'My Campaign', description: '' } })
 
+    expect(Session.create).toHaveBeenCalledTimes(1)
+    expect(GMScreen.create).toHaveBeenCalledTimes(1)
     const sessionCall = vi.mocked(Session.create).mock.calls[0][0] as Array<{ campaignId: string }>
     const gmCall = vi.mocked(GMScreen.create).mock.calls[0][0] as Array<{ campaignId: string }>
     expect(sessionCall[0].campaignId).toBe('new-camp-id')
@@ -912,6 +922,8 @@ describe('createCampaign — default document creation regression (#302)', () =>
   it('both defaults are created within the same mongo transaction session', async () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } })
 
+    expect(Session.create).toHaveBeenCalledTimes(1)
+    expect(GMScreen.create).toHaveBeenCalledTimes(1)
     const sessionOpts = vi.mocked(Session.create).mock.calls[0][1] as { session: unknown }
     const gmOpts = vi.mocked(GMScreen.create).mock.calls[0][1] as { session: unknown }
     expect(sessionOpts.session).toBeDefined()
@@ -1010,7 +1022,8 @@ describe('getCampaign — enter-campaign loading regression (#302)', () => {
 
     expect(result.sessions).toHaveLength(1)
     expect(result.sessions[0].name).toBe('Session 0')
-    expect(!result.gmScreens || result.gmScreens.length === 0).toBe(true)
+    expect(GMScreen.find).not.toHaveBeenCalled()
+    expect(result.gmScreens).toBeUndefined()
     expect(result.isOwner).toBe(false)
   })
 

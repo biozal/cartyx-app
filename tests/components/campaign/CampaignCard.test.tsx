@@ -123,9 +123,15 @@ describe('CampaignCard', () => {
 
   it('card uses responsive flex layout (stacks on mobile, row on md+)', () => {
     const { container } = render(<CampaignCard campaign={baseCampaign} />)
-    // The content area uses md:flex-row for responsive layout
-    const flexContainer = container.querySelector('.flex.flex-col.md\\:flex-row')
-    expect(flexContainer).toBeInTheDocument()
+    // Find the content area that uses responsive flex layout
+    const flexContainers = container.querySelectorAll('div')
+    const match = Array.from(flexContainers).find(
+      (el) =>
+        el.classList.contains('flex') &&
+        el.classList.contains('flex-col') &&
+        el.classList.contains('md:flex-row'),
+    )
+    expect(match).toBeInTheDocument()
   })
 
   it('card renders without errors for empty sessions and gmScreens', () => {
