@@ -43,7 +43,7 @@ export function useNotes(campaignId: string, filters?: ListNotesFilters) {
 
 export function useNote(id: string, campaignId: string) {
   const { data: note = null, isLoading, error } = useQuery({
-    queryKey: queryKeys.notes.detail(id, campaignId),
+    queryKey: queryKeys.notes.detail(id),
     queryFn: () => getNote({ data: { id, campaignId } }),
     enabled: !!id && !!campaignId,
   })
@@ -69,7 +69,7 @@ export function useCreateNote() {
   const mutation = useMutation({
     mutationFn: async (input: CreateNoteInput) =>
       createNote({ data: input }),
-    onSuccess: (_data, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notes.all })
     },
     onError: (e) => {

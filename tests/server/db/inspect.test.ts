@@ -185,7 +185,7 @@ describe('inspectIndexes', () => {
     const noteSchemaIndexes = noteMock.schema.indexes()
     noteMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      ...noteSchemaIndexes.map(([key, options]) => ({ key, ...(options || {}) })),
+      ...noteSchemaIndexes.map(([key, options]: [Record<string, number>, Record<string, unknown> | undefined]) => ({ key, ...(options || {}) })),
     ])
 
     const result = await inspectIndexes()
