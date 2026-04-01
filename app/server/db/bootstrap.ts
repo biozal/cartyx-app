@@ -95,9 +95,10 @@ async function runBootstrap(policy: BootstrapPolicy): Promise<void> {
   const token = { cancelled: false, action: undefined as string | undefined }
 
   // Bootstrap lifecycle is observed via PostHog events (db.bootstrap.start,
-  // db.bootstrap.success, etc.). We intentionally avoid console.log here —
-  // it adds noise without value since PostHog captures richer structured
-  // data. Errors and warnings still go to stderr via console.error/warn.
+  // db.bootstrap.success, etc.) when PostHog is configured. In environments
+  // without POSTHOG_KEY (e.g. common in local dev), these events are a no-op
+  // and only errors/warnings go to stderr via console.error/warn. We avoid
+  // console.log here to prevent noisy stdout logging in all environments.
   serverCaptureEvent('server', 'db.bootstrap.start', {
     bootstrap_env: env,
     sync_indexes: policy.syncIndexes,
