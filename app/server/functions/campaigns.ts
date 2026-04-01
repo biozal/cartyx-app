@@ -391,6 +391,7 @@ export const createCampaign = createServerFn({ method: 'POST' })
               number: 0,
               startDate: now,
               endDate: null,
+              isActive: true,
             }], { session: mongoSession }),
             GMScreen.create([{
               campaignId: campaign._id,

@@ -511,6 +511,22 @@ describe('createCampaign', () => {
     )
   })
 
+  it('creates Session 0 with isActive set to true', async () => {
+    const created = makeCampaign()
+    vi.mocked(Campaign.create).mockResolvedValue([created] as never)
+
+    await _createCampaign({ data: { name: 'My Campaign', description: '' } })
+
+    expect(Session.create).toHaveBeenCalledWith(
+      [expect.objectContaining({
+        campaignId: 'camp-1',
+        name: 'Session 0',
+        isActive: true,
+      })],
+      expect.objectContaining({ session: expect.anything() })
+    )
+  })
+
   it('creates a default GMScreen document for the new campaign', async () => {
     const created = makeCampaign()
     vi.mocked(Campaign.create).mockResolvedValue([created] as never)
