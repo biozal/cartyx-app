@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Globe, Lock } from 'lucide-react'
+import { X, Globe, Lock, AlertCircle } from 'lucide-react'
 import { FormInput } from '~/components/FormInput'
 import { FormTextarea } from '~/components/FormTextarea'
 import { FormSelect } from '~/components/FormSelect'
 import { PixelButton } from '~/components/PixelButton'
 import { Session } from '~/services/mocks/sessionsService'
-import { NoteData, NoteListItem } from '~/server/functions/notes'
 import { useCreateNote, useUpdateNote, useNote } from '~/hooks/useNotes'
 
 interface NoteModalProps {
@@ -53,13 +52,17 @@ export function NoteModal({
     }
   }, [noteId, fetchedNote, defaultSessionId, sessions, isOpen])
 
-  const sessionOptions = sessions.map((s) => ({
+  const sessionOptions = useMemo(() => sessions.map((s) => ({
     value: s.id,
     label: `Session ${s.number}: ${s.name}`,
-  }))
+  })), [sessions])
+
+  const isSessionMissing = sessions.length === 0
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSessionMissing) return
+    
     setError(null)
 
     const tagArray = tags
@@ -106,7 +109,10 @@ export function NoteModal({
       aria-modal="true"
       aria-labelledby="note-modal-title"
     >
-      <div className="w-full max-w-2xl bg-[#0D1117] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+      <form 
+        onSubmit={handleSubmit}
+        className="w-full max-w-2xl bg-[#0D1117] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+      >
         <header className="flex items-center justify-between px-6 py-4 border-b border-white/[0.07]">
           <h2 id="note-modal-title" className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest">
             {noteId ? 'Edit Note' : 'Create Note'}
@@ -121,10 +127,22 @@ export function NoteModal({
           </button>
         </header>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {error && (
             <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-400 text-xs font-semibold">
               {error}
+            </div>
+          )}
+
+          {isSessionMissing && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-3">
+              <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-amber-200 text-xs font-bold uppercase tracking-wider">Session Required</p>
+                <p className="text-slate-400 text-[11px] leading-relaxed">
+                  You cannot create a note without a session. Please ensure sessions are loaded before creating notes.
+                </p>
+              </div>
             </div>
           )}
 
@@ -135,14 +153,15 @@ export function NoteModal({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. The Traitor's Meeting"
               required
-              disabled={isLoading}
+              disabled={isLoading || isSessionMissing}
             />
             <FormSelect
               label="Session"
               value={sessionId}
               onChange={(e) => setSessionId(e.target.value)}
               options={sessionOptions}
-              disabled={isLoading}
+              disabled={isLoading || isSessionMissing}
+              required
             />
           </div>
 
@@ -152,7 +171,8 @@ export function NoteModal({
             onChange={(e) => setContent(e.target.value)}
             placeholder="What happened? What did you discover?..."
             textareaClassName="min-h-[200px]"
-            disabled={isLoading}
+            disabled={isLoading || isSessionMissing}
+            required
           />
 
           <FormInput
@@ -161,18 +181,18 @@ export function NoteModal({
             onChange={(e) => setTags(e.target.value)}
             placeholder="lore, npc, secret (comma separated)"
             hint="Tags will be prefixed with # in the list"
-            disabled={isLoading}
+            disabled={isLoading || isSessionMissing}
           />
 
           <div className="flex items-center gap-6 pt-2">
-            <label className="flex items-center gap-3 cursor-pointer group">
+            <label className={`flex items-center gap-3 cursor-pointer group ${isSessionMissing ? 'pointer-events-none opacity-50' : ''}`}>
               <input
                 type="radio"
                 name="visibility"
                 checked={!isPublic}
                 onChange={() => setIsPublic(false)}
                 className="sr-only"
-                disabled={isLoading}
+                disabled={isLoading || isSessionMissing}
               />
               <div className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
                 !isPublic 
@@ -184,14 +204,14 @@ export function NoteModal({
               </div>
             </label>
 
-            <label className="flex items-center gap-3 cursor-pointer group">
+            <label className={`flex items-center gap-3 cursor-pointer group ${isSessionMissing ? 'pointer-events-none opacity-50' : ''}`}>
               <input
                 type="radio"
                 name="visibility"
                 checked={isPublic}
                 onChange={() => setIsPublic(true)}
                 className="sr-only"
-                disabled={isLoading}
+                disabled={isLoading || isSessionMissing}
               />
               <div className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
                 isPublic 
@@ -203,7 +223,7 @@ export function NoteModal({
               </div>
             </label>
           </div>
-        </form>
+        </div>
 
         <footer className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/[0.07] bg-white/[0.01]">
           <PixelButton
@@ -218,14 +238,13 @@ export function NoteModal({
           <PixelButton
             variant="primary"
             size="sm"
-            onClick={handleSubmit}
-            disabled={isLoading}
+            disabled={isLoading || isSessionMissing}
             type="submit"
           >
             {isLoading ? 'Saving...' : noteId ? 'Update Note' : 'Create Note'}
           </PixelButton>
         </footer>
-      </div>
+      </form>
     </div>,
     document.body
   )

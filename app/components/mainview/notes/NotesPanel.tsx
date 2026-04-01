@@ -24,7 +24,17 @@ export function NotesPanel() {
   })
 
   useEffect(() => {
-    void getSessions().then(setSessions)
+    let mounted = true
+    getSessions()
+      .then((data) => {
+        if (mounted) setSessions(data)
+      })
+      .catch((err) => {
+        console.error('Failed to load sessions:', err)
+      })
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const handleCreateClick = () => {

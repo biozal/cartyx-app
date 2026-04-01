@@ -1,7 +1,7 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { NoteListItem } from '~/server/functions/notes'
 import { Session } from '~/services/mocks/sessionsService'
-import { formatDate, fromNow } from '~/utils/date'
+import { fromNow } from '~/utils/date'
 import { Calendar, Tag, Lock, Globe } from 'lucide-react'
 
 interface NotesListWidgetProps {
@@ -19,6 +19,13 @@ export function NotesListWidget({
   error,
   onNoteClick,
 }: NotesListWidgetProps) {
+  const sessionMap = useMemo(() => {
+    return sessions.reduce((acc, s) => {
+      acc[s.id] = s
+      return acc
+    }, {} as Record<string, Session>)
+  }, [sessions])
+
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center p-8">
@@ -56,7 +63,7 @@ export function NotesListWidget({
     <div className="flex-1 overflow-y-auto min-h-0">
       <div className="flex flex-col">
         {notes.map((note) => {
-          const session = sessions.find((s) => s.id === note.sessionId)
+          const session = sessionMap[note.sessionId]
           return (
             <button
               key={note.id}

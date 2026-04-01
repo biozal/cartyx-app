@@ -31,6 +31,7 @@ export function NotesFilterWidget({
           <input
             type="text"
             placeholder="Search notes..."
+            aria-label="Search notes"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             className="w-full bg-[#080A12] border border-white/[0.07] rounded px-9 py-2 font-sans font-semibold text-xs text-white outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-600"
