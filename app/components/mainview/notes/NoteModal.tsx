@@ -31,7 +31,7 @@ export function NoteModal({
   sessions,
   defaultSessionId,
 }: NoteModalProps) {
-  const { note: fetchedNote, isLoading: isLoadingNote } = useNote(noteId ?? '', campaignId)
+  const { note: fetchedNote, isLoading: isFetchingNote } = useNote(noteId ?? '', campaignId)
   const { create, isLoading: isCreating } = useCreateNote()
   const { update, isLoading: isUpdating } = useUpdateNote()
 
@@ -47,6 +47,21 @@ export function NoteModal({
 
   const tagInputId = useId()
 
+  // Reset form to blank when switching noteId or opening the modal,
+  // so stale values from a previous note never flash.
+  useEffect(() => {
+    setTitle('')
+    setSessionId(noteId ? '' : defaultSessionId || sessions[0]?.id || '')
+    setContent('')
+    setTags([])
+    setIsPublic(false)
+    setTagInput('')
+    setError(null)
+    setFieldErrors({})
+    setHasSubmitted(false)
+  }, [noteId, defaultSessionId, sessions, isOpen])
+
+  // Populate form once the fetched note resolves in edit mode
   useEffect(() => {
     if (noteId && fetchedNote) {
       setTitle(fetchedNote.title)
@@ -54,18 +69,8 @@ export function NoteModal({
       setContent(fetchedNote.note)
       setTags(fetchedNote.tags)
       setIsPublic(fetchedNote.isPublic)
-    } else if (!noteId) {
-      setTitle('')
-      setSessionId(defaultSessionId || sessions[0]?.id || '')
-      setContent('')
-      setTags([])
-      setIsPublic(false)
     }
-    setTagInput('')
-    setError(null)
-    setFieldErrors({})
-    setHasSubmitted(false)
-  }, [noteId, fetchedNote, defaultSessionId, sessions, isOpen])
+  }, [noteId, fetchedNote])
 
   const sessionOptions = useMemo(() => sessions.map((s) => ({
     value: s.id,
@@ -90,20 +95,20 @@ export function NoteModal({
 
   const addTag = useCallback((raw: string) => {
     const cleaned = raw.replace(/^#/, '').trim().toLowerCase()
-    if (cleaned && !tags.includes(cleaned)) {
-      setTags((prev) => [...prev, cleaned])
+    if (cleaned) {
+      setTags((prev) => (prev.includes(cleaned) ? prev : [...prev, cleaned]))
     }
     setTagInput('')
-  }, [tags])
+  }, [])
 
   const handleTagKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault()
       addTag(tagInput)
-    } else if (e.key === 'Backspace' && tagInput === '' && tags.length > 0) {
-      setTags((prev) => prev.slice(0, -1))
+    } else if (e.key === 'Backspace' && tagInput === '') {
+      setTags((prev) => (prev.length > 0 ? prev.slice(0, -1) : prev))
     }
-  }, [tagInput, tags, addTag])
+  }, [tagInput, addTag])
 
   const removeTag = useCallback((tagToRemove: string) => {
     setTags((prev) => prev.filter((t) => t !== tagToRemove))
@@ -120,11 +125,14 @@ export function NoteModal({
     setFieldErrors(errors)
     if (Object.keys(errors).length > 0) return
 
-    // Flush any pending tag input
-    const finalTags = [...tags]
+    // Flush any pending tag input into state so it's visible and not reprocessed
     const pendingTag = tagInput.replace(/^#/, '').trim().toLowerCase()
-    if (pendingTag && !finalTags.includes(pendingTag)) {
-      finalTags.push(pendingTag)
+    let finalTags = tags
+    if (pendingTag) {
+      const merged = tags.includes(pendingTag) ? tags : [...tags, pendingTag]
+      setTags(merged)
+      setTagInput('')
+      finalTags = merged
     }
 
     const input = {
@@ -154,7 +162,9 @@ export function NoteModal({
 
   if (!isOpen) return null
 
-  const isLoading = (noteId && isLoadingNote) || isCreating || isUpdating
+  const isLoadingNote = !!(noteId && isFetchingNote)
+  const isSaving = isCreating || isUpdating
+  const isDisabled = isLoadingNote || isSaving
 
   return createPortal(
     <div
@@ -209,7 +219,7 @@ export function NoteModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. The Traitor's Meeting"
-              disabled={!!isLoading || isSessionMissing}
+              disabled={isDisabled || isSessionMissing}
               error={fieldErrors.title}
             />
             <FormSelect
@@ -217,7 +227,7 @@ export function NoteModal({
               value={sessionId}
               onChange={(e) => setSessionId(e.target.value)}
               options={sessionOptions}
-              disabled={!!isLoading || isSessionMissing}
+              disabled={isDisabled || isSessionMissing}
             />
           </div>
 
@@ -230,7 +240,7 @@ export function NoteModal({
             value={content}
             onChange={setContent}
             placeholder="What happened? What did you discover?..."
-            disabled={!!isLoading || isSessionMissing}
+            disabled={isDisabled || isSessionMissing}
             error={fieldErrors.content}
             minHeight="16rem"
             id="note-modal-editor"
@@ -245,7 +255,7 @@ export function NoteModal({
               className={[
                 'flex flex-wrap items-center gap-1.5 bg-white/[0.04] border rounded-xl px-3 py-2 min-h-[44px] transition-all',
                 'focus-within:border-blue-500/50 border-white/10',
-                (!!isLoading || isSessionMissing) ? 'opacity-50 cursor-not-allowed' : '',
+                (isDisabled || isSessionMissing) ? 'opacity-50 cursor-not-allowed' : '',
               ].filter(Boolean).join(' ')}
               onClick={() => document.getElementById(tagInputId)?.focus()}
             >
@@ -263,7 +273,7 @@ export function NoteModal({
                     }}
                     className="ml-0.5 text-blue-400/60 hover:text-blue-300 transition-colors"
                     aria-label={`Remove tag ${tag}`}
-                    disabled={!!isLoading || isSessionMissing}
+                    disabled={isDisabled || isSessionMissing}
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -279,7 +289,7 @@ export function NoteModal({
                   if (tagInput.trim()) addTag(tagInput)
                 }}
                 placeholder={tags.length === 0 ? 'Type a tag and press Enter' : ''}
-                disabled={!!isLoading || isSessionMissing}
+                disabled={isDisabled || isSessionMissing}
                 className="flex-1 min-w-[120px] bg-transparent border-none outline-none text-slate-200 text-sm placeholder-slate-700"
                 aria-label="Add tag"
               />
@@ -297,7 +307,7 @@ export function NoteModal({
                 checked={!isPublic}
                 onChange={() => setIsPublic(false)}
                 className="sr-only"
-                disabled={!!isLoading || isSessionMissing}
+                disabled={isDisabled || isSessionMissing}
               />
               <div className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
                 !isPublic
@@ -316,7 +326,7 @@ export function NoteModal({
                 checked={isPublic}
                 onChange={() => setIsPublic(true)}
                 className="sr-only"
-                disabled={!!isLoading || isSessionMissing}
+                disabled={isDisabled || isSessionMissing}
               />
               <div className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
                 isPublic
@@ -335,7 +345,7 @@ export function NoteModal({
             variant="secondary"
             size="sm"
             onClick={onClose}
-            disabled={!!isLoading}
+            disabled={isSaving}
             type="button"
           >
             Cancel
@@ -343,10 +353,10 @@ export function NoteModal({
           <PixelButton
             variant="primary"
             size="sm"
-            disabled={!!isLoading || isSessionMissing}
+            disabled={isDisabled || isSessionMissing}
             type="submit"
           >
-            {isLoading ? 'Saving...' : noteId ? 'Update Note' : 'Create Note'}
+            {isSaving ? 'Saving...' : isLoadingNote ? 'Loading...' : noteId ? 'Update Note' : 'Create Note'}
           </PixelButton>
         </footer>
       </form>

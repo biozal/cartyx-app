@@ -174,8 +174,9 @@ describe('NoteModal', () => {
 
     await user.type(screen.getByLabelText('Title'), 'My Note')
 
-    // Simulate markdown content via CodeMirror mock
-    act(() => { lastCmOnChange?.('Some markdown content') })
+    // Wait for CodeMirror mock to initialize before invoking onChange
+    await waitFor(() => { expect(lastCmOnChange).toBeDefined() })
+    act(() => { lastCmOnChange!('Some markdown content') })
 
     await user.click(screen.getByRole('button', { name: 'Create Note' }))
 
@@ -331,11 +332,11 @@ describe('NoteModal', () => {
     expect(screen.getByRole('tab', { name: 'Preview' })).toBeInTheDocument()
   })
 
-  it('passes content to MarkdownEditor and receives changes', () => {
+  it('passes content to MarkdownEditor and receives changes', async () => {
     renderModal()
-    expect(lastCmOnChange).toBeDefined()
 
-    act(() => { lastCmOnChange?.('Updated markdown') })
+    await waitFor(() => { expect(lastCmOnChange).toBeDefined() })
+    act(() => { lastCmOnChange!('Updated markdown') })
   })
 
   it('shows error styling on MarkdownEditor when validation fails', async () => {
@@ -501,7 +502,9 @@ describe('NoteModal', () => {
     renderModal()
 
     await user.type(screen.getByLabelText('Title'), 'My Note')
-    act(() => { lastCmOnChange?.('Some content') })
+
+    await waitFor(() => { expect(lastCmOnChange).toBeDefined() })
+    act(() => { lastCmOnChange!('Some content') })
 
     await user.click(screen.getByRole('button', { name: 'Create Note' }))
 
