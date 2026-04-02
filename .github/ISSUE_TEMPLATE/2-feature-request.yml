@@ -17,22 +17,6 @@ body:
       required: true
 
   - type: textarea
-    id: motivation
-    attributes:
-      label: Motivation / Use Case
-      description: Why is this needed? What problem does it solve?
-    validations:
-      required: true
-
-  - type: textarea
-    id: proposed-solution
-    attributes:
-      label: Proposed Solution
-      description: How do you envision this working?
-    validations:
-      required: false
-
-  - type: textarea
     id: mockups
     attributes:
       label: Design Mockups / Screenshots
