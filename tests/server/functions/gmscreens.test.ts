@@ -32,6 +32,12 @@ vi.mock('~/server/db/models/GMScreen', () => ({
     deleteOne: vi.fn(),
     bulkWrite: vi.fn(),
   },
+  GMSCREEN_LIMITS: {
+    MAX_WINDOWS: 20,
+    MAX_STACKS: 10,
+    MAX_STACK_ITEMS: 50,
+  },
+  WINDOW_STATES: ['open', 'minimized', 'hidden'] as const,
 }))
 vi.mock('~/server/db/models/Note', () => ({
   Note: {
@@ -63,6 +69,9 @@ import {
   deleteGMScreen,
   reorderGMScreens,
   getGMScreen,
+  openWindow,
+  updateWindow,
+  closeWindow,
   removeDocumentRefsFromScreens,
   listGMScreensSchema,
   createGMScreenSchema,
@@ -70,8 +79,12 @@ import {
   deleteGMScreenSchema,
   reorderGMScreensSchema,
   getGMScreenSchema,
+  openWindowSchema,
+  updateWindowSchema,
+  closeWindowSchema,
+  SUPPORTED_COLLECTIONS,
 } from '~/server/functions/gmscreens'
-import type { GMScreenData, GMScreenDetailData } from '~/server/functions/gmscreens'
+import type { GMScreenData, GMScreenDetailData, WindowData } from '~/server/functions/gmscreens'
 import { serverCaptureEvent, serverCaptureException } from '~/server/utils/posthog'
 
 // ---------------------------------------------------------------------------
@@ -118,6 +131,9 @@ const _renameGMScreen = renameGMScreen as unknown as (args: { data: Record<strin
 const _deleteGMScreen = deleteGMScreen as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean; deletedTabOrder: number; remaining: GMScreenData[] }>
 const _reorderGMScreens = reorderGMScreens as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean; screens: GMScreenData[] }>
 const _getGMScreen = getGMScreen as unknown as (args: { data: Record<string, unknown> }) => Promise<GMScreenDetailData>
+const _openWindow = openWindow as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean; window: WindowData; existed: boolean }>
+const _updateWindow = updateWindow as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean; window: WindowData }>
+const _closeWindow = closeWindow as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean }>
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -988,5 +1004,454 @@ describe('reorderGMScreensSchema', () => {
 
   it('rejects whitespace-only screenId entries', () => {
     expect(reorderGMScreensSchema.safeParse({ campaignId: 'camp-1', screenIds: ['   '] }).success).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// openWindow
+// ---------------------------------------------------------------------------
+
+describe('openWindow', () => {
+  function makeScreenWithWindows(windows: Array<Record<string, unknown>> = []) {
+    return {
+      _id: 'screen-1',
+      campaignId: 'camp-1',
+      windows,
+      updatedAt: new Date('2026-03-01'),
+      save: vi.fn(),
+    }
+  }
+
+  it('creates a new window with zIndex bumped above existing', async () => {
+    const screen = makeScreenWithWindows([
+      { _id: 'win-1', collection: 'note', documentId: 'note-1', state: 'open', zIndex: 3 },
+    ])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    const result = await _openWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', collection: 'note', documentId: 'note-2' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.existed).toBe(false)
+    expect(result.window.collection).toBe('note')
+    expect(result.window.documentId).toBe('note-2')
+    expect(result.window.state).toBe('open')
+    expect(result.window.zIndex).toBe(4)
+    expect(result.window.x).toBeNull()
+    expect(result.window.y).toBeNull()
+    expect(screen.save).toHaveBeenCalled()
+  })
+
+  it('focuses existing window instead of creating duplicate', async () => {
+    const existingWin = { _id: 'win-1', collection: 'note', documentId: 'note-1', state: 'minimized', zIndex: 1 }
+    const otherWin = { _id: 'win-2', collection: 'note', documentId: 'note-2', state: 'open', zIndex: 5 }
+    const screen = makeScreenWithWindows([existingWin, otherWin])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    const result = await _openWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', collection: 'note', documentId: 'note-1' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.existed).toBe(true)
+    expect(result.window.id).toBe('win-1')
+    expect(result.window.state).toBe('open')
+    expect(result.window.zIndex).toBe(6) // max(1,5) + 1
+    expect(screen.save).toHaveBeenCalled()
+  })
+
+  it('enforces the 20-window cap', async () => {
+    const windows = Array.from({ length: 20 }, (_, i) => ({
+      _id: `win-${i}`,
+      collection: 'note',
+      documentId: `note-${i}`,
+      state: 'open',
+      zIndex: i,
+    }))
+    const screen = makeScreenWithWindows(windows)
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    await expect(
+      _openWindow({
+        data: { screenId: 'screen-1', campaignId: 'camp-1', collection: 'note', documentId: 'note-new' },
+      }),
+    ).rejects.toThrow('A screen cannot have more than 20 windows')
+  })
+
+  it('allows opening when at cap if ref already exists (focus path)', async () => {
+    const windows = Array.from({ length: 20 }, (_, i) => ({
+      _id: `win-${i}`,
+      collection: 'note',
+      documentId: `note-${i}`,
+      state: 'open',
+      zIndex: i,
+    }))
+    const screen = makeScreenWithWindows(windows)
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    const result = await _openWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', collection: 'note', documentId: 'note-5' },
+    })
+
+    expect(result.existed).toBe(true)
+    expect(result.success).toBe(true)
+  })
+
+  it('throws when screen is not found', async () => {
+    vi.mocked(GMScreen.findOne).mockResolvedValue(null)
+
+    await expect(
+      _openWindow({
+        data: { screenId: 'nonexistent', campaignId: 'camp-1', collection: 'note', documentId: 'note-1' },
+      }),
+    ).rejects.toThrow('Screen not found')
+  })
+
+  it('creates window with zIndex 1 on empty screen', async () => {
+    const screen = makeScreenWithWindows([])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    const result = await _openWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', collection: 'note', documentId: 'note-1' },
+    })
+
+    expect(result.window.zIndex).toBe(1)
+    expect(result.existed).toBe(false)
+  })
+
+  it('initializes windows array on document when missing', async () => {
+    const screen = {
+      _id: 'screen-1',
+      campaignId: 'camp-1',
+      windows: undefined as Array<Record<string, unknown>> | undefined,
+      updatedAt: new Date('2026-03-01'),
+      save: vi.fn(),
+    }
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    const result = await _openWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', collection: 'note', documentId: 'note-1' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.existed).toBe(false)
+    expect(Array.isArray(screen.windows)).toBe(true)
+    expect(screen.windows).toHaveLength(1)
+    expect(screen.save).toHaveBeenCalled()
+  })
+
+  it('fires gmscreen_window_opened analytics event for new window', async () => {
+    const screen = makeScreenWithWindows([])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    await _openWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', collection: 'note', documentId: 'note-1' },
+    })
+
+    expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'gmscreen_window_opened', expect.objectContaining({
+      campaign_id: 'camp-1',
+      screen_id: 'screen-1',
+    }))
+  })
+
+  it('fires gmscreen_window_focused analytics event for existing window', async () => {
+    const screen = makeScreenWithWindows([
+      { _id: 'win-1', collection: 'note', documentId: 'note-1', state: 'hidden', zIndex: 0 },
+    ])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    await _openWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', collection: 'note', documentId: 'note-1' },
+    })
+
+    expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'gmscreen_window_focused', {
+      campaign_id: 'camp-1',
+      screen_id: 'screen-1',
+      window_id: 'win-1',
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// updateWindow
+// ---------------------------------------------------------------------------
+
+describe('updateWindow', () => {
+  it('updates only provided layout fields via positional $set', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never)
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      lean: vi.fn().mockResolvedValue({
+        windows: [
+          { _id: 'win-1', collection: 'note', documentId: 'note-1', state: 'open', x: 100, y: 200, width: 400, height: 300, zIndex: 5 },
+        ],
+      }),
+    } as never)
+
+    const result = await _updateWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', windowId: 'win-1', x: 100, y: 200 },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.window.x).toBe(100)
+    expect(result.window.y).toBe(200)
+
+    // Verify $set only includes x, y, and updatedAt — not width/height/zIndex/state
+    const setArg = vi.mocked(GMScreen.updateOne).mock.calls[0][1] as { $set: Record<string, unknown> }
+    expect(setArg.$set).toHaveProperty('windows.$.x', 100)
+    expect(setArg.$set).toHaveProperty('windows.$.y', 200)
+    expect(setArg.$set).toHaveProperty('updatedAt')
+    expect(setArg.$set).not.toHaveProperty('windows.$.width')
+    expect(setArg.$set).not.toHaveProperty('windows.$.height')
+    expect(setArg.$set).not.toHaveProperty('windows.$.zIndex')
+    expect(setArg.$set).not.toHaveProperty('windows.$.state')
+  })
+
+  it('updates state to minimized', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never)
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      lean: vi.fn().mockResolvedValue({
+        windows: [
+          { _id: 'win-1', collection: 'note', documentId: 'note-1', state: 'minimized', x: 0, y: 0, width: 400, height: 300, zIndex: 1 },
+        ],
+      }),
+    } as never)
+
+    const result = await _updateWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', windowId: 'win-1', state: 'minimized' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.window.state).toBe('minimized')
+    const setArg = vi.mocked(GMScreen.updateOne).mock.calls[0][1] as { $set: Record<string, unknown> }
+    expect(setArg.$set).toHaveProperty('windows.$.state', 'minimized')
+  })
+
+  it('updates zIndex for bring-to-front', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never)
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      lean: vi.fn().mockResolvedValue({
+        windows: [
+          { _id: 'win-1', collection: 'note', documentId: 'note-1', state: 'open', x: 0, y: 0, width: 400, height: 300, zIndex: 10 },
+        ],
+      }),
+    } as never)
+
+    const result = await _updateWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', windowId: 'win-1', zIndex: 10 },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.window.zIndex).toBe(10)
+  })
+
+  it('updates all fields at once (move + resize + z + state)', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never)
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      lean: vi.fn().mockResolvedValue({
+        windows: [
+          { _id: 'win-1', collection: 'note', documentId: 'note-1', state: 'open', x: 50, y: 60, width: 500, height: 400, zIndex: 7 },
+        ],
+      }),
+    } as never)
+
+    const result = await _updateWindow({
+      data: {
+        screenId: 'screen-1', campaignId: 'camp-1', windowId: 'win-1',
+        x: 50, y: 60, width: 500, height: 400, zIndex: 7, state: 'open',
+      },
+    })
+
+    expect(result.success).toBe(true)
+    const setArg = vi.mocked(GMScreen.updateOne).mock.calls[0][1] as { $set: Record<string, unknown> }
+    expect(setArg.$set).toHaveProperty('windows.$.x', 50)
+    expect(setArg.$set).toHaveProperty('windows.$.y', 60)
+    expect(setArg.$set).toHaveProperty('windows.$.width', 500)
+    expect(setArg.$set).toHaveProperty('windows.$.height', 400)
+    expect(setArg.$set).toHaveProperty('windows.$.zIndex', 7)
+    expect(setArg.$set).toHaveProperty('windows.$.state', 'open')
+  })
+
+  it('accepts nullable x/y for auto-layout support', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never)
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      lean: vi.fn().mockResolvedValue({
+        windows: [
+          { _id: 'win-1', collection: 'note', documentId: 'note-1', state: 'open', x: null, y: null, width: null, height: null, zIndex: 1 },
+        ],
+      }),
+    } as never)
+
+    const result = await _updateWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', windowId: 'win-1', x: null, y: null },
+    })
+
+    expect(result.success).toBe(true)
+    const setArg = vi.mocked(GMScreen.updateOne).mock.calls[0][1] as { $set: Record<string, unknown> }
+    expect(setArg.$set).toHaveProperty('windows.$.x', null)
+    expect(setArg.$set).toHaveProperty('windows.$.y', null)
+  })
+
+  it('throws Screen not found when the screen does not exist', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never)
+    vi.mocked(GMScreen.countDocuments).mockResolvedValue(0 as never)
+
+    await expect(
+      _updateWindow({
+        data: { screenId: 'nonexistent', campaignId: 'camp-1', windowId: 'win-1', x: 10 },
+      }),
+    ).rejects.toThrow('Screen not found')
+  })
+
+  it('throws Window not found when screen exists but window does not', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never)
+    vi.mocked(GMScreen.countDocuments).mockResolvedValue(1 as never)
+
+    await expect(
+      _updateWindow({
+        data: { screenId: 'screen-1', campaignId: 'camp-1', windowId: 'nonexistent', x: 10 },
+      }),
+    ).rejects.toThrow('Window not found')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// closeWindow
+// ---------------------------------------------------------------------------
+
+describe('closeWindow', () => {
+  it('removes a window via $pull and refreshes updatedAt', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never)
+
+    const result = await _closeWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', windowId: 'win-1' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(GMScreen.updateOne).toHaveBeenCalledWith(
+      { _id: 'screen-1', campaignId: 'camp-1', 'windows._id': 'win-1' },
+      {
+        $pull: { windows: { _id: 'win-1' } },
+        $set: { updatedAt: expect.any(Date) },
+      },
+    )
+  })
+
+  it('throws when screen is not found', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never)
+    vi.mocked(GMScreen.countDocuments).mockResolvedValue(0 as never)
+
+    await expect(
+      _closeWindow({
+        data: { screenId: 'nonexistent', campaignId: 'camp-1', windowId: 'win-1' },
+      }),
+    ).rejects.toThrow('Screen not found')
+  })
+
+  it('fires gmscreen_window_closed analytics event', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never)
+
+    await _closeWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', windowId: 'win-1' },
+    })
+
+    expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'gmscreen_window_closed', {
+      campaign_id: 'camp-1',
+      screen_id: 'screen-1',
+      window_id: 'win-1',
+    })
+  })
+
+  it('does not fire analytics or churn state when window was not present (no-op close)', async () => {
+    // matchedCount 0 because the filter includes windows._id — screen exists but window doesn't
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never)
+    vi.mocked(GMScreen.countDocuments).mockResolvedValue(1 as never)
+
+    const result = await _closeWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', windowId: 'nonexistent-win' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(serverCaptureEvent).not.toHaveBeenCalled()
+    // Verify updatedAt was not touched — updateOne filter didn't match, so no $set ran
+    expect(GMScreen.updateOne).toHaveBeenCalledWith(
+      { _id: 'screen-1', campaignId: 'camp-1', 'windows._id': 'nonexistent-win' },
+      expect.anything(),
+    )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Window Zod schemas
+// ---------------------------------------------------------------------------
+
+describe('openWindowSchema', () => {
+  it('rejects empty screenId', () => {
+    expect(openWindowSchema.safeParse({ screenId: '', campaignId: 'c', collection: 'note', documentId: 'd' }).success).toBe(false)
+  })
+
+  it('rejects empty collection', () => {
+    expect(openWindowSchema.safeParse({ screenId: 's', campaignId: 'c', collection: '', documentId: 'd' }).success).toBe(false)
+  })
+
+  it('rejects empty documentId', () => {
+    expect(openWindowSchema.safeParse({ screenId: 's', campaignId: 'c', collection: 'note', documentId: '' }).success).toBe(false)
+  })
+
+  it('rejects unsupported collection', () => {
+    const result = openWindowSchema.safeParse({ screenId: 's', campaignId: 'c', collection: 'bogus', documentId: 'd' })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0].message).toContain('Unsupported collection')
+    }
+  })
+
+  it('accepts valid input', () => {
+    expect(openWindowSchema.safeParse({ screenId: 's-1', campaignId: 'c-1', collection: 'note', documentId: 'd-1' }).success).toBe(true)
+  })
+})
+
+describe('SUPPORTED_COLLECTIONS', () => {
+  it('contains only collections registered for hydration', () => {
+    expect(SUPPORTED_COLLECTIONS).toContain('note')
+    expect(SUPPORTED_COLLECTIONS.length).toBeGreaterThan(0)
+  })
+})
+
+describe('updateWindowSchema', () => {
+  it('rejects empty windowId', () => {
+    expect(updateWindowSchema.safeParse({ screenId: 's', campaignId: 'c', windowId: '' }).success).toBe(false)
+  })
+
+  it('rejects when no updatable fields are provided', () => {
+    expect(updateWindowSchema.safeParse({ screenId: 's', campaignId: 'c', windowId: 'w' }).success).toBe(false)
+  })
+
+  it('rejects invalid state', () => {
+    expect(updateWindowSchema.safeParse({ screenId: 's', campaignId: 'c', windowId: 'w', state: 'invalid' }).success).toBe(false)
+  })
+
+  it('accepts valid state enum values', () => {
+    expect(updateWindowSchema.safeParse({ screenId: 's', campaignId: 'c', windowId: 'w', state: 'open' }).success).toBe(true)
+    expect(updateWindowSchema.safeParse({ screenId: 's', campaignId: 'c', windowId: 'w', state: 'minimized' }).success).toBe(true)
+    expect(updateWindowSchema.safeParse({ screenId: 's', campaignId: 'c', windowId: 'w', state: 'hidden' }).success).toBe(true)
+  })
+
+  it('accepts partial layout fields', () => {
+    expect(updateWindowSchema.safeParse({ screenId: 's', campaignId: 'c', windowId: 'w', x: 100 }).success).toBe(true)
+  })
+
+  it('accepts nullable x and y', () => {
+    expect(updateWindowSchema.safeParse({ screenId: 's', campaignId: 'c', windowId: 'w', x: null, y: null }).success).toBe(true)
+  })
+})
+
+describe('closeWindowSchema', () => {
+  it('rejects empty windowId', () => {
+    expect(closeWindowSchema.safeParse({ screenId: 's', campaignId: 'c', windowId: '' }).success).toBe(false)
+  })
+
+  it('accepts valid input', () => {
+    expect(closeWindowSchema.safeParse({ screenId: 's-1', campaignId: 'c-1', windowId: 'w-1' }).success).toBe(true)
   })
 })
