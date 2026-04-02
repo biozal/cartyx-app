@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { getMe } from '~/server/functions/auth'
+import { useCampaign } from '~/hooks/useCampaigns'
 import { CampaignHeader } from '~/components/mainview/CampaignHeader'
 import { DashboardView } from '~/components/mainview/DashboardView'
 import { MainView } from '~/components/mainview/MainView'
@@ -28,7 +29,11 @@ export const Route = createFileRoute('/campaigns/$campaignId/play')({
 
 function PlayPage() {
   const { tab: activeTab } = Route.useSearch()
+  const { campaignId } = Route.useParams()
   const navigate = Route.useNavigate()
+  const { campaign } = useCampaign(campaignId)
+
+  const activeSession = campaign?.sessions.find(s => s.isActive)
 
   function handleTabChange(tab: TabId) {
     navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, tab }) })
@@ -36,7 +41,13 @@ function PlayPage() {
 
   return (
     <div className="flex flex-col h-screen bg-[#080A12]">
-      <CampaignHeader activeTab={activeTab} onTabChange={handleTabChange} />
+      <CampaignHeader
+        campaignId={campaignId}
+        isOwner={campaign?.isOwner}
+        activeSessionName={activeSession?.name}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+      />
       <div className="flex-1 overflow-hidden">
         <MainView showToolbar={activeTab === 'tabletop'}>
           <div

@@ -1,4 +1,7 @@
 import React, { useRef } from 'react'
+import { Link } from '@tanstack/react-router'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faGear } from '@fortawesome/pro-solid-svg-icons'
 import { UserMenu } from '~/components/shared/UserMenu'
 import { TABS, handleTabsKeyDown } from './TabNavigation'
 import type { TabId } from './TabNavigation'
@@ -6,11 +9,13 @@ import type { TabId } from './TabNavigation'
 export interface CampaignHeaderProps {
   campaignId?: string
   sessionNumber?: number
+  isOwner?: boolean
+  activeSessionName?: string
   activeTab: TabId
   onTabChange: (tab: TabId) => void
 }
 
-export function CampaignHeader({ sessionNumber, activeTab, onTabChange }: CampaignHeaderProps) {
+export function CampaignHeader({ campaignId, sessionNumber, isOwner, activeSessionName, activeTab, onTabChange }: CampaignHeaderProps) {
   const tablistRef = useRef<HTMLDivElement>(null)
 
   return (
@@ -19,8 +24,30 @@ export function CampaignHeader({ sessionNumber, activeTab, onTabChange }: Campai
         CARTYX
       </span>
 
-      {/* Left-center: Session number */}
-      {sessionNumber !== undefined && (
+      {/* Left-center: Active session name + gear (GM only) */}
+      {isOwner && campaignId && (
+        <div className="flex items-center gap-2">
+          <span
+            className={`font-sans text-xs font-semibold whitespace-nowrap ${
+              activeSessionName ? 'text-[#2563EB]' : 'text-slate-500'
+            }`}
+            data-testid="active-session-name"
+          >
+            {activeSessionName ?? 'No Session'}
+          </span>
+          <Link
+            to="/campaigns/$campaignId/sessions"
+            params={{ campaignId }}
+            aria-label="Manage sessions"
+            className="text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            <FontAwesomeIcon icon={faGear} className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      )}
+
+      {/* Left-center: Session number (fallback when session info not shown) */}
+      {!(isOwner && campaignId) && sessionNumber !== undefined && (
         <span className="font-sans font-semibold text-xs text-slate-300 whitespace-nowrap" data-testid="session-number">
           Session {sessionNumber}
         </span>
