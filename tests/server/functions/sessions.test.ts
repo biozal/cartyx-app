@@ -76,8 +76,8 @@ const _updateSession = updateSession as unknown as (args: { data: { sessionId: s
 // ---------------------------------------------------------------------------
 describe('listSessions', () => {
   const baseSessions = [
-    { _id: 's1', name: 'Session 1', number: 1, startDate: new Date('2025-01-01'), endDate: null, isActive: true, summary: null },
-    { _id: 's2', name: 'Session 0', number: 0, startDate: new Date('2024-12-01'), endDate: new Date('2024-12-02'), isActive: false, summary: 'Intro' },
+    { _id: 's1', name: 'Session 1', number: 1, startDate: new Date('2025-01-01'), endDate: null, isActive: true },
+    { _id: 's2', name: 'Session 0', number: 0, startDate: new Date('2024-12-01'), endDate: new Date('2024-12-02'), isActive: false },
   ]
 
   it('returns incomplete sessions by default (no endDate)', async () => {
@@ -89,7 +89,7 @@ describe('listSessions', () => {
 
     expect(Session.find).toHaveBeenCalledWith(
       { campaignId: 'camp-1', endDate: null },
-      '_id name number startDate endDate isActive summary'
+      '_id name number startDate endDate isActive createdAt updatedAt'
     )
     expect(mockSort).toHaveBeenCalledWith({ startDate: -1 })
     expect(result).toEqual([
@@ -100,7 +100,6 @@ describe('listSessions', () => {
         startDate: baseSessions[0].startDate.toISOString(),
         endDate: null,
         isActive: true,
-        summary: null,
       },
     ])
   })
@@ -113,7 +112,7 @@ describe('listSessions', () => {
 
     expect(Session.find).toHaveBeenCalledWith(
       { campaignId: 'camp-1' },
-      '_id name number startDate endDate isActive summary'
+      '_id name number startDate endDate isActive createdAt updatedAt'
     )
     expect(result).toHaveLength(2)
   })
