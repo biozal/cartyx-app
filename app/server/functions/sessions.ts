@@ -81,8 +81,8 @@ export const createSession = createServerFn({ method: 'POST' })
   .inputValidator(
     z.object({
       campaignId: z.string().min(1),
-      name: z.string().min(1),
-      startDate: z.string(),
+      name: z.string().trim().min(1),
+      startDate: z.string().datetime(),
     })
   )
   .handler(async ({ data }) => {
