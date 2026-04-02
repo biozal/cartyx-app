@@ -20,7 +20,7 @@ export const Route = createFileRoute('/campaigns/$campaignId/sessions')({
       queryFn: () => getCampaign({ data: { id: params.campaignId } }),
     })
     if (!campaign) throw redirect({ to: '/campaigns' })
-    if (!campaign.isOwner) throw redirect({ to: '/campaigns/$campaignId/play', params: { campaignId: params.campaignId } })
+    if (!campaign.isOwner) throw redirect({ to: '/campaigns/$campaignId/play', params: { campaignId: params.campaignId }, search: { tab: 'dashboard' } })
     return { user }
   },
   component: SessionsPage,
