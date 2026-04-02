@@ -1119,6 +1119,27 @@ describe('openWindow', () => {
     expect(result.existed).toBe(false)
   })
 
+  it('initializes windows array on document when missing', async () => {
+    const screen = {
+      _id: 'screen-1',
+      campaignId: 'camp-1',
+      windows: undefined as Array<Record<string, unknown>> | undefined,
+      updatedAt: new Date('2026-03-01'),
+      save: vi.fn(),
+    }
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    const result = await _openWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', collection: 'note', documentId: 'note-1' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.existed).toBe(false)
+    expect(Array.isArray(screen.windows)).toBe(true)
+    expect(screen.windows).toHaveLength(1)
+    expect(screen.save).toHaveBeenCalled()
+  })
+
   it('fires gmscreen_window_opened analytics event for new window', async () => {
     const screen = makeScreenWithWindows([])
     vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
@@ -1326,6 +1347,17 @@ describe('closeWindow', () => {
       window_id: 'win-1',
     })
   })
+
+  it('does not fire analytics when window was not present (no-op close)', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 0 } as never)
+
+    const result = await _closeWindow({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', windowId: 'nonexistent-win' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(serverCaptureEvent).not.toHaveBeenCalled()
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -1353,6 +1385,10 @@ describe('openWindowSchema', () => {
 describe('updateWindowSchema', () => {
   it('rejects empty windowId', () => {
     expect(updateWindowSchema.safeParse({ screenId: 's', campaignId: 'c', windowId: '' }).success).toBe(false)
+  })
+
+  it('rejects when no updatable fields are provided', () => {
+    expect(updateWindowSchema.safeParse({ screenId: 's', campaignId: 'c', windowId: 'w' }).success).toBe(false)
   })
 
   it('rejects invalid state', () => {

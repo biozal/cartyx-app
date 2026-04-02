@@ -702,7 +702,10 @@ export const openWindow = createServerFn({ method: 'POST' })
       })
       if (!screen) throw new Error('Screen not found')
 
-      const windows = screen.windows ?? []
+      if (!screen.windows) {
+        screen.windows = []
+      }
+      const windows = screen.windows
 
       // Check for existing window with same ref
       const existing = windows.find(
@@ -797,7 +800,10 @@ const updateWindowSchema = z.object({
   height: z.number().nullable().optional(),
   zIndex: z.number().optional(),
   state: z.enum(WINDOW_STATES).optional(),
-})
+}).refine(
+  (d) => d.x !== undefined || d.y !== undefined || d.width !== undefined || d.height !== undefined || d.zIndex !== undefined || d.state !== undefined,
+  { message: 'At least one updatable field (x, y, width, height, zIndex, state) is required' },
+)
 
 export { updateWindowSchema }
 
@@ -893,11 +899,13 @@ export const closeWindow = createServerFn({ method: 'POST' })
         throw new Error('Screen not found')
       }
 
-      serverCaptureEvent(sessionUserId, 'gmscreen_window_closed', {
-        campaign_id: data.campaignId,
-        screen_id: data.screenId,
-        window_id: data.windowId,
-      })
+      if (result.modifiedCount > 0) {
+        serverCaptureEvent(sessionUserId, 'gmscreen_window_closed', {
+          campaign_id: data.campaignId,
+          screen_id: data.screenId,
+          window_id: data.windowId,
+        })
+      }
 
       return { success: true }
     } catch (e) {
