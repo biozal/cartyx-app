@@ -28,8 +28,14 @@ vi.mock('~/server/db/models/GMScreen', () => ({
     create: vi.fn(),
     countDocuments: vi.fn(),
     updateOne: vi.fn(),
+    updateMany: vi.fn(),
     deleteOne: vi.fn(),
     bulkWrite: vi.fn(),
+  },
+}))
+vi.mock('~/server/db/models/Note', () => ({
+  Note: {
+    find: vi.fn(),
   },
 }))
 vi.mock('~/server/utils/posthog', () => ({
@@ -49,19 +55,23 @@ import { getSession } from '~/server/session'
 import { User } from '~/server/db/models/User'
 import { Campaign } from '~/server/db/models/Campaign'
 import { GMScreen } from '~/server/db/models/GMScreen'
+import { Note } from '~/server/db/models/Note'
 import {
   listGMScreens,
   createGMScreen,
   renameGMScreen,
   deleteGMScreen,
   reorderGMScreens,
+  getGMScreen,
+  removeDocumentRefsFromScreens,
   listGMScreensSchema,
   createGMScreenSchema,
   renameGMScreenSchema,
   deleteGMScreenSchema,
   reorderGMScreensSchema,
+  getGMScreenSchema,
 } from '~/server/functions/gmscreens'
-import type { GMScreenData } from '~/server/functions/gmscreens'
+import type { GMScreenData, GMScreenDetailData } from '~/server/functions/gmscreens'
 import { serverCaptureEvent, serverCaptureException } from '~/server/utils/posthog'
 
 // ---------------------------------------------------------------------------
@@ -107,6 +117,7 @@ const _createGMScreen = createGMScreen as unknown as (args: { data: Record<strin
 const _renameGMScreen = renameGMScreen as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean; screen: GMScreenData }>
 const _deleteGMScreen = deleteGMScreen as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean; deletedTabOrder: number; remaining: GMScreenData[] }>
 const _reorderGMScreens = reorderGMScreens as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean; screens: GMScreenData[] }>
+const _getGMScreen = getGMScreen as unknown as (args: { data: Record<string, unknown> }) => Promise<GMScreenDetailData>
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -631,8 +642,258 @@ describe('reorderGMScreens', () => {
 })
 
 // ---------------------------------------------------------------------------
+// getGMScreen — hydration
+// ---------------------------------------------------------------------------
+
+describe('getGMScreen', () => {
+  it('returns a screen with hydrated window and stack refs', async () => {
+    const screenDoc = {
+      _id: 'screen-1',
+      campaignId: 'camp-1',
+      name: 'General',
+      tabOrder: 0,
+      createdBy: 'dbuser-1',
+      createdAt: new Date('2026-03-01'),
+      updatedAt: new Date('2026-03-01'),
+      windows: [
+        { _id: 'win-1', collection: 'note', documentId: 'note-1', state: 'open', x: 10, y: 20, width: 400, height: 300, zIndex: 1 },
+        { _id: 'win-2', collection: 'note', documentId: 'note-2', state: 'minimized', x: null, y: null, width: null, height: null, zIndex: 0 },
+      ],
+      stacks: [
+        {
+          _id: 'stack-1',
+          name: 'NPCs',
+          x: 0,
+          y: 0,
+          items: [
+            { _id: 'si-1', collection: 'note', documentId: 'note-3', label: 'Gandalf' },
+          ],
+        },
+      ],
+    }
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      lean: vi.fn().mockResolvedValue(screenDoc),
+    } as never)
+    // Note.find batch fetch for hydration — all three note IDs
+    vi.mocked(Note.find).mockReturnValue({
+      lean: vi.fn().mockResolvedValue([
+        { _id: 'note-1', title: 'Session Notes' },
+        { _id: 'note-2', title: 'Combat Log' },
+        { _id: 'note-3', title: 'NPC: Gandalf' },
+      ]),
+    } as never)
+
+    const result = await _getGMScreen({ data: { id: 'screen-1', campaignId: 'camp-1' } })
+
+    expect(result.id).toBe('screen-1')
+    expect(result.windows).toHaveLength(2)
+    expect(result.windows[0].id).toBe('win-1')
+    expect(result.windows[0].collection).toBe('note')
+    expect(result.windows[0].documentId).toBe('note-1')
+    expect(result.windows[1].state).toBe('minimized')
+    expect(result.stacks).toHaveLength(1)
+    expect(result.stacks[0].name).toBe('NPCs')
+    expect(result.stacks[0].items).toHaveLength(1)
+    expect(result.stacks[0].items[0].label).toBe('Gandalf')
+
+    // Hydrated map keyed by "collection:documentId"
+    expect(result.hydrated['note:note-1']).toEqual({ id: 'note-1', collection: 'note', title: 'Session Notes' })
+    expect(result.hydrated['note:note-2']).toEqual({ id: 'note-2', collection: 'note', title: 'Combat Log' })
+    expect(result.hydrated['note:note-3']).toEqual({ id: 'note-3', collection: 'note', title: 'NPC: Gandalf' })
+
+    // Note.find was called once with all unique IDs batched together
+    expect(Note.find).toHaveBeenCalledTimes(1)
+    expect(Note.find).toHaveBeenCalledWith(
+      { _id: { $in: expect.arrayContaining(['note-1', 'note-2', 'note-3']) } },
+      '_id title',
+    )
+  })
+
+  it('returns empty hydrated map when screen has no refs', async () => {
+    const screenDoc = {
+      _id: 'screen-1',
+      campaignId: 'camp-1',
+      name: 'Empty',
+      tabOrder: 0,
+      createdBy: 'dbuser-1',
+      createdAt: new Date('2026-03-01'),
+      updatedAt: new Date('2026-03-01'),
+      windows: [],
+      stacks: [],
+    }
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      lean: vi.fn().mockResolvedValue(screenDoc),
+    } as never)
+
+    const result = await _getGMScreen({ data: { id: 'screen-1', campaignId: 'camp-1' } })
+
+    expect(result.windows).toEqual([])
+    expect(result.stacks).toEqual([])
+    expect(result.hydrated).toEqual({})
+    expect(Note.find).not.toHaveBeenCalled()
+  })
+
+  it('omits deleted/missing documents from hydrated map gracefully', async () => {
+    const screenDoc = {
+      _id: 'screen-1',
+      campaignId: 'camp-1',
+      name: 'General',
+      tabOrder: 0,
+      createdBy: 'dbuser-1',
+      createdAt: new Date('2026-03-01'),
+      updatedAt: new Date('2026-03-01'),
+      windows: [
+        { _id: 'win-1', collection: 'note', documentId: 'note-1', state: 'open', x: 0, y: 0, width: 400, height: 300, zIndex: 0 },
+        { _id: 'win-2', collection: 'note', documentId: 'note-deleted', state: 'open', x: 0, y: 0, width: 400, height: 300, zIndex: 0 },
+      ],
+      stacks: [],
+    }
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      lean: vi.fn().mockResolvedValue(screenDoc),
+    } as never)
+    // Only note-1 exists; note-deleted is missing from DB
+    vi.mocked(Note.find).mockReturnValue({
+      lean: vi.fn().mockResolvedValue([{ _id: 'note-1', title: 'Existing Note' }]),
+    } as never)
+
+    const result = await _getGMScreen({ data: { id: 'screen-1', campaignId: 'camp-1' } })
+
+    expect(result.hydrated['note:note-1']).toBeDefined()
+    expect(result.hydrated['note:note-deleted']).toBeUndefined()
+    // Window ref is still present — client can detect unresolved ref
+    expect(result.windows).toHaveLength(2)
+  })
+
+  it('skips unknown collection types without error', async () => {
+    const screenDoc = {
+      _id: 'screen-1',
+      campaignId: 'camp-1',
+      name: 'Mixed',
+      tabOrder: 0,
+      createdBy: 'dbuser-1',
+      createdAt: new Date('2026-03-01'),
+      updatedAt: new Date('2026-03-01'),
+      windows: [
+        { _id: 'win-1', collection: 'unknown_type', documentId: 'doc-1', state: 'open', x: 0, y: 0, width: 400, height: 300, zIndex: 0 },
+      ],
+      stacks: [],
+    }
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      lean: vi.fn().mockResolvedValue(screenDoc),
+    } as never)
+
+    const result = await _getGMScreen({ data: { id: 'screen-1', campaignId: 'camp-1' } })
+
+    expect(result.windows).toHaveLength(1)
+    expect(result.hydrated).toEqual({})
+    expect(Note.find).not.toHaveBeenCalled()
+  })
+
+  it('deduplicates refs when same document appears in multiple windows/stacks', async () => {
+    const screenDoc = {
+      _id: 'screen-1',
+      campaignId: 'camp-1',
+      name: 'Dupes',
+      tabOrder: 0,
+      createdBy: 'dbuser-1',
+      createdAt: new Date('2026-03-01'),
+      updatedAt: new Date('2026-03-01'),
+      windows: [
+        { _id: 'win-1', collection: 'note', documentId: 'note-1', state: 'open', x: 0, y: 0, width: 400, height: 300, zIndex: 0 },
+      ],
+      stacks: [
+        {
+          _id: 'stack-1',
+          name: 'Refs',
+          x: 0,
+          y: 0,
+          items: [
+            { _id: 'si-1', collection: 'note', documentId: 'note-1', label: 'Same Note' },
+          ],
+        },
+      ],
+    }
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      lean: vi.fn().mockResolvedValue(screenDoc),
+    } as never)
+    vi.mocked(Note.find).mockReturnValue({
+      lean: vi.fn().mockResolvedValue([{ _id: 'note-1', title: 'Shared Note' }]),
+    } as never)
+
+    const result = await _getGMScreen({ data: { id: 'screen-1', campaignId: 'camp-1' } })
+
+    // Only one fetch call despite same ID appearing twice
+    expect(Note.find).toHaveBeenCalledTimes(1)
+    const fetchedIds = vi.mocked(Note.find).mock.calls[0][0] as unknown as { _id: { $in: string[] } }
+    expect(fetchedIds._id.$in).toHaveLength(1)
+    expect(result.hydrated['note:note-1'].title).toBe('Shared Note')
+  })
+
+  it('throws when screen is not found', async () => {
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      lean: vi.fn().mockResolvedValue(null),
+    } as never)
+
+    await expect(
+      _getGMScreen({ data: { id: 'nonexistent', campaignId: 'camp-1' } }),
+    ).rejects.toThrow('Screen not found')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// removeDocumentRefsFromScreens — cleanup
+// ---------------------------------------------------------------------------
+
+describe('removeDocumentRefsFromScreens', () => {
+  it('removes matching window refs and stack items', async () => {
+    vi.mocked(GMScreen.updateMany)
+      .mockResolvedValueOnce({ modifiedCount: 2 } as never) // windows
+      .mockResolvedValueOnce({ modifiedCount: 1 } as never) // stacks
+
+    const result = await removeDocumentRefsFromScreens('camp-1', 'note', 'note-1')
+
+    expect(GMScreen.updateMany).toHaveBeenCalledTimes(2)
+    // Phase 1: pull from windows
+    expect(GMScreen.updateMany).toHaveBeenNthCalledWith(1,
+      { campaignId: 'camp-1', 'windows.collection': 'note', 'windows.documentId': 'note-1' },
+      { $pull: { windows: { collection: 'note', documentId: 'note-1' } } },
+    )
+    // Phase 2: pull from stacks.$[].items
+    expect(GMScreen.updateMany).toHaveBeenNthCalledWith(2,
+      { campaignId: 'camp-1', 'stacks.items.collection': 'note', 'stacks.items.documentId': 'note-1' },
+      { $pull: { 'stacks.$[].items': { collection: 'note', documentId: 'note-1' } } },
+    )
+    expect(result).toBe(2)
+  })
+
+  it('returns 0 when no screens reference the document', async () => {
+    vi.mocked(GMScreen.updateMany)
+      .mockResolvedValueOnce({ modifiedCount: 0 } as never)
+      .mockResolvedValueOnce({ modifiedCount: 0 } as never)
+
+    const result = await removeDocumentRefsFromScreens('camp-1', 'note', 'note-999')
+
+    expect(result).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Zod schemas — validation
 // ---------------------------------------------------------------------------
+
+describe('getGMScreenSchema', () => {
+  it('rejects empty id', () => {
+    expect(getGMScreenSchema.safeParse({ id: '', campaignId: 'camp-1' }).success).toBe(false)
+  })
+
+  it('rejects empty campaignId', () => {
+    expect(getGMScreenSchema.safeParse({ id: 's-1', campaignId: '' }).success).toBe(false)
+  })
+
+  it('accepts valid input', () => {
+    expect(getGMScreenSchema.safeParse({ id: 's-1', campaignId: 'camp-1' }).success).toBe(true)
+  })
+})
 
 describe('listGMScreensSchema', () => {
   it('rejects empty campaignId', () => {

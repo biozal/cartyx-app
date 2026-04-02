@@ -31,14 +31,18 @@ vi.mock('~/server/utils/posthog', () => ({
   serverCaptureException: vi.fn(),
   serverCaptureEvent: vi.fn(),
 }))
+vi.mock('~/server/functions/gmscreens', () => ({
+  removeDocumentRefsFromScreens: vi.fn().mockResolvedValue(0),
+}))
 
 import { getSession } from '~/server/session'
 import { User } from '~/server/db/models/User'
 import { Campaign } from '~/server/db/models/Campaign'
 import { Note } from '~/server/db/models/Note'
-import { createNote, updateNote, listNotes, getNote, createNoteSchema, updateNoteSchema, listNotesSchema } from '~/server/functions/notes'
+import { createNote, updateNote, deleteNote, listNotes, getNote, createNoteSchema, updateNoteSchema, listNotesSchema } from '~/server/functions/notes'
 import type { NoteListItem } from '~/server/functions/notes'
 import { serverCaptureEvent, serverCaptureException } from '~/server/utils/posthog'
+import { removeDocumentRefsFromScreens } from '~/server/functions/gmscreens'
 
 const mockSession = {
   id: 'session-user-1',
@@ -71,6 +75,7 @@ function makeNote(overrides: Record<string, unknown> = {}) {
     createdAt: new Date('2026-03-01'),
     updatedAt: new Date('2026-03-01'),
     save: vi.fn(),
+    deleteOne: vi.fn(),
     ...overrides,
   }
 }
@@ -79,6 +84,7 @@ function makeNote(overrides: Record<string, unknown> = {}) {
 const _createNote = createNote as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean; note: Record<string, unknown> }>
 const _updateNote = updateNote as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean; note: Record<string, unknown> }>
 const _listNotes = listNotes as unknown as (args: { data: Record<string, unknown> }) => Promise<NoteListItem[]>
+const _deleteNote = deleteNote as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean }>
 const _getNote = getNote as unknown as (args: { data: Record<string, unknown> }) => Promise<Record<string, unknown> | null>
 
 beforeEach(() => {
@@ -459,6 +465,71 @@ describe('getNote', () => {
     const result = await _getNote({ data: { id: 'note-1', campaignId: 'camp-1' } })
 
     expect(result).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// deleteNote
+// ---------------------------------------------------------------------------
+
+describe('deleteNote', () => {
+  it('deletes a note and cleans up GM Screen refs', async () => {
+    const existing = makeNote({ deleteOne: vi.fn() })
+    vi.mocked(Note.findById).mockResolvedValue(existing as never)
+
+    const result = await _deleteNote({ data: { id: 'note-1', campaignId: 'camp-1' } })
+
+    expect(result.success).toBe(true)
+    expect(existing.deleteOne).toHaveBeenCalled()
+    expect(removeDocumentRefsFromScreens).toHaveBeenCalledWith('camp-1', 'note', 'note-1')
+  })
+
+  it('throws when note is not found', async () => {
+    vi.mocked(Note.findById).mockResolvedValue(null)
+
+    await expect(
+      _deleteNote({ data: { id: 'nonexistent', campaignId: 'camp-1' } }),
+    ).rejects.toThrow('Note not found')
+  })
+
+  it('throws when note belongs to a different campaign', async () => {
+    const existing = makeNote({ campaignId: 'camp-other' })
+    vi.mocked(Note.findById).mockResolvedValue(existing as never)
+
+    await expect(
+      _deleteNote({ data: { id: 'note-1', campaignId: 'camp-1' } }),
+    ).rejects.toThrow('Forbidden')
+  })
+
+  it('throws when user does not own the note', async () => {
+    const existing = makeNote({ createdBy: 'other-user' })
+    vi.mocked(Note.findById).mockResolvedValue(existing as never)
+
+    await expect(
+      _deleteNote({ data: { id: 'note-1', campaignId: 'camp-1' } }),
+    ).rejects.toThrow('Forbidden')
+  })
+
+  it('throws when note is read-only', async () => {
+    const existing = makeNote({ isReadOnly: true })
+    vi.mocked(Note.findById).mockResolvedValue(existing as never)
+
+    await expect(
+      _deleteNote({ data: { id: 'note-1', campaignId: 'camp-1' } }),
+    ).rejects.toThrow('Note is read-only')
+  })
+
+  it('fires note_deleted analytics event', async () => {
+    const existing = makeNote({ deleteOne: vi.fn() })
+    vi.mocked(Note.findById).mockResolvedValue(existing as never)
+
+    await _deleteNote({ data: { id: 'note-1', campaignId: 'camp-1' } })
+
+    expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'note_deleted', {
+      campaign_id: 'camp-1',
+      note_id: 'note-1',
+      deleted_by: 'dbuser-1',
+    })
   })
 })
 
