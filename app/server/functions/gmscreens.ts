@@ -1259,10 +1259,13 @@ export const addStackItem = createServerFn({ method: 'POST' })
       )
       if (!stack) throw new Error('Stack not found')
 
-      const items = stack.items ?? []
+      // Ensure items is a real Mongoose subdocument array (legacy stacks may lack it)
+      if (!stack.items) {
+        stack.items = []
+      }
 
       // Duplicate check
-      const duplicate = items.find(
+      const duplicate = stack.items.find(
         (item: { collection?: string; documentId?: unknown }) =>
           item.collection === data.collection &&
           String(item.documentId) === data.documentId,
@@ -1271,22 +1274,21 @@ export const addStackItem = createServerFn({ method: 'POST' })
         return { success: true, item: serializeStackItem(duplicate), existed: true }
       }
 
-      if (items.length >= GMSCREEN_LIMITS.MAX_STACK_ITEMS) {
+      if (stack.items.length >= GMSCREEN_LIMITS.MAX_STACK_ITEMS) {
         throw new Error(
           `A stack cannot contain more than ${GMSCREEN_LIMITS.MAX_STACK_ITEMS} items`,
         )
       }
 
-      items.push({
+      stack.items.push({
         collection: data.collection,
         documentId: data.documentId,
         label: data.label,
       })
-      stack.items = items
       screen.updatedAt = new Date()
       await screen.save()
 
-      const created = items[items.length - 1]
+      const created = stack.items[stack.items.length - 1]
 
       serverCaptureEvent(sessionUserId, 'gmscreen_stack_item_added', {
         campaign_id: data.campaignId,
@@ -1343,8 +1345,12 @@ export const removeStackItem = createServerFn({ method: 'POST' })
       )
       if (!stack) throw new Error('Stack not found')
 
-      const items = stack.items ?? []
-      const index = items.findIndex(
+      // Ensure items is a real Mongoose subdocument array (legacy stacks may lack it)
+      if (!stack.items) {
+        stack.items = []
+      }
+
+      const index = stack.items.findIndex(
         (item: { _id: unknown }) => String(item._id) === data.itemId,
       )
 
@@ -1353,8 +1359,7 @@ export const removeStackItem = createServerFn({ method: 'POST' })
         return { success: true }
       }
 
-      items.splice(index, 1)
-      stack.items = items
+      stack.items.splice(index, 1)
       screen.updatedAt = new Date()
       await screen.save()
 
