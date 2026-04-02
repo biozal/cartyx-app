@@ -119,7 +119,7 @@ describe('CampaignHeader', () => {
     render(
       <CampaignHeader activeTab="dashboard" onTabChange={vi.fn()} />
     )
-    expect(screen.getByText('Cartyx')).toBeInTheDocument()
+    expect(screen.getByText('CARTYX')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Back to campaigns' })).not.toBeInTheDocument()
   })
 
