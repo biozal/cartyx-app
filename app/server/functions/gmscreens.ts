@@ -167,7 +167,7 @@ export const createGMScreen = createServerFn({ method: 'POST' })
             return created
           })
         } catch (e) {
-          if (isDuplicateKeyError(e, 'tabOrder') && attempt < MAX_TAB_ORDER_RETRIES - 1) {
+          if (isDuplicateKeyError(e, 'tabOrder')) {
             continue
           }
           throw e
@@ -183,7 +183,13 @@ export const createGMScreen = createServerFn({ method: 'POST' })
         return { success: true, screen: serializeGMScreen(doc) }
       }
 
-      throw new Error('Failed to allocate tabOrder after retries')
+      const exhaustionError = new Error('Failed to allocate tabOrder after retries')
+      serverCaptureException(exhaustionError, sessionUserId, {
+        action: 'createGMScreen',
+        campaignId: data.campaignId,
+        retries: MAX_TAB_ORDER_RETRIES,
+      })
+      throw new Error('Could not create the screen due to a conflict. Please try again.')
     } catch (e) {
       if (isDuplicateKeyError(e, 'name')) {
         throw new Error('A screen with that name already exists in this campaign')
@@ -355,13 +361,25 @@ export const reorderGMScreens = createServerFn({ method: 'POST' })
             }
           }
 
-          // Atomic bulkWrite with campaignId in each filter
+          // Two-phase reorder to avoid transient unique-index collisions:
+          // Phase 1 — move all screens to negative tabOrder values
           const now = new Date()
           await GMScreen.bulkWrite(
             data.screenIds.map((id, index) => ({
               updateOne: {
                 filter: { _id: id, campaignId: data.campaignId },
-                update: { $set: { tabOrder: index, updatedAt: now } },
+                update: { $set: { tabOrder: -(index + 1), updatedAt: now } },
+              },
+            })),
+            { session: mongoSession },
+          )
+
+          // Phase 2 — assign final tabOrder values (all non-negative, no collisions)
+          await GMScreen.bulkWrite(
+            data.screenIds.map((id, index) => ({
+              updateOne: {
+                filter: { _id: id, campaignId: data.campaignId },
+                update: { $set: { tabOrder: index } },
               },
             })),
             { session: mongoSession },

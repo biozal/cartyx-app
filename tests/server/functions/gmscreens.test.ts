@@ -323,6 +323,30 @@ describe('createGMScreen', () => {
     expect(mockMongoSession.endSession).toHaveBeenCalledTimes(2)
   })
 
+  it('throws user-friendly error when tabOrder retries are exhausted', async () => {
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          session: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue({ tabOrder: 2 }) }),
+        }),
+      }),
+    } as never)
+
+    const tabOrderError = Object.assign(new Error('E11000 duplicate key tabOrder'), {
+      code: 11000,
+      keyPattern: { campaignId: 1, tabOrder: 1 },
+    })
+    mockMongoSession.withTransaction.mockImplementation(async (fn: () => Promise<unknown>) => {
+      await fn()
+      throw tabOrderError
+    })
+    vi.mocked(GMScreen.create).mockRejectedValue(tabOrderError)
+
+    await expect(
+      _createGMScreen({ data: { campaignId: 'camp-1', name: 'Collider' } }),
+    ).rejects.toThrow('Could not create the screen due to a conflict. Please try again.')
+  })
+
   it('fires gmscreen_created analytics event', async () => {
     vi.mocked(GMScreen.findOne).mockReturnValue({
       sort: vi.fn().mockReturnValue({
@@ -508,12 +532,21 @@ describe('reorderGMScreens', () => {
 
     expect(result.success).toBe(true)
     expect(result.screens).toHaveLength(3)
-    // Verify bulkWrite was called with campaignId in each filter
-    expect(vi.mocked(GMScreen.bulkWrite)).toHaveBeenCalledWith(
+    // Verify two-phase bulkWrite: phase 1 (negative), phase 2 (final)
+    expect(vi.mocked(GMScreen.bulkWrite)).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(GMScreen.bulkWrite)).toHaveBeenNthCalledWith(1,
       [
-        { updateOne: { filter: { _id: 'screen-3', campaignId: 'camp-1' }, update: { $set: { tabOrder: 0, updatedAt: expect.any(Date) } } } },
-        { updateOne: { filter: { _id: 'screen-1', campaignId: 'camp-1' }, update: { $set: { tabOrder: 1, updatedAt: expect.any(Date) } } } },
-        { updateOne: { filter: { _id: 'screen-2', campaignId: 'camp-1' }, update: { $set: { tabOrder: 2, updatedAt: expect.any(Date) } } } },
+        { updateOne: { filter: { _id: 'screen-3', campaignId: 'camp-1' }, update: { $set: { tabOrder: -1, updatedAt: expect.any(Date) } } } },
+        { updateOne: { filter: { _id: 'screen-1', campaignId: 'camp-1' }, update: { $set: { tabOrder: -2, updatedAt: expect.any(Date) } } } },
+        { updateOne: { filter: { _id: 'screen-2', campaignId: 'camp-1' }, update: { $set: { tabOrder: -3, updatedAt: expect.any(Date) } } } },
+      ],
+      { session: mockMongoSession },
+    )
+    expect(vi.mocked(GMScreen.bulkWrite)).toHaveBeenNthCalledWith(2,
+      [
+        { updateOne: { filter: { _id: 'screen-3', campaignId: 'camp-1' }, update: { $set: { tabOrder: 0 } } } },
+        { updateOne: { filter: { _id: 'screen-1', campaignId: 'camp-1' }, update: { $set: { tabOrder: 1 } } } },
+        { updateOne: { filter: { _id: 'screen-2', campaignId: 'camp-1' }, update: { $set: { tabOrder: 2 } } } },
       ],
       { session: mockMongoSession },
     )
