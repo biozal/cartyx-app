@@ -17,7 +17,13 @@ const sessionSchema = new mongoose.Schema({
 if (typeof (sessionSchema as { index?: unknown }).index === 'function') {
   sessionSchema.index({ campaignId: 1, number: -1 })
   sessionSchema.index({ campaignId: 1, startDate: -1 })
-  sessionSchema.index({ campaignId: 1, isActive: 1 })
+  sessionSchema.index(
+    { campaignId: 1, isActive: 1 },
+    {
+      unique: true,
+      partialFilterExpression: { isActive: true },
+    }
+  )
 }
 
 export const Session =
