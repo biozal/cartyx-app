@@ -42,6 +42,15 @@ function serializeGMScreen(doc: {
   }
 }
 
+/** Marks errors that were already reported to the error tracker. */
+class AlreadyReportedError extends Error {
+  readonly alreadyReported = true as const
+  constructor(userMessage: string) {
+    super(userMessage)
+    this.name = 'AlreadyReportedError'
+  }
+}
+
 function isDuplicateKeyError(e: unknown, field: string): boolean {
   if (typeof e !== 'object' || e === null) return false
   const err = e as { code?: number; keyPattern?: Record<string, unknown>; message?: string }
@@ -189,14 +198,14 @@ export const createGMScreen = createServerFn({ method: 'POST' })
         campaignId: data.campaignId,
         retries: MAX_TAB_ORDER_RETRIES,
       })
-      throw new Error('Could not create the screen due to a conflict. Please try again.')
+      throw new AlreadyReportedError('Could not create the screen due to a conflict. Please try again.')
     } catch (e) {
       if (isDuplicateKeyError(e, 'name')) {
         throw new Error('A screen with that name already exists in this campaign')
       }
       // Avoid double-reporting: the retry exhaustion path already captured
       // the internal error above — only capture genuinely unexpected failures.
-      if (!(e instanceof Error && e.message === 'Could not create the screen due to a conflict. Please try again.')) {
+      if (!(e instanceof AlreadyReportedError)) {
         serverCaptureException(e, sessionUserId, { action: 'createGMScreen', campaignId: data.campaignId })
       }
       throw e
@@ -278,7 +287,7 @@ export const deleteGMScreen = createServerFn({ method: 'POST' })
           const count = await GMScreen.countDocuments({ campaignId: data.campaignId }).session(mongoSession)
           if (count <= 1) throw new Error('Cannot delete the last screen')
 
-          const tabOrder = screen.tabOrder as number
+          const tabOrder = typeof screen.tabOrder === 'number' ? screen.tabOrder : 0
           await GMScreen.deleteOne({ _id: data.id, campaignId: data.campaignId }).session(mongoSession)
 
           return tabOrder
