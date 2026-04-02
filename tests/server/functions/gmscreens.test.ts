@@ -285,11 +285,42 @@ describe('createGMScreen', () => {
         }),
       }),
     } as never)
-    vi.mocked(GMScreen.create).mockRejectedValue(Object.assign(new Error('dup'), { code: 11000 }))
+    vi.mocked(GMScreen.create).mockRejectedValue(Object.assign(new Error('dup'), { code: 11000, keyPattern: { campaignId: 1, name: 1 } }))
 
     await expect(
       _createGMScreen({ data: { campaignId: 'camp-1', name: 'General' } }),
     ).rejects.toThrow('A screen with that name already exists in this campaign')
+  })
+
+  it('retries on tabOrder collision then succeeds', async () => {
+    const findOneMock = vi.mocked(GMScreen.findOne)
+    findOneMock.mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          session: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue({ tabOrder: 2 }) }),
+        }),
+      }),
+    } as never)
+
+    const tabOrderError = Object.assign(new Error('E11000 duplicate key tabOrder'), {
+      code: 11000,
+      keyPattern: { campaignId: 1, tabOrder: 1 },
+    })
+    const created = makeScreen({ _id: 'screen-retry', name: 'Retry', tabOrder: 3 })
+    vi.mocked(GMScreen.create)
+      .mockRejectedValueOnce(tabOrderError)
+      .mockResolvedValueOnce([created] as never)
+
+    // withTransaction must re-throw so the outer catch can retry
+    mockMongoSession.withTransaction
+      .mockImplementationOnce(async (fn: () => Promise<unknown>) => { await fn(); throw tabOrderError })
+      .mockImplementationOnce(async (fn: () => Promise<unknown>) => fn())
+
+    const result = await _createGMScreen({ data: { campaignId: 'camp-1', name: 'Retry' } })
+
+    expect(result.success).toBe(true)
+    expect(result.screen.name).toBe('Retry')
+    expect(mockMongoSession.endSession).toHaveBeenCalledTimes(2)
   })
 
   it('fires gmscreen_created analytics event', async () => {

@@ -42,6 +42,14 @@ function serializeGMScreen(doc: {
   }
 }
 
+function isDuplicateKeyError(e: unknown, field: string): boolean {
+  if (typeof e !== 'object' || e === null) return false
+  const err = e as { code?: number; keyPattern?: Record<string, unknown>; message?: string }
+  if (err.code !== 11000) return false
+  if (err.keyPattern) return field in err.keyPattern
+  return typeof err.message === 'string' && err.message.includes(field)
+}
+
 // ---------------------------------------------------------------------------
 // Auth helper — requires the caller to be a GM for the campaign
 // ---------------------------------------------------------------------------
@@ -122,6 +130,8 @@ const createGMScreenSchema = z.object({
 
 export { createGMScreenSchema }
 
+const MAX_TAB_ORDER_RETRIES = 3
+
 export const createGMScreen = createServerFn({ method: 'POST' })
   .inputValidator(createGMScreenSchema)
   .handler(async ({ data }) => {
@@ -130,44 +140,52 @@ export const createGMScreen = createServerFn({ method: 'POST' })
       const gm = await requireCampaignGM(data.campaignId)
       sessionUserId = gm.sessionUserId
 
-      // Use a transaction so the read-max + create is atomic
-      const mongoSession = await mongoose.startSession()
       let doc: { _id: unknown; campaignId: unknown; name?: string; tabOrder?: number; createdBy: unknown; createdAt?: Date; updatedAt?: Date }
-      try {
-        doc = await mongoSession.withTransaction(async () => {
-          const last = await GMScreen.findOne({ campaignId: data.campaignId })
-            .sort({ tabOrder: -1 })
-            .select('tabOrder')
-            .session(mongoSession)
-            .lean() as { tabOrder?: number } | null
 
-          const nextOrder = (last?.tabOrder ?? -1) + 1
+      for (let attempt = 0; attempt < MAX_TAB_ORDER_RETRIES; attempt++) {
+        const mongoSession = await mongoose.startSession()
+        try {
+          doc = await mongoSession.withTransaction(async () => {
+            const last = await GMScreen.findOne({ campaignId: data.campaignId })
+              .sort({ tabOrder: -1 })
+              .select('tabOrder')
+              .session(mongoSession)
+              .lean() as { tabOrder?: number } | null
 
-          const now = new Date()
-          const [created] = await GMScreen.create([{
-            campaignId: data.campaignId,
-            name: data.name.trim(),
-            tabOrder: nextOrder,
-            createdBy: gm.userId,
-            createdAt: now,
-            updatedAt: now,
-          }], { session: mongoSession })
+            const nextOrder = (last?.tabOrder ?? -1) + 1
 
-          return created
+            const now = new Date()
+            const [created] = await GMScreen.create([{
+              campaignId: data.campaignId,
+              name: data.name.trim(),
+              tabOrder: nextOrder,
+              createdBy: gm.userId,
+              createdAt: now,
+              updatedAt: now,
+            }], { session: mongoSession })
+
+            return created
+          })
+        } catch (e) {
+          if (isDuplicateKeyError(e, 'tabOrder') && attempt < MAX_TAB_ORDER_RETRIES - 1) {
+            continue
+          }
+          throw e
+        } finally {
+          await mongoSession.endSession()
+        }
+
+        serverCaptureEvent(sessionUserId, 'gmscreen_created', {
+          campaign_id: data.campaignId,
+          screen_id: String(doc._id),
         })
-      } finally {
-        await mongoSession.endSession()
+
+        return { success: true, screen: serializeGMScreen(doc) }
       }
 
-      serverCaptureEvent(sessionUserId, 'gmscreen_created', {
-        campaign_id: data.campaignId,
-        screen_id: String(doc._id),
-      })
-
-      return { success: true, screen: serializeGMScreen(doc) }
+      throw new Error('Failed to allocate tabOrder after retries')
     } catch (e) {
-      // Surface duplicate-name errors cleanly
-      if ((e as { code?: number })?.code === 11000) {
+      if (isDuplicateKeyError(e, 'name')) {
         throw new Error('A screen with that name already exists in this campaign')
       }
       serverCaptureException(e, sessionUserId, { action: 'createGMScreen', campaignId: data.campaignId })

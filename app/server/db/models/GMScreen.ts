@@ -112,7 +112,7 @@ const gmScreenSchema = new mongoose.Schema(
 
 // istanbul ignore next
 if (typeof (gmScreenSchema as { index?: unknown }).index === 'function') {
-  gmScreenSchema.index({ campaignId: 1, tabOrder: 1 })
+  gmScreenSchema.index({ campaignId: 1, tabOrder: 1 }, { unique: true })
   gmScreenSchema.index({ campaignId: 1, name: 1 }, { unique: true })
 }
 
