@@ -194,7 +194,11 @@ export const createGMScreen = createServerFn({ method: 'POST' })
       if (isDuplicateKeyError(e, 'name')) {
         throw new Error('A screen with that name already exists in this campaign')
       }
-      serverCaptureException(e, sessionUserId, { action: 'createGMScreen', campaignId: data.campaignId })
+      // Avoid double-reporting: the retry exhaustion path already captured
+      // the internal error above — only capture genuinely unexpected failures.
+      if (!(e instanceof Error && e.message === 'Could not create the screen due to a conflict. Please try again.')) {
+        serverCaptureException(e, sessionUserId, { action: 'createGMScreen', campaignId: data.campaignId })
+      }
       throw e
     }
   })

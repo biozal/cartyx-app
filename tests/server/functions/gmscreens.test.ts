@@ -62,7 +62,7 @@ import {
   reorderGMScreensSchema,
 } from '~/server/functions/gmscreens'
 import type { GMScreenData } from '~/server/functions/gmscreens'
-import { serverCaptureEvent } from '~/server/utils/posthog'
+import { serverCaptureEvent, serverCaptureException } from '~/server/utils/posthog'
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -345,6 +345,9 @@ describe('createGMScreen', () => {
     await expect(
       _createGMScreen({ data: { campaignId: 'camp-1', name: 'Collider' } }),
     ).rejects.toThrow('Could not create the screen due to a conflict. Please try again.')
+
+    // Failure is captured exactly once (no double-reporting)
+    expect(serverCaptureException).toHaveBeenCalledTimes(1)
   })
 
   it('fires gmscreen_created analytics event', async () => {
