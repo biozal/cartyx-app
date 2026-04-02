@@ -23,8 +23,8 @@ vi.mock('~/hooks/useCampaigns', () => ({
 }))
 
 const mockSessions = [
-  { id: 's1', number: 14, name: 'Ashes at Emberfall', startDate: '2026-03-21T00:00:00.000Z', endDate: null },
-  { id: 's2', number: 13, name: 'The Bell Beneath', startDate: '2026-03-14T00:00:00.000Z', endDate: null },
+  { id: 's1', number: 14, name: 'Ashes at Emberfall', startDate: '2026-03-21T00:00:00.000Z', endDate: null, isActive: true },
+  { id: 's2', number: 13, name: 'The Bell Beneath', startDate: '2026-03-14T00:00:00.000Z', endDate: null, isActive: false },
 ]
 
 describe('SessionsListWidget', () => {
@@ -64,6 +64,7 @@ describe('SessionsListWidget', () => {
       name: `Session Name ${i + 1}`,
       startDate: '2026-01-01T00:00:00.000Z',
       endDate: null,
+      isActive: i === 0,
     }))
     render(<SessionsListWidget sessions={manySessions} />)
     expect(screen.getByText('Session Name 1')).toBeInTheDocument()

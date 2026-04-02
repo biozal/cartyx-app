@@ -36,6 +36,7 @@ export interface CampaignData {
     number: number
     startDate: string
     endDate: string | null
+    isActive: boolean
   }>
   gmScreens?: Array<{
     id: string
@@ -201,7 +202,7 @@ export const getCampaign = createServerFn({ method: 'GET' })
         ).lean(),
         Session.find(
           { campaignId: c._id },
-          '_id name number startDate endDate'
+          '_id name number startDate endDate isActive'
         ).sort({ number: 1 }).lean(),
         isOwner
           ? GMScreen.find(
@@ -221,12 +222,13 @@ export const getCampaign = createServerFn({ method: 'GET' })
         userId: String(p.userId),
       }))
 
-      const sessions = (sessionDocs as Array<{ _id: unknown; name: unknown; number: unknown; startDate: unknown; endDate: unknown }>).map(s => ({
+      const sessions = (sessionDocs as Array<{ _id: unknown; name: unknown; number: unknown; startDate: unknown; endDate: unknown; isActive: unknown }>).map(s => ({
         id: String(s._id),
         name: s.name as string,
         number: s.number as number,
         startDate: (s.startDate as Date).toISOString(),
         endDate: s.endDate ? (s.endDate as Date).toISOString() : null,
+        isActive: Boolean(s.isActive),
       }))
 
       const gmScreens = gmScreenDocs
@@ -391,6 +393,7 @@ export const createCampaign = createServerFn({ method: 'POST' })
               number: 0,
               startDate: now,
               endDate: null,
+              isActive: true,
             }], { session: mongoSession }),
             GMScreen.create([{
               campaignId: campaign._id,
@@ -589,6 +592,71 @@ export const joinCampaign = createServerFn({ method: 'POST' })
       return { success: true, campaignId: String(updatedCampaign._id) }
     } catch (e) {
       serverCaptureException(e, user?.id, { action: 'joinCampaign' })
+      throw e
+    }
+  })
+
+export const activateSession = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({
+    campaignId: z.string().min(1),
+    sessionId: z.string().min(1),
+    endDate: z.string().datetime().optional(),
+  }))
+  .handler(async ({ data }) => {
+    const user = await getSession()
+    try {
+      if (!user) throw new Error('Not authenticated')
+
+      await connectDB()
+      if (!isDBConnected()) throw new Error('Database not available')
+
+      const dbUser = await User.findOne({ providerId: user.id })
+      if (!dbUser) throw new Error('User not found')
+
+      const campaign = await Campaign.findById(data.campaignId)
+      if (!campaign) throw new Error('Campaign not found')
+      if (String(campaign.gameMasterId) !== String(dbUser._id)) throw new Error('Forbidden')
+
+      const mongoSession = await mongoose.startSession()
+      try {
+        await mongoSession.withTransaction(async () => {
+          const currentActive = await Session.findOne({ campaignId: data.campaignId, isActive: true }).session(mongoSession)
+
+          // If the target is already the active session, no-op
+          if (currentActive && String(currentActive._id) === data.sessionId) {
+            return
+          }
+
+          // Verify target session exists and belongs to this campaign
+          const targetSession = await Session.findOne({ _id: data.sessionId, campaignId: data.campaignId }).session(mongoSession)
+          if (!targetSession) throw new Error('Session not found')
+
+          const now = new Date()
+
+          // Deactivate the currently active session
+          if (currentActive) {
+            const endDate = data.endDate ? new Date(data.endDate) : now
+            await Session.updateOne(
+              { _id: currentActive._id },
+              { $set: { isActive: false, endDate, updatedAt: now } },
+              { session: mongoSession }
+            )
+          }
+
+          // Activate the target session
+          await Session.updateOne(
+            { _id: data.sessionId, campaignId: data.campaignId },
+            { $set: { isActive: true, updatedAt: now } },
+            { session: mongoSession }
+          )
+        })
+      } finally {
+        await mongoSession.endSession()
+      }
+
+      return { success: true }
+    } catch (e) {
+      serverCaptureException(e, user?.id, { action: 'activateSession', campaignId: data.campaignId, sessionId: data.sessionId })
       throw e
     }
   })

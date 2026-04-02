@@ -98,6 +98,8 @@ vi.mock('~/server/db/models/Player', () => ({
 vi.mock('~/server/db/models/Session', () => ({
   Session: {
     find: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) }),
+    findOne: vi.fn().mockReturnValue({ session: vi.fn().mockReturnValue(null) }),
+    updateOne: vi.fn().mockResolvedValue({ modifiedCount: 1 }),
     create: vi.fn(),
   },
 }))
@@ -123,7 +125,7 @@ import { Campaign } from '~/server/db/models/Campaign'
 import { Player } from '~/server/db/models/Player'
 import { Session } from '~/server/db/models/Session'
 import { GMScreen } from '~/server/db/models/GMScreen'
-import { listCampaigns, getCampaign, createCampaign, updateCampaign, joinCampaign, campaignInputSchema } from '~/server/functions/campaigns'
+import { listCampaigns, getCampaign, createCampaign, updateCampaign, joinCampaign, activateSession, campaignInputSchema } from '~/server/functions/campaigns'
 import { serverCaptureEvent } from '~/server/utils/posthog'
 
 const mockSession = {
@@ -166,6 +168,8 @@ beforeEach(() => {
   vi.mocked(Player.updateOne).mockResolvedValue({} as never)
   vi.mocked(Session.find).mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) } as never)
   vi.mocked(Session.create).mockResolvedValue([] as never)
+  vi.mocked(Session.findOne).mockReturnValue({ session: vi.fn().mockReturnValue(null) } as never)
+  vi.mocked(Session.updateOne).mockResolvedValue({ modifiedCount: 1 } as never)
   vi.mocked(GMScreen.find).mockReturnValue({ lean: vi.fn().mockResolvedValue([]) } as never)
   vi.mocked(GMScreen.create).mockResolvedValue([] as never)
   vi.mocked(Campaign.exists).mockReturnValue({ session: vi.fn().mockResolvedValue(null) } as never)
@@ -179,6 +183,7 @@ const _getCampaign = getCampaign as unknown as (args: { data: { id: string } }) 
 const _createCampaign = createCampaign as unknown as (args: { data: Record<string, unknown> }) => Promise<unknown>
 const _updateCampaign = updateCampaign as unknown as (args: { data: Record<string, unknown> }) => Promise<unknown>
 const _joinCampaign = joinCampaign as unknown as (args: { data: { inviteCode: string } }) => Promise<unknown>
+const _activateSession = activateSession as unknown as (args: { data: { campaignId: string; sessionId: string; endDate?: string } }) => Promise<unknown>
 
 describe('listCampaigns', () => {
   it('returns only campaigns where the user is a member', async () => {
@@ -352,7 +357,7 @@ describe('getCampaign', () => {
 
     expect(Session.find).toHaveBeenCalledWith(
       { campaignId: 'camp-1' },
-      '_id name number startDate endDate'
+      '_id name number startDate endDate isActive'
     )
     expect(result.sessions).toHaveLength(1)
     expect(result.sessions[0].name).toBe('Session 0')
@@ -506,6 +511,22 @@ describe('createCampaign', () => {
         gm: 'dbuser-1',
         number: 0,
         endDate: null,
+      })],
+      expect.objectContaining({ session: expect.anything() })
+    )
+  })
+
+  it('creates Session 0 with isActive set to true', async () => {
+    const created = makeCampaign()
+    vi.mocked(Campaign.create).mockResolvedValue([created] as never)
+
+    await _createCampaign({ data: { name: 'My Campaign', description: '' } })
+
+    expect(Session.create).toHaveBeenCalledWith(
+      [expect.objectContaining({
+        campaignId: 'camp-1',
+        name: 'Session 0',
+        isActive: true,
       })],
       expect.objectContaining({ session: expect.anything() })
     )
@@ -1008,6 +1029,25 @@ describe('getCampaign — enter-campaign loading regression (#302)', () => {
     expect(result.sessions[1].endDate).toBe('2026-01-08T22:00:00.000Z')
   })
 
+  it('includes isActive in serialized session data', async () => {
+    const campaign = makeCampaign()
+    vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    const sessionDocs = [
+      { _id: 'sess-0', name: 'Session 0', number: 0, startDate: new Date('2026-01-01'), endDate: null, isActive: true },
+      { _id: 'sess-1', name: 'Session 1', number: 1, startDate: new Date('2026-01-08'), endDate: new Date('2026-01-08T23:00:00Z'), isActive: false },
+    ]
+    vi.mocked(Session.find).mockReturnValue({
+      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(sessionDocs) }),
+    } as never)
+
+    const result = await _getCampaign({ data: { id: 'camp-1' } }) as {
+      sessions: Array<{ id: string; isActive: boolean }>
+    }
+
+    expect(result.sessions[0].isActive).toBe(true)
+    expect(result.sessions[1].isActive).toBe(false)
+  })
+
   it('returns multiple gmScreens for GM entering campaign', async () => {
     const campaign = makeCampaign()
     vi.mocked(Campaign.findById).mockResolvedValue(campaign)
@@ -1143,5 +1183,141 @@ describe('updateCampaign with imagePath (direct R2 upload)', () => {
         },
       }),
     ).rejects.toThrow('Invalid image path')
+  })
+})
+
+describe('activateSession', () => {
+  it('deactivates the current active session and activates the target session', async () => {
+    const campaign = makeCampaign()
+    vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    const mockSessionFn = vi.fn()
+      .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', isActive: true })
+      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', isActive: false })
+    vi.mocked(Session.findOne).mockReturnValue({
+      session: mockSessionFn,
+    } as never)
+
+    const result = await _activateSession({ data: { campaignId: 'camp-1', sessionId: 'sess-new' } })
+
+    expect(result).toMatchObject({ success: true })
+
+    // Should deactivate old session
+    expect(Session.updateOne).toHaveBeenCalledWith(
+      { _id: 'sess-old' },
+      { $set: { isActive: false, endDate: expect.any(Date), updatedAt: expect.any(Date) } },
+      expect.objectContaining({ session: expect.anything() })
+    )
+
+    // Should activate new session
+    expect(Session.updateOne).toHaveBeenCalledWith(
+      { _id: 'sess-new', campaignId: 'camp-1' },
+      { $set: { isActive: true, updatedAt: expect.any(Date) } },
+      expect.objectContaining({ session: expect.anything() })
+    )
+  })
+
+  it('uses GM-provided endDate when supplied', async () => {
+    const campaign = makeCampaign()
+    vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    const mockSessionFn = vi.fn()
+      .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', isActive: true })
+      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', isActive: false })
+    vi.mocked(Session.findOne).mockReturnValue({
+      session: mockSessionFn,
+    } as never)
+
+    await _activateSession({ data: { campaignId: 'camp-1', sessionId: 'sess-new', endDate: '2026-03-15T22:00:00.000Z' } })
+
+    expect(Session.updateOne).toHaveBeenCalledWith(
+      { _id: 'sess-old' },
+      { $set: { isActive: false, endDate: new Date('2026-03-15T22:00:00.000Z'), updatedAt: expect.any(Date) } },
+      expect.objectContaining({ session: expect.anything() })
+    )
+  })
+
+  it('activates session even when no currently active session exists', async () => {
+    const campaign = makeCampaign()
+    vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    // First findOne (active session) returns null, second (target session) returns a session
+    const mockSessionFn = vi.fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', isActive: false })
+    vi.mocked(Session.findOne).mockReturnValue({
+      session: mockSessionFn,
+    } as never)
+
+    const result = await _activateSession({ data: { campaignId: 'camp-1', sessionId: 'sess-new' } })
+
+    expect(result).toMatchObject({ success: true })
+
+    // Should only activate the new session (one updateOne call, not two)
+    expect(Session.updateOne).toHaveBeenCalledTimes(1)
+    expect(Session.updateOne).toHaveBeenCalledWith(
+      { _id: 'sess-new', campaignId: 'camp-1' },
+      { $set: { isActive: true, updatedAt: expect.any(Date) } },
+      expect.objectContaining({ session: expect.anything() })
+    )
+  })
+
+  it('throws when user is not authenticated', async () => {
+    vi.mocked(getSession).mockResolvedValue(null)
+
+    await expect(
+      _activateSession({ data: { campaignId: 'camp-1', sessionId: 'sess-1' } })
+    ).rejects.toThrow('Not authenticated')
+  })
+
+  it('throws when user is not the campaign GM', async () => {
+    const campaign = makeCampaign({ gameMasterId: 'someone-else' })
+    vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+
+    await expect(
+      _activateSession({ data: { campaignId: 'camp-1', sessionId: 'sess-1' } })
+    ).rejects.toThrow('Forbidden')
+  })
+
+  it('skips deactivation when the target session is already the active session', async () => {
+    const campaign = makeCampaign()
+    vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    vi.mocked(Session.findOne).mockReturnValue({
+      session: vi.fn().mockResolvedValue({ _id: 'sess-1', campaignId: 'camp-1', isActive: true }),
+    } as never)
+
+    const result = await _activateSession({ data: { campaignId: 'camp-1', sessionId: 'sess-1' } })
+
+    expect(result).toMatchObject({ success: true })
+    // No updates needed — it's already active
+    expect(Session.updateOne).not.toHaveBeenCalled()
+  })
+
+  it('throws when target session does not exist', async () => {
+    const campaign = makeCampaign()
+    vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    // No active session, and target session doesn't exist
+    vi.mocked(Session.findOne).mockReturnValue({
+      session: vi.fn().mockResolvedValue(null),
+    } as never)
+
+    await expect(
+      _activateSession({ data: { campaignId: 'camp-1', sessionId: 'nonexistent' } })
+    ).rejects.toThrow('Session not found')
+  })
+
+  it('ends the mongo session even when the transaction fails', async () => {
+    const campaign = makeCampaign()
+    vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    const mockSessionFn = vi.fn()
+      .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', isActive: true })
+      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', isActive: false })
+    vi.mocked(Session.findOne).mockReturnValue({
+      session: mockSessionFn,
+    } as never)
+    vi.mocked(Session.updateOne).mockRejectedValue(new Error('DB write failed'))
+
+    await expect(
+      _activateSession({ data: { campaignId: 'camp-1', sessionId: 'sess-new' } })
+    ).rejects.toThrow()
+
+    expect(mockMongoSession.endSession).toHaveBeenCalled()
   })
 })
