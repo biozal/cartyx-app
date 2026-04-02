@@ -17,9 +17,9 @@ import { Route as CampaignsIndexRouteImport } from './routes/campaigns/index'
 import { Route as CampaignsNewRouteImport } from './routes/campaigns/new'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout'
 import { Route as AuthProviderRouteImport } from './routes/auth/$provider'
+import { Route as CampaignsCampaignIdSessionsRouteImport } from './routes/campaigns/$campaignId/sessions'
 import { Route as CampaignsCampaignIdPlayRouteImport } from './routes/campaigns/$campaignId/play'
 import { Route as CampaignsCampaignIdEditRouteImport } from './routes/campaigns/$campaignId/edit'
-import { Route as CampaignsCampaignIdSessionsRouteImport } from './routes/campaigns/$campaignId/sessions'
 import { Route as AuthCallbackProviderRouteImport } from './routes/auth/callback/$provider'
 
 const TermsRoute = TermsRouteImport.update({
@@ -62,6 +62,12 @@ const AuthProviderRoute = AuthProviderRouteImport.update({
   path: '/auth/$provider',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CampaignsCampaignIdSessionsRoute =
+  CampaignsCampaignIdSessionsRouteImport.update({
+    id: '/campaigns/$campaignId/sessions',
+    path: '/campaigns/$campaignId/sessions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const CampaignsCampaignIdPlayRoute = CampaignsCampaignIdPlayRouteImport.update({
   id: '/campaigns/$campaignId/play',
   path: '/campaigns/$campaignId/play',
@@ -70,11 +76,6 @@ const CampaignsCampaignIdPlayRoute = CampaignsCampaignIdPlayRouteImport.update({
 const CampaignsCampaignIdEditRoute = CampaignsCampaignIdEditRouteImport.update({
   id: '/campaigns/$campaignId/edit',
   path: '/campaigns/$campaignId/edit',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CampaignsCampaignIdSessionsRoute = CampaignsCampaignIdSessionsRouteImport.update({
-  id: '/campaigns/$campaignId/sessions',
-  path: '/campaigns/$campaignId/sessions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthCallbackProviderRoute = AuthCallbackProviderRouteImport.update({
@@ -244,6 +245,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthProviderRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/campaigns/$campaignId/sessions': {
+      id: '/campaigns/$campaignId/sessions'
+      path: '/campaigns/$campaignId/sessions'
+      fullPath: '/campaigns/$campaignId/sessions'
+      preLoaderRoute: typeof CampaignsCampaignIdSessionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/campaigns/$campaignId/play': {
       id: '/campaigns/$campaignId/play'
       path: '/campaigns/$campaignId/play'
@@ -263,13 +271,6 @@ declare module '@tanstack/react-router' {
       path: '/auth/callback/$provider'
       fullPath: '/auth/callback/$provider'
       preLoaderRoute: typeof AuthCallbackProviderRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/campaigns/$campaignId/sessions': {
-      id: '/campaigns/$campaignId/sessions'
-      path: '/campaigns/$campaignId/sessions'
-      fullPath: '/campaigns/$campaignId/sessions'
-      preLoaderRoute: typeof CampaignsCampaignIdSessionsRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
