@@ -142,13 +142,13 @@ function serializeStack(s: {
 // ---------------------------------------------------------------------------
 
 interface CollectionFetcher {
-  fetch(ids: string[]): Promise<Array<{ _id: unknown; title?: string }>>
+  fetch(ids: string[], campaignId: string): Promise<Array<{ _id: unknown; title?: string }>>
 }
 
 const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
   note: {
-    async fetch(ids: string[]) {
-      return Note.find({ _id: { $in: ids } }, '_id title').lean() as Promise<
+    async fetch(ids: string[], campaignId: string) {
+      return Note.find({ _id: { $in: ids }, campaignId }, '_id title').lean() as Promise<
         Array<{ _id: unknown; title?: string }>
       >
     },
@@ -162,6 +162,7 @@ const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
  */
 async function hydrateRefs(
   refs: Array<{ collection: string; documentId: string }>,
+  campaignId: string,
 ): Promise<Record<string, HydratedDocument>> {
   const grouped = new Map<string, Set<string>>()
   for (const ref of refs) {
@@ -181,7 +182,7 @@ async function hydrateRefs(
       const fetcher = COLLECTION_REGISTRY[collectionName]
       if (!fetcher) return
 
-      const docs = await fetcher.fetch(Array.from(idSet))
+      const docs = await fetcher.fetch(Array.from(idSet), campaignId)
       for (const doc of docs) {
         const id = String(doc._id)
         hydrated[`${collectionName}:${id}`] = {
@@ -653,7 +654,7 @@ export const getGMScreen = createServerFn({ method: 'GET' })
         }
       }
 
-      const hydrated = await hydrateRefs(refs)
+      const hydrated = await hydrateRefs(refs, data.campaignId)
 
       return {
         ...serializeGMScreen(doc),
@@ -673,26 +674,41 @@ export const getGMScreen = createServerFn({ method: 'GET' })
 
 /**
  * Remove all window and stack-item references to a given document from every
- * GM Screen in the campaign. Returns the number of screens that were modified.
+ * GM Screen in the campaign. Returns the number of distinct screens that were
+ * modified and refreshes `updatedAt` on each touched screen.
  */
 export async function removeDocumentRefsFromScreens(
   campaignId: string,
   collection: string,
   documentId: string,
 ): Promise<number> {
-  // Phase 1: pull matching windows
-  const windowResult = await GMScreen.updateMany(
-    { campaignId, 'windows.collection': collection, 'windows.documentId': documentId },
-    { $pull: { windows: { collection, documentId } } },
-  )
+  // Find all distinct screens that reference this document (windows OR stacks)
+  const affectedScreens = await GMScreen.find(
+    {
+      campaignId,
+      $or: [
+        { 'windows.collection': collection, 'windows.documentId': documentId },
+        { 'stacks.items.collection': collection, 'stacks.items.documentId': documentId },
+      ],
+    },
+    '_id',
+  ).lean() as Array<{ _id: unknown }>
 
-  // Phase 2: pull matching stack items from all stacks
-  const stackResult = await GMScreen.updateMany(
-    { campaignId, 'stacks.items.collection': collection, 'stacks.items.documentId': documentId },
-    { $pull: { 'stacks.$[].items': { collection, documentId } } },
-  )
+  if (affectedScreens.length === 0) return 0
 
-  const windowCount = windowResult.modifiedCount ?? 0
-  const stackCount = stackResult.modifiedCount ?? 0
-  return Math.max(windowCount, stackCount)
+  const now = new Date()
+
+  // Pull matching refs and refresh updatedAt in parallel
+  await Promise.all([
+    GMScreen.updateMany(
+      { campaignId, 'windows.collection': collection, 'windows.documentId': documentId },
+      { $pull: { windows: { collection, documentId } }, $set: { updatedAt: now } },
+    ),
+    GMScreen.updateMany(
+      { campaignId, 'stacks.items.collection': collection, 'stacks.items.documentId': documentId },
+      { $pull: { 'stacks.$[].items': { collection, documentId } }, $set: { updatedAt: now } },
+    ),
+  ])
+
+  return affectedScreens.length
 }

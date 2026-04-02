@@ -519,6 +519,24 @@ describe('deleteNote', () => {
     ).rejects.toThrow('Note is read-only')
   })
 
+  it('succeeds even when cleanup fails, reporting the cleanup error', async () => {
+    const existing = makeNote({ deleteOne: vi.fn() })
+    vi.mocked(Note.findById).mockResolvedValue(existing as never)
+    const cleanupError = new Error('MongoDB timeout during cleanup')
+    vi.mocked(removeDocumentRefsFromScreens).mockRejectedValueOnce(cleanupError)
+
+    const result = await _deleteNote({ data: { id: 'note-1', campaignId: 'camp-1' } })
+
+    expect(result.success).toBe(true)
+    expect(existing.deleteOne).toHaveBeenCalled()
+    // Cleanup failure is reported but not re-thrown
+    expect(serverCaptureException).toHaveBeenCalledWith(
+      cleanupError,
+      'session-user-1',
+      expect.objectContaining({ action: 'deleteNote.cleanup', campaignId: 'camp-1', noteId: 'note-1' }),
+    )
+  })
+
   it('fires note_deleted analytics event', async () => {
     const existing = makeNote({ deleteOne: vi.fn() })
     vi.mocked(Note.findById).mockResolvedValue(existing as never)

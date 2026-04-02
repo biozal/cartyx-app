@@ -243,8 +243,18 @@ export const deleteNote = createServerFn({ method: 'POST' })
 
       await existing.deleteOne()
 
-      // Clean up GM Screen references to this note
-      await removeDocumentRefsFromScreens(data.campaignId, 'note', data.id)
+      // Clean up GM Screen references to this note.
+      // Best-effort: the note is already deleted, so cleanup failure must not
+      // surface as a user-facing error — report it and move on.
+      try {
+        await removeDocumentRefsFromScreens(data.campaignId, 'note', data.id)
+      } catch (cleanupError) {
+        serverCaptureException(cleanupError, sessionUserId, {
+          action: 'deleteNote.cleanup',
+          campaignId: data.campaignId,
+          noteId: data.id,
+        })
+      }
 
       serverCaptureEvent(sessionUserId, 'note_deleted', {
         campaign_id: data.campaignId,

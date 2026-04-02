@@ -701,10 +701,10 @@ describe('getGMScreen', () => {
     expect(result.hydrated['note:note-2']).toEqual({ id: 'note-2', collection: 'note', title: 'Combat Log' })
     expect(result.hydrated['note:note-3']).toEqual({ id: 'note-3', collection: 'note', title: 'NPC: Gandalf' })
 
-    // Note.find was called once with all unique IDs batched together
+    // Note.find was called once with all unique IDs batched, scoped by campaignId
     expect(Note.find).toHaveBeenCalledTimes(1)
     expect(Note.find).toHaveBeenCalledWith(
-      { _id: { $in: expect.arrayContaining(['note-1', 'note-2', 'note-3']) } },
+      { _id: { $in: expect.arrayContaining(['note-1', 'note-2', 'note-3']) }, campaignId: 'camp-1' },
       '_id title',
     )
   })
@@ -845,35 +845,53 @@ describe('getGMScreen', () => {
 // ---------------------------------------------------------------------------
 
 describe('removeDocumentRefsFromScreens', () => {
-  it('removes matching window refs and stack items', async () => {
+  it('removes matching window refs and stack items, returns distinct screen count', async () => {
+    // find() for affected screens
+    vi.mocked(GMScreen.find).mockReturnValueOnce({
+      lean: vi.fn().mockResolvedValue([{ _id: 'screen-1' }, { _id: 'screen-2' }, { _id: 'screen-3' }]),
+    } as never)
     vi.mocked(GMScreen.updateMany)
       .mockResolvedValueOnce({ modifiedCount: 2 } as never) // windows
       .mockResolvedValueOnce({ modifiedCount: 1 } as never) // stacks
 
     const result = await removeDocumentRefsFromScreens('camp-1', 'note', 'note-1')
 
+    // Affected-screen query uses $or to find all screens with either ref type
+    expect(GMScreen.find).toHaveBeenCalledWith(
+      {
+        campaignId: 'camp-1',
+        $or: [
+          { 'windows.collection': 'note', 'windows.documentId': 'note-1' },
+          { 'stacks.items.collection': 'note', 'stacks.items.documentId': 'note-1' },
+        ],
+      },
+      '_id',
+    )
+
     expect(GMScreen.updateMany).toHaveBeenCalledTimes(2)
-    // Phase 1: pull from windows
-    expect(GMScreen.updateMany).toHaveBeenNthCalledWith(1,
+    // Pull from windows + refresh updatedAt
+    expect(GMScreen.updateMany).toHaveBeenCalledWith(
       { campaignId: 'camp-1', 'windows.collection': 'note', 'windows.documentId': 'note-1' },
-      { $pull: { windows: { collection: 'note', documentId: 'note-1' } } },
+      { $pull: { windows: { collection: 'note', documentId: 'note-1' } }, $set: { updatedAt: expect.any(Date) } },
     )
-    // Phase 2: pull from stacks.$[].items
-    expect(GMScreen.updateMany).toHaveBeenNthCalledWith(2,
+    // Pull from stacks.$[].items + refresh updatedAt
+    expect(GMScreen.updateMany).toHaveBeenCalledWith(
       { campaignId: 'camp-1', 'stacks.items.collection': 'note', 'stacks.items.documentId': 'note-1' },
-      { $pull: { 'stacks.$[].items': { collection: 'note', documentId: 'note-1' } } },
+      { $pull: { 'stacks.$[].items': { collection: 'note', documentId: 'note-1' } }, $set: { updatedAt: expect.any(Date) } },
     )
-    expect(result).toBe(2)
+    // Returns true distinct count from the find query, not Math.max
+    expect(result).toBe(3)
   })
 
-  it('returns 0 when no screens reference the document', async () => {
-    vi.mocked(GMScreen.updateMany)
-      .mockResolvedValueOnce({ modifiedCount: 0 } as never)
-      .mockResolvedValueOnce({ modifiedCount: 0 } as never)
+  it('returns 0 and skips updates when no screens reference the document', async () => {
+    vi.mocked(GMScreen.find).mockReturnValueOnce({
+      lean: vi.fn().mockResolvedValue([]),
+    } as never)
 
     const result = await removeDocumentRefsFromScreens('camp-1', 'note', 'note-999')
 
     expect(result).toBe(0)
+    expect(GMScreen.updateMany).not.toHaveBeenCalled()
   })
 })
 
