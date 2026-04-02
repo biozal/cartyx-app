@@ -618,28 +618,19 @@ export const activateSession = createServerFn({ method: 'POST' })
       const mongoSession = await mongoose.startSession()
       try {
         await mongoSession.withTransaction(async () => {
-          const currentActive = await Session.findOne({ campaignId: data.campaignId, isActive: true }).session(mongoSession)
-
-          // If the target is already the active session, no-op
-          if (currentActive && String(currentActive._id) === data.sessionId) {
-            return
-          }
-
           // Verify target session exists and belongs to this campaign
           const targetSession = await Session.findOne({ _id: data.sessionId, campaignId: data.campaignId }).session(mongoSession)
           if (!targetSession) throw new Error('Session not found')
 
           const now = new Date()
+          const endDate = data.endDate ? new Date(data.endDate) : now
 
-          // Deactivate the currently active session
-          if (currentActive) {
-            const endDate = data.endDate ? new Date(data.endDate) : now
-            await Session.updateOne(
-              { _id: currentActive._id },
-              { $set: { isActive: false, endDate, updatedAt: now } },
-              { session: mongoSession }
-            )
-          }
+          // Deactivate any other active sessions for this campaign
+          await Session.updateMany(
+            { campaignId: data.campaignId, isActive: true, _id: { $ne: data.sessionId } },
+            { $set: { isActive: false, endDate, updatedAt: now } },
+            { session: mongoSession }
+          )
 
           // Activate the target session
           await Session.updateOne(
