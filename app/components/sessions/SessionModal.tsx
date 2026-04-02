@@ -77,10 +77,11 @@ export function SessionModal({
     setFieldErrors(errors)
     if (Object.keys(errors).length > 0) return
 
+    const trimmedEndDate = endDate.trim()
     const data: { name: string; startDate: string; endDate?: string } = {
       name: name.trim(),
       startDate: startDate.trim(),
-      endDate: endDate.trim(),
+      ...(trimmedEndDate ? { endDate: trimmedEndDate } : {}),
     }
     const success = await onSubmit(data)
     if (success) {
