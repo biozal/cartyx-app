@@ -5,7 +5,7 @@ import { getSession } from '../session'
 import { connectDB, isDBConnected } from '../db/connection'
 import { User } from '../db/models/User'
 import { Campaign } from '../db/models/Campaign'
-import { GMScreen } from '../db/models/GMScreen'
+import { GMScreen, GMSCREEN_LIMITS, WINDOW_STATES } from '../db/models/GMScreen'
 import { Note } from '../db/models/Note'
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
 
@@ -664,6 +664,248 @@ export const getGMScreen = createServerFn({ method: 'GET' })
       }
     } catch (e) {
       serverCaptureException(e, sessionUserId, { action: 'getGMScreen', screenId: data.id })
+      throw e
+    }
+  })
+
+// ---------------------------------------------------------------------------
+// openWindow — open a wiki ref as a window (or focus existing duplicate)
+// ---------------------------------------------------------------------------
+
+/**
+ * **Duplicate rule:** If a window with the same `collection + documentId` already
+ * exists on this screen, the existing window is focused (state → 'open', zIndex
+ * bumped to max + 1) and returned with `existed: true`.  No second window is
+ * created for the same ref.
+ */
+
+const openWindowSchema = z.object({
+  screenId: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
+  collection: z.string().trim().min(1),
+  documentId: z.string().trim().min(1),
+})
+
+export { openWindowSchema }
+
+export const openWindow = createServerFn({ method: 'POST' })
+  .inputValidator(openWindowSchema)
+  .handler(async ({ data }) => {
+    let sessionUserId: string | undefined
+    try {
+      const gm = await requireCampaignGM(data.campaignId)
+      sessionUserId = gm.sessionUserId
+
+      const screen = await GMScreen.findOne({
+        _id: data.screenId,
+        campaignId: data.campaignId,
+      })
+      if (!screen) throw new Error('Screen not found')
+
+      const windows = screen.windows ?? []
+
+      // Check for existing window with same ref
+      const existing = windows.find(
+        (w: { collection?: string; documentId?: unknown }) =>
+          w.collection === data.collection &&
+          String(w.documentId) === data.documentId,
+      )
+
+      if (existing) {
+        // Focus existing: set state to open, bump zIndex
+        const maxZ = windows.reduce(
+          (max: number, w: { zIndex?: number }) => Math.max(max, w.zIndex ?? 0),
+          0,
+        )
+        existing.state = 'open'
+        existing.zIndex = maxZ + 1
+        screen.updatedAt = new Date()
+        await screen.save()
+
+        serverCaptureEvent(sessionUserId, 'gmscreen_window_focused', {
+          campaign_id: data.campaignId,
+          screen_id: data.screenId,
+          window_id: String(existing._id),
+        })
+
+        return { success: true, window: serializeWindow(existing), existed: true }
+      }
+
+      // Enforce cap
+      if (windows.length >= GMSCREEN_LIMITS.MAX_WINDOWS) {
+        throw new Error(
+          `A screen cannot have more than ${GMSCREEN_LIMITS.MAX_WINDOWS} windows`,
+        )
+      }
+
+      // Create new window
+      const maxZ = windows.reduce(
+        (max: number, w: { zIndex?: number }) => Math.max(max, w.zIndex ?? 0),
+        0,
+      )
+      const newWindow = {
+        collection: data.collection,
+        documentId: data.documentId,
+        state: 'open' as const,
+        x: null,
+        y: null,
+        width: null,
+        height: null,
+        zIndex: maxZ + 1,
+      }
+      windows.push(newWindow)
+      screen.updatedAt = new Date()
+      await screen.save()
+
+      // The pushed sub-doc now has an _id assigned by Mongoose
+      const created = windows[windows.length - 1]
+
+      serverCaptureEvent(sessionUserId, 'gmscreen_window_opened', {
+        campaign_id: data.campaignId,
+        screen_id: data.screenId,
+        window_id: String(created._id),
+      })
+
+      return { success: true, window: serializeWindow(created), existed: false }
+    } catch (e) {
+      serverCaptureException(e, sessionUserId, {
+        action: 'openWindow',
+        screenId: data.screenId,
+        campaignId: data.campaignId,
+      })
+      throw e
+    }
+  })
+
+// ---------------------------------------------------------------------------
+// updateWindow — batch-update layout/state fields on a single window
+// ---------------------------------------------------------------------------
+
+/**
+ * Accepts any subset of `{ x, y, width, height, zIndex, state }`.
+ * Only provided fields are persisted — the rest stay untouched.
+ * This lets the client debounce drag/resize and send one update.
+ */
+
+const updateWindowSchema = z.object({
+  screenId: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
+  windowId: z.string().trim().min(1),
+  x: z.number().nullable().optional(),
+  y: z.number().nullable().optional(),
+  width: z.number().nullable().optional(),
+  height: z.number().nullable().optional(),
+  zIndex: z.number().optional(),
+  state: z.enum(WINDOW_STATES).optional(),
+})
+
+export { updateWindowSchema }
+
+export const updateWindow = createServerFn({ method: 'POST' })
+  .inputValidator(updateWindowSchema)
+  .handler(async ({ data }) => {
+    let sessionUserId: string | undefined
+    try {
+      const gm = await requireCampaignGM(data.campaignId)
+      sessionUserId = gm.sessionUserId
+
+      // Build $set for only the fields that were provided
+      const setFields: Record<string, unknown> = { updatedAt: new Date() }
+      if (data.x !== undefined) setFields['windows.$.x'] = data.x
+      if (data.y !== undefined) setFields['windows.$.y'] = data.y
+      if (data.width !== undefined) setFields['windows.$.width'] = data.width
+      if (data.height !== undefined) setFields['windows.$.height'] = data.height
+      if (data.zIndex !== undefined) setFields['windows.$.zIndex'] = data.zIndex
+      if (data.state !== undefined) setFields['windows.$.state'] = data.state
+
+      const result = await GMScreen.updateOne(
+        {
+          _id: data.screenId,
+          campaignId: data.campaignId,
+          'windows._id': data.windowId,
+        },
+        { $set: setFields },
+      )
+
+      if (result.matchedCount === 0) {
+        throw new Error('Window not found')
+      }
+
+      // Fetch the updated window to return
+      const screen = await GMScreen.findOne(
+        { _id: data.screenId, campaignId: data.campaignId },
+        { windows: { $elemMatch: { _id: data.windowId } } },
+      ).lean() as { windows?: Array<{
+        _id: unknown
+        collection?: string
+        documentId: unknown
+        state?: string
+        x?: number | null
+        y?: number | null
+        width?: number | null
+        height?: number | null
+        zIndex?: number
+      }> } | null
+
+      const updated = screen?.windows?.[0]
+      if (!updated) throw new Error('Window not found after update')
+
+      return { success: true, window: serializeWindow(updated) }
+    } catch (e) {
+      serverCaptureException(e, sessionUserId, {
+        action: 'updateWindow',
+        screenId: data.screenId,
+        windowId: data.windowId,
+      })
+      throw e
+    }
+  })
+
+// ---------------------------------------------------------------------------
+// closeWindow — remove a window from a screen
+// ---------------------------------------------------------------------------
+
+const closeWindowSchema = z.object({
+  screenId: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
+  windowId: z.string().trim().min(1),
+})
+
+export { closeWindowSchema }
+
+export const closeWindow = createServerFn({ method: 'POST' })
+  .inputValidator(closeWindowSchema)
+  .handler(async ({ data }) => {
+    let sessionUserId: string | undefined
+    try {
+      const gm = await requireCampaignGM(data.campaignId)
+      sessionUserId = gm.sessionUserId
+
+      const result = await GMScreen.updateOne(
+        { _id: data.screenId, campaignId: data.campaignId },
+        {
+          $pull: { windows: { _id: data.windowId } },
+          $set: { updatedAt: new Date() },
+        },
+      )
+
+      if (result.matchedCount === 0) {
+        throw new Error('Screen not found')
+      }
+
+      serverCaptureEvent(sessionUserId, 'gmscreen_window_closed', {
+        campaign_id: data.campaignId,
+        screen_id: data.screenId,
+        window_id: data.windowId,
+      })
+
+      return { success: true }
+    } catch (e) {
+      serverCaptureException(e, sessionUserId, {
+        action: 'closeWindow',
+        screenId: data.screenId,
+        windowId: data.windowId,
+      })
       throw e
     }
   })
