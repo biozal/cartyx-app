@@ -105,7 +105,7 @@ describe('SessionModal', () => {
   it('shows error message when onSubmit returns false', async () => {
     const user = userEvent.setup()
     const { props } = renderModal()
-    props.onSubmit.mockResolvedValue(false)
+    vi.mocked(props.onSubmit).mockResolvedValue(false)
 
     await user.type(screen.getByLabelText('Name'), 'Session One')
     await user.type(screen.getByLabelText('Start Date'), '2026-03-01')
