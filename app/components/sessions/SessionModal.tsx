@@ -80,12 +80,8 @@ export function SessionModal({
     const data: { name: string; startDate: string; endDate?: string } = {
       name: name.trim(),
       startDate: startDate.trim(),
+      endDate: endDate.trim(),
     }
-
-    if (isEditMode && endDate.trim()) {
-      data.endDate = endDate.trim()
-    }
-
     const success = await onSubmit(data)
     if (success) {
       onClose()
