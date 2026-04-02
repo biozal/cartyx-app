@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll } from 'vitest'
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
 import { GMSCREEN_LIMITS, WINDOW_STATES, GMScreen } from '~/server/db/models/GMScreen'
 
 describe('GMScreen model exports', () => {
@@ -91,6 +91,42 @@ describe('GMScreen schema validators', () => {
     stackItemsValidator = extractValidator(stackItemsPath)
 
     indexes = RealGMScreen.schema.indexes()
+  })
+
+  afterAll(() => {
+    // Restore the global mongoose mock so other tests in this worker are unaffected.
+    // vi.doMock (not vi.mock) avoids hoisting, which would break the top-level import.
+    vi.doMock('mongoose', () => {
+      class MockSchema {
+        constructor(_def?: unknown) {}
+        static Types = { ObjectId: String }
+        pre(_hook: string, _fn: unknown) {}
+      }
+      const mockModel = vi.fn(() => ({
+        findOne: vi.fn(),
+        findOneAndUpdate: vi.fn(),
+        findById: vi.fn(),
+        find: vi.fn(),
+        create: vi.fn(),
+        exists: vi.fn(),
+        save: vi.fn(),
+        updateOne: vi.fn(),
+      }))
+      return {
+        default: {
+          connect: vi.fn(),
+          connection: { readyState: 0 },
+          Schema: MockSchema,
+          model: mockModel,
+          models: {},
+        },
+        Schema: MockSchema,
+        model: mockModel,
+        models: {},
+        connection: { readyState: 0 },
+      }
+    })
+    vi.resetModules()
   })
 
   describe('windows max-length', () => {
