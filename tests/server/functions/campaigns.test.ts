@@ -520,7 +520,9 @@ describe('createCampaign', () => {
     expect(GMScreen.create).toHaveBeenCalledWith(
       [expect.objectContaining({
         campaignId: 'camp-1',
-        name: 'Default',
+        name: 'General',
+        tabOrder: 0,
+        createdBy: 'dbuser-1',
       })],
       expect.objectContaining({ session: expect.anything() })
     )
@@ -872,17 +874,18 @@ describe('createCampaign — default document creation regression (#302)', () =>
     expect(sessionCreateCall[0].number).toBe(0)
   })
 
-  it('GMScreen default name is "Default" with no widgets', async () => {
+  it('GMScreen default name is "General" with createdBy and tabOrder', async () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } })
 
     expect(GMScreen.create).toHaveBeenCalledTimes(1)
     const gmCreateCall = vi.mocked(GMScreen.create).mock.calls[0][0] as Array<{
       name: string
-      widgets?: unknown[]
+      tabOrder: number
+      createdBy: string
     }>
-    expect(gmCreateCall[0].name).toBe('Default')
-    const widgets = gmCreateCall[0].widgets
-    expect(!widgets || widgets.length === 0).toBe(true)
+    expect(gmCreateCall[0].name).toBe('General')
+    expect(gmCreateCall[0].tabOrder).toBe(0)
+    expect(gmCreateCall[0].createdBy).toBe('dbuser-1')
   })
 
   it('does not create Session 0 or GMScreen when Campaign.create fails', async () => {

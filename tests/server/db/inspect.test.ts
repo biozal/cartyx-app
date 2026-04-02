@@ -32,7 +32,8 @@ const { userMock, campaignMock, playerMock, sessionMock, gmScreenMock, noteMock 
       [{ campaignId: 1, number: -1 }, {}],
     ]),
     gmScreenMock: make('GMScreen', 'gmscreen', [
-      [{ campaignId: 1 }, {}],
+      [{ campaignId: 1, tabOrder: 1 }, {}],
+      [{ campaignId: 1, name: 1 }, { unique: true }],
     ]),
     noteMock: make('Note', 'notes', [
       [{ sessionId: 1 }, {}],
@@ -109,7 +110,8 @@ describe('inspectIndexes', () => {
     ])
     gmScreenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { campaignId: 1 } },
+      { key: { campaignId: 1, tabOrder: 1 } },
+      { key: { campaignId: 1, name: 1 }, unique: true },
     ])
     noteMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
@@ -180,7 +182,8 @@ describe('inspectIndexes', () => {
     ])
     gmScreenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { campaignId: 1 } },
+      { key: { campaignId: 1, tabOrder: 1 } },
+      { key: { campaignId: 1, name: 1 }, unique: true },
     ])
     const noteSchemaIndexes = noteMock.schema.indexes()
     noteMock.listIndexes.mockResolvedValue([
@@ -231,7 +234,8 @@ describe('inspectIndexes', () => {
     ])
     gmScreenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { campaignId: 1 } },
+      { key: { campaignId: 1, tabOrder: 1 } },
+      { key: { campaignId: 1, name: 1 }, unique: true },
     ])
     noteMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
@@ -315,7 +319,8 @@ describe('inspectIndexes', () => {
     ])
     gmScreenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      // campaignId (optional) is missing
+      { key: { campaignId: 1, name: 1 }, unique: true },
+      // tabOrder (optional) is missing
     ])
 
     const result = await inspectIndexes()
@@ -344,7 +349,8 @@ describe('inspectIndexes', () => {
     ])
     gmScreenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { campaignId: 1 } },
+      { key: { campaignId: 1, tabOrder: 1 } },
+      { key: { campaignId: 1, name: 1 }, unique: true },
     ])
     noteMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
