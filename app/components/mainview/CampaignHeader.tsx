@@ -16,7 +16,7 @@ export function CampaignHeader({ sessionNumber, activeTab, onTabChange }: Campai
   return (
     <nav className="flex items-center h-14 px-4 bg-[#0D1117] border-b border-white/[0.07] sticky top-0 z-50 gap-4">
       <span className="font-sans font-semibold text-xs text-white tracking-widest whitespace-nowrap">
-        Cartyx
+        CARTYX
       </span>
 
       {/* Left-center: Session number */}
