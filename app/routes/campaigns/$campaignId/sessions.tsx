@@ -46,7 +46,7 @@ export function SessionsPage() {
   const { create, isLoading: isCreating } = useCreateSession()
   const { update, isLoading: isUpdating } = useUpdateSession()
   const { activate, isLoading: isActivating } = useActivateSession()
-  const { campaign } = useCampaign(campaignId)
+  useCampaign(campaignId)
 
   const activeSession = (sessions as SessionData[]).find((s) => s.isActive)
   const hasActiveSession = !!activeSession
