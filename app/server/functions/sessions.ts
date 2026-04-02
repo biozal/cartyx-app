@@ -42,12 +42,12 @@ export const listSessions = createServerFn({ method: 'GET' })
 
       const filter: Record<string, unknown> = { campaignId: data.campaignId }
       if (!data.includeCompleted) {
-        filter.endDate = null
+        filter.status = { $ne: 'completed' }
       }
 
       const sessions = await Session.find(
         filter,
-        '_id name number startDate endDate isActive createdAt updatedAt'
+        '_id name number startDate endDate status createdAt updatedAt'
       )
         .sort({ startDate: -1 })
         .lean()
@@ -59,7 +59,7 @@ export const listSessions = createServerFn({ method: 'GET' })
           number: number
           startDate: Date
           endDate: Date | null
-          isActive: boolean
+          status: string
         }>
       ).map((s) => ({
         id: String(s._id),
@@ -67,7 +67,7 @@ export const listSessions = createServerFn({ method: 'GET' })
         number: s.number,
         startDate: s.startDate.toISOString(),
         endDate: s.endDate ? s.endDate.toISOString() : null,
-        isActive: Boolean(s.isActive),
+        status: (s.status ?? 'not_started') as 'not_started' | 'active' | 'completed',
       }))
     } catch (e) {
       serverCaptureException(e, undefined, {
@@ -107,7 +107,7 @@ export const createSession = createServerFn({ method: 'POST' })
             gm: dbUser._id,
             number,
             startDate: new Date(data.startDate),
-            isActive: false,
+            status: 'not_started',
           }], { session: mongoSession })
 
           return String(doc._id)

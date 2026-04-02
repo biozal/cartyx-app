@@ -13,7 +13,7 @@ const mockSession: SessionData = {
   name: 'The Beginning',
   startDate: '2026-01-15',
   endDate: '2026-01-16',
-  isActive: true,
+  status: 'active' as const,
 }
 
 const defaultProps = {

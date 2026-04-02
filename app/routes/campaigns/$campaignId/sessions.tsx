@@ -32,7 +32,7 @@ interface SessionData {
   number: number
   startDate: string
   endDate: string | null
-  isActive: boolean
+  status: 'not_started' | 'active' | 'completed'
 }
 
 export function SessionsPage() {
@@ -48,7 +48,7 @@ export function SessionsPage() {
   const { activate, isLoading: isActivating } = useActivateSession()
   useCampaign(campaignId)
 
-  const activeSession = (sessions as SessionData[]).find((s) => s.isActive)
+  const activeSession = (sessions as SessionData[]).find((s) => s.status === 'active')
   const hasActiveSession = !!activeSession
 
   async function handleCreateSubmit(data: { name: string; startDate: string; endDate?: string }) {
@@ -129,9 +129,9 @@ export function SessionsPage() {
             <p className="text-slate-400 text-sm text-center py-8">No sessions yet</p>
           ) : (
             (sessions as SessionData[]).map((session) => {
-              const isCompleted = !!session.endDate
-              const isActive = session.isActive
-              const showActivate = !isActive && !isCompleted
+              const isActive = session.status === 'active'
+              const isCompleted = session.status === 'completed'
+              const showActivate = session.status === 'not_started'
 
               return (
                 <div

@@ -357,7 +357,7 @@ describe('getCampaign', () => {
 
     expect(Session.find).toHaveBeenCalledWith(
       { campaignId: 'camp-1' },
-      '_id name number startDate endDate isActive'
+      '_id name number startDate endDate status'
     )
     expect(result.sessions).toHaveLength(1)
     expect(result.sessions[0].name).toBe('Session 0')
@@ -516,7 +516,7 @@ describe('createCampaign', () => {
     )
   })
 
-  it('creates Session 0 with isActive set to true', async () => {
+  it('creates Session 0 with status set to active', async () => {
     const created = makeCampaign()
     vi.mocked(Campaign.create).mockResolvedValue([created] as never)
 
@@ -526,7 +526,7 @@ describe('createCampaign', () => {
       [expect.objectContaining({
         campaignId: 'camp-1',
         name: 'Session 0',
-        isActive: true,
+        status: 'active',
       })],
       expect.objectContaining({ session: expect.anything() })
     )
@@ -1029,23 +1029,23 @@ describe('getCampaign — enter-campaign loading regression (#302)', () => {
     expect(result.sessions[1].endDate).toBe('2026-01-08T22:00:00.000Z')
   })
 
-  it('includes isActive in serialized session data', async () => {
+  it('includes status in serialized session data', async () => {
     const campaign = makeCampaign()
     vi.mocked(Campaign.findById).mockResolvedValue(campaign)
     const sessionDocs = [
-      { _id: 'sess-0', name: 'Session 0', number: 0, startDate: new Date('2026-01-01'), endDate: null, isActive: true },
-      { _id: 'sess-1', name: 'Session 1', number: 1, startDate: new Date('2026-01-08'), endDate: new Date('2026-01-08T23:00:00Z'), isActive: false },
+      { _id: 'sess-0', name: 'Session 0', number: 0, startDate: new Date('2026-01-01'), endDate: null, status: 'active' },
+      { _id: 'sess-1', name: 'Session 1', number: 1, startDate: new Date('2026-01-08'), endDate: new Date('2026-01-08T23:00:00Z'), status: 'completed' },
     ]
     vi.mocked(Session.find).mockReturnValue({
       sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(sessionDocs) }),
     } as never)
 
     const result = await _getCampaign({ data: { id: 'camp-1' } }) as {
-      sessions: Array<{ id: string; isActive: boolean }>
+      sessions: Array<{ id: string; status: string }>
     }
 
-    expect(result.sessions[0].isActive).toBe(true)
-    expect(result.sessions[1].isActive).toBe(false)
+    expect(result.sessions[0].status).toBe('active')
+    expect(result.sessions[1].status).toBe('completed')
   })
 
   it('returns multiple gmScreens for GM entering campaign', async () => {
@@ -1191,8 +1191,8 @@ describe('activateSession', () => {
     const campaign = makeCampaign()
     vi.mocked(Campaign.findById).mockResolvedValue(campaign)
     const mockSessionFn = vi.fn()
-      .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', isActive: true })
-      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', isActive: false })
+      .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', status: 'active' })
+      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', status: 'not_started' })
     vi.mocked(Session.findOne).mockReturnValue({
       session: mockSessionFn,
     } as never)
@@ -1204,14 +1204,14 @@ describe('activateSession', () => {
     // Should deactivate old session
     expect(Session.updateOne).toHaveBeenCalledWith(
       { _id: 'sess-old' },
-      { $set: { isActive: false, endDate: expect.any(Date), updatedAt: expect.any(Date) } },
+      { $set: { status: 'completed', endDate: expect.any(Date), updatedAt: expect.any(Date) } },
       expect.objectContaining({ session: expect.anything() })
     )
 
     // Should activate new session
     expect(Session.updateOne).toHaveBeenCalledWith(
       { _id: 'sess-new', campaignId: 'camp-1' },
-      { $set: { isActive: true, updatedAt: expect.any(Date) } },
+      { $set: { status: 'active', updatedAt: expect.any(Date) } },
       expect.objectContaining({ session: expect.anything() })
     )
   })
@@ -1220,8 +1220,8 @@ describe('activateSession', () => {
     const campaign = makeCampaign()
     vi.mocked(Campaign.findById).mockResolvedValue(campaign)
     const mockSessionFn = vi.fn()
-      .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', isActive: true })
-      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', isActive: false })
+      .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', status: 'active' })
+      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', status: 'not_started' })
     vi.mocked(Session.findOne).mockReturnValue({
       session: mockSessionFn,
     } as never)
@@ -1230,7 +1230,7 @@ describe('activateSession', () => {
 
     expect(Session.updateOne).toHaveBeenCalledWith(
       { _id: 'sess-old' },
-      { $set: { isActive: false, endDate: new Date('2026-03-15T22:00:00.000Z'), updatedAt: expect.any(Date) } },
+      { $set: { status: 'completed', endDate: new Date('2026-03-15T22:00:00.000Z'), updatedAt: expect.any(Date) } },
       expect.objectContaining({ session: expect.anything() })
     )
   })
@@ -1241,7 +1241,7 @@ describe('activateSession', () => {
     // First findOne (active session) returns null, second (target session) returns a session
     const mockSessionFn = vi.fn()
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', isActive: false })
+      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', status: 'not_started' })
     vi.mocked(Session.findOne).mockReturnValue({
       session: mockSessionFn,
     } as never)
@@ -1254,7 +1254,7 @@ describe('activateSession', () => {
     expect(Session.updateOne).toHaveBeenCalledTimes(1)
     expect(Session.updateOne).toHaveBeenCalledWith(
       { _id: 'sess-new', campaignId: 'camp-1' },
-      { $set: { isActive: true, updatedAt: expect.any(Date) } },
+      { $set: { status: 'active', updatedAt: expect.any(Date) } },
       expect.objectContaining({ session: expect.anything() })
     )
   })
@@ -1280,7 +1280,7 @@ describe('activateSession', () => {
     const campaign = makeCampaign()
     vi.mocked(Campaign.findById).mockResolvedValue(campaign)
     vi.mocked(Session.findOne).mockReturnValue({
-      session: vi.fn().mockResolvedValue({ _id: 'sess-1', campaignId: 'camp-1', isActive: true }),
+      session: vi.fn().mockResolvedValue({ _id: 'sess-1', campaignId: 'camp-1', status: 'active' }),
     } as never)
 
     const result = await _activateSession({ data: { campaignId: 'camp-1', sessionId: 'sess-1' } })
@@ -1307,8 +1307,8 @@ describe('activateSession', () => {
     const campaign = makeCampaign()
     vi.mocked(Campaign.findById).mockResolvedValue(campaign)
     const mockSessionFn = vi.fn()
-      .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', isActive: true })
-      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', isActive: false })
+      .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', status: 'active' })
+      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', status: 'not_started' })
     vi.mocked(Session.findOne).mockReturnValue({
       session: mockSessionFn,
     } as never)

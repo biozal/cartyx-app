@@ -84,8 +84,8 @@ const _updateSession = updateSession as unknown as (args: { data: { sessionId: s
 // ---------------------------------------------------------------------------
 describe('listSessions', () => {
   const baseSessions = [
-    { _id: 's1', name: 'Session 1', number: 1, startDate: new Date('2025-01-01'), endDate: null, isActive: true },
-    { _id: 's2', name: 'Session 0', number: 0, startDate: new Date('2024-12-01'), endDate: new Date('2024-12-02'), isActive: false },
+    { _id: 's1', name: 'Session 1', number: 1, startDate: new Date('2025-01-01'), endDate: null, status: 'active' },
+    { _id: 's2', name: 'Session 0', number: 0, startDate: new Date('2024-12-01'), endDate: new Date('2024-12-02'), status: 'not_started' },
   ]
 
   it('returns incomplete sessions by default (no endDate)', async () => {
@@ -96,8 +96,8 @@ describe('listSessions', () => {
     const result = await _listSessions({ data: { campaignId: 'camp-1' } })
 
     expect(Session.find).toHaveBeenCalledWith(
-      { campaignId: 'camp-1', endDate: null },
-      '_id name number startDate endDate isActive createdAt updatedAt'
+      { campaignId: 'camp-1', status: { $ne: 'completed' } },
+      '_id name number startDate endDate status createdAt updatedAt'
     )
     expect(mockSort).toHaveBeenCalledWith({ startDate: -1 })
     expect(result).toEqual([
@@ -107,7 +107,7 @@ describe('listSessions', () => {
         number: 1,
         startDate: baseSessions[0].startDate.toISOString(),
         endDate: null,
-        isActive: true,
+        status: 'active',
       },
     ])
   })
@@ -120,7 +120,7 @@ describe('listSessions', () => {
 
     expect(Session.find).toHaveBeenCalledWith(
       { campaignId: 'camp-1' },
-      '_id name number startDate endDate isActive createdAt updatedAt'
+      '_id name number startDate endDate status createdAt updatedAt'
     )
     expect(result).toHaveLength(2)
   })
@@ -155,7 +155,7 @@ describe('createSession', () => {
       number: 3,
       startDate: new Date('2025-06-01'),
       endDate: null,
-      isActive: false,
+      status: 'not_started',
     }] as never)
 
     const result = await _createSession({
@@ -169,7 +169,7 @@ describe('createSession', () => {
         gm: 'dbuser-1',
         number: 3,
         startDate: expect.any(Date),
-        isActive: false,
+        status: 'not_started',
       })],
       expect.objectContaining({ session: mockMongoSessionObj })
     )

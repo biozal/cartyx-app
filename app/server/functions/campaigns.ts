@@ -36,7 +36,7 @@ export interface CampaignData {
     number: number
     startDate: string
     endDate: string | null
-    isActive: boolean
+    status: 'not_started' | 'active' | 'completed'
   }>
   gmScreens?: Array<{
     id: string
@@ -202,7 +202,7 @@ export const getCampaign = createServerFn({ method: 'GET' })
         ).lean(),
         Session.find(
           { campaignId: c._id },
-          '_id name number startDate endDate isActive'
+          '_id name number startDate endDate status'
         ).sort({ number: 1 }).lean(),
         isOwner
           ? GMScreen.find(
@@ -222,13 +222,13 @@ export const getCampaign = createServerFn({ method: 'GET' })
         userId: String(p.userId),
       }))
 
-      const sessions = (sessionDocs as Array<{ _id: unknown; name: unknown; number: unknown; startDate: unknown; endDate: unknown; isActive: unknown }>).map(s => ({
+      const sessions = (sessionDocs as Array<{ _id: unknown; name: unknown; number: unknown; startDate: unknown; endDate: unknown; status: unknown }>).map(s => ({
         id: String(s._id),
         name: s.name as string,
         number: s.number as number,
         startDate: (s.startDate as Date).toISOString(),
         endDate: s.endDate ? (s.endDate as Date).toISOString() : null,
-        isActive: Boolean(s.isActive),
+        status: (s.status as string ?? 'not_started') as 'not_started' | 'active' | 'completed',
       }))
 
       const gmScreens = gmScreenDocs
@@ -393,7 +393,7 @@ export const createCampaign = createServerFn({ method: 'POST' })
               number: 0,
               startDate: now,
               endDate: null,
-              isActive: true,
+              status: 'active',
             }], { session: mongoSession }),
             GMScreen.create([{
               campaignId: campaign._id,
@@ -620,7 +620,7 @@ export const activateSession = createServerFn({ method: 'POST' })
       const mongoSession = await mongoose.startSession()
       try {
         await mongoSession.withTransaction(async () => {
-          const currentActive = await Session.findOne({ campaignId: data.campaignId, isActive: true }).session(mongoSession)
+          const currentActive = await Session.findOne({ campaignId: data.campaignId, status: 'active' }).session(mongoSession)
 
           // If the target is already the active session, no-op
           if (currentActive && String(currentActive._id) === data.sessionId) {
@@ -638,7 +638,7 @@ export const activateSession = createServerFn({ method: 'POST' })
             const endDate = data.endDate ? new Date(data.endDate) : now
             await Session.updateOne(
               { _id: currentActive._id },
-              { $set: { isActive: false, endDate, updatedAt: now } },
+              { $set: { status: 'completed', endDate, updatedAt: now } },
               { session: mongoSession }
             )
           }
@@ -646,7 +646,7 @@ export const activateSession = createServerFn({ method: 'POST' })
           // Activate the target session
           await Session.updateOne(
             { _id: data.sessionId, campaignId: data.campaignId },
-            { $set: { isActive: true, updatedAt: now } },
+            { $set: { status: 'active', updatedAt: now } },
             { session: mongoSession }
           )
         })

@@ -33,7 +33,7 @@ function PlayPage() {
   const navigate = Route.useNavigate()
   const { campaign } = useCampaign(campaignId)
 
-  const activeSession = campaign?.sessions.find(s => s.isActive)
+  const activeSession = campaign?.sessions.find(s => s.status === 'active')
 
   function handleTabChange(tab: TabId) {
     navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, tab }) })

@@ -96,7 +96,7 @@ const baseSessions = [
     number: 1,
     startDate: '2026-03-01T00:00:00.000Z',
     endDate: null,
-    isActive: true,
+    status: 'active' as const,
   },
   {
     id: 's2',
@@ -104,7 +104,7 @@ const baseSessions = [
     number: 2,
     startDate: '2026-03-08T00:00:00.000Z',
     endDate: null,
-    isActive: false,
+    status: 'not_started' as const,
   },
   {
     id: 's3',
@@ -112,7 +112,7 @@ const baseSessions = [
     number: 3,
     startDate: '2026-02-01T00:00:00.000Z',
     endDate: '2026-02-28T00:00:00.000Z',
-    isActive: false,
+    status: 'completed' as const,
   },
 ]
 
