@@ -186,9 +186,10 @@ describe('GMScreen schema validators', () => {
       expect(match).toBeDefined()
     })
 
-    it('declares a compound index on { campaignId, tabOrder }', () => {
+    it('declares a unique compound index on { campaignId, tabOrder }', () => {
       const match = indexes.find(
-        ([fields]) => fields.campaignId === 1 && fields.tabOrder === 1,
+        ([fields, opts]) =>
+          fields.campaignId === 1 && fields.tabOrder === 1 && opts?.unique === true,
       )
       expect(match).toBeDefined()
     })
