@@ -72,6 +72,12 @@ import {
   openWindow,
   updateWindow,
   closeWindow,
+  createStack,
+  renameStack,
+  moveStack,
+  deleteStack,
+  addStackItem,
+  removeStackItem,
   removeDocumentRefsFromScreens,
   listGMScreensSchema,
   createGMScreenSchema,
@@ -82,9 +88,15 @@ import {
   openWindowSchema,
   updateWindowSchema,
   closeWindowSchema,
+  createStackSchema,
+  renameStackSchema,
+  moveStackSchema,
+  deleteStackSchema,
+  addStackItemSchema,
+  removeStackItemSchema,
   SUPPORTED_COLLECTIONS,
 } from '~/server/functions/gmscreens'
-import type { GMScreenData, GMScreenDetailData, WindowData } from '~/server/functions/gmscreens'
+import type { GMScreenData, GMScreenDetailData, WindowData, StackData, StackItemData } from '~/server/functions/gmscreens'
 import { serverCaptureEvent, serverCaptureException } from '~/server/utils/posthog'
 
 // ---------------------------------------------------------------------------
@@ -134,6 +146,12 @@ const _getGMScreen = getGMScreen as unknown as (args: { data: Record<string, unk
 const _openWindow = openWindow as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean; window: WindowData; existed: boolean }>
 const _updateWindow = updateWindow as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean; window: WindowData }>
 const _closeWindow = closeWindow as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean }>
+const _createStack = createStack as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean; stack: StackData }>
+const _renameStack = renameStack as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean }>
+const _moveStack = moveStack as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean }>
+const _deleteStack = deleteStack as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean }>
+const _addStackItem = addStackItem as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean; item: StackItemData; existed: boolean }>
+const _removeStackItem = removeStackItem as unknown as (args: { data: Record<string, unknown> }) => Promise<{ success: boolean }>
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -1453,5 +1471,649 @@ describe('closeWindowSchema', () => {
 
   it('accepts valid input', () => {
     expect(closeWindowSchema.safeParse({ screenId: 's-1', campaignId: 'c-1', windowId: 'w-1' }).success).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// createStack
+// ---------------------------------------------------------------------------
+
+describe('createStack', () => {
+  function makeScreenWithStacks(stacks: Array<Record<string, unknown>> = []) {
+    return {
+      _id: 'screen-1',
+      campaignId: 'camp-1',
+      stacks,
+      updatedAt: new Date('2026-03-01'),
+      save: vi.fn(),
+    }
+  }
+
+  it('creates a new stack on the screen', async () => {
+    const screen = makeScreenWithStacks([])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    const result = await _createStack({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', name: 'NPCs' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.stack.name).toBe('NPCs')
+    expect(result.stack.x).toBeNull()
+    expect(result.stack.y).toBeNull()
+    expect(result.stack.items).toEqual([])
+    expect(screen.save).toHaveBeenCalled()
+  })
+
+  it('enforces the stack cap', async () => {
+    const stacks = Array.from({ length: 10 }, (_, i) => ({
+      _id: `stack-${i}`,
+      name: `Stack ${i}`,
+      x: null,
+      y: null,
+      items: [],
+    }))
+    const screen = makeScreenWithStacks(stacks)
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    await expect(
+      _createStack({
+        data: { screenId: 'screen-1', campaignId: 'camp-1', name: 'Overflow' },
+      }),
+    ).rejects.toThrow('A screen cannot have more than 10 stacks')
+  })
+
+  it('throws when screen is not found', async () => {
+    vi.mocked(GMScreen.findOne).mockResolvedValue(null)
+
+    await expect(
+      _createStack({
+        data: { screenId: 'nonexistent', campaignId: 'camp-1', name: 'Test' },
+      }),
+    ).rejects.toThrow('Screen not found')
+  })
+
+  it('initializes stacks array when missing', async () => {
+    const screen = {
+      _id: 'screen-1',
+      campaignId: 'camp-1',
+      stacks: undefined as Array<Record<string, unknown>> | undefined,
+      updatedAt: new Date('2026-03-01'),
+      save: vi.fn(),
+    }
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    const result = await _createStack({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', name: 'New' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(Array.isArray(screen.stacks)).toBe(true)
+    expect(screen.stacks).toHaveLength(1)
+  })
+
+  it('fires gmscreen_stack_created analytics event', async () => {
+    const screen = makeScreenWithStacks([])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    await _createStack({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', name: 'NPCs' },
+    })
+
+    expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'gmscreen_stack_created', expect.objectContaining({
+      campaign_id: 'camp-1',
+      screen_id: 'screen-1',
+    }))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// renameStack
+// ---------------------------------------------------------------------------
+
+describe('renameStack', () => {
+  it('renames a stack via positional $set', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never)
+
+    const result = await _renameStack({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', stackId: 'stack-1', name: 'Renamed' },
+    })
+
+    expect(result.success).toBe(true)
+    const setArg = vi.mocked(GMScreen.updateOne).mock.calls[0][1] as { $set: Record<string, unknown> }
+    expect(setArg.$set).toHaveProperty('stacks.$.name', 'Renamed')
+    expect(setArg.$set).toHaveProperty('updatedAt')
+  })
+
+  it('throws Screen not found when screen does not exist', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never)
+    vi.mocked(GMScreen.countDocuments).mockResolvedValue(0 as never)
+
+    await expect(
+      _renameStack({
+        data: { screenId: 'nonexistent', campaignId: 'camp-1', stackId: 'stack-1', name: 'New' },
+      }),
+    ).rejects.toThrow('Screen not found')
+  })
+
+  it('throws Stack not found when screen exists but stack does not', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never)
+    vi.mocked(GMScreen.countDocuments).mockResolvedValue(1 as never)
+
+    await expect(
+      _renameStack({
+        data: { screenId: 'screen-1', campaignId: 'camp-1', stackId: 'nonexistent', name: 'New' },
+      }),
+    ).rejects.toThrow('Stack not found')
+  })
+
+  it('fires gmscreen_stack_renamed analytics event', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never)
+
+    await _renameStack({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', stackId: 'stack-1', name: 'Renamed' },
+    })
+
+    expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'gmscreen_stack_renamed', {
+      campaign_id: 'camp-1',
+      screen_id: 'screen-1',
+      stack_id: 'stack-1',
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// moveStack
+// ---------------------------------------------------------------------------
+
+describe('moveStack', () => {
+  it('updates stack x/y via positional $set', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never)
+
+    const result = await _moveStack({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', stackId: 'stack-1', x: 100, y: 200 },
+    })
+
+    expect(result.success).toBe(true)
+    const setArg = vi.mocked(GMScreen.updateOne).mock.calls[0][1] as { $set: Record<string, unknown> }
+    expect(setArg.$set).toHaveProperty('stacks.$.x', 100)
+    expect(setArg.$set).toHaveProperty('stacks.$.y', 200)
+    expect(setArg.$set).toHaveProperty('updatedAt')
+  })
+
+  it('accepts null x/y for auto-layout', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never)
+
+    const result = await _moveStack({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', stackId: 'stack-1', x: null, y: null },
+    })
+
+    expect(result.success).toBe(true)
+    const setArg = vi.mocked(GMScreen.updateOne).mock.calls[0][1] as { $set: Record<string, unknown> }
+    expect(setArg.$set).toHaveProperty('stacks.$.x', null)
+    expect(setArg.$set).toHaveProperty('stacks.$.y', null)
+  })
+
+  it('throws Screen not found when screen does not exist', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never)
+    vi.mocked(GMScreen.countDocuments).mockResolvedValue(0 as never)
+
+    await expect(
+      _moveStack({
+        data: { screenId: 'nonexistent', campaignId: 'camp-1', stackId: 'stack-1', x: 0, y: 0 },
+      }),
+    ).rejects.toThrow('Screen not found')
+  })
+
+  it('throws Stack not found when screen exists but stack does not', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never)
+    vi.mocked(GMScreen.countDocuments).mockResolvedValue(1 as never)
+
+    await expect(
+      _moveStack({
+        data: { screenId: 'screen-1', campaignId: 'camp-1', stackId: 'nonexistent', x: 0, y: 0 },
+      }),
+    ).rejects.toThrow('Stack not found')
+  })
+
+  it('fires gmscreen_stack_moved analytics event', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never)
+
+    await _moveStack({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', stackId: 'stack-1', x: 50, y: 60 },
+    })
+
+    expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'gmscreen_stack_moved', {
+      campaign_id: 'camp-1',
+      screen_id: 'screen-1',
+      stack_id: 'stack-1',
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// deleteStack
+// ---------------------------------------------------------------------------
+
+describe('deleteStack', () => {
+  it('removes a stack via $pull and refreshes updatedAt', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never)
+
+    const result = await _deleteStack({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', stackId: 'stack-1' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(GMScreen.updateOne).toHaveBeenCalledWith(
+      { _id: 'screen-1', campaignId: 'camp-1', 'stacks._id': 'stack-1' },
+      {
+        $pull: { stacks: { _id: 'stack-1' } },
+        $set: { updatedAt: expect.any(Date) },
+      },
+    )
+  })
+
+  it('throws when screen is not found', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never)
+    vi.mocked(GMScreen.countDocuments).mockResolvedValue(0 as never)
+
+    await expect(
+      _deleteStack({
+        data: { screenId: 'nonexistent', campaignId: 'camp-1', stackId: 'stack-1' },
+      }),
+    ).rejects.toThrow('Screen not found')
+  })
+
+  it('is a no-op when stack was not present', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never)
+    vi.mocked(GMScreen.countDocuments).mockResolvedValue(1 as never)
+
+    const result = await _deleteStack({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', stackId: 'nonexistent' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(serverCaptureEvent).not.toHaveBeenCalled()
+  })
+
+  it('fires gmscreen_stack_deleted analytics event', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never)
+
+    await _deleteStack({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', stackId: 'stack-1' },
+    })
+
+    expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'gmscreen_stack_deleted', {
+      campaign_id: 'camp-1',
+      screen_id: 'screen-1',
+      stack_id: 'stack-1',
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// addStackItem
+// ---------------------------------------------------------------------------
+
+describe('addStackItem', () => {
+  function makeScreenWithStack(items: Array<Record<string, unknown>> = []) {
+    return {
+      _id: 'screen-1',
+      campaignId: 'camp-1',
+      stacks: [
+        {
+          _id: 'stack-1',
+          name: 'NPCs',
+          x: 0,
+          y: 0,
+          items,
+        },
+      ],
+      updatedAt: new Date('2026-03-01'),
+      save: vi.fn(),
+    }
+  }
+
+  it('adds a new item to a stack', async () => {
+    const screen = makeScreenWithStack([])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    const result = await _addStackItem({
+      data: {
+        screenId: 'screen-1',
+        campaignId: 'camp-1',
+        stackId: 'stack-1',
+        collection: 'note',
+        documentId: 'note-1',
+        label: 'Gandalf',
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.existed).toBe(false)
+    expect(result.item.collection).toBe('note')
+    expect(result.item.documentId).toBe('note-1')
+    expect(result.item.label).toBe('Gandalf')
+    expect(screen.save).toHaveBeenCalled()
+  })
+
+  it('returns existed: true for duplicate collection+documentId', async () => {
+    const screen = makeScreenWithStack([
+      { _id: 'si-1', collection: 'note', documentId: 'note-1', label: 'Existing' },
+    ])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    const result = await _addStackItem({
+      data: {
+        screenId: 'screen-1',
+        campaignId: 'camp-1',
+        stackId: 'stack-1',
+        collection: 'note',
+        documentId: 'note-1',
+        label: 'Duplicate',
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.existed).toBe(true)
+    expect(result.item.id).toBe('si-1')
+    expect(result.item.label).toBe('Existing')
+    expect(screen.save).not.toHaveBeenCalled()
+  })
+
+  it('enforces the stack item cap', async () => {
+    const items = Array.from({ length: 50 }, (_, i) => ({
+      _id: `si-${i}`,
+      collection: 'note',
+      documentId: `note-${i}`,
+      label: `Item ${i}`,
+    }))
+    const screen = makeScreenWithStack(items)
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    await expect(
+      _addStackItem({
+        data: {
+          screenId: 'screen-1',
+          campaignId: 'camp-1',
+          stackId: 'stack-1',
+          collection: 'note',
+          documentId: 'note-new',
+          label: 'Overflow',
+        },
+      }),
+    ).rejects.toThrow('A stack cannot contain more than 50 items')
+  })
+
+  it('throws when screen is not found', async () => {
+    vi.mocked(GMScreen.findOne).mockResolvedValue(null)
+
+    await expect(
+      _addStackItem({
+        data: {
+          screenId: 'nonexistent',
+          campaignId: 'camp-1',
+          stackId: 'stack-1',
+          collection: 'note',
+          documentId: 'note-1',
+        },
+      }),
+    ).rejects.toThrow('Screen not found')
+  })
+
+  it('throws when stack is not found', async () => {
+    const screen = makeScreenWithStack([])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    await expect(
+      _addStackItem({
+        data: {
+          screenId: 'screen-1',
+          campaignId: 'camp-1',
+          stackId: 'nonexistent',
+          collection: 'note',
+          documentId: 'note-1',
+        },
+      }),
+    ).rejects.toThrow('Stack not found')
+  })
+
+  it('fires gmscreen_stack_item_added analytics event', async () => {
+    const screen = makeScreenWithStack([])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    await _addStackItem({
+      data: {
+        screenId: 'screen-1',
+        campaignId: 'camp-1',
+        stackId: 'stack-1',
+        collection: 'note',
+        documentId: 'note-1',
+        label: 'Test',
+      },
+    })
+
+    expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'gmscreen_stack_item_added', expect.objectContaining({
+      campaign_id: 'camp-1',
+      screen_id: 'screen-1',
+      stack_id: 'stack-1',
+    }))
+  })
+
+  it('defaults label to empty string when not provided', async () => {
+    const screen = makeScreenWithStack([])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    const result = await _addStackItem({
+      data: {
+        screenId: 'screen-1',
+        campaignId: 'camp-1',
+        stackId: 'stack-1',
+        collection: 'note',
+        documentId: 'note-1',
+      },
+    })
+
+    expect(result.item.label).toBe('')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// removeStackItem
+// ---------------------------------------------------------------------------
+
+describe('removeStackItem', () => {
+  function makeScreenWithStackItems(items: Array<Record<string, unknown>> = []) {
+    return {
+      _id: 'screen-1',
+      campaignId: 'camp-1',
+      stacks: [
+        {
+          _id: 'stack-1',
+          name: 'NPCs',
+          x: 0,
+          y: 0,
+          items,
+        },
+      ],
+      updatedAt: new Date('2026-03-01'),
+      save: vi.fn(),
+    }
+  }
+
+  it('removes an item from a stack', async () => {
+    const screen = makeScreenWithStackItems([
+      { _id: 'si-1', collection: 'note', documentId: 'note-1', label: 'Gandalf' },
+      { _id: 'si-2', collection: 'note', documentId: 'note-2', label: 'Frodo' },
+    ])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    const result = await _removeStackItem({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', stackId: 'stack-1', itemId: 'si-1' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(screen.stacks[0].items).toHaveLength(1)
+    expect(screen.stacks[0].items[0]._id).toBe('si-2')
+    expect(screen.save).toHaveBeenCalled()
+  })
+
+  it('is a no-op when item is not present', async () => {
+    const screen = makeScreenWithStackItems([
+      { _id: 'si-1', collection: 'note', documentId: 'note-1', label: 'Gandalf' },
+    ])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    const result = await _removeStackItem({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', stackId: 'stack-1', itemId: 'nonexistent' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(screen.stacks[0].items).toHaveLength(1)
+    expect(screen.save).not.toHaveBeenCalled()
+    expect(serverCaptureEvent).not.toHaveBeenCalled()
+  })
+
+  it('throws when screen is not found', async () => {
+    vi.mocked(GMScreen.findOne).mockResolvedValue(null)
+
+    await expect(
+      _removeStackItem({
+        data: { screenId: 'nonexistent', campaignId: 'camp-1', stackId: 'stack-1', itemId: 'si-1' },
+      }),
+    ).rejects.toThrow('Screen not found')
+  })
+
+  it('throws when stack is not found', async () => {
+    const screen = makeScreenWithStackItems([])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    await expect(
+      _removeStackItem({
+        data: { screenId: 'screen-1', campaignId: 'camp-1', stackId: 'nonexistent', itemId: 'si-1' },
+      }),
+    ).rejects.toThrow('Stack not found')
+  })
+
+  it('fires gmscreen_stack_item_removed analytics event', async () => {
+    const screen = makeScreenWithStackItems([
+      { _id: 'si-1', collection: 'note', documentId: 'note-1', label: 'Gandalf' },
+    ])
+    vi.mocked(GMScreen.findOne).mockResolvedValue(screen as never)
+
+    await _removeStackItem({
+      data: { screenId: 'screen-1', campaignId: 'camp-1', stackId: 'stack-1', itemId: 'si-1' },
+    })
+
+    expect(serverCaptureEvent).toHaveBeenCalledWith('session-user-1', 'gmscreen_stack_item_removed', {
+      campaign_id: 'camp-1',
+      screen_id: 'screen-1',
+      stack_id: 'stack-1',
+      item_id: 'si-1',
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Stack Zod schemas
+// ---------------------------------------------------------------------------
+
+describe('createStackSchema', () => {
+  it('rejects empty screenId', () => {
+    expect(createStackSchema.safeParse({ screenId: '', campaignId: 'c', name: 'Test' }).success).toBe(false)
+  })
+
+  it('rejects empty name', () => {
+    expect(createStackSchema.safeParse({ screenId: 's', campaignId: 'c', name: '' }).success).toBe(false)
+  })
+
+  it('rejects whitespace-only name', () => {
+    expect(createStackSchema.safeParse({ screenId: 's', campaignId: 'c', name: '   ' }).success).toBe(false)
+  })
+
+  it('accepts valid input', () => {
+    expect(createStackSchema.safeParse({ screenId: 's-1', campaignId: 'c-1', name: 'NPCs' }).success).toBe(true)
+  })
+})
+
+describe('renameStackSchema', () => {
+  it('rejects empty stackId', () => {
+    expect(renameStackSchema.safeParse({ screenId: 's', campaignId: 'c', stackId: '', name: 'New' }).success).toBe(false)
+  })
+
+  it('rejects empty name', () => {
+    expect(renameStackSchema.safeParse({ screenId: 's', campaignId: 'c', stackId: 'st', name: '' }).success).toBe(false)
+  })
+
+  it('accepts valid input', () => {
+    expect(renameStackSchema.safeParse({ screenId: 's-1', campaignId: 'c-1', stackId: 'st-1', name: 'Renamed' }).success).toBe(true)
+  })
+})
+
+describe('moveStackSchema', () => {
+  it('rejects missing x', () => {
+    expect(moveStackSchema.safeParse({ screenId: 's', campaignId: 'c', stackId: 'st', y: 0 }).success).toBe(false)
+  })
+
+  it('rejects missing y', () => {
+    expect(moveStackSchema.safeParse({ screenId: 's', campaignId: 'c', stackId: 'st', x: 0 }).success).toBe(false)
+  })
+
+  it('accepts valid numeric input', () => {
+    expect(moveStackSchema.safeParse({ screenId: 's-1', campaignId: 'c-1', stackId: 'st-1', x: 100, y: 200 }).success).toBe(true)
+  })
+
+  it('accepts null x and y', () => {
+    expect(moveStackSchema.safeParse({ screenId: 's-1', campaignId: 'c-1', stackId: 'st-1', x: null, y: null }).success).toBe(true)
+  })
+})
+
+describe('deleteStackSchema', () => {
+  it('rejects empty stackId', () => {
+    expect(deleteStackSchema.safeParse({ screenId: 's', campaignId: 'c', stackId: '' }).success).toBe(false)
+  })
+
+  it('accepts valid input', () => {
+    expect(deleteStackSchema.safeParse({ screenId: 's-1', campaignId: 'c-1', stackId: 'st-1' }).success).toBe(true)
+  })
+})
+
+describe('addStackItemSchema', () => {
+  it('rejects empty stackId', () => {
+    expect(addStackItemSchema.safeParse({ screenId: 's', campaignId: 'c', stackId: '', collection: 'note', documentId: 'd' }).success).toBe(false)
+  })
+
+  it('rejects unsupported collection', () => {
+    const result = addStackItemSchema.safeParse({ screenId: 's', campaignId: 'c', stackId: 'st', collection: 'bogus', documentId: 'd' })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0].message).toContain('Unsupported collection')
+    }
+  })
+
+  it('rejects empty documentId', () => {
+    expect(addStackItemSchema.safeParse({ screenId: 's', campaignId: 'c', stackId: 'st', collection: 'note', documentId: '' }).success).toBe(false)
+  })
+
+  it('accepts valid input with label', () => {
+    expect(addStackItemSchema.safeParse({ screenId: 's-1', campaignId: 'c-1', stackId: 'st-1', collection: 'note', documentId: 'd-1', label: 'Gandalf' }).success).toBe(true)
+  })
+
+  it('accepts valid input without label (defaults)', () => {
+    const result = addStackItemSchema.safeParse({ screenId: 's-1', campaignId: 'c-1', stackId: 'st-1', collection: 'note', documentId: 'd-1' })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.label).toBe('')
+    }
+  })
+})
+
+describe('removeStackItemSchema', () => {
+  it('rejects empty itemId', () => {
+    expect(removeStackItemSchema.safeParse({ screenId: 's', campaignId: 'c', stackId: 'st', itemId: '' }).success).toBe(false)
+  })
+
+  it('accepts valid input', () => {
+    expect(removeStackItemSchema.safeParse({ screenId: 's-1', campaignId: 'c-1', stackId: 'st-1', itemId: 'i-1' }).success).toBe(true)
   })
 })
