@@ -625,6 +625,10 @@ export const activateSession = createServerFn({ method: 'POST' })
             return
           }
 
+          // Verify target session exists and belongs to this campaign
+          const targetSession = await Session.findOne({ _id: data.sessionId, campaignId: data.campaignId }).session(mongoSession)
+          if (!targetSession) throw new Error('Session not found')
+
           const now = new Date()
 
           // Deactivate the currently active session

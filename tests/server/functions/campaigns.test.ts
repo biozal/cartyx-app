@@ -1187,8 +1187,11 @@ describe('activateSession', () => {
   it('deactivates the current active session and activates the target session', async () => {
     const campaign = makeCampaign()
     vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    const mockSessionFn = vi.fn()
+      .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', isActive: true })
+      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', isActive: false })
     vi.mocked(Session.findOne).mockReturnValue({
-      session: vi.fn().mockResolvedValue({ _id: 'sess-old', campaignId: 'camp-1', isActive: true }),
+      session: mockSessionFn,
     } as never)
 
     const result = await _activateSession({ data: { campaignId: 'camp-1', sessionId: 'sess-new' } })
@@ -1213,8 +1216,11 @@ describe('activateSession', () => {
   it('uses GM-provided endDate when supplied', async () => {
     const campaign = makeCampaign()
     vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    const mockSessionFn = vi.fn()
+      .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', isActive: true })
+      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', isActive: false })
     vi.mocked(Session.findOne).mockReturnValue({
-      session: vi.fn().mockResolvedValue({ _id: 'sess-old', campaignId: 'camp-1', isActive: true }),
+      session: mockSessionFn,
     } as never)
 
     await _activateSession({ data: { campaignId: 'camp-1', sessionId: 'sess-new', endDate: '2026-03-15T22:00:00.000Z' } })
@@ -1229,8 +1235,12 @@ describe('activateSession', () => {
   it('activates session even when no currently active session exists', async () => {
     const campaign = makeCampaign()
     vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    // First findOne (active session) returns null, second (target session) returns a session
+    const mockSessionFn = vi.fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', isActive: false })
     vi.mocked(Session.findOne).mockReturnValue({
-      session: vi.fn().mockResolvedValue(null),
+      session: mockSessionFn,
     } as never)
 
     const result = await _activateSession({ data: { campaignId: 'camp-1', sessionId: 'sess-new' } })
@@ -1277,11 +1287,27 @@ describe('activateSession', () => {
     expect(Session.updateOne).not.toHaveBeenCalled()
   })
 
+  it('throws when target session does not exist', async () => {
+    const campaign = makeCampaign()
+    vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    // No active session, and target session doesn't exist
+    vi.mocked(Session.findOne).mockReturnValue({
+      session: vi.fn().mockResolvedValue(null),
+    } as never)
+
+    await expect(
+      _activateSession({ data: { campaignId: 'camp-1', sessionId: 'nonexistent' } })
+    ).rejects.toThrow('Session not found')
+  })
+
   it('ends the mongo session even when the transaction fails', async () => {
     const campaign = makeCampaign()
     vi.mocked(Campaign.findById).mockResolvedValue(campaign)
+    const mockSessionFn = vi.fn()
+      .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', isActive: true })
+      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', isActive: false })
     vi.mocked(Session.findOne).mockReturnValue({
-      session: vi.fn().mockResolvedValue({ _id: 'sess-old', campaignId: 'camp-1', isActive: true }),
+      session: mockSessionFn,
     } as never)
     vi.mocked(Session.updateOne).mockRejectedValue(new Error('DB write failed'))
 
