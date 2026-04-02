@@ -10,6 +10,7 @@ export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
     name: 'Ashes at Emberfall',
     startDate: '2026-03-21T00:00:00.000Z',
     endDate: null,
+    isActive: true,
   }),
   Object.freeze({
     id: 'session-13',
@@ -17,6 +18,7 @@ export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
     name: 'The Bell Beneath the Chapel',
     startDate: '2026-03-14T00:00:00.000Z',
     endDate: null,
+    isActive: false,
   }),
   Object.freeze({
     id: 'session-12',
@@ -24,6 +26,7 @@ export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
     name: 'Smoke Over Glassmere',
     startDate: '2026-03-07T00:00:00.000Z',
     endDate: null,
+    isActive: false,
   }),
   Object.freeze({
     id: 'session-11',
@@ -31,6 +34,7 @@ export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
     name: 'A Crown of Hollow Iron',
     startDate: '2026-02-28T00:00:00.000Z',
     endDate: null,
+    isActive: false,
   }),
   Object.freeze({
     id: 'session-10',
@@ -38,6 +42,7 @@ export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
     name: 'The Silent Lantern',
     startDate: '2026-02-21T00:00:00.000Z',
     endDate: null,
+    isActive: false,
   }),
   Object.freeze({
     id: 'session-9',
@@ -45,6 +50,7 @@ export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
     name: 'Blackwater Oaths',
     startDate: '2026-02-14T00:00:00.000Z',
     endDate: null,
+    isActive: false,
   }),
   Object.freeze({
     id: 'session-8',
@@ -52,6 +58,7 @@ export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
     name: 'Teeth in the Snow',
     startDate: '2026-02-07T00:00:00.000Z',
     endDate: null,
+    isActive: false,
   }),
   Object.freeze({
     id: 'session-7',
@@ -59,6 +66,7 @@ export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
     name: 'The Cartographer\'s Debt',
     startDate: '2026-01-31T00:00:00.000Z',
     endDate: null,
+    isActive: false,
   }),
 ])
 
