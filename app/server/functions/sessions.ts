@@ -1,5 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
+import mongoose from 'mongoose'
 import { getSession } from '../session'
 import { connectDB, isDBConnected } from '../db/connection'
 import { User } from '../db/models/User'
@@ -89,28 +90,39 @@ export const createSession = createServerFn({ method: 'POST' })
     try {
       const { user, dbUser } = await requireGM(data.campaignId)
 
-      const lastSession = await Session.findOne({ campaignId: data.campaignId })
-        .sort({ number: -1 })
-        .select('number')
-        .lean() as { number: number } | null
-      const number = lastSession ? lastSession.number + 1 : 0
+      const mongoSession = await mongoose.startSession()
+      let sessionId: string
+      try {
+        sessionId = await mongoSession.withTransaction(async () => {
+          const lastSession = await Session.findOne({ campaignId: data.campaignId })
+            .sort({ number: -1 })
+            .select('number')
+            .session(mongoSession)
+            .lean() as { number: number } | null
+          const number = lastSession ? lastSession.number + 1 : 0
 
-      const session = await Session.create({
-        campaignId: data.campaignId,
-        name: data.name,
-        gm: dbUser._id,
-        number,
-        startDate: new Date(data.startDate),
-        isActive: false,
-      })
+          const [doc] = await Session.create([{
+            campaignId: data.campaignId,
+            name: data.name,
+            gm: dbUser._id,
+            number,
+            startDate: new Date(data.startDate),
+            isActive: false,
+          }], { session: mongoSession })
+
+          return String(doc._id)
+        }) as string
+      } finally {
+        await mongoSession.endSession()
+      }
 
       serverCaptureEvent(user.id, 'session_created', {
         campaign_id: data.campaignId,
-        session_id: String(session._id),
+        session_id: sessionId,
         session_name: data.name,
       })
 
-      return { success: true, sessionId: String(session._id) }
+      return { success: true, sessionId }
     } catch (e) {
       serverCaptureException(e, undefined, {
         action: 'createSession',

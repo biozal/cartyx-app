@@ -9,6 +9,16 @@ vi.mock('@tanstack/react-start', () => ({
   }),
 }))
 
+const mockMongoSessionObj = {
+  withTransaction: vi.fn(async (fn: () => Promise<unknown>) => fn()),
+  endSession: vi.fn(),
+}
+vi.mock('mongoose', () => ({
+  default: {
+    startSession: vi.fn(() => mockMongoSessionObj),
+  },
+}))
+
 vi.mock('~/server/session', () => ({ getSession: vi.fn() }))
 vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
@@ -129,37 +139,41 @@ describe('listSessions', () => {
 // createSession
 // ---------------------------------------------------------------------------
 describe('createSession', () => {
-  it('creates an inactive session with auto-assigned number', async () => {
+  it('creates an inactive session with auto-assigned number in a transaction', async () => {
     vi.mocked(Session.findOne).mockReturnValue({
       sort: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
-          lean: vi.fn().mockResolvedValue({ number: 2 }),
+          session: vi.fn().mockReturnValue({
+            lean: vi.fn().mockResolvedValue({ number: 2 }),
+          }),
         }),
       }),
     } as never)
-    vi.mocked(Session.create).mockResolvedValue({
+    vi.mocked(Session.create).mockResolvedValue([{
       _id: 'new-session-1',
       name: 'The Dragon Quest',
       number: 3,
       startDate: new Date('2025-06-01'),
       endDate: null,
       isActive: false,
-    } as never)
+    }] as never)
 
     const result = await _createSession({
       data: { campaignId: 'camp-1', name: 'The Dragon Quest', startDate: '2025-06-01T00:00:00.000Z' },
     })
 
     expect(Session.create).toHaveBeenCalledWith(
-      expect.objectContaining({
+      [expect.objectContaining({
         campaignId: 'camp-1',
         name: 'The Dragon Quest',
         gm: 'dbuser-1',
         number: 3,
         startDate: expect.any(Date),
         isActive: false,
-      })
+      })],
+      expect.objectContaining({ session: mockMongoSessionObj })
     )
+    expect(mockMongoSessionObj.endSession).toHaveBeenCalled()
     expect(result).toEqual(
       expect.objectContaining({
         success: true,
@@ -204,7 +218,7 @@ describe('updateSession', () => {
 
     expect(Session.findOne).toHaveBeenCalledWith({ _id: 's1', campaignId: 'camp-1' })
     expect(Session.updateOne).toHaveBeenCalledWith(
-      { _id: 's1' },
+      { _id: 's1', campaignId: 'camp-1' },
       {
         $set: expect.objectContaining({
           name: 'New Name',
@@ -249,7 +263,7 @@ describe('updateSession', () => {
     })
 
     expect(Session.updateOne).toHaveBeenCalledWith(
-      { _id: 's1' },
+      { _id: 's1', campaignId: 'camp-1' },
       {
         $set: expect.objectContaining({
           name: 'Updated',

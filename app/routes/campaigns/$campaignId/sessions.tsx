@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { createFileRoute, redirect, Link, useParams } from '@tanstack/react-router'
+import { createFileRoute, redirect, Link } from '@tanstack/react-router'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faArrowLeft, faPlus } from '@fortawesome/pro-solid-svg-icons'
 import { getMe } from '~/server/functions/auth'
@@ -36,7 +36,7 @@ interface SessionData {
 }
 
 export function SessionsPage() {
-  const { campaignId } = useParams({ strict: false }) as { campaignId: string }
+  const { campaignId } = Route.useParams()
   const [includeCompleted, setIncludeCompleted] = useState(false)
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [editSession, setEditSession] = useState<SessionData | null>(null)
