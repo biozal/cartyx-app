@@ -40,8 +40,10 @@ export function SessionModal({
   useEffect(() => {
     if (session) {
       setName(session.name)
-      setStartDate(session.startDate)
-      setEndDate(session.endDate ?? '')
+      // session.startDate / endDate may be full ISO strings (e.g. 2026-03-01T00:00:00.000Z)
+      // Normalize to YYYY-MM-DD for use with <input type="date">
+      setStartDate(session.startDate.slice(0, 10))
+      setEndDate(session.endDate ? session.endDate.slice(0, 10) : '')
     } else {
       setName('')
       setStartDate('')
