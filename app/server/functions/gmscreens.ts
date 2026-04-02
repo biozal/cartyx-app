@@ -882,6 +882,7 @@ export const updateWindow = createServerFn({ method: 'POST' })
     } catch (e) {
       serverCaptureException(e, sessionUserId, {
         action: 'updateWindow',
+        campaignId: data.campaignId,
         screenId: data.screenId,
         windowId: data.windowId,
       })
