@@ -23,6 +23,13 @@ export interface GMScreenData {
   updatedAt: string
 }
 
+/**
+ * Persisted window layout — position, size, and state only.
+ * Title is intentionally omitted: it is always derived at read time via
+ * {@link HydratedDocument} (see `GMScreenDetailData.hydrated`) so that
+ * renames in the source document are reflected immediately without a
+ * separate sync step.
+ */
 export interface WindowData {
   id: string
   collection: string
@@ -154,6 +161,9 @@ const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
     },
   },
 }
+
+/** Collection names that can be opened as windows or referenced in stacks. */
+export const SUPPORTED_COLLECTIONS = Object.keys(COLLECTION_REGISTRY) as [string, ...string[]]
 
 /**
  * Batch-hydrate a set of `{ collection, documentId }` refs.
@@ -682,7 +692,11 @@ export const getGMScreen = createServerFn({ method: 'GET' })
 const openWindowSchema = z.object({
   screenId: z.string().trim().min(1),
   campaignId: z.string().trim().min(1),
-  collection: z.string().trim().min(1),
+  collection: z.enum(SUPPORTED_COLLECTIONS, {
+    errorMap: () => ({
+      message: `Unsupported collection. Must be one of: ${SUPPORTED_COLLECTIONS.join(', ')}`,
+    }),
+  }),
   documentId: z.string().trim().min(1),
 })
 

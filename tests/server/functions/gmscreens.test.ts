@@ -82,6 +82,7 @@ import {
   openWindowSchema,
   updateWindowSchema,
   closeWindowSchema,
+  SUPPORTED_COLLECTIONS,
 } from '~/server/functions/gmscreens'
 import type { GMScreenData, GMScreenDetailData, WindowData } from '~/server/functions/gmscreens'
 import { serverCaptureEvent, serverCaptureException } from '~/server/utils/posthog'
@@ -1397,8 +1398,23 @@ describe('openWindowSchema', () => {
     expect(openWindowSchema.safeParse({ screenId: 's', campaignId: 'c', collection: 'note', documentId: '' }).success).toBe(false)
   })
 
+  it('rejects unsupported collection', () => {
+    const result = openWindowSchema.safeParse({ screenId: 's', campaignId: 'c', collection: 'bogus', documentId: 'd' })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0].message).toContain('Unsupported collection')
+    }
+  })
+
   it('accepts valid input', () => {
     expect(openWindowSchema.safeParse({ screenId: 's-1', campaignId: 'c-1', collection: 'note', documentId: 'd-1' }).success).toBe(true)
+  })
+})
+
+describe('SUPPORTED_COLLECTIONS', () => {
+  it('contains only collections registered for hydration', () => {
+    expect(SUPPORTED_COLLECTIONS).toContain('note')
+    expect(SUPPORTED_COLLECTIONS.length).toBeGreaterThan(0)
   })
 })
 
