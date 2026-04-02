@@ -7,6 +7,11 @@ export const queryKeys = {
     list: () => ['campaigns', 'list'] as const,
     detail: (id: string) => ['campaigns', 'detail', id] as const,
   },
+  sessions: {
+    all: ['sessions'] as const,
+    list: (campaignId: string, includeCompleted: boolean) =>
+      ['sessions', 'list', campaignId, String(includeCompleted)] as const,
+  },
   notes: {
     all: ['notes'] as const,
     list: (campaignId: string, sessionId?: string, search?: string, visibility?: string) =>

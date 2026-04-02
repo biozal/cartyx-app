@@ -85,8 +85,8 @@ vi.mock('@codemirror/theme-one-dark', () => ({
 }))
 
 const mockSessions = [
-  { id: 'session-1', number: 1, name: 'First Session', startDate: '2026-01-01T00:00:00.000Z', endDate: null, isActive: false },
-  { id: 'session-2', number: 2, name: 'Second Session', startDate: '2026-01-08T00:00:00.000Z', endDate: null, isActive: true },
+  { id: 'session-1', number: 1, name: 'First Session', startDate: '2026-01-01T00:00:00.000Z', endDate: null, status: 'not_started' as const },
+  { id: 'session-2', number: 2, name: 'Second Session', startDate: '2026-01-08T00:00:00.000Z', endDate: null, status: 'active' as const },
 ]
 
 const mockNote = {
