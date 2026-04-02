@@ -834,6 +834,14 @@ export const updateWindow = createServerFn({ method: 'POST' })
       )
 
       if (result.matchedCount === 0) {
+        // Distinguish screen-not-found from window-not-found
+        const screenExists = await GMScreen.countDocuments({
+          _id: data.screenId,
+          campaignId: data.campaignId,
+        })
+        if (screenExists === 0) {
+          throw new Error('Screen not found')
+        }
         throw new Error('Window not found')
       }
 
@@ -887,8 +895,14 @@ export const closeWindow = createServerFn({ method: 'POST' })
       const gm = await requireCampaignGM(data.campaignId)
       sessionUserId = gm.sessionUserId
 
+      // Include window ID in the filter so the update is a true no-op
+      // (no updatedAt churn, no analytics) when the window isn't present.
       const result = await GMScreen.updateOne(
-        { _id: data.screenId, campaignId: data.campaignId },
+        {
+          _id: data.screenId,
+          campaignId: data.campaignId,
+          'windows._id': data.windowId,
+        },
         {
           $pull: { windows: { _id: data.windowId } },
           $set: { updatedAt: new Date() },
@@ -896,16 +910,23 @@ export const closeWindow = createServerFn({ method: 'POST' })
       )
 
       if (result.matchedCount === 0) {
-        throw new Error('Screen not found')
+        // Distinguish screen-not-found from window-not-found
+        const screenExists = await GMScreen.countDocuments({
+          _id: data.screenId,
+          campaignId: data.campaignId,
+        })
+        if (screenExists === 0) {
+          throw new Error('Screen not found')
+        }
+        // Window wasn't present — true no-op
+        return { success: true }
       }
 
-      if (result.modifiedCount > 0) {
-        serverCaptureEvent(sessionUserId, 'gmscreen_window_closed', {
-          campaign_id: data.campaignId,
-          screen_id: data.screenId,
-          window_id: data.windowId,
-        })
-      }
+      serverCaptureEvent(sessionUserId, 'gmscreen_window_closed', {
+        campaign_id: data.campaignId,
+        screen_id: data.screenId,
+        window_id: data.windowId,
+      })
 
       return { success: true }
     } catch (e) {

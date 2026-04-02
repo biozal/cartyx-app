@@ -1291,8 +1291,20 @@ describe('updateWindow', () => {
     expect(setArg.$set).toHaveProperty('windows.$.y', null)
   })
 
-  it('throws when window is not found', async () => {
+  it('throws Screen not found when the screen does not exist', async () => {
     vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never)
+    vi.mocked(GMScreen.countDocuments).mockResolvedValue(0 as never)
+
+    await expect(
+      _updateWindow({
+        data: { screenId: 'nonexistent', campaignId: 'camp-1', windowId: 'win-1', x: 10 },
+      }),
+    ).rejects.toThrow('Screen not found')
+  })
+
+  it('throws Window not found when screen exists but window does not', async () => {
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never)
+    vi.mocked(GMScreen.countDocuments).mockResolvedValue(1 as never)
 
     await expect(
       _updateWindow({
@@ -1316,7 +1328,7 @@ describe('closeWindow', () => {
 
     expect(result.success).toBe(true)
     expect(GMScreen.updateOne).toHaveBeenCalledWith(
-      { _id: 'screen-1', campaignId: 'camp-1' },
+      { _id: 'screen-1', campaignId: 'camp-1', 'windows._id': 'win-1' },
       {
         $pull: { windows: { _id: 'win-1' } },
         $set: { updatedAt: expect.any(Date) },
@@ -1326,6 +1338,7 @@ describe('closeWindow', () => {
 
   it('throws when screen is not found', async () => {
     vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never)
+    vi.mocked(GMScreen.countDocuments).mockResolvedValue(0 as never)
 
     await expect(
       _closeWindow({
@@ -1348,8 +1361,10 @@ describe('closeWindow', () => {
     })
   })
 
-  it('does not fire analytics when window was not present (no-op close)', async () => {
-    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 1, modifiedCount: 0 } as never)
+  it('does not fire analytics or churn state when window was not present (no-op close)', async () => {
+    // matchedCount 0 because the filter includes windows._id — screen exists but window doesn't
+    vi.mocked(GMScreen.updateOne).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never)
+    vi.mocked(GMScreen.countDocuments).mockResolvedValue(1 as never)
 
     const result = await _closeWindow({
       data: { screenId: 'screen-1', campaignId: 'camp-1', windowId: 'nonexistent-win' },
@@ -1357,6 +1372,11 @@ describe('closeWindow', () => {
 
     expect(result.success).toBe(true)
     expect(serverCaptureEvent).not.toHaveBeenCalled()
+    // Verify updatedAt was not touched — updateOne filter didn't match, so no $set ran
+    expect(GMScreen.updateOne).toHaveBeenCalledWith(
+      { _id: 'screen-1', campaignId: 'camp-1', 'windows._id': 'nonexistent-win' },
+      expect.anything(),
+    )
   })
 })
 
