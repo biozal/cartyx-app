@@ -1,5 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
+import mongoose from 'mongoose'
 import { getSession } from '../session'
 import { connectDB, isDBConnected } from '../db/connection'
 import { User } from '../db/models/User'
@@ -129,23 +130,34 @@ export const createGMScreen = createServerFn({ method: 'POST' })
       const gm = await requireCampaignGM(data.campaignId)
       sessionUserId = gm.sessionUserId
 
-      // Assign tabOrder as max + 1 to avoid collisions
-      const last = await GMScreen.findOne({ campaignId: data.campaignId })
-        .sort({ tabOrder: -1 })
-        .select('tabOrder')
-        .lean() as { tabOrder?: number } | null
+      // Use a transaction so the read-max + create is atomic
+      const mongoSession = await mongoose.startSession()
+      let doc: { _id: unknown; campaignId: unknown; name?: string; tabOrder?: number; createdBy: unknown; createdAt?: Date; updatedAt?: Date }
+      try {
+        doc = await mongoSession.withTransaction(async () => {
+          const last = await GMScreen.findOne({ campaignId: data.campaignId })
+            .sort({ tabOrder: -1 })
+            .select('tabOrder')
+            .session(mongoSession)
+            .lean() as { tabOrder?: number } | null
 
-      const nextOrder = (last?.tabOrder ?? -1) + 1
+          const nextOrder = (last?.tabOrder ?? -1) + 1
 
-      const now = new Date()
-      const doc = await GMScreen.create({
-        campaignId: data.campaignId,
-        name: data.name.trim(),
-        tabOrder: nextOrder,
-        createdBy: gm.userId,
-        createdAt: now,
-        updatedAt: now,
-      })
+          const now = new Date()
+          const [created] = await GMScreen.create([{
+            campaignId: data.campaignId,
+            name: data.name.trim(),
+            tabOrder: nextOrder,
+            createdBy: gm.userId,
+            createdAt: now,
+            updatedAt: now,
+          }], { session: mongoSession })
+
+          return created
+        })
+      } finally {
+        await mongoSession.endSession()
+      }
 
       serverCaptureEvent(sessionUserId, 'gmscreen_created', {
         campaign_id: data.campaignId,
@@ -225,17 +237,27 @@ export const deleteGMScreen = createServerFn({ method: 'POST' })
       const gm = await requireCampaignGM(data.campaignId)
       sessionUserId = gm.sessionUserId
 
-      const screen = await GMScreen.findById(data.id)
-      if (!screen) throw new Error('Screen not found')
-      if (String(screen.campaignId) !== data.campaignId) throw new Error('Forbidden')
+      // Use a transaction so the count-check + delete is atomic
+      const mongoSession = await mongoose.startSession()
+      let deletedTabOrder: number
+      try {
+        deletedTabOrder = await mongoSession.withTransaction(async () => {
+          const screen = await GMScreen.findOne(
+            { _id: data.id, campaignId: data.campaignId },
+          ).session(mongoSession)
+          if (!screen) throw new Error('Screen not found')
 
-      // Reject deleting the last remaining screen
-      const count = await GMScreen.countDocuments({ campaignId: data.campaignId })
-      if (count <= 1) throw new Error('Cannot delete the last screen')
+          const count = await GMScreen.countDocuments({ campaignId: data.campaignId }).session(mongoSession)
+          if (count <= 1) throw new Error('Cannot delete the last screen')
 
-      const deletedTabOrder = screen.tabOrder as number
+          const tabOrder = screen.tabOrder as number
+          await GMScreen.deleteOne({ _id: data.id, campaignId: data.campaignId }).session(mongoSession)
 
-      await screen.deleteOne()
+          return tabOrder
+        })
+      } finally {
+        await mongoSession.endSession()
+      }
 
       // Return the remaining screens so the client can resolve the next active screen
       const remaining = await GMScreen.find(
@@ -275,7 +297,7 @@ export const deleteGMScreen = createServerFn({ method: 'POST' })
 
 const reorderGMScreensSchema = z.object({
   campaignId: z.string().trim().min(1),
-  screenIds: z.array(z.string().min(1)).min(1, 'At least one screen ID is required'),
+  screenIds: z.array(z.string().trim().min(1)).min(1, 'At least one screen ID is required'),
 })
 
 export { reorderGMScreensSchema }
@@ -288,26 +310,48 @@ export const reorderGMScreens = createServerFn({ method: 'POST' })
       const gm = await requireCampaignGM(data.campaignId)
       sessionUserId = gm.sessionUserId
 
-      // Verify all IDs belong to this campaign
-      const screens = await GMScreen.find(
-        { campaignId: data.campaignId },
-        '_id',
-      ).lean() as Array<{ _id: unknown }>
+      // Use a transaction for atomic read + bulkWrite
+      const mongoSession = await mongoose.startSession()
+      try {
+        await mongoSession.withTransaction(async () => {
+          const screens = await GMScreen.find(
+            { campaignId: data.campaignId },
+            '_id',
+          ).session(mongoSession).lean() as Array<{ _id: unknown }>
 
-      const existingIds = new Set(screens.map(s => String(s._id)))
+          const existingIds = new Set(screens.map(s => String(s._id)))
 
-      for (const id of data.screenIds) {
-        if (!existingIds.has(id)) {
-          throw new Error(`Screen ${id} not found in this campaign`)
-        }
+          // Validate input is a full permutation: no duplicates, no missing screens
+          const inputIds = new Set(data.screenIds)
+          if (inputIds.size !== data.screenIds.length) {
+            throw new Error('Duplicate screen IDs in reorder request')
+          }
+          for (const id of data.screenIds) {
+            if (!existingIds.has(id)) {
+              throw new Error(`Screen ${id} not found in this campaign`)
+            }
+          }
+          for (const id of existingIds) {
+            if (!inputIds.has(id)) {
+              throw new Error(`Missing screen ${id} in reorder request`)
+            }
+          }
+
+          // Atomic bulkWrite with campaignId in each filter
+          const now = new Date()
+          await GMScreen.bulkWrite(
+            data.screenIds.map((id, index) => ({
+              updateOne: {
+                filter: { _id: id, campaignId: data.campaignId },
+                update: { $set: { tabOrder: index, updatedAt: now } },
+              },
+            })),
+            { session: mongoSession },
+          )
+        })
+      } finally {
+        await mongoSession.endSession()
       }
-
-      // Write new tabOrder values using gap-tolerant strategy (multiples of 1)
-      // Each screen gets its position index as tabOrder
-      const updates = data.screenIds.map((id, index) =>
-        GMScreen.updateOne({ _id: id }, { $set: { tabOrder: index, updatedAt: new Date() } }),
-      )
-      await Promise.all(updates)
 
       serverCaptureEvent(sessionUserId, 'gmscreens_reordered', {
         campaign_id: data.campaignId,

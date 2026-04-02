@@ -28,11 +28,21 @@ vi.mock('~/server/db/models/GMScreen', () => ({
     create: vi.fn(),
     countDocuments: vi.fn(),
     updateOne: vi.fn(),
+    deleteOne: vi.fn(),
+    bulkWrite: vi.fn(),
   },
 }))
 vi.mock('~/server/utils/posthog', () => ({
   serverCaptureException: vi.fn(),
   serverCaptureEvent: vi.fn(),
+}))
+
+const mockMongoSession = {
+  withTransaction: vi.fn(async (fn: () => Promise<unknown>) => fn()),
+  endSession: vi.fn(),
+}
+vi.mock('mongoose', () => ({
+  default: { startSession: vi.fn(() => mockMongoSession) },
 }))
 
 import { getSession } from '~/server/session'
@@ -103,6 +113,8 @@ beforeEach(() => {
   vi.mocked(getSession).mockResolvedValue(mockSession)
   vi.mocked(User.findOne).mockResolvedValue(mockDbUser)
   vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign)
+  mockMongoSession.withTransaction.mockImplementation(async (fn: () => Promise<unknown>) => fn())
+  mockMongoSession.endSession.mockReset()
 })
 
 // ---------------------------------------------------------------------------
@@ -220,44 +232,57 @@ describe('listGMScreens', () => {
 // ---------------------------------------------------------------------------
 
 describe('createGMScreen', () => {
-  it('creates a screen with the next tabOrder', async () => {
+  it('creates a screen with the next tabOrder inside a transaction', async () => {
     vi.mocked(GMScreen.findOne).mockReturnValue({
       sort: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue({ tabOrder: 2 }) }),
+        select: vi.fn().mockReturnValue({
+          session: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue({ tabOrder: 2 }) }),
+        }),
       }),
     } as never)
     const created = makeScreen({ _id: 'screen-new', name: 'Combat', tabOrder: 3 })
-    vi.mocked(GMScreen.create).mockResolvedValue(created as never)
+    vi.mocked(GMScreen.create).mockResolvedValue([created] as never)
 
     const result = await _createGMScreen({ data: { campaignId: 'camp-1', name: 'Combat' } })
 
     expect(result.success).toBe(true)
     expect(result.screen.name).toBe('Combat')
-    expect(vi.mocked(GMScreen.create).mock.calls[0][0]).toMatchObject({
-      campaignId: 'camp-1',
-      name: 'Combat',
-      tabOrder: 3,
-      createdBy: 'dbuser-1',
-    })
+    expect(vi.mocked(GMScreen.create).mock.calls[0][0]).toEqual([
+      expect.objectContaining({
+        campaignId: 'camp-1',
+        name: 'Combat',
+        tabOrder: 3,
+        createdBy: 'dbuser-1',
+      }),
+    ])
+    // Verify session options passed
+    expect(vi.mocked(GMScreen.create).mock.calls[0][1]).toEqual({ session: mockMongoSession })
+    expect(mockMongoSession.endSession).toHaveBeenCalled()
   })
 
   it('defaults tabOrder to 0 when no screens exist', async () => {
     vi.mocked(GMScreen.findOne).mockReturnValue({
       sort: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) }),
+        select: vi.fn().mockReturnValue({
+          session: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) }),
+        }),
       }),
     } as never)
-    vi.mocked(GMScreen.create).mockResolvedValue(makeScreen({ tabOrder: 0 }) as never)
+    vi.mocked(GMScreen.create).mockResolvedValue([makeScreen({ tabOrder: 0 })] as never)
 
     await _createGMScreen({ data: { campaignId: 'camp-1', name: 'First' } })
 
-    expect(vi.mocked(GMScreen.create).mock.calls[0][0]).toMatchObject({ tabOrder: 0 })
+    expect(vi.mocked(GMScreen.create).mock.calls[0][0]).toEqual([
+      expect.objectContaining({ tabOrder: 0 }),
+    ])
   })
 
   it('throws a clean error on duplicate name', async () => {
     vi.mocked(GMScreen.findOne).mockReturnValue({
       sort: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) }),
+        select: vi.fn().mockReturnValue({
+          session: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) }),
+        }),
       }),
     } as never)
     vi.mocked(GMScreen.create).mockRejectedValue(Object.assign(new Error('dup'), { code: 11000 }))
@@ -270,10 +295,12 @@ describe('createGMScreen', () => {
   it('fires gmscreen_created analytics event', async () => {
     vi.mocked(GMScreen.findOne).mockReturnValue({
       sort: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) }),
+        select: vi.fn().mockReturnValue({
+          session: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) }),
+        }),
       }),
     } as never)
-    vi.mocked(GMScreen.create).mockResolvedValue(makeScreen() as never)
+    vi.mocked(GMScreen.create).mockResolvedValue([makeScreen()] as never)
 
     await _createGMScreen({ data: { campaignId: 'camp-1', name: 'New' } })
 
@@ -346,10 +373,17 @@ describe('renameGMScreen', () => {
 // ---------------------------------------------------------------------------
 
 describe('deleteGMScreen', () => {
-  it('deletes a screen and returns remaining screens', async () => {
+  it('deletes a screen atomically and returns remaining screens', async () => {
     const screen = makeScreen()
-    vi.mocked(GMScreen.findById).mockResolvedValue(screen as never)
-    vi.mocked(GMScreen.countDocuments).mockResolvedValue(3)
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      session: vi.fn().mockResolvedValue(screen),
+    } as never)
+    vi.mocked(GMScreen.countDocuments).mockReturnValue({
+      session: vi.fn().mockResolvedValue(3),
+    } as never)
+    vi.mocked(GMScreen.deleteOne).mockReturnValue({
+      session: vi.fn().mockResolvedValue({}),
+    } as never)
     const remaining = [
       makeScreen({ _id: 'screen-2', name: 'Combat', tabOrder: 1 }),
     ]
@@ -362,12 +396,17 @@ describe('deleteGMScreen', () => {
     expect(result.success).toBe(true)
     expect(result.deletedTabOrder).toBe(0)
     expect(result.remaining).toHaveLength(1)
-    expect(screen.deleteOne).toHaveBeenCalled()
+    expect(GMScreen.deleteOne).toHaveBeenCalledWith({ _id: 'screen-1', campaignId: 'camp-1' })
+    expect(mockMongoSession.endSession).toHaveBeenCalled()
   })
 
-  it('rejects deleting the last screen', async () => {
-    vi.mocked(GMScreen.findById).mockResolvedValue(makeScreen() as never)
-    vi.mocked(GMScreen.countDocuments).mockResolvedValue(1)
+  it('rejects deleting the last screen atomically', async () => {
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      session: vi.fn().mockResolvedValue(makeScreen()),
+    } as never)
+    vi.mocked(GMScreen.countDocuments).mockReturnValue({
+      session: vi.fn().mockResolvedValue(1),
+    } as never)
 
     await expect(
       _deleteGMScreen({ data: { id: 'screen-1', campaignId: 'camp-1' } }),
@@ -375,25 +414,25 @@ describe('deleteGMScreen', () => {
   })
 
   it('throws when screen is not found', async () => {
-    vi.mocked(GMScreen.findById).mockResolvedValue(null)
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      session: vi.fn().mockResolvedValue(null),
+    } as never)
 
     await expect(
       _deleteGMScreen({ data: { id: 'nonexistent', campaignId: 'camp-1' } }),
     ).rejects.toThrow('Screen not found')
   })
 
-  it('throws when screen belongs to a different campaign', async () => {
-    const screen = makeScreen({ campaignId: 'camp-other' })
-    vi.mocked(GMScreen.findById).mockResolvedValue(screen as never)
-
-    await expect(
-      _deleteGMScreen({ data: { id: 'screen-1', campaignId: 'camp-1' } }),
-    ).rejects.toThrow('Forbidden')
-  })
-
   it('fires gmscreen_deleted analytics event', async () => {
-    vi.mocked(GMScreen.findById).mockResolvedValue(makeScreen() as never)
-    vi.mocked(GMScreen.countDocuments).mockResolvedValue(2)
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      session: vi.fn().mockResolvedValue(makeScreen()),
+    } as never)
+    vi.mocked(GMScreen.countDocuments).mockReturnValue({
+      session: vi.fn().mockResolvedValue(2),
+    } as never)
+    vi.mocked(GMScreen.deleteOne).mockReturnValue({
+      session: vi.fn().mockResolvedValue({}),
+    } as never)
     vi.mocked(GMScreen.find).mockReturnValue({
       sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
     } as never)
@@ -412,15 +451,17 @@ describe('deleteGMScreen', () => {
 // ---------------------------------------------------------------------------
 
 describe('reorderGMScreens', () => {
-  it('reorders screens and returns them in new order', async () => {
+  it('reorders screens with bulkWrite inside a transaction', async () => {
     vi.mocked(GMScreen.find).mockReturnValueOnce({
-      lean: vi.fn().mockResolvedValue([
-        { _id: 'screen-1' },
-        { _id: 'screen-2' },
-        { _id: 'screen-3' },
-      ]),
+      session: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([
+          { _id: 'screen-1' },
+          { _id: 'screen-2' },
+          { _id: 'screen-3' },
+        ]),
+      }),
     } as never)
-    vi.mocked(GMScreen.updateOne).mockResolvedValue({} as never)
+    vi.mocked(GMScreen.bulkWrite).mockResolvedValue({} as never)
     const reordered = [
       makeScreen({ _id: 'screen-3', tabOrder: 0 }),
       makeScreen({ _id: 'screen-1', tabOrder: 1 }),
@@ -436,28 +477,26 @@ describe('reorderGMScreens', () => {
 
     expect(result.success).toBe(true)
     expect(result.screens).toHaveLength(3)
-    // Verify updateOne was called with correct tabOrder values
-    expect(vi.mocked(GMScreen.updateOne)).toHaveBeenCalledTimes(3)
-    expect(vi.mocked(GMScreen.updateOne)).toHaveBeenCalledWith(
-      { _id: 'screen-3' },
-      { $set: { tabOrder: 0, updatedAt: expect.any(Date) } },
+    // Verify bulkWrite was called with campaignId in each filter
+    expect(vi.mocked(GMScreen.bulkWrite)).toHaveBeenCalledWith(
+      [
+        { updateOne: { filter: { _id: 'screen-3', campaignId: 'camp-1' }, update: { $set: { tabOrder: 0, updatedAt: expect.any(Date) } } } },
+        { updateOne: { filter: { _id: 'screen-1', campaignId: 'camp-1' }, update: { $set: { tabOrder: 1, updatedAt: expect.any(Date) } } } },
+        { updateOne: { filter: { _id: 'screen-2', campaignId: 'camp-1' }, update: { $set: { tabOrder: 2, updatedAt: expect.any(Date) } } } },
+      ],
+      { session: mockMongoSession },
     )
-    expect(vi.mocked(GMScreen.updateOne)).toHaveBeenCalledWith(
-      { _id: 'screen-1' },
-      { $set: { tabOrder: 1, updatedAt: expect.any(Date) } },
-    )
-    expect(vi.mocked(GMScreen.updateOne)).toHaveBeenCalledWith(
-      { _id: 'screen-2' },
-      { $set: { tabOrder: 2, updatedAt: expect.any(Date) } },
-    )
+    expect(mockMongoSession.endSession).toHaveBeenCalled()
   })
 
   it('throws when a screen ID does not belong to the campaign', async () => {
     vi.mocked(GMScreen.find).mockReturnValueOnce({
-      lean: vi.fn().mockResolvedValue([
-        { _id: 'screen-1' },
-        { _id: 'screen-2' },
-      ]),
+      session: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([
+          { _id: 'screen-1' },
+          { _id: 'screen-2' },
+        ]),
+      }),
     } as never)
 
     await expect(
@@ -467,11 +506,48 @@ describe('reorderGMScreens', () => {
     ).rejects.toThrow('Screen screen-nonexistent not found in this campaign')
   })
 
+  it('throws on duplicate screen IDs', async () => {
+    vi.mocked(GMScreen.find).mockReturnValueOnce({
+      session: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([
+          { _id: 'screen-1' },
+          { _id: 'screen-2' },
+        ]),
+      }),
+    } as never)
+
+    await expect(
+      _reorderGMScreens({
+        data: { campaignId: 'camp-1', screenIds: ['screen-1', 'screen-1'] },
+      }),
+    ).rejects.toThrow('Duplicate screen IDs in reorder request')
+  })
+
+  it('throws when screens are missing from the reorder request', async () => {
+    vi.mocked(GMScreen.find).mockReturnValueOnce({
+      session: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([
+          { _id: 'screen-1' },
+          { _id: 'screen-2' },
+          { _id: 'screen-3' },
+        ]),
+      }),
+    } as never)
+
+    await expect(
+      _reorderGMScreens({
+        data: { campaignId: 'camp-1', screenIds: ['screen-1', 'screen-2'] },
+      }),
+    ).rejects.toThrow('Missing screen screen-3 in reorder request')
+  })
+
   it('fires gmscreens_reordered analytics event', async () => {
     vi.mocked(GMScreen.find).mockReturnValueOnce({
-      lean: vi.fn().mockResolvedValue([{ _id: 'screen-1' }, { _id: 'screen-2' }]),
+      session: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([{ _id: 'screen-1' }, { _id: 'screen-2' }]),
+      }),
     } as never)
-    vi.mocked(GMScreen.updateOne).mockResolvedValue({} as never)
+    vi.mocked(GMScreen.bulkWrite).mockResolvedValue({} as never)
     vi.mocked(GMScreen.find).mockReturnValueOnce({
       sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
     } as never)
@@ -554,5 +630,17 @@ describe('reorderGMScreensSchema', () => {
 
   it('accepts valid input', () => {
     expect(reorderGMScreensSchema.safeParse({ campaignId: 'camp-1', screenIds: ['s-1', 's-2'] }).success).toBe(true)
+  })
+
+  it('trims whitespace from screenId entries', () => {
+    const result = reorderGMScreensSchema.safeParse({ campaignId: 'camp-1', screenIds: ['  s-1  ', '  s-2  '] })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.screenIds).toEqual(['s-1', 's-2'])
+    }
+  })
+
+  it('rejects whitespace-only screenId entries', () => {
+    expect(reorderGMScreensSchema.safeParse({ campaignId: 'camp-1', screenIds: ['   '] }).success).toBe(false)
   })
 })
