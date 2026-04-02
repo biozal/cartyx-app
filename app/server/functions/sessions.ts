@@ -125,9 +125,9 @@ export const updateSession = createServerFn({ method: 'POST' })
     z.object({
       sessionId: z.string().min(1),
       campaignId: z.string().min(1),
-      name: z.string().min(1).optional(),
-      startDate: z.string().optional(),
-      endDate: z.string().optional(),
+      name: z.string().trim().min(1).optional(),
+      startDate: z.string().datetime().optional(),
+      endDate: z.string().datetime().optional(),
     })
   )
   .handler(async ({ data }) => {
