@@ -947,6 +947,7 @@ export const closeWindow = createServerFn({ method: 'POST' })
     } catch (e) {
       serverCaptureException(e, sessionUserId, {
         action: 'closeWindow',
+        campaignId: data.campaignId,
         screenId: data.screenId,
         windowId: data.windowId,
       })
