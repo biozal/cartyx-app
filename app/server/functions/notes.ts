@@ -7,6 +7,7 @@ import { Campaign } from '../db/models/Campaign'
 import { Note } from '../db/models/Note'
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
 import { normalizeTags } from '../utils/helpers'
+import { removeDocumentRefsFromScreens } from './gmscreens'
 
 export interface NoteData {
   id: string
@@ -241,6 +242,19 @@ export const deleteNote = createServerFn({ method: 'POST' })
       if (existing.isReadOnly) throw new Error('Note is read-only')
 
       await existing.deleteOne()
+
+      // Clean up GM Screen references to this note.
+      // Best-effort: the note is already deleted, so cleanup failure must not
+      // surface as a user-facing error — report it and move on.
+      try {
+        await removeDocumentRefsFromScreens(data.campaignId, 'note', data.id)
+      } catch (cleanupError) {
+        serverCaptureException(cleanupError, sessionUserId, {
+          action: 'deleteNote.cleanup',
+          campaignId: data.campaignId,
+          noteId: data.id,
+        })
+      }
 
       serverCaptureEvent(sessionUserId, 'note_deleted', {
         campaign_id: data.campaignId,

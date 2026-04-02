@@ -6,6 +6,7 @@ import { connectDB, isDBConnected } from '../db/connection'
 import { User } from '../db/models/User'
 import { Campaign } from '../db/models/Campaign'
 import { GMScreen } from '../db/models/GMScreen'
+import { Note } from '../db/models/Note'
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
 
 // ---------------------------------------------------------------------------
@@ -20,6 +21,46 @@ export interface GMScreenData {
   createdBy: string
   createdAt: string
   updatedAt: string
+}
+
+export interface WindowData {
+  id: string
+  collection: string
+  documentId: string
+  state: string
+  x: number | null
+  y: number | null
+  width: number | null
+  height: number | null
+  zIndex: number
+}
+
+export interface StackItemData {
+  id: string
+  collection: string
+  documentId: string
+  label: string
+}
+
+export interface StackData {
+  id: string
+  name: string
+  x: number | null
+  y: number | null
+  items: StackItemData[]
+}
+
+export interface HydratedDocument {
+  id: string
+  collection: string
+  title: string
+}
+
+export interface GMScreenDetailData extends GMScreenData {
+  windows: WindowData[]
+  stacks: StackData[]
+  /** Keyed by "collection:documentId" for O(1) lookup by the client. */
+  hydrated: Record<string, HydratedDocument>
 }
 
 function serializeGMScreen(doc: {
@@ -40,6 +81,120 @@ function serializeGMScreen(doc: {
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : '',
     updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : '',
   }
+}
+
+function serializeWindow(w: {
+  _id: unknown
+  collection?: string
+  documentId: unknown
+  state?: string
+  x?: number | null
+  y?: number | null
+  width?: number | null
+  height?: number | null
+  zIndex?: number
+}): WindowData {
+  return {
+    id: String(w._id),
+    collection: w.collection ?? '',
+    documentId: String(w.documentId),
+    state: w.state ?? 'open',
+    x: w.x ?? null,
+    y: w.y ?? null,
+    width: w.width ?? null,
+    height: w.height ?? null,
+    zIndex: w.zIndex ?? 0,
+  }
+}
+
+function serializeStackItem(item: {
+  _id: unknown
+  collection?: string
+  documentId: unknown
+  label?: string
+}): StackItemData {
+  return {
+    id: String(item._id),
+    collection: item.collection ?? '',
+    documentId: String(item.documentId),
+    label: item.label ?? '',
+  }
+}
+
+function serializeStack(s: {
+  _id: unknown
+  name?: string
+  x?: number | null
+  y?: number | null
+  items?: Array<{ _id: unknown; collection?: string; documentId: unknown; label?: string }>
+}): StackData {
+  return {
+    id: String(s._id),
+    name: s.name ?? '',
+    x: s.x ?? null,
+    y: s.y ?? null,
+    items: (s.items ?? []).map(serializeStackItem),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Collection registry — maps collection names to fetch logic
+// ---------------------------------------------------------------------------
+
+interface CollectionFetcher {
+  fetch(ids: string[], campaignId: string): Promise<Array<{ _id: unknown; title?: string }>>
+}
+
+const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
+  note: {
+    async fetch(ids: string[], campaignId: string) {
+      return Note.find({ _id: { $in: ids }, campaignId }, '_id title').lean() as Promise<
+        Array<{ _id: unknown; title?: string }>
+      >
+    },
+  },
+}
+
+/**
+ * Batch-hydrate a set of `{ collection, documentId }` refs.
+ * Groups by collection, fetches each batch, and returns a lookup map
+ * keyed by `"collection:documentId"`.
+ */
+async function hydrateRefs(
+  refs: Array<{ collection: string; documentId: string }>,
+  campaignId: string,
+): Promise<Record<string, HydratedDocument>> {
+  const grouped = new Map<string, Set<string>>()
+  for (const ref of refs) {
+    if (!ref.collection || !ref.documentId) continue
+    let set = grouped.get(ref.collection)
+    if (!set) {
+      set = new Set()
+      grouped.set(ref.collection, set)
+    }
+    set.add(ref.documentId)
+  }
+
+  const hydrated: Record<string, HydratedDocument> = {}
+
+  await Promise.all(
+    Array.from(grouped.entries()).map(async ([collectionName, idSet]) => {
+      const fetcher = COLLECTION_REGISTRY[collectionName]
+      if (!fetcher) return
+
+      const docs = await fetcher.fetch(Array.from(idSet), campaignId)
+      for (const doc of docs) {
+        const id = String(doc._id)
+        hydrated[`${collectionName}:${id}`] = {
+          id,
+          collection: collectionName,
+          title: doc.title ?? '',
+        }
+      }
+    }),
+  )
+
+  return hydrated
 }
 
 /** Marks errors that were already reported to the error tracker. */
@@ -432,3 +587,128 @@ export const reorderGMScreens = createServerFn({ method: 'POST' })
       throw e
     }
   })
+
+// ---------------------------------------------------------------------------
+// getGMScreen — fetch a single screen with hydrated referenced content
+// ---------------------------------------------------------------------------
+
+const getGMScreenSchema = z.object({
+  id: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
+})
+
+export { getGMScreenSchema }
+
+export const getGMScreen = createServerFn({ method: 'GET' })
+  .inputValidator(getGMScreenSchema)
+  .handler(async ({ data }): Promise<GMScreenDetailData> => {
+    let sessionUserId: string | undefined
+    try {
+      const gm = await requireCampaignGM(data.campaignId)
+      sessionUserId = gm.sessionUserId
+
+      const doc = await GMScreen.findOne({
+        _id: data.id,
+        campaignId: data.campaignId,
+      }).lean() as {
+        _id: unknown
+        campaignId: unknown
+        name?: string
+        tabOrder?: number
+        createdBy: unknown
+        createdAt?: Date
+        updatedAt?: Date
+        windows?: Array<{
+          _id: unknown
+          collection?: string
+          documentId: unknown
+          state?: string
+          x?: number | null
+          y?: number | null
+          width?: number | null
+          height?: number | null
+          zIndex?: number
+        }>
+        stacks?: Array<{
+          _id: unknown
+          name?: string
+          x?: number | null
+          y?: number | null
+          items?: Array<{ _id: unknown; collection?: string; documentId: unknown; label?: string }>
+        }>
+      } | null
+
+      if (!doc) throw new Error('Screen not found')
+
+      const windows = (doc.windows ?? []).map(serializeWindow)
+      const stacks = (doc.stacks ?? []).map(serializeStack)
+
+      // Collect all refs from windows and stack items
+      const refs: Array<{ collection: string; documentId: string }> = []
+      for (const w of windows) {
+        refs.push({ collection: w.collection, documentId: w.documentId })
+      }
+      for (const s of stacks) {
+        for (const item of s.items) {
+          refs.push({ collection: item.collection, documentId: item.documentId })
+        }
+      }
+
+      const hydrated = await hydrateRefs(refs, data.campaignId)
+
+      return {
+        ...serializeGMScreen(doc),
+        windows,
+        stacks,
+        hydrated,
+      }
+    } catch (e) {
+      serverCaptureException(e, sessionUserId, { action: 'getGMScreen', screenId: data.id })
+      throw e
+    }
+  })
+
+// ---------------------------------------------------------------------------
+// removeDocumentRefsFromScreens — cleanup when a referenced document is deleted
+// ---------------------------------------------------------------------------
+
+/**
+ * Remove all window and stack-item references to a given document from every
+ * GM Screen in the campaign. Returns the number of distinct screens that were
+ * modified and refreshes `updatedAt` on each touched screen.
+ */
+export async function removeDocumentRefsFromScreens(
+  campaignId: string,
+  collection: string,
+  documentId: string,
+): Promise<number> {
+  // Find all distinct screens that reference this document (windows OR stacks)
+  const affectedScreens = await GMScreen.find(
+    {
+      campaignId,
+      $or: [
+        { 'windows.collection': collection, 'windows.documentId': documentId },
+        { 'stacks.items.collection': collection, 'stacks.items.documentId': documentId },
+      ],
+    },
+    '_id',
+  ).lean() as Array<{ _id: unknown }>
+
+  if (affectedScreens.length === 0) return 0
+
+  const now = new Date()
+
+  // Pull matching refs and refresh updatedAt in parallel
+  await Promise.all([
+    GMScreen.updateMany(
+      { campaignId, 'windows.collection': collection, 'windows.documentId': documentId },
+      { $pull: { windows: { collection, documentId } }, $set: { updatedAt: now } },
+    ),
+    GMScreen.updateMany(
+      { campaignId, 'stacks.items.collection': collection, 'stacks.items.documentId': documentId },
+      { $pull: { 'stacks.$[].items': { collection, documentId } }, $set: { updatedAt: now } },
+    ),
+  ])
+
+  return affectedScreens.length
+}
