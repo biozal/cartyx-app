@@ -148,7 +148,10 @@ export const updateSession = createServerFn({ method: 'POST' })
       if (data.startDate !== undefined) setFields.startDate = new Date(data.startDate)
       if (data.endDate !== undefined) setFields.endDate = new Date(data.endDate)
 
-      await Session.updateOne({ _id: data.sessionId }, { $set: setFields })
+      await Session.updateOne(
+        { _id: data.sessionId, campaignId: data.campaignId },
+        { $set: setFields }
+      )
 
       serverCaptureEvent(user.id, 'session_updated', {
         campaign_id: data.campaignId,
