@@ -71,9 +71,11 @@ export function SessionsPage() {
     return false
   }
 
-  function handleActivate(sessionId: string) {
-    activate({ campaignId, sessionId })
-    setConfirmingActivateId(null)
+  async function handleActivate(sessionId: string) {
+    const result = await activate({ campaignId, sessionId })
+    if (result) {
+      setConfirmingActivateId(null)
+    }
   }
 
   return (
