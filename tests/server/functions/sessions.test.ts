@@ -23,10 +23,8 @@ vi.mock('~/server/db/models/Campaign', () => ({
 vi.mock('~/server/db/models/Session', () => ({
   Session: {
     find: vi.fn(),
-    findById: vi.fn(),
     findOne: vi.fn(),
     create: vi.fn(),
-    countDocuments: vi.fn(),
     updateOne: vi.fn(),
   },
 }))
@@ -69,7 +67,7 @@ beforeEach(() => {
 // Cast server functions to callable handler signatures
 const _listSessions = listSessions as unknown as (args: { data: { campaignId: string; includeCompleted?: boolean } }) => Promise<unknown>
 const _createSession = createSession as unknown as (args: { data: { campaignId: string; name: string; startDate: string } }) => Promise<unknown>
-const _updateSession = updateSession as unknown as (args: { data: { sessionId: string; campaignId: string; name: string; startDate: string; endDate?: string } }) => Promise<unknown>
+const _updateSession = updateSession as unknown as (args: { data: { sessionId: string; campaignId: string; name?: string; startDate?: string; endDate?: string } }) => Promise<unknown>
 
 // ---------------------------------------------------------------------------
 // listSessions
@@ -132,7 +130,13 @@ describe('listSessions', () => {
 // ---------------------------------------------------------------------------
 describe('createSession', () => {
   it('creates an inactive session with auto-assigned number', async () => {
-    vi.mocked(Session.countDocuments).mockResolvedValue(3)
+    vi.mocked(Session.findOne).mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue({ number: 2 }),
+        }),
+      }),
+    } as never)
     vi.mocked(Session.create).mockResolvedValue({
       _id: 'new-session-1',
       name: 'The Dragon Quest',
@@ -146,7 +150,6 @@ describe('createSession', () => {
       data: { campaignId: 'camp-1', name: 'The Dragon Quest', startDate: '2025-06-01T00:00:00.000Z' },
     })
 
-    expect(Session.countDocuments).toHaveBeenCalledWith({ campaignId: 'camp-1' })
     expect(Session.create).toHaveBeenCalledWith(
       expect.objectContaining({
         campaignId: 'camp-1',

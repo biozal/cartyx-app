@@ -37,7 +37,7 @@ export const listSessions = createServerFn({ method: 'GET' })
   )
   .handler(async ({ data }) => {
     try {
-      const { user } = await requireGM(data.campaignId)
+      await requireGM(data.campaignId)
 
       const filter: Record<string, unknown> = { campaignId: data.campaignId }
       if (!data.includeCompleted) {
@@ -89,7 +89,11 @@ export const createSession = createServerFn({ method: 'POST' })
     try {
       const { user, dbUser } = await requireGM(data.campaignId)
 
-      const number = await Session.countDocuments({ campaignId: data.campaignId })
+      const lastSession = await Session.findOne({ campaignId: data.campaignId })
+        .sort({ number: -1 })
+        .select('number')
+        .lean() as { number: number } | null
+      const number = lastSession ? lastSession.number + 1 : 0
 
       const session = await Session.create({
         campaignId: data.campaignId,
@@ -121,8 +125,8 @@ export const updateSession = createServerFn({ method: 'POST' })
     z.object({
       sessionId: z.string().min(1),
       campaignId: z.string().min(1),
-      name: z.string().min(1),
-      startDate: z.string(),
+      name: z.string().min(1).optional(),
+      startDate: z.string().optional(),
       endDate: z.string().optional(),
     })
   )
@@ -137,14 +141,12 @@ export const updateSession = createServerFn({ method: 'POST' })
       if (!session) throw new Error('Session not found')
 
       const setFields: Record<string, unknown> = {
-        name: data.name,
-        startDate: new Date(data.startDate),
         updatedAt: new Date(),
       }
 
-      if (data.endDate !== undefined) {
-        setFields.endDate = new Date(data.endDate)
-      }
+      if (data.name !== undefined) setFields.name = data.name
+      if (data.startDate !== undefined) setFields.startDate = new Date(data.startDate)
+      if (data.endDate !== undefined) setFields.endDate = new Date(data.endDate)
 
       await Session.updateOne({ _id: data.sessionId }, { $set: setFields })
 
