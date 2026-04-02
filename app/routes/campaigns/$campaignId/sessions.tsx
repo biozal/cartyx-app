@@ -3,15 +3,24 @@ import { createFileRoute, redirect, Link, useParams } from '@tanstack/react-rout
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faArrowLeft, faPlus } from '@fortawesome/pro-solid-svg-icons'
 import { getMe } from '~/server/functions/auth'
+import { getCampaign } from '~/server/functions/campaigns'
+import { getQueryClient } from '~/providers/QueryProvider'
+import { queryKeys } from '~/utils/queryKeys'
 import { PixelButton } from '~/components/PixelButton'
 import { SessionModal } from '~/components/sessions/SessionModal'
 import { useSessions, useCreateSession, useUpdateSession, useActivateSession } from '~/hooks/useSessions'
 import { useCampaign } from '~/hooks/useCampaigns'
 
 export const Route = createFileRoute('/campaigns/$campaignId/sessions')({
-  beforeLoad: async () => {
+  beforeLoad: async ({ params }) => {
     const user = await getMe()
     if (!user) throw redirect({ to: '/', search: { reason: 'session_expired' } })
+    const campaign = await getQueryClient().ensureQueryData({
+      queryKey: queryKeys.campaigns.detail(params.campaignId),
+      queryFn: () => getCampaign({ data: { id: params.campaignId } }),
+    })
+    if (!campaign) throw redirect({ to: '/campaigns' })
+    if (!campaign.isOwner) throw redirect({ to: '/campaigns/$campaignId/play', params: { campaignId: params.campaignId } })
     return { user }
   },
   component: SessionsPage,
