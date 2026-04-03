@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type React from 'react'
 import { Settings, Plus, Pencil, Trash2, ArrowUpDown } from 'lucide-react'
 import type { GMScreenData } from '~/server/functions/gmscreens'
@@ -24,6 +24,40 @@ export function ScreenBar({
   onReorderScreens,
   className = '',
 }: ScreenBarProps) {
+  const tablistRef = useRef<HTMLDivElement>(null)
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const buttons = tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    if (!buttons || buttons.length === 0) return
+
+    const focused = e.target as HTMLElement
+    const currentIndex = Array.from(buttons).indexOf(focused as HTMLButtonElement)
+    if (currentIndex === -1) return
+
+    let nextIndex = currentIndex
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      nextIndex = (currentIndex + 1) % buttons.length
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      nextIndex = (currentIndex - 1 + buttons.length) % buttons.length
+    } else if (e.key === 'Home') {
+      e.preventDefault()
+      nextIndex = 0
+    } else if (e.key === 'End') {
+      e.preventDefault()
+      nextIndex = buttons.length - 1
+    } else {
+      return
+    }
+
+    const nextScreen = screens[nextIndex]
+    if (nextScreen) {
+      onSelectScreen(nextScreen.id)
+      buttons[nextIndex]?.focus()
+    }
+  }, [screens, onSelectScreen])
+
   return (
     <div
       className={`flex items-center h-10 bg-[#080A12] border-b border-white/[0.07] ${className}`}
@@ -34,6 +68,8 @@ export function ScreenBar({
         className="flex-1 flex items-center gap-1 overflow-x-auto scrollbar-none px-2"
         role="tablist"
         aria-label="GM Screens"
+        ref={tablistRef}
+        onKeyDown={handleKeyDown}
       >
         {screens.map((screen) => {
           const isActive = screen.id === activeScreenId

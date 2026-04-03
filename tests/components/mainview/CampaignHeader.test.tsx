@@ -148,4 +148,57 @@ describe('CampaignHeader', () => {
     fireEvent.click(screen.getByText('Sign Out'))
     expect(mockLogout).toHaveBeenCalled()
   })
+
+  // --- GM-only tab visibility ---
+
+  describe('GM-only tab filtering', () => {
+    it('shows GM Screens tab when isOwner is true', () => {
+      render(
+        <CampaignHeader activeTab="dashboard" onTabChange={vi.fn()} isOwner={true} />
+      )
+      expect(screen.getByRole('tab', { name: 'GM Screens' })).toBeInTheDocument()
+    })
+
+    it('hides GM Screens tab when isOwner is false', () => {
+      render(
+        <CampaignHeader activeTab="dashboard" onTabChange={vi.fn()} isOwner={false} />
+      )
+      expect(screen.queryByRole('tab', { name: 'GM Screens' })).not.toBeInTheDocument()
+    })
+
+    it('hides GM Screens tab when isOwner is undefined', () => {
+      render(
+        <CampaignHeader activeTab="dashboard" onTabChange={vi.fn()} />
+      )
+      expect(screen.queryByRole('tab', { name: 'GM Screens' })).not.toBeInTheDocument()
+    })
+
+    it('falls back to dashboard when activeTab is gmscreens but isOwner is false', () => {
+      render(
+        <CampaignHeader activeTab="gmscreens" onTabChange={vi.fn()} isOwner={false} />
+      )
+      expect(screen.getByRole('tab', { name: 'Dashboard' })).toHaveAttribute('aria-selected', 'true')
+      expect(screen.queryByRole('tab', { name: 'GM Screens' })).not.toBeInTheDocument()
+    })
+
+    it('keyboard navigation works with GM-only tabs filtered out', () => {
+      const onTabChange = vi.fn()
+      render(
+        <CampaignHeader activeTab="tabletop" onTabChange={onTabChange} isOwner={false} />
+      )
+      const tabletopTab = screen.getByRole('tab', { name: 'Tabletop' })
+      fireEvent.keyDown(tabletopTab, { key: 'ArrowRight' })
+      expect(onTabChange).toHaveBeenCalledWith('dashboard')
+    })
+
+    it('keyboard End key goes to GM Screens when isOwner is true', () => {
+      const onTabChange = vi.fn()
+      render(
+        <CampaignHeader activeTab="dashboard" onTabChange={onTabChange} isOwner={true} />
+      )
+      const dashboardTab = screen.getByRole('tab', { name: 'Dashboard' })
+      fireEvent.keyDown(dashboardTab, { key: 'End' })
+      expect(onTabChange).toHaveBeenCalledWith('gmscreens')
+    })
+  })
 })
