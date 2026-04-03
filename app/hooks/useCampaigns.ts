@@ -1,15 +1,46 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  listCampaigns,
-  getCampaign,
-  createCampaign,
-  updateCampaign,
-  joinCampaign,
-} from '~/server/functions/campaigns'
+import { createServerFn } from '@tanstack/react-start'
+import { z } from 'zod'
 import { captureException } from '~/providers/PostHogProvider'
 import { compressImage } from '~/utils/compressImage'
 import { uploadToR2 } from '~/utils/uploadToR2'
 import { queryKeys } from '~/utils/queryKeys'
+
+const listCampaignsFn = createServerFn({ method: 'GET' })
+  .handler(async () => {
+    const { listCampaigns } = await import('~/server/functions/campaigns')
+    return listCampaigns()
+  })
+
+const getCampaignFn = createServerFn({ method: 'GET' })
+  .inputValidator(z.object({ id: z.string() }))
+  .handler(async ({ data }) => {
+    const { getCampaign } = await import('~/server/functions/campaigns')
+    return getCampaign({ data })
+  })
+
+const createCampaignFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({}).passthrough())
+  .handler(async ({ data }) => {
+    const { createCampaign } = await import('~/server/functions/campaigns')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return createCampaign({ data: data as any })
+  })
+
+const updateCampaignFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({}).passthrough())
+  .handler(async ({ data }) => {
+    const { updateCampaign } = await import('~/server/functions/campaigns')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return updateCampaign({ data: data as any })
+  })
+
+const joinCampaignFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ inviteCode: z.string() }))
+  .handler(async ({ data }) => {
+    const { joinCampaign } = await import('~/server/functions/campaigns')
+    return joinCampaign({ data })
+  })
 
 /** Max file size after compression that the server will accept (3MB decoded → ~4MB base64) */
 const MAX_POST_COMPRESSION_SIZE = 3 * 1024 * 1024
@@ -64,7 +95,7 @@ export function useCampaigns() {
   const queryClient = useQueryClient()
   const { data: campaigns = [], isLoading, error } = useQuery({
     queryKey: queryKeys.campaigns.list(),
-    queryFn: () => listCampaigns(),
+    queryFn: () => listCampaignsFn(),
   })
 
   const refresh = async () => {
@@ -82,7 +113,7 @@ export function useCampaigns() {
 export function useCampaign(id: string) {
   const { data: campaign = null, isLoading, error } = useQuery({
     queryKey: queryKeys.campaigns.detail(id),
-    queryFn: () => getCampaign({ data: { id } }),
+    queryFn: () => getCampaignFn({ data: { id } }),
   })
   return {
     campaign,
@@ -96,7 +127,7 @@ export function useCreateCampaign() {
   const mutation = useMutation({
     mutationFn: async (input: CreateCampaignInput) => {
       const imagePayload = input.imageFile ? await buildImagePayload(input.imageFile) : {}
-      return createCampaign({
+      return createCampaignFn({
         data: {
           name: input.name,
           description: input.description,
@@ -138,7 +169,7 @@ export function useUpdateCampaign() {
   const mutation = useMutation({
     mutationFn: async ({ id, input }: { id: string; input: CreateCampaignInput }) => {
       const imagePayload = input.imageFile ? await buildImagePayload(input.imageFile) : {}
-      return updateCampaign({
+      return updateCampaignFn({
         data: {
           id,
           name: input.name,
@@ -180,7 +211,7 @@ export function useUpdateCampaign() {
 export function useJoinCampaign() {
   const queryClient = useQueryClient()
   const mutation = useMutation({
-    mutationFn: (inviteCode: string) => joinCampaign({ data: { inviteCode } }),
+    mutationFn: (inviteCode: string) => joinCampaignFn({ data: { inviteCode } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.all })
     },
