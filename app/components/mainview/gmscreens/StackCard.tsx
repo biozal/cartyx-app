@@ -9,6 +9,8 @@ export interface StackCardProps {
   onDelete: (stackId: string) => void
   onRemoveItem: (stackId: string, itemId: string) => void
   onOpenItem: (collection: string, documentId: string) => void
+  /** When true, disable absolute positioning so the card flows in a flex/scroll container (mobile). */
+  inFlowLayout?: boolean
 }
 
 export function StackCard({
@@ -18,6 +20,7 @@ export function StackCard({
   onDelete,
   onRemoveItem,
   onOpenItem,
+  inFlowLayout = false,
 }: StackCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState(stack.name)
@@ -46,7 +49,7 @@ export function StackCard({
     <div
       data-testid={`stack-card-${stack.id}`}
       className="w-56 rounded-lg border border-white/[0.07] bg-[#0D1117] shadow-lg shadow-black/40 overflow-hidden"
-      style={stack.x != null && stack.y != null ? {
+      style={!inFlowLayout && stack.x != null && stack.y != null ? {
         position: 'absolute',
         left: 0,
         top: 0,

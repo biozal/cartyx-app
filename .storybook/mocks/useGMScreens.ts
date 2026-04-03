@@ -65,6 +65,7 @@ export function useGMScreenMutations(_campaignId: string) {
     deleteStack: { ...mockMutation },
     addStackItem: { ...mockMutation },
     removeStackItem: { ...mockMutation },
+    invalidateList: noopAsync,
     invalidateDetail: noop,
   }
 }

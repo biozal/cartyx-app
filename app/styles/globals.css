@@ -40,3 +40,9 @@
   ::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.3); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: rgba(59,130,246,0.5); }
 }
+
+@utility scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}

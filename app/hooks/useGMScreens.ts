@@ -72,7 +72,7 @@ export function useGMScreenMutations(campaignId: string) {
 
   const createScreenMutation = useMutation({
     mutationFn: (name: string) => createGMScreen({ data: { campaignId, name } }),
-    onSuccess: () => { invalidateList() },
+    // List invalidation is deferred to the caller so it can set selection first
     onError: (e) => { captureException(e, { action: 'createGMScreen' }) },
   })
 
@@ -85,7 +85,7 @@ export function useGMScreenMutations(campaignId: string) {
 
   const deleteScreenMutation = useMutation({
     mutationFn: (id: string) => deleteGMScreen({ data: { id, campaignId } }),
-    onSuccess: () => { invalidateList() },
+    // List invalidation is deferred to the caller so it can set selection first
     onError: (e) => { captureException(e, { action: 'deleteGMScreen' }) },
   })
 
@@ -187,6 +187,7 @@ export function useGMScreenMutations(campaignId: string) {
     deleteStack: deleteStackMutation,
     addStackItem: addStackItemMutation,
     removeStackItem: removeStackItemMutation,
+    invalidateList,
     invalidateDetail,
   }
 }

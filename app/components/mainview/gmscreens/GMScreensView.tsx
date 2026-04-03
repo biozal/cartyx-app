@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { Plus, Layers, Loader2, AlertTriangle } from 'lucide-react'
 import { useGMScreenList, useGMScreenDetail, useGMScreenMutations } from '~/hooks/useGMScreens'
-import type { GMScreenData } from '~/hooks/useGMScreens'
 import { FloatingWindowManager, type ManagedWindow } from '~/components/mainview/FloatingWindowManager'
 import type { FloatingWindowState } from '~/components/mainview/FloatingWindow'
 import type { WindowState } from '~/server/db/models/GMScreen'
@@ -44,26 +43,33 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
   const [dialog, setDialog] = useState<DialogState>({ type: 'none' })
   const mutations = useGMScreenMutations(campaignId)
 
-  // Collision-safe primitive key tracking which screens exist and in what order.
-  // JSON.stringify avoids the delimiter-collision pitfall of .join(",").
+  // Collision-safe primitive key that tracks the *set* of screen IDs.
+  // Sorted so harmless order changes (reorder, query refetch jitter) don't
+  // trigger re-runs — only actual additions/removals change this value.
   const screenIdsKey = useMemo(
-    () => JSON.stringify(screens.map(s => s.id)),
+    () => JSON.stringify([...screens.map(s => s.id)].sort()),
     [screens],
   )
 
+  // Ref to current ordered screens so the auto-select effect can pick the
+  // first screen by tab-order without adding `screens` to its dep array.
+  const screensRef = useRef(screens)
+  screensRef.current = screens
+
   // Auto-select first screen once the list has settled (not while loading).
-  // Uses screenIdsKey (primitive) instead of the unstable screens array ref,
-  // and a functional update to avoid activeScreenId in the dep array.
+  // Uses screenIdsKey (primitive) so it only fires when the set of IDs
+  // changes, and a functional update to avoid activeScreenId in deps.
   useEffect(() => {
     if (listLoading) return
-    const ids: string[] = JSON.parse(screenIdsKey)
-    if (ids.length === 0) {
+    const current = screensRef.current
+    if (current.length === 0) {
       setActiveScreenId(null)
       return
     }
+    const idSet = new Set(current.map(s => s.id))
     setActiveScreenId(prev => {
-      if (prev && ids.includes(prev)) return prev
-      return ids[0]
+      if (prev && idSet.has(prev)) return prev
+      return current[0].id
     })
   }, [screenIdsKey, listLoading])
 
@@ -73,7 +79,6 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
   // --- Debounced persistence refs ---
   // Per-window timers so multi-window updates don't clobber each other
   const updateTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
-  const moveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Cleanup pending timers on unmount
   useEffect(() => {
@@ -81,10 +86,6 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
     return () => {
       for (const timer of timers.values()) clearTimeout(timer)
       timers.clear()
-      if (moveTimerRef.current) {
-        clearTimeout(moveTimerRef.current)
-        moveTimerRef.current = null
-      }
     }
   }, [])
 
@@ -95,8 +96,11 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
     if (result?.screen) {
       setActiveScreenId(result.screen.id)
     }
+    // Invalidate list AFTER selection is set to prevent the auto-select
+    // effect from briefly choosing a different screen during the refetch.
+    mutations.invalidateList()
     setDialog({ type: 'none' })
-  }, [mutations.createScreen])
+  }, [mutations])
 
   const handleRenameScreen = useCallback(async (name: string) => {
     if (dialog.type !== 'rename-screen') return
@@ -106,15 +110,28 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
 
   const handleDeleteScreen = useCallback(async () => {
     if (dialog.type !== 'delete-screen') return
-    const result = await mutations.deleteScreen.mutateAsync(dialog.screenId)
-    // Move to next screen by order
-    if (result?.remaining && result.remaining.length > 0) {
-      const deletedOrder = result.deletedTabOrder ?? 0
-      const next = result.remaining.find((s: GMScreenData) => s.tabOrder >= deletedOrder) ?? result.remaining[0]
-      setActiveScreenId(next.id)
+    const deletingId = dialog.screenId
+    const currentScreens = screensRef.current
+
+    // Optimistically move selection BEFORE the mutation so activeScreenId
+    // never points to a deleted screen (avoids bounce / invalid detail fetch).
+    const idx = currentScreens.findIndex(s => s.id === deletingId)
+    const nextScreen = currentScreens[idx + 1] ?? currentScreens[idx - 1] ?? null
+    setActiveScreenId(nextScreen?.id ?? null)
+
+    // Clear any pending debounced window-update timers for the deleted screen's windows
+    for (const [timerId, timer] of updateTimersRef.current) {
+      if (activeScreen?.windows.some(w => w.id === timerId)) {
+        clearTimeout(timer)
+        updateTimersRef.current.delete(timerId)
+      }
     }
+
+    await mutations.deleteScreen.mutateAsync(deletingId)
+    // Invalidate list AFTER mutation + selection to avoid race
+    mutations.invalidateList()
     setDialog({ type: 'none' })
-  }, [dialog, mutations.deleteScreen])
+  }, [dialog, mutations, activeScreen])
 
   const handleReorder = useCallback(async (screenIds: string[]) => {
     await mutations.reorderScreens.mutateAsync(screenIds)
@@ -161,10 +178,15 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
       }
     }
 
-    // Handle closes
+    // Handle closes — clear pending timers before firing the close mutation
     const nextIds = new Set(nextWindows.map(w => w.id))
     for (const w of activeScreen.windows) {
       if (!nextIds.has(w.id)) {
+        const pending = updateTimersRef.current.get(w.id)
+        if (pending) {
+          clearTimeout(pending)
+          updateTimersRef.current.delete(w.id)
+        }
         mutations.closeWindow.mutate({ screenId: activeScreenId, windowId: w.id })
       }
     }
@@ -297,6 +319,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
                     onDelete={handleDeleteStack}
                     onRemoveItem={handleRemoveStackItem}
                     onOpenItem={handleOpenItem}
+                    inFlowLayout
                   />
                 ))}
               </div>
