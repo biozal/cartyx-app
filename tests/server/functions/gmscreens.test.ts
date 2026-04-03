@@ -78,7 +78,6 @@ import {
   deleteStack,
   addStackItem,
   removeStackItem,
-  removeDocumentRefsFromScreens,
   listGMScreensSchema,
   createGMScreenSchema,
   renameGMScreenSchema,
@@ -97,6 +96,7 @@ import {
   SUPPORTED_COLLECTIONS,
 } from '~/server/functions/gmscreens'
 import type { GMScreenData, GMScreenDetailData, WindowData, StackData, StackItemData } from '~/server/functions/gmscreens'
+import { removeDocumentRefsFromScreens } from '~/server/functions/gmscreens-helpers'
 import { serverCaptureEvent, serverCaptureException } from '~/server/utils/posthog'
 
 // ---------------------------------------------------------------------------

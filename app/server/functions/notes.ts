@@ -7,7 +7,7 @@ import { Campaign } from '../db/models/Campaign'
 import { Note } from '../db/models/Note'
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
 import { normalizeTags } from '../utils/helpers'
-import { removeDocumentRefsFromScreens } from './gmscreens'
+import { removeDocumentRefsFromScreens } from './gmscreens-helpers'
 
 export interface NoteData {
   id: string
