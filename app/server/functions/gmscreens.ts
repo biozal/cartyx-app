@@ -25,7 +25,6 @@ import {
   deleteStackSchema,
   addStackItemSchema,
   removeStackItemSchema,
-  SUPPORTED_COLLECTIONS,
 } from '~/types/schemas/gmscreens'
 
 
@@ -121,7 +120,7 @@ const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
   },
 }
 
-// SUPPORTED_COLLECTIONS is imported from ~/types/schemas/gmscreens (single source of truth)
+
 
 /**
  * Batch-hydrate a set of `{ collection, documentId }` refs.
