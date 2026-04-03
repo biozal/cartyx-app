@@ -10,13 +10,18 @@ export interface CampaignHeaderProps {
   campaignId?: string
   sessionNumber?: number
   isOwner?: boolean
+  isGM?: boolean
   activeSessionName?: string
   activeTab: TabId
   onTabChange: (tab: TabId) => void
 }
 
-export function CampaignHeader({ campaignId, sessionNumber, isOwner, activeSessionName, activeTab, onTabChange }: CampaignHeaderProps) {
+export function CampaignHeader({ campaignId, sessionNumber, isOwner, isGM, activeSessionName, activeTab, onTabChange }: CampaignHeaderProps) {
   const tablistRef = useRef<HTMLDivElement>(null)
+  const visibleTabs = TABS.filter(tab => !tab.gmOnly || isGM)
+  const effectiveActiveTab = visibleTabs.some(t => t.id === activeTab)
+    ? activeTab
+    : visibleTabs[0]?.id ?? 'dashboard'
 
   return (
     <nav className="flex items-center h-14 px-4 bg-[#0D1117] border-b border-white/[0.07] sticky top-0 z-50 gap-4">
@@ -59,10 +64,10 @@ export function CampaignHeader({ campaignId, sessionNumber, isOwner, activeSessi
         role="tablist"
         aria-label="MainView navigation"
         ref={tablistRef}
-        onKeyDown={(e) => handleTabsKeyDown(e, activeTab, onTabChange, tablistRef)}
+        onKeyDown={(e) => handleTabsKeyDown(e, effectiveActiveTab, onTabChange, tablistRef, visibleTabs)}
       >
-        {TABS.map((tab) => {
-          const isActive = activeTab === tab.id
+        {visibleTabs.map((tab) => {
+          const isActive = effectiveActiveTab === tab.id
           return (
             <button
               key={tab.id}

@@ -74,6 +74,16 @@ export function FloatingWindowManager({
     )
   }
 
+  const handleLayoutChange = (id: string, layout: { position: FloatingWindowPosition; size: FloatingWindowSize }) => {
+    onWindowsChange(
+      windows.map(w =>
+        w.id === id
+          ? { ...w, position: layout.position, size: layout.size }
+          : w
+      )
+    )
+  }
+
   const handleRestore = (id: string) => {
     handleStateChange(id, 'normal')
   }
@@ -92,6 +102,7 @@ export function FloatingWindowManager({
           onFocus={() => handleFocus(window.id)}
           onClose={() => handleClose(window.id)}
           onStateChange={(state) => handleStateChange(window.id, state)}
+          onLayoutChange={(layout) => handleLayoutChange(window.id, layout)}
         >
           {window.content}
         </FloatingWindow>

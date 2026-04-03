@@ -12,6 +12,11 @@ export const queryKeys = {
     list: (campaignId: string, includeCompleted: boolean) =>
       ['sessions', 'list', campaignId, String(includeCompleted)] as const,
   },
+  gmscreens: {
+    all: ['gmscreens'] as const,
+    list: (campaignId: string) => ['gmscreens', 'list', campaignId] as const,
+    detail: (campaignId: string, screenId: string) => ['gmscreens', 'detail', campaignId, screenId] as const,
+  },
   notes: {
     all: ['notes'] as const,
     list: (campaignId: string, sessionId?: string, search?: string, visibility?: string) =>

@@ -18,8 +18,8 @@ describe('FloatingWindowTray', () => {
       </div>,
     )
 
-    expect(screen.getByRole('button', { name: 'Wiki Entry' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Character Sheet' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Restore Wiki Entry' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Restore Character Sheet' })).toBeInTheDocument()
   })
 
   it('clicking a tray item calls onRestore with the correct id', async () => {
@@ -32,7 +32,7 @@ describe('FloatingWindowTray', () => {
       </div>,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Wiki Entry' }))
+    await user.click(screen.getByRole('button', { name: 'Restore Wiki Entry' }))
 
     expect(onRestore).toHaveBeenCalledWith('wiki')
   })

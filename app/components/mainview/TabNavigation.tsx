@@ -1,16 +1,19 @@
 import React, { useRef } from 'react'
 
-export type TabId = 'dashboard' | 'tabletop'
+export type TabId = 'dashboard' | 'tabletop' | 'gmscreens'
 
 export interface TabNavigationProps {
   activeTab: TabId
   onTabChange: (tab: TabId) => void
+  /** When provided, only these tabs are rendered. Defaults to all TABS. */
+  visibleTabs?: ReadonlyArray<{ id: TabId; label: string }>
   className?: string
 }
 
-export const TABS: ReadonlyArray<{ id: TabId; label: string }> = [
+export const TABS: ReadonlyArray<{ id: TabId; label: string; gmOnly?: boolean }> = [
   { id: 'dashboard' as const, label: 'Dashboard' },
   { id: 'tabletop' as const, label: 'Tabletop' },
+  { id: 'gmscreens' as const, label: 'GM Screens', gmOnly: true },
 ]
 
 export function handleTabsKeyDown(
@@ -20,11 +23,15 @@ export function handleTabsKeyDown(
   tablistRef: React.RefObject<HTMLDivElement | null>,
   tabs: ReadonlyArray<{ id: TabId; label: string }> = TABS,
 ) {
+  if (tabs.length === 0) return
+
   const focused = e.target as HTMLElement
   const buttons = tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
   const currentIndex = buttons
     ? Array.from(buttons).indexOf(focused as HTMLButtonElement)
     : tabs.findIndex(t => t.id === activeTab)
+  if (currentIndex < 0) return
+
   let nextIndex = currentIndex
 
   if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
@@ -47,8 +54,14 @@ export function handleTabsKeyDown(
   buttons?.[nextIndex]?.focus()
 }
 
-export function TabNavigation({ activeTab, onTabChange, className = '' }: TabNavigationProps) {
+export function TabNavigation({ activeTab, onTabChange, visibleTabs, className = '' }: TabNavigationProps) {
   const tablistRef = useRef<HTMLDivElement>(null)
+  const tabs = visibleTabs ?? TABS
+
+  // Fall back to first visible tab when activeTab is not in the visible set
+  const effectiveActiveTab = tabs.some(t => t.id === activeTab)
+    ? activeTab
+    : tabs[0]?.id ?? 'dashboard'
 
   return (
     <div className={`flex items-center h-10 px-4 bg-[#080A12] border-b border-white/[0.07] ${className}`}>
@@ -56,11 +69,11 @@ export function TabNavigation({ activeTab, onTabChange, className = '' }: TabNav
         role="tablist"
         aria-label="View navigation"
         ref={tablistRef}
-        onKeyDown={(e) => handleTabsKeyDown(e, activeTab, onTabChange, tablistRef)}
+        onKeyDown={(e) => handleTabsKeyDown(e, effectiveActiveTab, onTabChange, tablistRef, tabs)}
         className="flex items-center gap-1"
       >
-        {TABS.map((tab) => {
-          const isActive = activeTab === tab.id
+        {tabs.map((tab) => {
+          const isActive = effectiveActiveTab === tab.id
           return (
             <button
               key={tab.id}

@@ -43,6 +43,7 @@ export interface CampaignData {
     name: string
   }>
   isOwner: boolean
+  isGM: boolean
   isMember: boolean
   scheduleText: string
 }
@@ -100,6 +101,10 @@ function serializeCampaign(c: {
     sessions,
     ...(gmScreens ? { gmScreens } : {}),
     isOwner: !!gmId && String(c.gameMasterId) === gmId,
+    isGM: !!gmId && (
+      String(c.gameMasterId) === gmId ||
+      (c.members ?? []).some((m: { userId: unknown; role?: string }) => String(m.userId) === gmId && m.role === 'gm')
+    ),
     isMember,
     scheduleText: buildScheduleText(schedule),
   }
