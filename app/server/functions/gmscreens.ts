@@ -956,6 +956,434 @@ export const closeWindow = createServerFn({ method: 'POST' })
   })
 
 // ---------------------------------------------------------------------------
+// createStack — add a named stack to a screen
+// ---------------------------------------------------------------------------
+
+const createStackSchema = z.object({
+  screenId: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
+  name: z.string().trim().min(1, 'Stack name is required'),
+})
+
+export { createStackSchema }
+
+export const createStack = createServerFn({ method: 'POST' })
+  .inputValidator(createStackSchema)
+  .handler(async ({ data }) => {
+    let sessionUserId: string | undefined
+    try {
+      const gm = await requireCampaignGM(data.campaignId)
+      sessionUserId = gm.sessionUserId
+
+      const screen = await GMScreen.findOne({
+        _id: data.screenId,
+        campaignId: data.campaignId,
+      })
+      if (!screen) throw new Error('Screen not found')
+
+      if (!screen.stacks) {
+        screen.stacks = []
+      }
+
+      if (screen.stacks.length >= GMSCREEN_LIMITS.MAX_STACKS) {
+        throw new Error(
+          `A screen cannot have more than ${GMSCREEN_LIMITS.MAX_STACKS} stacks`,
+        )
+      }
+
+      screen.stacks.push({
+        name: data.name.trim(),
+        x: null,
+        y: null,
+        items: [],
+      })
+      screen.updatedAt = new Date()
+      await screen.save()
+
+      const created = screen.stacks[screen.stacks.length - 1]
+
+      serverCaptureEvent(sessionUserId, 'gmscreen_stack_created', {
+        campaign_id: data.campaignId,
+        screen_id: data.screenId,
+        stack_id: String(created._id),
+      })
+
+      return { success: true, stack: serializeStack(created) }
+    } catch (e) {
+      serverCaptureException(e, sessionUserId, {
+        action: 'createStack',
+        screenId: data.screenId,
+        campaignId: data.campaignId,
+      })
+      throw e
+    }
+  })
+
+// ---------------------------------------------------------------------------
+// renameStack — rename a stack on a screen
+// ---------------------------------------------------------------------------
+
+const renameStackSchema = z.object({
+  screenId: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
+  stackId: z.string().trim().min(1),
+  name: z.string().trim().min(1, 'Stack name is required'),
+})
+
+export { renameStackSchema }
+
+export const renameStack = createServerFn({ method: 'POST' })
+  .inputValidator(renameStackSchema)
+  .handler(async ({ data }) => {
+    let sessionUserId: string | undefined
+    try {
+      const gm = await requireCampaignGM(data.campaignId)
+      sessionUserId = gm.sessionUserId
+
+      const result = await GMScreen.updateOne(
+        {
+          _id: data.screenId,
+          campaignId: data.campaignId,
+          'stacks._id': data.stackId,
+        },
+        {
+          $set: {
+            'stacks.$.name': data.name.trim(),
+            updatedAt: new Date(),
+          },
+        },
+      )
+
+      if (result.matchedCount === 0) {
+        const screenExists = await GMScreen.countDocuments({
+          _id: data.screenId,
+          campaignId: data.campaignId,
+        })
+        if (screenExists === 0) {
+          throw new Error('Screen not found')
+        }
+        throw new Error('Stack not found')
+      }
+
+      serverCaptureEvent(sessionUserId, 'gmscreen_stack_renamed', {
+        campaign_id: data.campaignId,
+        screen_id: data.screenId,
+        stack_id: data.stackId,
+      })
+
+      return { success: true }
+    } catch (e) {
+      serverCaptureException(e, sessionUserId, {
+        action: 'renameStack',
+        screenId: data.screenId,
+        campaignId: data.campaignId,
+        stackId: data.stackId,
+      })
+      throw e
+    }
+  })
+
+// ---------------------------------------------------------------------------
+// moveStack — update a stack's x/y position
+// ---------------------------------------------------------------------------
+
+const moveStackSchema = z.object({
+  screenId: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
+  stackId: z.string().trim().min(1),
+  x: z.number().nullable(),
+  y: z.number().nullable(),
+})
+
+export { moveStackSchema }
+
+export const moveStack = createServerFn({ method: 'POST' })
+  .inputValidator(moveStackSchema)
+  .handler(async ({ data }) => {
+    let sessionUserId: string | undefined
+    try {
+      const gm = await requireCampaignGM(data.campaignId)
+      sessionUserId = gm.sessionUserId
+
+      const result = await GMScreen.updateOne(
+        {
+          _id: data.screenId,
+          campaignId: data.campaignId,
+          'stacks._id': data.stackId,
+        },
+        {
+          $set: {
+            'stacks.$.x': data.x,
+            'stacks.$.y': data.y,
+            updatedAt: new Date(),
+          },
+        },
+      )
+
+      if (result.matchedCount === 0) {
+        const screenExists = await GMScreen.countDocuments({
+          _id: data.screenId,
+          campaignId: data.campaignId,
+        })
+        if (screenExists === 0) {
+          throw new Error('Screen not found')
+        }
+        throw new Error('Stack not found')
+      }
+
+      serverCaptureEvent(sessionUserId, 'gmscreen_stack_moved', {
+        campaign_id: data.campaignId,
+        screen_id: data.screenId,
+        stack_id: data.stackId,
+      })
+
+      return { success: true }
+    } catch (e) {
+      serverCaptureException(e, sessionUserId, {
+        action: 'moveStack',
+        screenId: data.screenId,
+        campaignId: data.campaignId,
+        stackId: data.stackId,
+      })
+      throw e
+    }
+  })
+
+// ---------------------------------------------------------------------------
+// deleteStack — remove a stack from a screen
+// ---------------------------------------------------------------------------
+
+const deleteStackSchema = z.object({
+  screenId: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
+  stackId: z.string().trim().min(1),
+})
+
+export { deleteStackSchema }
+
+export const deleteStack = createServerFn({ method: 'POST' })
+  .inputValidator(deleteStackSchema)
+  .handler(async ({ data }) => {
+    let sessionUserId: string | undefined
+    try {
+      const gm = await requireCampaignGM(data.campaignId)
+      sessionUserId = gm.sessionUserId
+
+      const result = await GMScreen.updateOne(
+        {
+          _id: data.screenId,
+          campaignId: data.campaignId,
+          'stacks._id': data.stackId,
+        },
+        {
+          $pull: { stacks: { _id: data.stackId } },
+          $set: { updatedAt: new Date() },
+        },
+      )
+
+      if (result.matchedCount === 0) {
+        const screenExists = await GMScreen.countDocuments({
+          _id: data.screenId,
+          campaignId: data.campaignId,
+        })
+        if (screenExists === 0) {
+          throw new Error('Screen not found')
+        }
+        // Stack wasn't present — true no-op
+        return { success: true }
+      }
+
+      serverCaptureEvent(sessionUserId, 'gmscreen_stack_deleted', {
+        campaign_id: data.campaignId,
+        screen_id: data.screenId,
+        stack_id: data.stackId,
+      })
+
+      return { success: true }
+    } catch (e) {
+      serverCaptureException(e, sessionUserId, {
+        action: 'deleteStack',
+        screenId: data.screenId,
+        campaignId: data.campaignId,
+        stackId: data.stackId,
+      })
+      throw e
+    }
+  })
+
+// ---------------------------------------------------------------------------
+// addStackItem — add a wiki ref to a stack
+// ---------------------------------------------------------------------------
+
+/**
+ * **Duplicate rule:** A stack cannot contain two items with the same
+ * `collection + documentId`.  If a duplicate is detected the call returns
+ * `{ success: true, existed: true }` without modifying the stack.
+ */
+
+const addStackItemSchema = z.object({
+  screenId: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
+  stackId: z.string().trim().min(1),
+  collection: z.enum(SUPPORTED_COLLECTIONS, {
+    errorMap: () => ({
+      message: `Unsupported collection. Must be one of: ${SUPPORTED_COLLECTIONS.join(', ')}`,
+    }),
+  }),
+  documentId: z.string().trim().min(1),
+  label: z.string().trim().default(''),
+})
+
+export { addStackItemSchema }
+
+export const addStackItem = createServerFn({ method: 'POST' })
+  .inputValidator(addStackItemSchema)
+  .handler(async ({ data }) => {
+    let sessionUserId: string | undefined
+    try {
+      const gm = await requireCampaignGM(data.campaignId)
+      sessionUserId = gm.sessionUserId
+
+      const screen = await GMScreen.findOne({
+        _id: data.screenId,
+        campaignId: data.campaignId,
+      })
+      if (!screen) throw new Error('Screen not found')
+
+      if (!screen.stacks) {
+        screen.stacks = []
+      }
+
+      const stack = screen.stacks.find(
+        (s: { _id: unknown }) => String(s._id) === data.stackId,
+      )
+      if (!stack) throw new Error('Stack not found')
+
+      // Ensure items is a real Mongoose subdocument array (legacy stacks may lack it)
+      if (!stack.items) {
+        stack.items = []
+      }
+
+      // Duplicate check
+      const duplicate = stack.items.find(
+        (item: { collection?: string; documentId?: unknown }) =>
+          item.collection === data.collection &&
+          String(item.documentId) === data.documentId,
+      )
+      if (duplicate) {
+        return { success: true, item: serializeStackItem(duplicate), existed: true }
+      }
+
+      if (stack.items.length >= GMSCREEN_LIMITS.MAX_STACK_ITEMS) {
+        throw new Error(
+          `A stack cannot contain more than ${GMSCREEN_LIMITS.MAX_STACK_ITEMS} items`,
+        )
+      }
+
+      stack.items.push({
+        collection: data.collection,
+        documentId: data.documentId,
+        label: data.label,
+      })
+      screen.updatedAt = new Date()
+      await screen.save()
+
+      const created = stack.items[stack.items.length - 1]
+
+      serverCaptureEvent(sessionUserId, 'gmscreen_stack_item_added', {
+        campaign_id: data.campaignId,
+        screen_id: data.screenId,
+        stack_id: data.stackId,
+        item_id: String(created._id),
+      })
+
+      return { success: true, item: serializeStackItem(created), existed: false }
+    } catch (e) {
+      serverCaptureException(e, sessionUserId, {
+        action: 'addStackItem',
+        screenId: data.screenId,
+        campaignId: data.campaignId,
+        stackId: data.stackId,
+      })
+      throw e
+    }
+  })
+
+// ---------------------------------------------------------------------------
+// removeStackItem — remove an item from a stack
+// ---------------------------------------------------------------------------
+
+const removeStackItemSchema = z.object({
+  screenId: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
+  stackId: z.string().trim().min(1),
+  itemId: z.string().trim().min(1),
+})
+
+export { removeStackItemSchema }
+
+export const removeStackItem = createServerFn({ method: 'POST' })
+  .inputValidator(removeStackItemSchema)
+  .handler(async ({ data }) => {
+    let sessionUserId: string | undefined
+    try {
+      const gm = await requireCampaignGM(data.campaignId)
+      sessionUserId = gm.sessionUserId
+
+      const screen = await GMScreen.findOne({
+        _id: data.screenId,
+        campaignId: data.campaignId,
+      })
+      if (!screen) throw new Error('Screen not found')
+
+      if (!screen.stacks) {
+        screen.stacks = []
+      }
+
+      const stack = screen.stacks.find(
+        (s: { _id: unknown }) => String(s._id) === data.stackId,
+      )
+      if (!stack) throw new Error('Stack not found')
+
+      // Ensure items is a real Mongoose subdocument array (legacy stacks may lack it)
+      if (!stack.items) {
+        stack.items = []
+      }
+
+      const index = stack.items.findIndex(
+        (item: { _id: unknown }) => String(item._id) === data.itemId,
+      )
+
+      if (index === -1) {
+        // Item not present — true no-op
+        return { success: true }
+      }
+
+      stack.items.splice(index, 1)
+      screen.updatedAt = new Date()
+      await screen.save()
+
+      serverCaptureEvent(sessionUserId, 'gmscreen_stack_item_removed', {
+        campaign_id: data.campaignId,
+        screen_id: data.screenId,
+        stack_id: data.stackId,
+        item_id: data.itemId,
+      })
+
+      return { success: true }
+    } catch (e) {
+      serverCaptureException(e, sessionUserId, {
+        action: 'removeStackItem',
+        screenId: data.screenId,
+        campaignId: data.campaignId,
+        stackId: data.stackId,
+        itemId: data.itemId,
+      })
+      throw e
+    }
+  })
+
+// ---------------------------------------------------------------------------
 // removeDocumentRefsFromScreens — cleanup when a referenced document is deleted
 // ---------------------------------------------------------------------------
 
