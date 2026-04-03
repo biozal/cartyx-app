@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { Plus, Layers, Loader2, AlertTriangle } from 'lucide-react'
 import { useGMScreenList, useGMScreenDetail, useGMScreenMutations } from '~/hooks/useGMScreens'
 import type { GMScreenData } from '~/hooks/useGMScreens'
@@ -44,19 +44,28 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
   const [dialog, setDialog] = useState<DialogState>({ type: 'none' })
   const mutations = useGMScreenMutations(campaignId)
 
+  // Collision-safe primitive key tracking which screens exist and in what order.
+  // JSON.stringify avoids the delimiter-collision pitfall of .join(",").
+  const screenIdsKey = useMemo(
+    () => JSON.stringify(screens.map(s => s.id)),
+    [screens],
+  )
+
   // Auto-select first screen once the list has settled (not while loading).
-  // Avoids bouncing the user between screens on refresh or after create/delete.
+  // Uses screenIdsKey (primitive) instead of the unstable screens array ref,
+  // and a functional update to avoid activeScreenId in the dep array.
   useEffect(() => {
     if (listLoading) return
-    if (screens.length === 0) {
+    const ids: string[] = JSON.parse(screenIdsKey)
+    if (ids.length === 0) {
       setActiveScreenId(null)
       return
     }
-    // If current active is still valid, keep it
-    if (activeScreenId && screens.some(s => s.id === activeScreenId)) return
-    // Otherwise, select first
-    setActiveScreenId(screens[0].id)
-  }, [screens, activeScreenId, listLoading])
+    setActiveScreenId(prev => {
+      if (prev && ids.includes(prev)) return prev
+      return ids[0]
+    })
+  }, [screenIdsKey, listLoading])
 
   const { screen: activeScreen, isLoading: detailLoading, error: detailError } =
     useGMScreenDetail(campaignId, activeScreenId)
