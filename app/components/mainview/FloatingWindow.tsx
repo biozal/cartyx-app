@@ -97,6 +97,8 @@ export function FloatingWindow({
   const resizeStateRef = useRef<ResizeState | null>(null)
   const positionRef = useRef<FloatingWindowPosition>(initialPosition)
   const sizeRef = useRef<FloatingWindowSize>(initialSize)
+  // Stash normal-mode geometry so maximize→restore round-trips cleanly
+  const preMaxRef = useRef<{ position: FloatingWindowPosition; size: FloatingWindowSize } | null>(null)
   const titleId = useId()
 
   useEffect(() => {
@@ -123,7 +125,22 @@ export function FloatingWindow({
 
   const handleMaximizeToggle = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
-    setState(windowState === 'maximized' ? 'normal' : 'maximized')
+    if (windowState === 'maximized') {
+      // Restore pre-maximize geometry
+      if (preMaxRef.current) {
+        const { position: p, size: s } = preMaxRef.current
+        positionRef.current = p
+        sizeRef.current = s
+        setPosition(p)
+        setSize(s)
+        preMaxRef.current = null
+      }
+      setState('normal')
+    } else {
+      // Save current geometry before maximizing
+      preMaxRef.current = { position: positionRef.current, size: sizeRef.current }
+      setState('maximized')
+    }
   }, [setState, windowState])
 
   const handleClose = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
@@ -134,34 +151,6 @@ export function FloatingWindow({
   const handleWindowMouseDown = useCallback(() => {
     focusWindow()
   }, [focusWindow])
-
-  const handleTitleBarMouseDown = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
-    if (windowState === 'maximized') {
-      handleWindowMouseDown()
-      return
-    }
-
-    handleWindowMouseDown()
-    dragStateRef.current = {
-      offsetX: event.clientX - position.x,
-      offsetY: event.clientY - position.y,
-    }
-  }, [handleWindowMouseDown, position.x, position.y, windowState])
-
-  const handleResizeMouseDown = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
-    event.stopPropagation()
-    if (windowState === 'maximized') {
-      return
-    }
-
-    handleWindowMouseDown()
-    resizeStateRef.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      startWidth: size.width,
-      startHeight: size.height,
-    }
-  }, [handleWindowMouseDown, size.height, size.width, windowState])
 
   const handleDocumentMouseMove = useCallback((event: MouseEvent) => {
     const element = windowRef.current
@@ -205,15 +194,51 @@ export function FloatingWindow({
     resizeStateRef.current = null
   }, [])
 
-  useEffect(() => {
-    document.addEventListener('mousemove', handleDocumentMouseMove)
-    document.addEventListener('mouseup', handleDocumentMouseUp)
-
-    return () => {
-      document.removeEventListener('mousemove', handleDocumentMouseMove)
-      document.removeEventListener('mouseup', handleDocumentMouseUp)
+  // Only attach document-level listeners while actively dragging/resizing
+  const handlePointerCapture = useCallback((event: ReactMouseEvent<HTMLDivElement>, mode: 'drag' | 'resize') => {
+    if (mode === 'drag') {
+      dragStateRef.current = {
+        offsetX: event.clientX - positionRef.current.x,
+        offsetY: event.clientY - positionRef.current.y,
+      }
+    } else {
+      resizeStateRef.current = {
+        startX: event.clientX,
+        startY: event.clientY,
+        startWidth: sizeRef.current.width,
+        startHeight: sizeRef.current.height,
+      }
     }
+
+    const onMove = handleDocumentMouseMove
+    const onUp = () => {
+      handleDocumentMouseUp()
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
   }, [handleDocumentMouseMove, handleDocumentMouseUp])
+
+  const handleTitleBarMouseDown = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    if (windowState === 'maximized') {
+      handleWindowMouseDown()
+      return
+    }
+
+    handleWindowMouseDown()
+    handlePointerCapture(event, 'drag')
+  }, [handleWindowMouseDown, windowState, handlePointerCapture])
+
+  const handleResizeMouseDown = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    event.stopPropagation()
+    if (windowState === 'maximized') {
+      return
+    }
+
+    handleWindowMouseDown()
+    handlePointerCapture(event, 'resize')
+  }, [handleWindowMouseDown, windowState, handlePointerCapture])
 
   if (windowState === 'minimized') {
     return null

@@ -69,7 +69,7 @@ describe('FloatingWindowManager', () => {
   it('minimized windows appear in the tray', () => {
     render(<ControlledManager />)
 
-    expect(screen.getByRole('button', { name: 'Wiki' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Restore Wiki' })).toBeInTheDocument()
   })
 
   it('closing a window calls onWindowsChange without that window', async () => {

@@ -113,6 +113,10 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
     const deletingId = dialog.screenId
     const currentScreens = screensRef.current
 
+    // Snapshot the window IDs before changing selection (activeScreen will
+    // become stale once activeScreenId changes).
+    const windowIds = activeScreen?.windows.map(w => w.id) ?? []
+
     // Optimistically move selection BEFORE the mutation so activeScreenId
     // never points to a deleted screen (avoids bounce / invalid detail fetch).
     const idx = currentScreens.findIndex(s => s.id === deletingId)
@@ -120,8 +124,9 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
     setActiveScreenId(nextScreen?.id ?? null)
 
     // Clear any pending debounced window-update timers for the deleted screen's windows
+    const windowIdSet = new Set(windowIds)
     for (const [timerId, timer] of updateTimersRef.current) {
-      if (activeScreen?.windows.some(w => w.id === timerId)) {
+      if (windowIdSet.has(timerId)) {
         clearTimeout(timer)
         updateTimersRef.current.delete(timerId)
       }

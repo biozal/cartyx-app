@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { X, GripVertical, ArrowUp, ArrowDown, Loader2 } from 'lucide-react'
 import type { GMScreenData } from '~/server/functions/gmscreens'
+import { useFocusTrap } from '~/hooks/useFocusTrap'
 
 export interface ReorderDialogProps {
   screens: GMScreenData[]
@@ -16,6 +17,7 @@ export function ReorderDialog({
   isLoading = false,
 }: ReorderDialogProps) {
   const [order, setOrder] = useState(() => [...screens].sort((a, b) => a.tabOrder - b.tabOrder))
+  const trapRef = useFocusTrap<HTMLDivElement>()
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -55,7 +57,7 @@ export function ReorderDialog({
       aria-modal="true"
       aria-label="Reorder Screens"
     >
-      <div className="w-full max-w-sm rounded-lg border border-white/[0.07] bg-[#0D1117] shadow-2xl shadow-black/60">
+      <div ref={trapRef} className="w-full max-w-sm rounded-lg border border-white/[0.07] bg-[#0D1117] shadow-2xl shadow-black/60">
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07]">
           <h2 className="font-sans font-semibold text-xs text-white">Reorder Screens</h2>
           <button

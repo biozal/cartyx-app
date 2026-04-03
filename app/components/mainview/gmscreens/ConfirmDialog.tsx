@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Loader2 } from 'lucide-react'
+import { useFocusTrap } from '~/hooks/useFocusTrap'
 
 export interface ConfirmDialogProps {
   title: string
@@ -20,6 +21,14 @@ export function ConfirmDialog({
   onCancel,
   isLoading = false,
 }: ConfirmDialogProps) {
+  const trapRef = useFocusTrap<HTMLDivElement>()
+  const cancelRef = useRef<HTMLButtonElement>(null)
+
+  // Auto-focus the cancel button for safety (destructive dialogs especially)
+  useEffect(() => {
+    cancelRef.current?.focus()
+  }, [])
+
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onCancel()
@@ -36,7 +45,7 @@ export function ConfirmDialog({
       aria-modal="true"
       aria-label={title}
     >
-      <div className="w-full max-w-sm rounded-lg border border-white/[0.07] bg-[#0D1117] shadow-2xl shadow-black/60">
+      <div ref={trapRef} className="w-full max-w-sm rounded-lg border border-white/[0.07] bg-[#0D1117] shadow-2xl shadow-black/60">
         <div className="px-4 py-3 border-b border-white/[0.07]">
           <h2 className="font-sans font-semibold text-xs text-white">{title}</h2>
         </div>
@@ -46,6 +55,7 @@ export function ConfirmDialog({
 
           <div className="mt-4 flex justify-end gap-2">
             <button
+              ref={cancelRef}
               type="button"
               onClick={onCancel}
               disabled={isLoading}

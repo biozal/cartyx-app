@@ -132,12 +132,56 @@ function ScreenSettingsDropdown({
 }: ScreenSettingsDropdownProps) {
   const [open, setOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
-  useCloseOnOutsideClick(dropdownRef, () => setOpen(false), open)
+  const close = useCallback(() => {
+    setOpen(false)
+    // Return focus to the trigger button after the menu closes
+    triggerRef.current?.focus()
+  }, [])
+
+  useCloseOnOutsideClick(dropdownRef, close, open)
+
+  // Focus first menu item when menu opens
+  useEffect(() => {
+    if (!open) return
+    const firstItem = menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not([disabled])')
+    firstItem?.focus()
+  }, [open])
+
+  // Arrow-key navigation within the menu
+  const handleMenuKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const items = menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not([disabled])')
+    if (!items || items.length === 0) return
+
+    const focused = document.activeElement as HTMLElement
+    const currentIndex = Array.from(items).indexOf(focused as HTMLButtonElement)
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      const next = currentIndex < items.length - 1 ? currentIndex + 1 : 0
+      items[next]?.focus()
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      const next = currentIndex > 0 ? currentIndex - 1 : items.length - 1
+      items[next]?.focus()
+    } else if (e.key === 'Home') {
+      e.preventDefault()
+      items[0]?.focus()
+    } else if (e.key === 'End') {
+      e.preventDefault()
+      items[items.length - 1]?.focus()
+    } else if (e.key === 'Tab') {
+      // Tab should close the menu and let focus move naturally
+      close()
+    }
+  }, [close])
 
   return (
     <div className="relative shrink-0 px-2" ref={dropdownRef}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-label="Screen settings"
@@ -151,26 +195,28 @@ function ScreenSettingsDropdown({
 
       {open && (
         <div
+          ref={menuRef}
           role="menu"
           data-testid="screen-settings-menu"
+          onKeyDown={handleMenuKeyDown}
           className="absolute right-0 top-full mt-1 z-50 w-48 rounded-lg border border-white/[0.07] bg-[#0D1117] shadow-xl shadow-black/50 py-1"
         >
           <DropdownItem
             icon={<Plus className="h-3.5 w-3.5" />}
             label="New Screen"
-            onClick={() => { onCreateScreen(); setOpen(false) }}
+            onClick={() => { onCreateScreen(); close() }}
           />
           {activeScreenId && (
             <>
               <DropdownItem
                 icon={<Pencil className="h-3.5 w-3.5" />}
                 label="Rename Screen"
-                onClick={() => { onRenameScreen(activeScreenId); setOpen(false) }}
+                onClick={() => { onRenameScreen(activeScreenId); close() }}
               />
               <DropdownItem
                 icon={<Trash2 className="h-3.5 w-3.5" />}
                 label="Delete Screen"
-                onClick={() => { onDeleteScreen(activeScreenId); setOpen(false) }}
+                onClick={() => { onDeleteScreen(activeScreenId); close() }}
                 disabled={screens.length <= 1}
                 danger
               />
@@ -182,7 +228,7 @@ function ScreenSettingsDropdown({
               <DropdownItem
                 icon={<ArrowUpDown className="h-3.5 w-3.5" />}
                 label="Reorder Screens"
-                onClick={() => { onReorderScreens(); setOpen(false) }}
+                onClick={() => { onReorderScreens(); close() }}
               />
             </>
           )}

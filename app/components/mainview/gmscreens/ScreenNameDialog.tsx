@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { X, Loader2 } from 'lucide-react'
+import { useFocusTrap } from '~/hooks/useFocusTrap'
 
 export interface ScreenNameDialogProps {
   title: string
@@ -20,6 +21,7 @@ export function ScreenNameDialog({
 }: ScreenNameDialogProps) {
   const [name, setName] = useState(initialName)
   const inputRef = useRef<HTMLInputElement>(null)
+  const trapRef = useFocusTrap<HTMLDivElement>()
 
   useEffect(() => {
     inputRef.current?.select()
@@ -47,7 +49,7 @@ export function ScreenNameDialog({
       aria-modal="true"
       aria-label={title}
     >
-      <div className="w-full max-w-sm rounded-lg border border-white/[0.07] bg-[#0D1117] shadow-2xl shadow-black/60">
+      <div ref={trapRef} className="w-full max-w-sm rounded-lg border border-white/[0.07] bg-[#0D1117] shadow-2xl shadow-black/60">
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07]">
           <h2 className="font-sans font-semibold text-xs text-white">{title}</h2>
           <button

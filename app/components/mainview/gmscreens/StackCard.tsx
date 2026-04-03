@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { Pencil, Trash2, X, GripVertical } from 'lucide-react'
 import type { StackData, HydratedDocument } from '~/server/functions/gmscreens'
 
@@ -26,10 +26,14 @@ export function StackCard({
   const [editName, setEditName] = useState(stack.name)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Select all text when entering edit mode
+  useEffect(() => {
+    if (isEditing) inputRef.current?.select()
+  }, [isEditing])
+
   const handleStartEdit = useCallback(() => {
     setEditName(stack.name)
     setIsEditing(true)
-    setTimeout(() => inputRef.current?.select(), 0)
   }, [stack.name])
 
   const handleSubmitRename = useCallback(() => {
