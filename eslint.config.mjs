@@ -42,6 +42,16 @@ export default [js.configs.recommended, {
     '@typescript-eslint/no-explicit-any': 'off',
   },
 }, {
+  files: ['app/hooks/**', 'app/components/**', 'app/utils/**', 'app/providers/**', 'app/services/**'],
+  rules: {
+    'no-restricted-imports': ['error', {
+      patterns: [{
+        group: ['~/server/*', '~/server/**'],
+        message: 'Client code must not import from ~/server/. Use ~/types/ for types and createServerFn wrappers for server calls.',
+      }],
+    }],
+  },
+}, {
   ignores: [
     'node_modules',
     'vendor',
