@@ -32,6 +32,7 @@ export interface FloatingWindowProps {
   onClose?: () => void
   onFocus?: () => void
   onStateChange?: (state: FloatingWindowState) => void
+  onLayoutChange?: (layout: { position: FloatingWindowPosition; size: FloatingWindowSize }) => void
   className?: string
 }
 
@@ -85,6 +86,7 @@ export function FloatingWindow({
   onClose,
   onFocus,
   onStateChange,
+  onLayoutChange,
   className = '',
 }: FloatingWindowProps) {
   const [position, setPosition] = useState<FloatingWindowPosition>(initialPosition)
@@ -99,6 +101,8 @@ export function FloatingWindow({
   const sizeRef = useRef<FloatingWindowSize>(initialSize)
   // Stash normal-mode geometry so maximize→restore round-trips cleanly
   const preMaxRef = useRef<{ position: FloatingWindowPosition; size: FloatingWindowSize } | null>(null)
+  const onLayoutChangeRef = useRef(onLayoutChange)
+  onLayoutChangeRef.current = onLayoutChange
   const titleId = useId()
 
   useEffect(() => {
@@ -215,6 +219,7 @@ export function FloatingWindow({
       handleDocumentMouseUp()
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      onLayoutChangeRef.current?.({ position: positionRef.current, size: sizeRef.current })
     }
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
