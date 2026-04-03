@@ -15,7 +15,7 @@ export interface WindowData {
   id: string
   collection: string
   documentId: string
-  state: string
+  state: WindowState
   x: number | null
   y: number | null
   width: number | null

@@ -1,10 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod'
 import { captureException } from '~/providers/PostHogProvider'
 import { compressImage } from '~/utils/compressImage'
 import { uploadToR2 } from '~/utils/uploadToR2'
 import { queryKeys } from '~/utils/queryKeys'
+import {
+  campaignInputSchema,
+  updateCampaignInputSchema,
+  getCampaignSchema,
+  joinCampaignSchema,
+} from '~/types/schemas/campaigns'
 
 const listCampaignsFn = createServerFn({ method: 'GET' })
   .handler(async () => {
@@ -13,30 +18,28 @@ const listCampaignsFn = createServerFn({ method: 'GET' })
   })
 
 const getCampaignFn = createServerFn({ method: 'GET' })
-  .inputValidator(z.object({ id: z.string() }))
+  .inputValidator(getCampaignSchema)
   .handler(async ({ data }) => {
     const { getCampaign } = await import('~/server/functions/campaigns')
     return getCampaign({ data })
   })
 
 const createCampaignFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({}).passthrough())
+  .inputValidator(campaignInputSchema)
   .handler(async ({ data }) => {
     const { createCampaign } = await import('~/server/functions/campaigns')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return createCampaign({ data: data as any })
+    return createCampaign({ data })
   })
 
 const updateCampaignFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({}).passthrough())
+  .inputValidator(updateCampaignInputSchema)
   .handler(async ({ data }) => {
     const { updateCampaign } = await import('~/server/functions/campaigns')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return updateCampaign({ data: data as any })
+    return updateCampaign({ data })
   })
 
 const joinCampaignFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ inviteCode: z.string() }))
+  .inputValidator(joinCampaignSchema)
   .handler(async ({ data }) => {
     const { joinCampaign } = await import('~/server/functions/campaigns')
     return joinCampaign({ data })

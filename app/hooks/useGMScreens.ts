@@ -1,10 +1,25 @@
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod'
 import type { GMScreenData, GMScreenDetailData, WindowState } from '~/types/gmscreen'
-import { WINDOW_STATES } from '~/types/gmscreen'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { captureException } from '~/providers/PostHogProvider'
 import { queryKeys } from '~/utils/queryKeys'
+import {
+  listGMScreensSchema,
+  getGMScreenSchema,
+  createGMScreenSchema,
+  renameGMScreenSchema,
+  deleteGMScreenSchema,
+  reorderGMScreensSchema,
+  openWindowSchema,
+  updateWindowSchema,
+  closeWindowSchema,
+  createStackSchema,
+  renameStackSchema,
+  moveStackSchema,
+  deleteStackSchema,
+  addStackItemSchema,
+  removeStackItemSchema,
+} from '~/types/schemas/gmscreens'
 
 // ---------------------------------------------------------------------------
 // Server function wrappers — dynamic imports keep Mongoose server-only.
@@ -12,115 +27,105 @@ import { queryKeys } from '~/utils/queryKeys'
 // ---------------------------------------------------------------------------
 
 const listGMScreensFn = createServerFn({ method: 'GET' })
-  .inputValidator(z.object({ campaignId: z.string() }))
+  .inputValidator(listGMScreensSchema)
   .handler(async ({ data }) => {
     const { listGMScreens } = await import('~/server/functions/gmscreens')
     return listGMScreens({ data })
   })
 
 const getGMScreenFn = createServerFn({ method: 'GET' })
-  .inputValidator(z.object({ id: z.string(), campaignId: z.string() }))
+  .inputValidator(getGMScreenSchema)
   .handler(async ({ data }) => {
     const { getGMScreen } = await import('~/server/functions/gmscreens')
     return getGMScreen({ data })
   })
 
 const createGMScreenFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ campaignId: z.string(), name: z.string() }))
+  .inputValidator(createGMScreenSchema)
   .handler(async ({ data }) => {
     const { createGMScreen } = await import('~/server/functions/gmscreens')
     return createGMScreen({ data })
   })
 
 const renameGMScreenFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ id: z.string(), campaignId: z.string(), name: z.string() }))
+  .inputValidator(renameGMScreenSchema)
   .handler(async ({ data }) => {
     const { renameGMScreen } = await import('~/server/functions/gmscreens')
     return renameGMScreen({ data })
   })
 
 const deleteGMScreenFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ id: z.string(), campaignId: z.string() }))
+  .inputValidator(deleteGMScreenSchema)
   .handler(async ({ data }) => {
     const { deleteGMScreen } = await import('~/server/functions/gmscreens')
     return deleteGMScreen({ data })
   })
 
 const reorderGMScreensFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ campaignId: z.string(), screenIds: z.array(z.string()) }))
+  .inputValidator(reorderGMScreensSchema)
   .handler(async ({ data }) => {
     const { reorderGMScreens } = await import('~/server/functions/gmscreens')
     return reorderGMScreens({ data })
   })
 
 const openWindowFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), collection: z.string(), documentId: z.string() }))
+  .inputValidator(openWindowSchema)
   .handler(async ({ data }) => {
     const { openWindow } = await import('~/server/functions/gmscreens')
     return openWindow({ data })
   })
 
 const updateWindowFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({
-    screenId: z.string(),
-    campaignId: z.string(),
-    windowId: z.string(),
-    x: z.number().nullable().optional(),
-    y: z.number().nullable().optional(),
-    width: z.number().nullable().optional(),
-    height: z.number().nullable().optional(),
-    zIndex: z.number().optional(),
-    state: z.enum(WINDOW_STATES).optional(),
-  }))
+  .inputValidator(updateWindowSchema)
   .handler(async ({ data }) => {
     const { updateWindow } = await import('~/server/functions/gmscreens')
     return updateWindow({ data })
   })
 
 const closeWindowFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), windowId: z.string() }))
+  .inputValidator(closeWindowSchema)
   .handler(async ({ data }) => {
     const { closeWindow } = await import('~/server/functions/gmscreens')
     return closeWindow({ data })
   })
 
 const createStackFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), name: z.string() }))
+  .inputValidator(createStackSchema)
   .handler(async ({ data }) => {
     const { createStack } = await import('~/server/functions/gmscreens')
     return createStack({ data })
   })
 
 const renameStackFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), stackId: z.string(), name: z.string() }))
+  .inputValidator(renameStackSchema)
   .handler(async ({ data }) => {
     const { renameStack } = await import('~/server/functions/gmscreens')
     return renameStack({ data })
   })
 
 const moveStackFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), stackId: z.string(), x: z.number().nullable(), y: z.number().nullable() }))
+  .inputValidator(moveStackSchema)
   .handler(async ({ data }) => {
     const { moveStack } = await import('~/server/functions/gmscreens')
     return moveStack({ data })
   })
 
 const deleteStackFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), stackId: z.string() }))
+  .inputValidator(deleteStackSchema)
   .handler(async ({ data }) => {
     const { deleteStack } = await import('~/server/functions/gmscreens')
     return deleteStack({ data })
   })
 
 const addStackItemFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), stackId: z.string(), collection: z.string(), documentId: z.string(), label: z.string().default('') }))
+  .inputValidator(addStackItemSchema)
   .handler(async ({ data }) => {
     const { addStackItem } = await import('~/server/functions/gmscreens')
     return addStackItem({ data })
   })
 
 const removeStackItemFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), stackId: z.string(), itemId: z.string() }))
+  .inputValidator(removeStackItemSchema)
   .handler(async ({ data }) => {
     const { removeStackItem } = await import('~/server/functions/gmscreens')
     return removeStackItem({ data })

@@ -1,9 +1,15 @@
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { NoteData, NoteListItem } from '~/types/note'
 import { captureException } from '~/providers/PostHogProvider'
 import { queryKeys } from '~/utils/queryKeys'
+import {
+  listNotesSchema,
+  getNoteSchema,
+  createNoteSchema,
+  updateNoteSchema,
+  deleteNoteSchema,
+} from '~/types/schemas/notes'
 
 // ---------------------------------------------------------------------------
 // Server function wrappers — dynamic imports keep Mongoose server-only.
@@ -11,55 +17,35 @@ import { queryKeys } from '~/utils/queryKeys'
 // ---------------------------------------------------------------------------
 
 const listNotesFn = createServerFn({ method: 'GET' })
-  .inputValidator(z.object({
-    campaignId: z.string(),
-    sessionId: z.string().optional(),
-    search: z.string().optional(),
-    visibility: z.enum(['all', 'public', 'private']).optional(),
-  }))
+  .inputValidator(listNotesSchema)
   .handler(async ({ data }) => {
     const { listNotes } = await import('~/server/functions/notes')
     return listNotes({ data })
   })
 
 const getNoteFn = createServerFn({ method: 'GET' })
-  .inputValidator(z.object({ id: z.string(), campaignId: z.string() }))
+  .inputValidator(getNoteSchema)
   .handler(async ({ data }) => {
     const { getNote } = await import('~/server/functions/notes')
     return getNote({ data })
   })
 
 const createNoteFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({
-    campaignId: z.string(),
-    sessionId: z.string(),
-    title: z.string(),
-    note: z.string(),
-    tags: z.array(z.string()).optional(),
-    isPublic: z.boolean().optional(),
-  }))
+  .inputValidator(createNoteSchema)
   .handler(async ({ data }) => {
     const { createNote } = await import('~/server/functions/notes')
     return createNote({ data })
   })
 
 const updateNoteFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({
-    id: z.string(),
-    campaignId: z.string(),
-    sessionId: z.string(),
-    title: z.string(),
-    note: z.string(),
-    tags: z.array(z.string()).optional(),
-    isPublic: z.boolean().optional(),
-  }))
+  .inputValidator(updateNoteSchema)
   .handler(async ({ data }) => {
     const { updateNote } = await import('~/server/functions/notes')
     return updateNote({ data })
   })
 
 const deleteNoteFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ id: z.string(), campaignId: z.string() }))
+  .inputValidator(deleteNoteSchema)
   .handler(async ({ data }) => {
     const { deleteNote } = await import('~/server/functions/notes')
     return deleteNote({ data })

@@ -1,12 +1,9 @@
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod'
 import { captureException } from '~/providers/PostHogProvider'
+import { getUploadUrlSchema } from '~/types/schemas/uploads'
 
 const getUploadUrlFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({
-    contentType: z.string(),
-    subdir: z.string().regex(/^uploads\/[a-zA-Z0-9_-]+$/).default('uploads/campaigns'),
-  }))
+  .inputValidator(getUploadUrlSchema)
   .handler(async ({ data }) => {
     const { getUploadUrl } = await import('~/server/functions/uploads')
     return getUploadUrl({ data })

@@ -1,49 +1,37 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod'
 import { captureException } from '~/providers/PostHogProvider'
 import { queryKeys } from '~/utils/queryKeys'
+import {
+  listSessionsSchema,
+  createSessionSchema,
+  updateSessionSchema,
+} from '~/types/schemas/sessions'
+import { activateSessionSchema } from '~/types/schemas/campaigns'
 
 const listSessionsFn = createServerFn({ method: 'GET' })
-  .inputValidator(z.object({
-    campaignId: z.string().min(1),
-    includeCompleted: z.boolean().optional(),
-  }))
+  .inputValidator(listSessionsSchema)
   .handler(async ({ data }) => {
     const { listSessions } = await import('~/server/functions/sessions')
     return listSessions({ data })
   })
 
 const createSessionFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({
-    campaignId: z.string().min(1),
-    name: z.string().min(1),
-    startDate: z.string().datetime(),
-  }))
+  .inputValidator(createSessionSchema)
   .handler(async ({ data }) => {
     const { createSession } = await import('~/server/functions/sessions')
     return createSession({ data })
   })
 
 const updateSessionFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({
-    sessionId: z.string().min(1),
-    campaignId: z.string().min(1),
-    name: z.string().min(1).optional(),
-    startDate: z.string().datetime().optional(),
-    endDate: z.string().datetime().optional(),
-  }))
+  .inputValidator(updateSessionSchema)
   .handler(async ({ data }) => {
     const { updateSession } = await import('~/server/functions/sessions')
     return updateSession({ data })
   })
 
 const activateSessionFn = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({
-    campaignId: z.string().min(1),
-    sessionId: z.string().min(1),
-    endDate: z.string().datetime().optional(),
-  }))
+  .inputValidator(activateSessionSchema)
   .handler(async ({ data }) => {
     const { activateSession } = await import('~/server/functions/campaigns')
     return activateSession({ data })

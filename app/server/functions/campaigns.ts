@@ -1,5 +1,4 @@
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod'
 import mongoose from 'mongoose'
 import { getSession } from '../session'
 import { connectDB, isDBConnected } from '../db/connection'
@@ -12,6 +11,13 @@ import { generateInviteCode, parseMaxPlayers, saveUploadedFile, MAX_IMAGE_BASE64
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
 import { formatSchedule } from '~/utils/date'
 import type { CampaignData } from '~/types/campaign'
+import {
+  campaignInputSchema,
+  updateCampaignInputSchema,
+  getCampaignSchema,
+  joinCampaignSchema,
+  activateSessionSchema,
+} from '~/types/schemas/campaigns'
 
 
 export function buildScheduleText(schedule: {
@@ -136,7 +142,7 @@ export const listCampaigns = createServerFn({ method: 'GET' }).handler(async () 
 })
 
 export const getCampaign = createServerFn({ method: 'GET' })
-  .inputValidator(z.object({ id: z.string() }))
+  .inputValidator(getCampaignSchema)
   .handler(async ({ data }) => {
     try {
       const user = await getSession()
@@ -223,56 +229,7 @@ export const getCampaign = createServerFn({ method: 'GET' })
     }
   })
 
-const campaignInputShape = {
-  name: z.string().min(1),
-  description: z.string().default(''),
-  schedFreq: z.string().optional(),
-  schedDay: z.string().optional(),
-  schedTime: z.string().optional(),
-  schedTz: z.string().optional(),
-  links: z.array(z.object({ name: z.string(), url: z.string() })).optional().default([]),
-  maxPlayers: z.union([z.string(), z.number()]).optional(),
-  // Direct R2 upload path (production): full CDN URL returned by getUploadUrl
-  imagePath: z.string().url().optional(),
-  // base64 encoded image data (local dev fallback)
-  imageData: z
-    .string()
-    .max(MAX_IMAGE_BASE64_LENGTH, 'Image must be under 3MB after compression')
-    .optional(),
-  imageMime: z.string().optional(),
-  imageName: z.string().optional(),
-} as const
-
-function imageFieldsRefinement<
-  T extends { imageData?: string; imageMime?: string; imageName?: string; imagePath?: string },
->(data: T): boolean {
-  // imagePath (direct upload) and imageData (base64) are mutually exclusive
-  if (data.imagePath !== undefined) {
-    return (
-      data.imageData === undefined &&
-      data.imageMime === undefined &&
-      data.imageName === undefined
-    )
-  }
-  return (
-    (data.imageData === undefined &&
-      data.imageMime === undefined &&
-      data.imageName === undefined) ||
-    (data.imageData !== undefined &&
-      data.imageMime !== undefined &&
-      data.imageName !== undefined)
-  )
-}
-const imageFieldsMessage = {
-  message:
-    'imageData, imageMime, and imageName must either all be provided or all be omitted, and cannot be combined with imagePath',
-  path: ['imageData'] as [string],
-}
-
-export const campaignInputSchema = z.object(campaignInputShape).refine(
-  imageFieldsRefinement,
-  imageFieldsMessage,
-)
+export { campaignInputSchema }
 
 export const createCampaign = createServerFn({ method: 'POST' })
   .inputValidator(campaignInputSchema)
@@ -406,7 +363,7 @@ export const createCampaign = createServerFn({ method: 'POST' })
   })
 
 export const updateCampaign = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ id: z.string(), ...campaignInputShape }).refine(imageFieldsRefinement, imageFieldsMessage))
+  .inputValidator(updateCampaignInputSchema)
   .handler(async ({ data }) => {
     const user = await getSession()
     try {
@@ -471,7 +428,7 @@ export const updateCampaign = createServerFn({ method: 'POST' })
   })
 
 export const joinCampaign = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ inviteCode: z.string().min(1) }))
+  .inputValidator(joinCampaignSchema)
   .handler(async ({ data }) => {
     const user = await getSession()
     try {
@@ -568,11 +525,7 @@ export const joinCampaign = createServerFn({ method: 'POST' })
   })
 
 export const activateSession = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({
-    campaignId: z.string().min(1),
-    sessionId: z.string().min(1),
-    endDate: z.string().datetime().optional(),
-  }))
+  .inputValidator(activateSessionSchema)
   .handler(async ({ data }) => {
     const user = await getSession()
     try {
