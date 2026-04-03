@@ -10,14 +10,15 @@ export interface CampaignHeaderProps {
   campaignId?: string
   sessionNumber?: number
   isOwner?: boolean
+  isGM?: boolean
   activeSessionName?: string
   activeTab: TabId
   onTabChange: (tab: TabId) => void
 }
 
-export function CampaignHeader({ campaignId, sessionNumber, isOwner, activeSessionName, activeTab, onTabChange }: CampaignHeaderProps) {
+export function CampaignHeader({ campaignId, sessionNumber, isOwner, isGM, activeSessionName, activeTab, onTabChange }: CampaignHeaderProps) {
   const tablistRef = useRef<HTMLDivElement>(null)
-  const visibleTabs = TABS.filter(tab => !tab.gmOnly || isOwner)
+  const visibleTabs = TABS.filter(tab => !tab.gmOnly || isGM)
   const effectiveActiveTab = visibleTabs.some(t => t.id === activeTab)
     ? activeTab
     : visibleTabs[0]?.id ?? 'dashboard'

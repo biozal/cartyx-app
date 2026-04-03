@@ -37,7 +37,7 @@ function PlayPage() {
   const activeSession = campaign?.sessions.find(s => s.status === 'active')
 
   // Coerce non-owners away from the GM-only tab
-  const effectiveTab = (activeTab === 'gmscreens' && !campaign?.isOwner) ? 'dashboard' as const : activeTab
+  const effectiveTab = (activeTab === 'gmscreens' && !campaign?.isGM) ? 'dashboard' as const : activeTab
 
   function handleTabChange(tab: TabId) {
     navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, tab }) })
@@ -48,6 +48,7 @@ function PlayPage() {
       <CampaignHeader
         campaignId={campaignId}
         isOwner={campaign?.isOwner}
+        isGM={campaign?.isGM}
         activeSessionName={activeSession?.name}
         activeTab={effectiveTab}
         onTabChange={handleTabChange}
@@ -78,14 +79,17 @@ function PlayPage() {
           >
             <TabletopView />
           </div>
-          {effectiveTab === 'gmscreens' && campaign?.isOwner && (
+          {campaign?.isGM && (
             <div
               className="h-full"
               role="tabpanel"
               id="tab-panel-gmscreens"
               aria-labelledby="tab-gmscreens"
+              hidden={effectiveTab !== 'gmscreens'}
             >
-              <GMScreensView campaignId={campaignId} />
+              {effectiveTab === 'gmscreens' && (
+                <GMScreensView campaignId={campaignId} />
+              )}
             </div>
           )}
         </MainView>

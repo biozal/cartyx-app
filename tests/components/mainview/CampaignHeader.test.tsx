@@ -152,30 +152,37 @@ describe('CampaignHeader', () => {
   // --- GM-only tab visibility ---
 
   describe('GM-only tab filtering', () => {
-    it('shows GM Screens tab when isOwner is true', () => {
+    it('shows GM Screens tab when isGM is true', () => {
       render(
-        <CampaignHeader activeTab="dashboard" onTabChange={vi.fn()} isOwner={true} />
+        <CampaignHeader activeTab="dashboard" onTabChange={vi.fn()} isGM={true} />
       )
       expect(screen.getByRole('tab', { name: 'GM Screens' })).toBeInTheDocument()
     })
 
-    it('hides GM Screens tab when isOwner is false', () => {
+    it('hides GM Screens tab when isGM is false', () => {
       render(
-        <CampaignHeader activeTab="dashboard" onTabChange={vi.fn()} isOwner={false} />
+        <CampaignHeader activeTab="dashboard" onTabChange={vi.fn()} isGM={false} />
       )
       expect(screen.queryByRole('tab', { name: 'GM Screens' })).not.toBeInTheDocument()
     })
 
-    it('hides GM Screens tab when isOwner is undefined', () => {
+    it('hides GM Screens tab when isGM is undefined', () => {
       render(
         <CampaignHeader activeTab="dashboard" onTabChange={vi.fn()} />
       )
       expect(screen.queryByRole('tab', { name: 'GM Screens' })).not.toBeInTheDocument()
     })
 
-    it('falls back to dashboard when activeTab is gmscreens but isOwner is false', () => {
+    it('shows GM Screens tab for non-owner GMs (isGM=true, isOwner=false)', () => {
       render(
-        <CampaignHeader activeTab="gmscreens" onTabChange={vi.fn()} isOwner={false} />
+        <CampaignHeader activeTab="dashboard" onTabChange={vi.fn()} isGM={true} isOwner={false} />
+      )
+      expect(screen.getByRole('tab', { name: 'GM Screens' })).toBeInTheDocument()
+    })
+
+    it('falls back to dashboard when activeTab is gmscreens but isGM is false', () => {
+      render(
+        <CampaignHeader activeTab="gmscreens" onTabChange={vi.fn()} isGM={false} />
       )
       expect(screen.getByRole('tab', { name: 'Dashboard' })).toHaveAttribute('aria-selected', 'true')
       expect(screen.queryByRole('tab', { name: 'GM Screens' })).not.toBeInTheDocument()
@@ -184,17 +191,17 @@ describe('CampaignHeader', () => {
     it('keyboard navigation works with GM-only tabs filtered out', () => {
       const onTabChange = vi.fn()
       render(
-        <CampaignHeader activeTab="tabletop" onTabChange={onTabChange} isOwner={false} />
+        <CampaignHeader activeTab="tabletop" onTabChange={onTabChange} isGM={false} />
       )
       const tabletopTab = screen.getByRole('tab', { name: 'Tabletop' })
       fireEvent.keyDown(tabletopTab, { key: 'ArrowRight' })
       expect(onTabChange).toHaveBeenCalledWith('dashboard')
     })
 
-    it('keyboard End key goes to GM Screens when isOwner is true', () => {
+    it('keyboard End key goes to GM Screens when isGM is true', () => {
       const onTabChange = vi.fn()
       render(
-        <CampaignHeader activeTab="dashboard" onTabChange={onTabChange} isOwner={true} />
+        <CampaignHeader activeTab="dashboard" onTabChange={onTabChange} isGM={true} />
       )
       const dashboardTab = screen.getByRole('tab', { name: 'Dashboard' })
       fireEvent.keyDown(dashboardTab, { key: 'End' })
