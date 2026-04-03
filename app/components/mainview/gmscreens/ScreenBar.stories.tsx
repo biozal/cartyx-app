@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { ScreenBar } from './ScreenBar'
-import type { GMScreenData } from '~/server/functions/gmscreens'
+import type { GMScreenData } from '~/types/gmscreen'
 
 const mockScreens: GMScreenData[] = [
   { id: 'screen-1', campaignId: 'camp-1', name: 'Combat Tracker', tabOrder: 0, createdBy: 'u-1', createdAt: '', updatedAt: '' },

@@ -5,7 +5,7 @@ import { NotesListWidget } from './NotesListWidget'
 import { NoteModal } from './NoteModal'
 import { useNotes } from '~/hooks/useNotes'
 import { useCampaign } from '~/hooks/useCampaigns'
-import { NoteListItem } from '~/server/functions/notes'
+import type { NoteListItem } from '~/types/note'
 
 export function NotesPanel() {
   const { campaignId } = useParams({ from: '/campaigns/$campaignId/play' })

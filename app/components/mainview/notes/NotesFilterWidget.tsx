@@ -1,6 +1,6 @@
 import React from 'react'
 import { Plus, Search } from 'lucide-react'
-import type { CampaignData } from '~/server/functions/campaigns'
+import type { CampaignData } from '~/types/campaign'
 
 interface NotesFilterWidgetProps {
   search: string

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { Pencil, Trash2, X, GripVertical } from 'lucide-react'
-import type { StackData, HydratedDocument } from '~/server/functions/gmscreens'
+import type { StackData, HydratedDocument } from '~/types/gmscreen'
 
 export interface StackCardProps {
   stack: StackData

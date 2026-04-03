@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { NotesListWidget } from './NotesListWidget'
 import { mockSessions } from '~/services/mocks/sessionsService'
-import type { NoteListItem } from '~/server/functions/notes'
+import type { NoteListItem } from '~/types/note'
 
 const mockNotes: NoteListItem[] = [
   {

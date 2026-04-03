@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
-import { NoteListItem } from '~/server/functions/notes'
-import type { CampaignData } from '~/server/functions/campaigns'
+import type { NoteListItem } from '~/types/note'
+import type { CampaignData } from '~/types/campaign'
 import { fromNow } from '~/utils/date'
 import { Calendar, Tag, Lock, Globe } from 'lucide-react'
 
