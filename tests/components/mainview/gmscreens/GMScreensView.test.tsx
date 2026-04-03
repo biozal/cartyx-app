@@ -2,7 +2,7 @@ import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { GMScreenData, GMScreenDetailData } from '~/server/functions/gmscreens'
+import type { GMScreenData, GMScreenDetailData } from '~/types/gmscreen'
 
 // ---------------------------------------------------------------------------
 // Mocks

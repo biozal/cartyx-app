@@ -1,5 +1,5 @@
 // Mock useNotes hooks for Storybook
-import type { NoteData, NoteListItem } from '~/server/functions/notes'
+import type { NoteData, NoteListItem } from '~/types/note'
 
 interface ListNotesFilters {
   sessionId?: string
