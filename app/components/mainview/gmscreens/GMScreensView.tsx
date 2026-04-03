@@ -146,6 +146,9 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
   // --- Window handlers ---
 
   const handleWindowsChange = useCallback((nextWindows: ManagedWindow[]) => {
+    // Optimistically update local state immediately
+    setLocalWindows(nextWindows)
+
     if (!activeScreenId || !activeScreen) return
 
     // Persist changes debounced — one timer per window
@@ -225,14 +228,23 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
     mutations.removeStackItem.mutate({ screenId: activeScreenId, stackId, itemId })
   }, [activeScreenId, mutations.removeStackItem])
 
-  // --- Build managed windows from screen detail ---
+  // --- Local window state (optimistic) ---
+  // Initialized from server, updated optimistically on user interaction,
+  // re-synced when server data changes (e.g. after openWindow/closeWindow invalidation).
 
-  const managedWindows: ManagedWindow[] = activeScreen
-    ? activeScreen.windows.map((w) => {
+  const [localWindows, setLocalWindows] = useState<ManagedWindow[]>([])
+
+  // Sync from server when activeScreen changes
+  useEffect(() => {
+    if (!activeScreen) {
+      setLocalWindows([])
+      return
+    }
+    setLocalWindows(
+      activeScreen.windows.map((w) => {
         const key = `${w.collection}:${w.documentId}`
         const doc = activeScreen.hydrated[key]
         const title = doc?.title || key
-
         return {
           id: w.id,
           title,
@@ -248,7 +260,8 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
           ),
         }
       })
-    : []
+    )
+  }, [activeScreen])
 
   // --- Render ---
 
@@ -307,7 +320,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
           <>
             {/* Floating windows */}
             <FloatingWindowManager
-              windows={managedWindows}
+              windows={localWindows}
               onWindowsChange={handleWindowsChange}
             />
 
@@ -347,7 +360,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
             )}
 
             {/* Empty state */}
-            {activeScreen.windows.length === 0 && activeScreen.stacks.length === 0 && (
+            {localWindows.length === 0 && activeScreen.stacks.length === 0 && (
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3">
                 <Layers className="h-10 w-10 text-slate-700" />
                 <p className="font-sans font-semibold text-xs text-slate-600">
