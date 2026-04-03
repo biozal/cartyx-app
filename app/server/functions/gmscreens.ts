@@ -7,7 +7,8 @@ import { Campaign } from '../db/models/Campaign'
 import { GMScreen, GMSCREEN_LIMITS } from '../db/models/GMScreen'
 import { Note } from '../db/models/Note'
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
-import type { GMScreenData, WindowData, StackItemData, StackData, HydratedDocument, GMScreenDetailData } from '~/types/gmscreen'
+import type { GMScreenData, WindowData, StackItemData, StackData, HydratedDocument, GMScreenDetailData, WindowState } from '~/types/gmscreen'
+import { WINDOW_STATES } from '~/types/gmscreen'
 import {
   listGMScreensSchema,
   createGMScreenSchema,
@@ -24,6 +25,7 @@ import {
   deleteStackSchema,
   addStackItemSchema,
   removeStackItemSchema,
+  SUPPORTED_COLLECTIONS,
 } from '~/types/schemas/gmscreens'
 
 
@@ -62,7 +64,7 @@ function serializeWindow(w: {
     id: String(w._id),
     collection: w.collection ?? '',
     documentId: String(w.documentId),
-    state: (w.state ?? 'open') as WindowData['state'],
+    state: WINDOW_STATES.includes(w.state as WindowState) ? (w.state as WindowState) : 'open',
     x: w.x ?? null,
     y: w.y ?? null,
     width: w.width ?? null,
@@ -119,17 +121,7 @@ const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
   },
 }
 
-/**
- * Collection names that can be opened as windows or referenced in stacks.
- *
- * IMPORTANT: This must be a static literal — NOT derived from COLLECTION_REGISTRY.
- * TanStack Start keeps `.validator()` chains in the client bundle. If this value
- * transitively references Mongoose models (via COLLECTION_REGISTRY → Note.find),
- * it pulls mongoose into the browser and crashes at module-load time.
- *
- * When adding a new collection, update BOTH this array and COLLECTION_REGISTRY.
- */
-export const SUPPORTED_COLLECTIONS = ['note'] as [string, ...string[]]
+// SUPPORTED_COLLECTIONS is imported from ~/types/schemas/gmscreens (single source of truth)
 
 /**
  * Batch-hydrate a set of `{ collection, documentId }` refs.

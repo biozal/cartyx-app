@@ -1,10 +1,7 @@
 import { z } from 'zod'
 
-/**
- * Max base64 length the server accepts for image uploads (local dev fallback).
- * Mirrors MAX_IMAGE_BASE64_LENGTH from server/utils/helpers.
- */
-const MAX_IMAGE_BASE64_LENGTH = 4 * 1024 * 1024
+/** Max base64 length the server accepts for image uploads (local dev fallback). */
+export const MAX_IMAGE_BASE64_LENGTH = 4 * 1024 * 1024
 
 export const campaignInputShape = {
   name: z.string().min(1),
