@@ -1,4 +1,4 @@
-import type { CampaignData } from '~/server/functions/campaigns'
+import type { CampaignData } from '~/types/campaign'
 import { resolveMockData } from '~/services/mocks/utils'
 
 type Session = CampaignData['sessions'][number]

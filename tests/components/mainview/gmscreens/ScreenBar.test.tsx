@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ScreenBar } from '~/components/mainview/gmscreens/ScreenBar'
-import type { GMScreenData } from '~/server/functions/gmscreens'
+import type { GMScreenData } from '~/types/gmscreen'
 
 const screens: GMScreenData[] = [
   { id: 's1', campaignId: 'c1', name: 'Alpha', tabOrder: 0, createdBy: 'u1', createdAt: '', updatedAt: '' },

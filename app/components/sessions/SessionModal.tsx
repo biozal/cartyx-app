@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { FormInput } from '~/components/FormInput'
 import { PixelButton } from '~/components/PixelButton'
-import type { CampaignData } from '~/server/functions/campaigns'
+import type { CampaignData } from '~/types/campaign'
 
 type SessionData = CampaignData['sessions'][number]
 

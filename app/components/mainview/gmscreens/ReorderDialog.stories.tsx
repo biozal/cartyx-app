@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { ReorderDialog } from './ReorderDialog'
-import type { GMScreenData } from '~/server/functions/gmscreens'
+import type { GMScreenData } from '~/types/gmscreen'
 
 const mockScreens: GMScreenData[] = [
   { id: 's-1', campaignId: 'c-1', name: 'Combat Tracker', tabOrder: 0, createdBy: 'u-1', createdAt: '', updatedAt: '' },

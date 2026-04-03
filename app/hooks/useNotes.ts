@@ -1,14 +1,59 @@
+import { createServerFn } from '@tanstack/react-start'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  listNotes,
-  createNote,
-  updateNote,
-  deleteNote,
-  getNote,
-} from '~/server/functions/notes'
-import type { NoteData, NoteListItem } from '~/server/functions/notes'
+import type { NoteData, NoteListItem } from '~/types/note'
 import { captureException } from '~/providers/PostHogProvider'
 import { queryKeys } from '~/utils/queryKeys'
+import {
+  listNotesSchema,
+  getNoteSchema,
+  createNoteSchema,
+  updateNoteSchema,
+  deleteNoteSchema,
+} from '~/types/schemas/notes'
+
+// ---------------------------------------------------------------------------
+// Server function wrappers — dynamic imports keep Mongoose server-only.
+// TanStack Start compiles these to RPC stubs on the client.
+// ---------------------------------------------------------------------------
+
+const listNotesFn = createServerFn({ method: 'GET' })
+  .inputValidator(listNotesSchema)
+  .handler(async ({ data }) => {
+    const { listNotes } = await import('~/server/functions/notes')
+    return listNotes({ data })
+  })
+
+const getNoteFn = createServerFn({ method: 'GET' })
+  .inputValidator(getNoteSchema)
+  .handler(async ({ data }) => {
+    const { getNote } = await import('~/server/functions/notes')
+    return getNote({ data })
+  })
+
+const createNoteFn = createServerFn({ method: 'POST' })
+  .inputValidator(createNoteSchema)
+  .handler(async ({ data }) => {
+    const { createNote } = await import('~/server/functions/notes')
+    return createNote({ data })
+  })
+
+const updateNoteFn = createServerFn({ method: 'POST' })
+  .inputValidator(updateNoteSchema)
+  .handler(async ({ data }) => {
+    const { updateNote } = await import('~/server/functions/notes')
+    return updateNote({ data })
+  })
+
+const deleteNoteFn = createServerFn({ method: 'POST' })
+  .inputValidator(deleteNoteSchema)
+  .handler(async ({ data }) => {
+    const { deleteNote } = await import('~/server/functions/notes')
+    return deleteNote({ data })
+  })
+
+// ---------------------------------------------------------------------------
+// Hooks
+// ---------------------------------------------------------------------------
 
 interface ListNotesFilters {
   sessionId?: string
@@ -24,7 +69,7 @@ export function useNotes(campaignId: string, filters?: ListNotesFilters) {
   const { data: notes = [], isLoading, error } = useQuery({
     queryKey: queryKeys.notes.list(campaignId, sessionId, search, visibility),
     queryFn: () =>
-      listNotes({
+      listNotesFn({
         data: {
           campaignId,
           sessionId,
@@ -45,7 +90,7 @@ export function useNotes(campaignId: string, filters?: ListNotesFilters) {
 export function useNote(id: string, campaignId: string) {
   const { data: note = null, isLoading, error } = useQuery({
     queryKey: queryKeys.notes.detail(id),
-    queryFn: () => getNote({ data: { id, campaignId } }),
+    queryFn: () => getNoteFn({ data: { id, campaignId } }),
     enabled: !!id && !!campaignId,
   })
 
@@ -69,7 +114,7 @@ export function useCreateNote() {
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationFn: async (input: CreateNoteInput) =>
-      createNote({ data: input }),
+      createNoteFn({ data: input }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notes.all })
     },
@@ -107,7 +152,7 @@ export function useUpdateNote() {
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationFn: async (input: UpdateNoteInput) =>
-      updateNote({ data: input }),
+      updateNoteFn({ data: input }),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notes.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.notes.detail(variables.id) })
@@ -141,7 +186,7 @@ export function useDeleteNote() {
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationFn: async (input: DeleteNoteInput) =>
-      deleteNote({ data: input }),
+      deleteNoteFn({ data: input }),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notes.all })
       queryClient.removeQueries({ queryKey: queryKeys.notes.detail(variables.id) })

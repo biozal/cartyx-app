@@ -1,5 +1,4 @@
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod'
 import { getSession } from '../session'
 import { connectDB, isDBConnected } from '../db/connection'
 import { User } from '../db/models/User'
@@ -8,32 +7,15 @@ import { Note } from '../db/models/Note'
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
 import { normalizeTags } from '../utils/helpers'
 import { removeDocumentRefsFromScreens } from './gmscreens-helpers'
+import type { NoteData, NoteListItem } from '~/types/note'
+import {
+  createNoteSchema,
+  updateNoteSchema,
+  deleteNoteSchema,
+  listNotesSchema,
+  getNoteSchema,
+} from '~/types/schemas/notes'
 
-export interface NoteData {
-  id: string
-  campaignId: string
-  sessionId: string
-  createdBy: string
-  title: string
-  note: string
-  tags: string[]
-  isPublic: boolean
-  createdAt: string
-  updatedAt: string
-}
-
-/** Lightweight shape returned by listNotes — omits the full note body. */
-export interface NoteListItem {
-  id: string
-  campaignId: string
-  sessionId: string
-  createdBy: string
-  title: string
-  tags: string[]
-  isPublic: boolean
-  createdAt: string
-  updatedAt: string
-}
 
 function serializeNote(n: {
   _id: unknown
@@ -116,15 +98,6 @@ async function requireCampaignMember(campaignId: string): Promise<{ userId: stri
 // createNote
 // ---------------------------------------------------------------------------
 
-const createNoteSchema = z.object({
-  campaignId: z.string().trim().min(1),
-  sessionId: z.string().trim().min(1),
-  title: z.string().trim().min(1, 'Title is required'),
-  note: z.string().trim().min(1, 'Note body is required'),
-  tags: z.array(z.string()).optional().default([]),
-  isPublic: z.boolean().optional().default(false),
-})
-
 export { createNoteSchema }
 
 export const createNote = createServerFn({ method: 'POST' })
@@ -164,16 +137,6 @@ export const createNote = createServerFn({ method: 'POST' })
 // ---------------------------------------------------------------------------
 // updateNote
 // ---------------------------------------------------------------------------
-
-const updateNoteSchema = z.object({
-  id: z.string().trim().min(1),
-  campaignId: z.string().trim().min(1),
-  sessionId: z.string().trim().min(1),
-  title: z.string().trim().min(1, 'Title is required'),
-  note: z.string().trim().min(1, 'Note body is required'),
-  tags: z.array(z.string()).optional().default([]),
-  isPublic: z.boolean().optional(),
-})
 
 export { updateNoteSchema }
 
@@ -218,11 +181,6 @@ export const updateNote = createServerFn({ method: 'POST' })
 // ---------------------------------------------------------------------------
 // deleteNote
 // ---------------------------------------------------------------------------
-
-const deleteNoteSchema = z.object({
-  id: z.string().trim().min(1),
-  campaignId: z.string().trim().min(1),
-})
 
 export { deleteNoteSchema }
 
@@ -272,13 +230,6 @@ export const deleteNote = createServerFn({ method: 'POST' })
 // ---------------------------------------------------------------------------
 // listNotes
 // ---------------------------------------------------------------------------
-
-const listNotesSchema = z.object({
-  campaignId: z.string().min(1),
-  sessionId: z.string().optional(),
-  search: z.string().optional(),
-  visibility: z.enum(['all', 'public', 'private']).optional().default('all'),
-})
 
 export { listNotesSchema }
 
@@ -337,11 +288,6 @@ export const listNotes = createServerFn({ method: 'GET' })
 // ---------------------------------------------------------------------------
 // getNote
 // ---------------------------------------------------------------------------
-
-const getNoteSchema = z.object({
-  id: z.string().trim().min(1),
-  campaignId: z.string().trim().min(1),
-})
 
 export { getNoteSchema }
 

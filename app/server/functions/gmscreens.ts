@@ -1,74 +1,32 @@
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod'
 import mongoose from 'mongoose'
 import { getSession } from '../session'
 import { connectDB, isDBConnected } from '../db/connection'
 import { User } from '../db/models/User'
 import { Campaign } from '../db/models/Campaign'
-import { GMScreen, GMSCREEN_LIMITS, WINDOW_STATES } from '../db/models/GMScreen'
+import { GMScreen, GMSCREEN_LIMITS } from '../db/models/GMScreen'
 import { Note } from '../db/models/Note'
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
+import type { GMScreenData, WindowData, StackItemData, StackData, HydratedDocument, GMScreenDetailData, WindowState } from '~/types/gmscreen'
+import { WINDOW_STATES } from '~/types/gmscreen'
+import {
+  listGMScreensSchema,
+  createGMScreenSchema,
+  renameGMScreenSchema,
+  deleteGMScreenSchema,
+  reorderGMScreensSchema,
+  getGMScreenSchema,
+  openWindowSchema,
+  updateWindowSchema,
+  closeWindowSchema,
+  createStackSchema,
+  renameStackSchema,
+  moveStackSchema,
+  deleteStackSchema,
+  addStackItemSchema,
+  removeStackItemSchema,
+} from '~/types/schemas/gmscreens'
 
-// ---------------------------------------------------------------------------
-// Serialized types
-// ---------------------------------------------------------------------------
-
-export interface GMScreenData {
-  id: string
-  campaignId: string
-  name: string
-  tabOrder: number
-  createdBy: string
-  createdAt: string
-  updatedAt: string
-}
-
-/**
- * Persisted window layout — position, size, and state only.
- * Title is intentionally omitted: it is always derived at read time via
- * {@link HydratedDocument} (see `GMScreenDetailData.hydrated`) so that
- * renames in the source document are reflected immediately without a
- * separate sync step.
- */
-export interface WindowData {
-  id: string
-  collection: string
-  documentId: string
-  state: string
-  x: number | null
-  y: number | null
-  width: number | null
-  height: number | null
-  zIndex: number
-}
-
-export interface StackItemData {
-  id: string
-  collection: string
-  documentId: string
-  label: string
-}
-
-export interface StackData {
-  id: string
-  name: string
-  x: number | null
-  y: number | null
-  items: StackItemData[]
-}
-
-export interface HydratedDocument {
-  id: string
-  collection: string
-  title: string
-}
-
-export interface GMScreenDetailData extends GMScreenData {
-  windows: WindowData[]
-  stacks: StackData[]
-  /** Keyed by "collection:documentId" for O(1) lookup by the client. */
-  hydrated: Record<string, HydratedDocument>
-}
 
 function serializeGMScreen(doc: {
   _id: unknown
@@ -105,7 +63,7 @@ function serializeWindow(w: {
     id: String(w._id),
     collection: w.collection ?? '',
     documentId: String(w.documentId),
-    state: w.state ?? 'open',
+    state: WINDOW_STATES.includes(w.state as WindowState) ? (w.state as WindowState) : 'open',
     x: w.x ?? null,
     y: w.y ?? null,
     width: w.width ?? null,
@@ -162,17 +120,7 @@ const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
   },
 }
 
-/**
- * Collection names that can be opened as windows or referenced in stacks.
- *
- * IMPORTANT: This must be a static literal — NOT derived from COLLECTION_REGISTRY.
- * TanStack Start keeps `.validator()` chains in the client bundle. If this value
- * transitively references Mongoose models (via COLLECTION_REGISTRY → Note.find),
- * it pulls mongoose into the browser and crashes at module-load time.
- *
- * When adding a new collection, update BOTH this array and COLLECTION_REGISTRY.
- */
-export const SUPPORTED_COLLECTIONS = ['note'] as [string, ...string[]]
+
 
 /**
  * Batch-hydrate a set of `{ collection, documentId }` refs.
@@ -266,10 +214,6 @@ async function requireCampaignGM(campaignId: string): Promise<{ userId: string; 
 // listGMScreens
 // ---------------------------------------------------------------------------
 
-const listGMScreensSchema = z.object({
-  campaignId: z.string().trim().min(1),
-})
-
 export { listGMScreensSchema }
 
 export const listGMScreens = createServerFn({ method: 'GET' })
@@ -305,11 +249,6 @@ export const listGMScreens = createServerFn({ method: 'GET' })
 // ---------------------------------------------------------------------------
 // createGMScreen
 // ---------------------------------------------------------------------------
-
-const createGMScreenSchema = z.object({
-  campaignId: z.string().trim().min(1),
-  name: z.string().trim().min(1, 'Screen name is required'),
-})
 
 export { createGMScreenSchema }
 
@@ -390,12 +329,6 @@ export const createGMScreen = createServerFn({ method: 'POST' })
 // renameGMScreen
 // ---------------------------------------------------------------------------
 
-const renameGMScreenSchema = z.object({
-  id: z.string().trim().min(1),
-  campaignId: z.string().trim().min(1),
-  name: z.string().trim().min(1, 'Screen name is required'),
-})
-
 export { renameGMScreenSchema }
 
 export const renameGMScreen = createServerFn({ method: 'POST' })
@@ -432,11 +365,6 @@ export const renameGMScreen = createServerFn({ method: 'POST' })
 // ---------------------------------------------------------------------------
 // deleteGMScreen
 // ---------------------------------------------------------------------------
-
-const deleteGMScreenSchema = z.object({
-  id: z.string().trim().min(1),
-  campaignId: z.string().trim().min(1),
-})
 
 export { deleteGMScreenSchema }
 
@@ -505,11 +433,6 @@ export const deleteGMScreen = createServerFn({ method: 'POST' })
 // ---------------------------------------------------------------------------
 // reorderGMScreens
 // ---------------------------------------------------------------------------
-
-const reorderGMScreensSchema = z.object({
-  campaignId: z.string().trim().min(1),
-  screenIds: z.array(z.string().trim().min(1)).min(1, 'At least one screen ID is required'),
-})
 
 export { reorderGMScreensSchema }
 
@@ -611,11 +534,6 @@ export const reorderGMScreens = createServerFn({ method: 'POST' })
 // getGMScreen — fetch a single screen with hydrated referenced content
 // ---------------------------------------------------------------------------
 
-const getGMScreenSchema = z.object({
-  id: z.string().trim().min(1),
-  campaignId: z.string().trim().min(1),
-})
-
 export { getGMScreenSchema }
 
 export const getGMScreen = createServerFn({ method: 'GET' })
@@ -697,17 +615,6 @@ export const getGMScreen = createServerFn({ method: 'GET' })
  * bumped to max + 1) and returned with `existed: true`.  No second window is
  * created for the same ref.
  */
-
-const openWindowSchema = z.object({
-  screenId: z.string().trim().min(1),
-  campaignId: z.string().trim().min(1),
-  collection: z.enum(SUPPORTED_COLLECTIONS, {
-    errorMap: () => ({
-      message: `Unsupported collection. Must be one of: ${SUPPORTED_COLLECTIONS.join(', ')}`,
-    }),
-  }),
-  documentId: z.string().trim().min(1),
-})
 
 export { openWindowSchema }
 
@@ -813,21 +720,6 @@ export const openWindow = createServerFn({ method: 'POST' })
  * This lets the client debounce drag/resize and send one update.
  */
 
-const updateWindowSchema = z.object({
-  screenId: z.string().trim().min(1),
-  campaignId: z.string().trim().min(1),
-  windowId: z.string().trim().min(1),
-  x: z.number().nullable().optional(),
-  y: z.number().nullable().optional(),
-  width: z.number().nullable().optional(),
-  height: z.number().nullable().optional(),
-  zIndex: z.number().optional(),
-  state: z.enum(WINDOW_STATES).optional(),
-}).refine(
-  (d) => d.x !== undefined || d.y !== undefined || d.width !== undefined || d.height !== undefined || d.zIndex !== undefined || d.state !== undefined,
-  { message: 'At least one updatable field (x, y, width, height, zIndex, state) is required' },
-)
-
 export { updateWindowSchema }
 
 export const updateWindow = createServerFn({ method: 'POST' })
@@ -903,12 +795,6 @@ export const updateWindow = createServerFn({ method: 'POST' })
 // closeWindow — remove a window from a screen
 // ---------------------------------------------------------------------------
 
-const closeWindowSchema = z.object({
-  screenId: z.string().trim().min(1),
-  campaignId: z.string().trim().min(1),
-  windowId: z.string().trim().min(1),
-})
-
 export { closeWindowSchema }
 
 export const closeWindow = createServerFn({ method: 'POST' })
@@ -968,12 +854,6 @@ export const closeWindow = createServerFn({ method: 'POST' })
 // createStack — add a named stack to a screen
 // ---------------------------------------------------------------------------
 
-const createStackSchema = z.object({
-  screenId: z.string().trim().min(1),
-  campaignId: z.string().trim().min(1),
-  name: z.string().trim().min(1, 'Stack name is required'),
-})
-
 export { createStackSchema }
 
 export const createStack = createServerFn({ method: 'POST' })
@@ -1032,13 +912,6 @@ export const createStack = createServerFn({ method: 'POST' })
 // renameStack — rename a stack on a screen
 // ---------------------------------------------------------------------------
 
-const renameStackSchema = z.object({
-  screenId: z.string().trim().min(1),
-  campaignId: z.string().trim().min(1),
-  stackId: z.string().trim().min(1),
-  name: z.string().trim().min(1, 'Stack name is required'),
-})
-
 export { renameStackSchema }
 
 export const renameStack = createServerFn({ method: 'POST' })
@@ -1095,14 +968,6 @@ export const renameStack = createServerFn({ method: 'POST' })
 // ---------------------------------------------------------------------------
 // moveStack — update a stack's x/y position
 // ---------------------------------------------------------------------------
-
-const moveStackSchema = z.object({
-  screenId: z.string().trim().min(1),
-  campaignId: z.string().trim().min(1),
-  stackId: z.string().trim().min(1),
-  x: z.number().nullable(),
-  y: z.number().nullable(),
-})
 
 export { moveStackSchema }
 
@@ -1161,12 +1026,6 @@ export const moveStack = createServerFn({ method: 'POST' })
 // ---------------------------------------------------------------------------
 // deleteStack — remove a stack from a screen
 // ---------------------------------------------------------------------------
-
-const deleteStackSchema = z.object({
-  screenId: z.string().trim().min(1),
-  campaignId: z.string().trim().min(1),
-  stackId: z.string().trim().min(1),
-})
 
 export { deleteStackSchema }
 
@@ -1229,19 +1088,6 @@ export const deleteStack = createServerFn({ method: 'POST' })
  * `collection + documentId`.  If a duplicate is detected the call returns
  * `{ success: true, existed: true }` without modifying the stack.
  */
-
-const addStackItemSchema = z.object({
-  screenId: z.string().trim().min(1),
-  campaignId: z.string().trim().min(1),
-  stackId: z.string().trim().min(1),
-  collection: z.enum(SUPPORTED_COLLECTIONS, {
-    errorMap: () => ({
-      message: `Unsupported collection. Must be one of: ${SUPPORTED_COLLECTIONS.join(', ')}`,
-    }),
-  }),
-  documentId: z.string().trim().min(1),
-  label: z.string().trim().default(''),
-})
 
 export { addStackItemSchema }
 
@@ -1321,13 +1167,6 @@ export const addStackItem = createServerFn({ method: 'POST' })
 // ---------------------------------------------------------------------------
 // removeStackItem — remove an item from a stack
 // ---------------------------------------------------------------------------
-
-const removeStackItemSchema = z.object({
-  screenId: z.string().trim().min(1),
-  campaignId: z.string().trim().min(1),
-  stackId: z.string().trim().min(1),
-  itemId: z.string().trim().min(1),
-})
 
 export { removeStackItemSchema }
 

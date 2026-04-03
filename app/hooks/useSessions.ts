@@ -1,13 +1,46 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { listSessions, createSession, updateSession } from '~/server/functions/sessions'
-import { activateSession } from '~/server/functions/campaigns'
+import { createServerFn } from '@tanstack/react-start'
 import { captureException } from '~/providers/PostHogProvider'
 import { queryKeys } from '~/utils/queryKeys'
+import {
+  listSessionsSchema,
+  createSessionSchema,
+  updateSessionSchema,
+} from '~/types/schemas/sessions'
+import { activateSessionSchema } from '~/types/schemas/campaigns'
+
+const listSessionsFn = createServerFn({ method: 'GET' })
+  .inputValidator(listSessionsSchema)
+  .handler(async ({ data }) => {
+    const { listSessions } = await import('~/server/functions/sessions')
+    return listSessions({ data })
+  })
+
+const createSessionFn = createServerFn({ method: 'POST' })
+  .inputValidator(createSessionSchema)
+  .handler(async ({ data }) => {
+    const { createSession } = await import('~/server/functions/sessions')
+    return createSession({ data })
+  })
+
+const updateSessionFn = createServerFn({ method: 'POST' })
+  .inputValidator(updateSessionSchema)
+  .handler(async ({ data }) => {
+    const { updateSession } = await import('~/server/functions/sessions')
+    return updateSession({ data })
+  })
+
+const activateSessionFn = createServerFn({ method: 'POST' })
+  .inputValidator(activateSessionSchema)
+  .handler(async ({ data }) => {
+    const { activateSession } = await import('~/server/functions/campaigns')
+    return activateSession({ data })
+  })
 
 export function useSessions(campaignId: string, includeCompleted: boolean) {
   const { data: sessions = [], isLoading, error } = useQuery({
     queryKey: queryKeys.sessions.list(campaignId, includeCompleted),
-    queryFn: () => listSessions({ data: { campaignId, includeCompleted } }),
+    queryFn: () => listSessionsFn({ data: { campaignId, includeCompleted } }),
   })
   return {
     sessions,
@@ -20,7 +53,7 @@ export function useCreateSession() {
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationFn: (input: { campaignId: string; name: string; startDate: string }) =>
-      createSession({ data: input }),
+      createSessionFn({ data: input }),
     onSuccess: (_data, { campaignId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(campaignId) })
@@ -49,7 +82,7 @@ export function useUpdateSession() {
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationFn: (input: { sessionId: string; campaignId: string; name?: string; startDate?: string; endDate?: string }) =>
-      updateSession({ data: input }),
+      updateSessionFn({ data: input }),
     onSuccess: (_data, { campaignId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(campaignId) })
@@ -78,7 +111,7 @@ export function useActivateSession() {
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationFn: (input: { campaignId: string; sessionId: string; endDate?: string }) =>
-      activateSession({ data: input }),
+      activateSessionFn({ data: input }),
     onSuccess: (_data, { campaignId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(campaignId) })

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { X, GripVertical, ArrowUp, ArrowDown, Loader2 } from 'lucide-react'
-import type { GMScreenData } from '~/server/functions/gmscreens'
+import type { GMScreenData } from '~/types/gmscreen'
 import { useFocusTrap } from '~/hooks/useFocusTrap'
 
 export interface ReorderDialogProps {

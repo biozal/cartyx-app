@@ -1,5 +1,4 @@
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod'
 import mongoose from 'mongoose'
 import { getSession } from '../session'
 import { connectDB, isDBConnected } from '../db/connection'
@@ -7,6 +6,11 @@ import { User } from '../db/models/User'
 import { Campaign } from '../db/models/Campaign'
 import { Session } from '../db/models/Session'
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
+import {
+  listSessionsSchema,
+  createSessionSchema,
+  updateSessionSchema,
+} from '~/types/schemas/sessions'
 
 /**
  * Validates auth, connects to DB, and verifies the current user is the GM of the given campaign.
@@ -30,12 +34,7 @@ async function requireGM(campaignId: string) {
 }
 
 export const listSessions = createServerFn({ method: 'GET' })
-  .inputValidator(
-    z.object({
-      campaignId: z.string().min(1),
-      includeCompleted: z.boolean().optional(),
-    })
-  )
+  .inputValidator(listSessionsSchema)
   .handler(async ({ data }) => {
     try {
       await requireGM(data.campaignId)
@@ -79,13 +78,7 @@ export const listSessions = createServerFn({ method: 'GET' })
   })
 
 export const createSession = createServerFn({ method: 'POST' })
-  .inputValidator(
-    z.object({
-      campaignId: z.string().min(1),
-      name: z.string().trim().min(1),
-      startDate: z.string().datetime(),
-    })
-  )
+  .inputValidator(createSessionSchema)
   .handler(async ({ data }) => {
     try {
       const { user, dbUser } = await requireGM(data.campaignId)
@@ -133,15 +126,7 @@ export const createSession = createServerFn({ method: 'POST' })
   })
 
 export const updateSession = createServerFn({ method: 'POST' })
-  .inputValidator(
-    z.object({
-      sessionId: z.string().min(1),
-      campaignId: z.string().min(1),
-      name: z.string().trim().min(1).optional(),
-      startDate: z.string().datetime().optional(),
-      endDate: z.string().datetime().optional(),
-    })
-  )
+  .inputValidator(updateSessionSchema)
   .handler(async ({ data }) => {
     try {
       const { user } = await requireGM(data.campaignId)

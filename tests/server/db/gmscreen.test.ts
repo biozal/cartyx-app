@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
-import { GMSCREEN_LIMITS, WINDOW_STATES, GMScreen } from '~/server/db/models/GMScreen'
+import { GMSCREEN_LIMITS, GMScreen } from '~/server/db/models/GMScreen'
+import { WINDOW_STATES } from '~/types/gmscreen'
 
 describe('GMScreen model exports', () => {
   it('is exported and defined', () => {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type React from 'react'
 import { Settings, Plus, Pencil, Trash2, ArrowUpDown } from 'lucide-react'
-import type { GMScreenData } from '~/server/functions/gmscreens'
+import type { GMScreenData } from '~/types/gmscreen'
 
 export interface ScreenBarProps {
   screens: GMScreenData[]

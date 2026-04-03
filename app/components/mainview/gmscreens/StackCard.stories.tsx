@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { StackCard } from './StackCard'
-import type { StackData, HydratedDocument } from '~/server/functions/gmscreens'
+import type { StackData, HydratedDocument } from '~/types/gmscreen'
 
 const mockStack: StackData = {
   id: 'st-1',

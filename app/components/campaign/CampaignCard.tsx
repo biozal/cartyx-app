@@ -6,7 +6,7 @@ import { PartyMemberList } from './PartyMemberList'
 import { InviteCodeField } from './InviteCodeField'
 import { ExternalLinkList } from './ExternalLinkList'
 import { PixelButton } from '~/components/PixelButton'
-import type { CampaignData } from '~/server/functions/campaigns'
+import type { CampaignData } from '~/types/campaign'
 
 export type { CampaignData }
 

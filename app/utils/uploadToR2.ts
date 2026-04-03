@@ -1,12 +1,20 @@
-import { getUploadUrl } from '~/server/functions/uploads'
+import { createServerFn } from '@tanstack/react-start'
 import { captureException } from '~/providers/PostHogProvider'
+import { getUploadUrlSchema } from '~/types/schemas/uploads'
+
+const getUploadUrlFn = createServerFn({ method: 'POST' })
+  .inputValidator(getUploadUrlSchema)
+  .handler(async ({ data }) => {
+    const { getUploadUrl } = await import('~/server/functions/uploads')
+    return getUploadUrl({ data })
+  })
 
 export async function uploadToR2(
   file: File,
   subdir = 'uploads/campaigns',
 ): Promise<{ imageKey: string; publicUrl: string }> {
   try {
-    const { uploadUrl, imageKey, publicUrl } = await getUploadUrl({
+    const { uploadUrl, imageKey, publicUrl } = await getUploadUrlFn({
       data: { contentType: file.type, subdir },
     })
 

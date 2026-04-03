@@ -5,7 +5,7 @@ import { FormInput } from '~/components/FormInput'
 import { FormSelect } from '~/components/FormSelect'
 import { PixelButton } from '~/components/PixelButton'
 import { MarkdownEditor } from '~/components/shared/MarkdownEditor'
-import type { CampaignData } from '~/server/functions/campaigns'
+import type { CampaignData } from '~/types/campaign'
 import { useCreateNote, useUpdateNote, useDeleteNote, useNote } from '~/hooks/useNotes'
 
 interface NoteModalProps {

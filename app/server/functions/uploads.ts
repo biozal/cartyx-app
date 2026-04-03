@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod'
 import { getSession } from '../session'
+import { getUploadUrlSchema } from '~/types/schemas/uploads'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import crypto from 'node:crypto'
@@ -14,15 +14,7 @@ const ALLOWED_TYPES = new Map([
 ])
 
 export const getUploadUrl = createServerFn({ method: 'POST' })
-  .inputValidator(
-    z.object({
-      contentType: z.string(),
-      subdir: z
-        .string()
-        .regex(/^uploads\/[a-zA-Z0-9_-]+$/)
-        .default('uploads/campaigns'),
-    }),
-  )
+  .inputValidator(getUploadUrlSchema)
   .handler(async ({ data }) => {
     const user = await getSession()
     try {

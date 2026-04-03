@@ -3,7 +3,7 @@ import { faBookOpen } from '@fortawesome/pro-solid-svg-icons'
 import { useParams } from '@tanstack/react-router'
 import { Widget } from '~/components/mainview/Widget'
 import { useCampaign } from '~/hooks/useCampaigns'
-import type { CampaignData } from '~/server/functions/campaigns'
+import type { CampaignData } from '~/types/campaign'
 
 type Session = CampaignData['sessions'][number]
 export type { Session }
