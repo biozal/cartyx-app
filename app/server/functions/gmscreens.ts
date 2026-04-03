@@ -162,8 +162,17 @@ const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
   },
 }
 
-/** Collection names that can be opened as windows or referenced in stacks. */
-export const SUPPORTED_COLLECTIONS = Object.keys(COLLECTION_REGISTRY) as [string, ...string[]]
+/**
+ * Collection names that can be opened as windows or referenced in stacks.
+ *
+ * IMPORTANT: This must be a static literal — NOT derived from COLLECTION_REGISTRY.
+ * TanStack Start keeps `.validator()` chains in the client bundle. If this value
+ * transitively references Mongoose models (via COLLECTION_REGISTRY → Note.find),
+ * it pulls mongoose into the browser and crashes at module-load time.
+ *
+ * When adding a new collection, update BOTH this array and COLLECTION_REGISTRY.
+ */
+export const SUPPORTED_COLLECTIONS = ['note'] as [string, ...string[]]
 
 /**
  * Batch-hydrate a set of `{ collection, documentId }` refs.
@@ -1383,47 +1392,5 @@ export const removeStackItem = createServerFn({ method: 'POST' })
     }
   })
 
-// ---------------------------------------------------------------------------
-// removeDocumentRefsFromScreens — cleanup when a referenced document is deleted
-// ---------------------------------------------------------------------------
-
-/**
- * Remove all window and stack-item references to a given document from every
- * GM Screen in the campaign. Returns the number of distinct screens that were
- * modified and refreshes `updatedAt` on each touched screen.
- */
-export async function removeDocumentRefsFromScreens(
-  campaignId: string,
-  collection: string,
-  documentId: string,
-): Promise<number> {
-  // Find all distinct screens that reference this document (windows OR stacks)
-  const affectedScreens = await GMScreen.find(
-    {
-      campaignId,
-      $or: [
-        { 'windows.collection': collection, 'windows.documentId': documentId },
-        { 'stacks.items.collection': collection, 'stacks.items.documentId': documentId },
-      ],
-    },
-    '_id',
-  ).lean() as Array<{ _id: unknown }>
-
-  if (affectedScreens.length === 0) return 0
-
-  const now = new Date()
-
-  // Pull matching refs and refresh updatedAt in parallel
-  await Promise.all([
-    GMScreen.updateMany(
-      { campaignId, 'windows.collection': collection, 'windows.documentId': documentId },
-      { $pull: { windows: { collection, documentId } }, $set: { updatedAt: now } },
-    ),
-    GMScreen.updateMany(
-      { campaignId, 'stacks.items.collection': collection, 'stacks.items.documentId': documentId },
-      { $pull: { 'stacks.$[].items': { collection, documentId } }, $set: { updatedAt: now } },
-    ),
-  ])
-
-  return affectedScreens.length
-}
+// removeDocumentRefsFromScreens moved to ./gmscreens-helpers.ts to avoid
+// pulling Mongoose models into the client bundle when notes.ts imports it.

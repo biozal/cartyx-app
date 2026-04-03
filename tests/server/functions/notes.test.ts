@@ -31,7 +31,7 @@ vi.mock('~/server/utils/posthog', () => ({
   serverCaptureException: vi.fn(),
   serverCaptureEvent: vi.fn(),
 }))
-vi.mock('~/server/functions/gmscreens', () => ({
+vi.mock('~/server/functions/gmscreens-helpers', () => ({
   removeDocumentRefsFromScreens: vi.fn().mockResolvedValue(0),
 }))
 
@@ -42,7 +42,7 @@ import { Note } from '~/server/db/models/Note'
 import { createNote, updateNote, deleteNote, listNotes, getNote, createNoteSchema, updateNoteSchema, listNotesSchema } from '~/server/functions/notes'
 import type { NoteListItem } from '~/server/functions/notes'
 import { serverCaptureEvent, serverCaptureException } from '~/server/utils/posthog'
-import { removeDocumentRefsFromScreens } from '~/server/functions/gmscreens'
+import { removeDocumentRefsFromScreens } from '~/server/functions/gmscreens-helpers'
 
 const mockSession = {
   id: 'session-user-1',
