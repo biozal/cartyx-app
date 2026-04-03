@@ -233,18 +233,48 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
   // re-synced when server data changes (e.g. after openWindow/closeWindow invalidation).
 
   const [localWindows, setLocalWindows] = useState<ManagedWindow[]>([])
+  const localScreenIdRef = useRef<string | null>(null)
 
-  // Sync from server when activeScreen changes
+  // Merge server data into local state: add new windows, remove closed ones,
+  // but preserve local layout (position/size/zIndex/state) for windows that
+  // already exist locally so debounced optimistic updates aren't overwritten
+  // by a stale refetch triggered by other mutations (openWindow/closeWindow).
   useEffect(() => {
     if (!activeScreen) {
       setLocalWindows([])
+      localScreenIdRef.current = null
       return
     }
-    setLocalWindows(
-      activeScreen.windows.map((w) => {
+
+    // Full reset when switching screens — local layout belongs to old screen
+    const isScreenSwitch = localScreenIdRef.current !== activeScreenId
+    localScreenIdRef.current = activeScreenId
+
+    setLocalWindows((prev) => {
+      const prevById = isScreenSwitch ? new Map<string, ManagedWindow>() : new Map(prev.map(w => [w.id, w]))
+      const serverIds = new Set(activeScreen.windows.map(w => w.id))
+
+      const merged = activeScreen.windows.map((w) => {
         const key = `${w.collection}:${w.documentId}`
         const doc = activeScreen.hydrated[key]
         const title = doc?.title || key
+
+        const existing = prevById.get(w.id)
+        if (existing) {
+          // Preserve local layout, update title/content from server
+          return {
+            ...existing,
+            title,
+            content: (
+              <div className="p-4 font-sans text-xs text-slate-400">
+                <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-2">{w.collection}</p>
+                <p className="text-slate-300">{title}</p>
+              </div>
+            ),
+          }
+        }
+
+        // New window from server — use server layout
         return {
           id: w.id,
           title,
@@ -260,8 +290,19 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
           ),
         }
       })
-    )
-  }, [activeScreen])
+
+      // Only update if the window set or titles changed (avoid unnecessary renders)
+      if (
+        prev.length === merged.length &&
+        prev.every((p, i) => p.id === merged[i].id && p.title === merged[i].title) &&
+        serverIds.size === prev.length
+      ) {
+        return prev
+      }
+
+      return merged
+    })
+  }, [activeScreen, activeScreenId])
 
   // --- Render ---
 
