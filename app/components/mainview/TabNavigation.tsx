@@ -23,11 +23,15 @@ export function handleTabsKeyDown(
   tablistRef: React.RefObject<HTMLDivElement | null>,
   tabs: ReadonlyArray<{ id: TabId; label: string }> = TABS,
 ) {
+  if (tabs.length === 0) return
+
   const focused = e.target as HTMLElement
   const buttons = tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
   const currentIndex = buttons
     ? Array.from(buttons).indexOf(focused as HTMLButtonElement)
     : tabs.findIndex(t => t.id === activeTab)
+  if (currentIndex < 0) return
+
   let nextIndex = currentIndex
 
   if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {

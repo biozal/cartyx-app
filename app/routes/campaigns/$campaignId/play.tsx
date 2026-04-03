@@ -36,7 +36,7 @@ function PlayPage() {
 
   const activeSession = campaign?.sessions.find(s => s.status === 'active')
 
-  // Coerce non-owners away from the GM-only tab
+  // Coerce non-GMs away from the GM-only tab
   const effectiveTab = (activeTab === 'gmscreens' && !campaign?.isGM) ? 'dashboard' as const : activeTab
 
   function handleTabChange(tab: TabId) {
