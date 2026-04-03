@@ -54,7 +54,7 @@ function PlayPage() {
         onTabChange={handleTabChange}
       />
       <div className="flex-1 overflow-hidden">
-        <MainView showToolbar={effectiveTab === 'tabletop'} showInspector={effectiveTab !== 'gmscreens'}>
+        <MainView showToolbar={effectiveTab === 'tabletop'}>
           <div
             className="h-full overflow-y-auto"
             role="tabpanel"
