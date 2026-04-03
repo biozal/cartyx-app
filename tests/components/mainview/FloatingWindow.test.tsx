@@ -223,4 +223,31 @@ describe('FloatingWindow', () => {
     expect(dialog.style.width).toBe('300px')
     expect(dialog.style.height).toBe('250px')
   })
+
+  it('cleans up document listeners on unmount during drag', () => {
+    const removeSpy = vi.spyOn(document, 'removeEventListener')
+
+    const { unmount } = render(
+      <div className="relative h-[600px] w-[800px]">
+        <FloatingWindow id="notes" title="Notes">
+          <div>Content</div>
+        </FloatingWindow>
+      </div>,
+    )
+
+    const titleBar = screen.getByText('Notes').closest('div[class*="cursor-move"]')!
+
+    // Start a drag but don't finish it
+    fireEvent.mouseDown(titleBar, { clientX: 100, clientY: 100 })
+    fireEvent.mouseMove(document, { clientX: 150, clientY: 120 })
+
+    // Unmount while dragging
+    unmount()
+
+    // Verify listeners were cleaned up
+    expect(removeSpy).toHaveBeenCalledWith('mousemove', expect.any(Function))
+    expect(removeSpy).toHaveBeenCalledWith('mouseup', expect.any(Function))
+
+    removeSpy.mockRestore()
+  })
 })
