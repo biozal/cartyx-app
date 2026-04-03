@@ -6,6 +6,7 @@ import { CampaignHeader } from '~/components/mainview/CampaignHeader'
 import { DashboardView } from '~/components/mainview/DashboardView'
 import { MainView } from '~/components/mainview/MainView'
 import { TabletopView } from '~/components/mainview/TabletopView'
+import { GMScreensView } from '~/components/mainview/gmscreens'
 import type { TabId } from '~/components/mainview/TabNavigation'
 import { CatchUpWidget } from '~/components/mainview/widgets/CatchUpWidget'
 import { CampaignTimelineWidget } from '~/components/mainview/widgets/CampaignTimelineWidget'
@@ -14,7 +15,7 @@ import { PartyMembersWidget } from '~/components/mainview/widgets/PartyMembersWi
 import { SessionsListWidget } from '~/components/mainview/widgets/SessionsListWidget'
 
 export const playSearchSchema = z.object({
-  tab: z.enum(['dashboard', 'tabletop']).catch('dashboard'),
+  tab: z.enum(['dashboard', 'tabletop', 'gmscreens']).catch('dashboard'),
 })
 
 export const Route = createFileRoute('/campaigns/$campaignId/play')({
@@ -49,7 +50,7 @@ function PlayPage() {
         onTabChange={handleTabChange}
       />
       <div className="flex-1 overflow-hidden">
-        <MainView showToolbar={activeTab === 'tabletop'}>
+        <MainView showToolbar={activeTab === 'tabletop'} showInspector={activeTab !== 'gmscreens'}>
           <div
             className="h-full overflow-y-auto"
             role="tabpanel"
@@ -74,6 +75,16 @@ function PlayPage() {
           >
             <TabletopView />
           </div>
+          {activeTab === 'gmscreens' && campaign?.isOwner && (
+            <div
+              className="h-full"
+              role="tabpanel"
+              id="tab-panel-gmscreens"
+              aria-labelledby="tab-gmscreens"
+            >
+              <GMScreensView campaignId={campaignId} />
+            </div>
+          )}
         </MainView>
       </div>
     </div>

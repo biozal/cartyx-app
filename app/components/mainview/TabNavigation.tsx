@@ -1,6 +1,6 @@
 import React, { useRef } from 'react'
 
-export type TabId = 'dashboard' | 'tabletop'
+export type TabId = 'dashboard' | 'tabletop' | 'gmscreens'
 
 export interface TabNavigationProps {
   activeTab: TabId
@@ -8,9 +8,10 @@ export interface TabNavigationProps {
   className?: string
 }
 
-export const TABS: ReadonlyArray<{ id: TabId; label: string }> = [
+export const TABS: ReadonlyArray<{ id: TabId; label: string; gmOnly?: boolean }> = [
   { id: 'dashboard' as const, label: 'Dashboard' },
   { id: 'tabletop' as const, label: 'Tabletop' },
+  { id: 'gmscreens' as const, label: 'GM Screens', gmOnly: true },
 ]
 
 export function handleTabsKeyDown(

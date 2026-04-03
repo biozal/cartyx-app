@@ -8,10 +8,11 @@ describe('TabNavigation', () => {
     vi.resetAllMocks()
   })
 
-  it('renders Dashboard and Tabletop tabs', () => {
+  it('renders Dashboard, Tabletop, and GM Screens tabs', () => {
     render(<TabNavigation activeTab="dashboard" onTabChange={() => {}} />)
     expect(screen.getByRole('tab', { name: 'Dashboard' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Tabletop' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'GM Screens' })).toBeInTheDocument()
   })
 
   it('marks dashboard tab as active when activeTab is dashboard', () => {
@@ -56,9 +57,9 @@ describe('TabNavigation', () => {
 
   it('wraps around from last tab to first on ArrowRight', () => {
     const onTabChange = vi.fn()
-    render(<TabNavigation activeTab="tabletop" onTabChange={onTabChange} />)
-    const tabletopTab = screen.getByRole('tab', { name: 'Tabletop' })
-    fireEvent.keyDown(tabletopTab, { key: 'ArrowRight' })
+    render(<TabNavigation activeTab="gmscreens" onTabChange={onTabChange} />)
+    const gmScreensTab = screen.getByRole('tab', { name: 'GM Screens' })
+    fireEvent.keyDown(gmScreensTab, { key: 'ArrowRight' })
     expect(onTabChange).toHaveBeenCalledWith('dashboard')
   })
 
@@ -75,12 +76,13 @@ describe('TabNavigation', () => {
     render(<TabNavigation activeTab="dashboard" onTabChange={onTabChange} />)
     const dashboardTab = screen.getByRole('tab', { name: 'Dashboard' })
     fireEvent.keyDown(dashboardTab, { key: 'End' })
-    expect(onTabChange).toHaveBeenCalledWith('tabletop')
+    expect(onTabChange).toHaveBeenCalledWith('gmscreens')
   })
 
   it('tabs have aria-controls pointing to their panels', () => {
     render(<TabNavigation activeTab="dashboard" onTabChange={() => {}} />)
     expect(screen.getByRole('tab', { name: 'Dashboard' })).toHaveAttribute('aria-controls', 'tab-panel-dashboard')
     expect(screen.getByRole('tab', { name: 'Tabletop' })).toHaveAttribute('aria-controls', 'tab-panel-tabletop')
+    expect(screen.getByRole('tab', { name: 'GM Screens' })).toHaveAttribute('aria-controls', 'tab-panel-gmscreens')
   })
 })

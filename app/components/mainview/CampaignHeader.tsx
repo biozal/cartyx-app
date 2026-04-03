@@ -17,6 +17,7 @@ export interface CampaignHeaderProps {
 
 export function CampaignHeader({ campaignId, sessionNumber, isOwner, activeSessionName, activeTab, onTabChange }: CampaignHeaderProps) {
   const tablistRef = useRef<HTMLDivElement>(null)
+  const visibleTabs = TABS.filter(tab => !tab.gmOnly || isOwner)
 
   return (
     <nav className="flex items-center h-14 px-4 bg-[#0D1117] border-b border-white/[0.07] sticky top-0 z-50 gap-4">
@@ -59,9 +60,9 @@ export function CampaignHeader({ campaignId, sessionNumber, isOwner, activeSessi
         role="tablist"
         aria-label="MainView navigation"
         ref={tablistRef}
-        onKeyDown={(e) => handleTabsKeyDown(e, activeTab, onTabChange, tablistRef)}
+        onKeyDown={(e) => handleTabsKeyDown(e, activeTab, onTabChange, tablistRef, visibleTabs)}
       >
-        {TABS.map((tab) => {
+        {visibleTabs.map((tab) => {
           const isActive = activeTab === tab.id
           return (
             <button
