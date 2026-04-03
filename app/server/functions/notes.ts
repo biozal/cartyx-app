@@ -10,7 +10,6 @@ import { normalizeTags } from '../utils/helpers'
 import { removeDocumentRefsFromScreens } from './gmscreens-helpers'
 import type { NoteData, NoteListItem } from '~/types/note'
 
-export type { NoteData, NoteListItem } from '~/types/note'
 
 function serializeNote(n: {
   _id: unknown

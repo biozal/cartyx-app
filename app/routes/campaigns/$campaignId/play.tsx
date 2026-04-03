@@ -1,10 +1,6 @@
 import { z } from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { getMe } from '~/server/functions/auth'
-// Import GM Screen server functions so TanStack Start's compiler processes them.
-// Without this, they end up in the route component chunk (uncompiled) and pull
-// Mongoose into the client bundle, crashing the browser.
-import '~/server/functions/gmscreens'
 import { useCampaign } from '~/hooks/useCampaigns'
 import { CampaignHeader } from '~/components/mainview/CampaignHeader'
 import { DashboardView } from '~/components/mainview/DashboardView'

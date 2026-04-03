@@ -13,7 +13,6 @@ import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
 import { formatSchedule } from '~/utils/date'
 import type { CampaignData } from '~/types/campaign'
 
-export type { CampaignData } from '~/types/campaign'
 
 export function buildScheduleText(schedule: {
   frequency?: string | null

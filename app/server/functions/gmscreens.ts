@@ -11,7 +11,6 @@ import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
 import { WINDOW_STATES } from '~/types/gmscreen'
 import type { GMScreenData, WindowData, StackItemData, StackData, HydratedDocument, GMScreenDetailData, WindowState } from '~/types/gmscreen'
 
-export type { GMScreenData, WindowData, StackItemData, StackData, HydratedDocument, GMScreenDetailData }
 
 function serializeGMScreen(doc: {
   _id: unknown

@@ -40,7 +40,7 @@ import { User } from '~/server/db/models/User'
 import { Campaign } from '~/server/db/models/Campaign'
 import { Note } from '~/server/db/models/Note'
 import { createNote, updateNote, deleteNote, listNotes, getNote, createNoteSchema, updateNoteSchema, listNotesSchema } from '~/server/functions/notes'
-import type { NoteListItem } from '~/server/functions/notes'
+import type { NoteListItem } from '~/types/note'
 import { serverCaptureEvent, serverCaptureException } from '~/server/utils/posthog'
 import { removeDocumentRefsFromScreens } from '~/server/functions/gmscreens-helpers'
 
