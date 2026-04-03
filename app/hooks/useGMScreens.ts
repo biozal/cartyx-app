@@ -1,25 +1,130 @@
+import { createServerFn } from '@tanstack/react-start'
+import { z } from 'zod'
+import type { GMScreenData, GMScreenDetailData, WindowState } from '~/types/gmscreen'
+import { WINDOW_STATES } from '~/types/gmscreen'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  listGMScreens,
-  getGMScreen,
-  createGMScreen,
-  renameGMScreen,
-  deleteGMScreen,
-  reorderGMScreens,
-  openWindow,
-  updateWindow,
-  closeWindow,
-  createStack,
-  renameStack,
-  moveStack,
-  deleteStack,
-  addStackItem,
-  removeStackItem,
-} from '~/server/functions/gmscreens'
-import type { GMScreenData, GMScreenDetailData } from '~/server/functions/gmscreens'
-import type { WindowState } from '~/server/db/models/GMScreen'
 import { captureException } from '~/providers/PostHogProvider'
 import { queryKeys } from '~/utils/queryKeys'
+
+// ---------------------------------------------------------------------------
+// Server function wrappers — dynamic imports keep Mongoose server-only.
+// TanStack Start compiles these to RPC stubs on the client.
+// ---------------------------------------------------------------------------
+
+const listGMScreensFn = createServerFn({ method: 'GET' })
+  .inputValidator(z.object({ campaignId: z.string() }))
+  .handler(async ({ data }) => {
+    const { listGMScreens } = await import('~/server/functions/gmscreens')
+    return listGMScreens({ data })
+  })
+
+const getGMScreenFn = createServerFn({ method: 'GET' })
+  .inputValidator(z.object({ id: z.string(), campaignId: z.string() }))
+  .handler(async ({ data }) => {
+    const { getGMScreen } = await import('~/server/functions/gmscreens')
+    return getGMScreen({ data })
+  })
+
+const createGMScreenFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ campaignId: z.string(), name: z.string() }))
+  .handler(async ({ data }) => {
+    const { createGMScreen } = await import('~/server/functions/gmscreens')
+    return createGMScreen({ data })
+  })
+
+const renameGMScreenFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ id: z.string(), campaignId: z.string(), name: z.string() }))
+  .handler(async ({ data }) => {
+    const { renameGMScreen } = await import('~/server/functions/gmscreens')
+    return renameGMScreen({ data })
+  })
+
+const deleteGMScreenFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ id: z.string(), campaignId: z.string() }))
+  .handler(async ({ data }) => {
+    const { deleteGMScreen } = await import('~/server/functions/gmscreens')
+    return deleteGMScreen({ data })
+  })
+
+const reorderGMScreensFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ campaignId: z.string(), screenIds: z.array(z.string()) }))
+  .handler(async ({ data }) => {
+    const { reorderGMScreens } = await import('~/server/functions/gmscreens')
+    return reorderGMScreens({ data })
+  })
+
+const openWindowFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), collection: z.string(), documentId: z.string() }))
+  .handler(async ({ data }) => {
+    const { openWindow } = await import('~/server/functions/gmscreens')
+    return openWindow({ data })
+  })
+
+const updateWindowFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({
+    screenId: z.string(),
+    campaignId: z.string(),
+    windowId: z.string(),
+    x: z.number().nullable().optional(),
+    y: z.number().nullable().optional(),
+    width: z.number().nullable().optional(),
+    height: z.number().nullable().optional(),
+    zIndex: z.number().optional(),
+    state: z.enum(WINDOW_STATES).optional(),
+  }))
+  .handler(async ({ data }) => {
+    const { updateWindow } = await import('~/server/functions/gmscreens')
+    return updateWindow({ data })
+  })
+
+const closeWindowFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), windowId: z.string() }))
+  .handler(async ({ data }) => {
+    const { closeWindow } = await import('~/server/functions/gmscreens')
+    return closeWindow({ data })
+  })
+
+const createStackFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), name: z.string() }))
+  .handler(async ({ data }) => {
+    const { createStack } = await import('~/server/functions/gmscreens')
+    return createStack({ data })
+  })
+
+const renameStackFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), stackId: z.string(), name: z.string() }))
+  .handler(async ({ data }) => {
+    const { renameStack } = await import('~/server/functions/gmscreens')
+    return renameStack({ data })
+  })
+
+const moveStackFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), stackId: z.string(), x: z.number().nullable(), y: z.number().nullable() }))
+  .handler(async ({ data }) => {
+    const { moveStack } = await import('~/server/functions/gmscreens')
+    return moveStack({ data })
+  })
+
+const deleteStackFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), stackId: z.string() }))
+  .handler(async ({ data }) => {
+    const { deleteStack } = await import('~/server/functions/gmscreens')
+    return deleteStack({ data })
+  })
+
+const addStackItemFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), stackId: z.string(), collection: z.string(), documentId: z.string(), label: z.string().default('') }))
+  .handler(async ({ data }) => {
+    const { addStackItem } = await import('~/server/functions/gmscreens')
+    return addStackItem({ data })
+  })
+
+const removeStackItemFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ screenId: z.string(), campaignId: z.string(), stackId: z.string(), itemId: z.string() }))
+  .handler(async ({ data }) => {
+    const { removeStackItem } = await import('~/server/functions/gmscreens')
+    return removeStackItem({ data })
+  })
 
 // ---------------------------------------------------------------------------
 // List screens for a campaign
@@ -28,7 +133,7 @@ import { queryKeys } from '~/utils/queryKeys'
 export function useGMScreenList(campaignId: string) {
   const { data: screens = [], isLoading, error } = useQuery({
     queryKey: queryKeys.gmscreens.list(campaignId),
-    queryFn: () => listGMScreens({ data: { campaignId } }),
+    queryFn: () => listGMScreensFn({ data: { campaignId } }),
     enabled: !!campaignId,
   })
   return {
@@ -45,7 +150,7 @@ export function useGMScreenList(campaignId: string) {
 export function useGMScreenDetail(campaignId: string, screenId: string | null) {
   const { data: screen = null, isLoading, error } = useQuery({
     queryKey: queryKeys.gmscreens.detail(campaignId, screenId ?? ''),
-    queryFn: () => getGMScreen({ data: { id: screenId!, campaignId } }),
+    queryFn: () => getGMScreenFn({ data: { id: screenId!, campaignId } }),
     enabled: !!campaignId && !!screenId,
   })
   return {
@@ -71,26 +176,26 @@ export function useGMScreenMutations(campaignId: string) {
   // --- Screen CRUD ---
 
   const createScreenMutation = useMutation({
-    mutationFn: (name: string) => createGMScreen({ data: { campaignId, name } }),
+    mutationFn: (name: string) => createGMScreenFn({ data: { campaignId, name } }),
     // List invalidation is deferred to the caller so it can set selection first
     onError: (e) => { captureException(e, { action: 'createGMScreen' }) },
   })
 
   const renameScreenMutation = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) =>
-      renameGMScreen({ data: { id, campaignId, name } }),
+      renameGMScreenFn({ data: { id, campaignId, name } }),
     onSuccess: () => { invalidateList() },
     onError: (e) => { captureException(e, { action: 'renameGMScreen' }) },
   })
 
   const deleteScreenMutation = useMutation({
-    mutationFn: (id: string) => deleteGMScreen({ data: { id, campaignId } }),
+    mutationFn: (id: string) => deleteGMScreenFn({ data: { id, campaignId } }),
     // List invalidation is deferred to the caller so it can set selection first
     onError: (e) => { captureException(e, { action: 'deleteGMScreen' }) },
   })
 
   const reorderScreensMutation = useMutation({
-    mutationFn: (screenIds: string[]) => reorderGMScreens({ data: { campaignId, screenIds } }),
+    mutationFn: (screenIds: string[]) => reorderGMScreensFn({ data: { campaignId, screenIds } }),
     onSuccess: () => { invalidateList() },
     onError: (e) => { captureException(e, { action: 'reorderGMScreens' }) },
   })
@@ -99,7 +204,7 @@ export function useGMScreenMutations(campaignId: string) {
 
   const openWindowMutation = useMutation({
     mutationFn: ({ screenId, collection, documentId }: { screenId: string; collection: string; documentId: string }) =>
-      openWindow({ data: { screenId, campaignId, collection, documentId } }),
+      openWindowFn({ data: { screenId, campaignId, collection, documentId } }),
     onSuccess: (_data, vars) => { invalidateDetail(vars.screenId) },
     onError: (e) => { captureException(e, { action: 'openWindow' }) },
   })
@@ -116,7 +221,7 @@ export function useGMScreenMutations(campaignId: string) {
       state?: WindowState
     }) => {
       const { screenId, windowId, ...fields } = params
-      return updateWindow({ data: { screenId, campaignId, windowId, ...fields } })
+      return updateWindowFn({ data: { screenId, campaignId, windowId, ...fields } })
     },
     // Don't invalidate on every drag/resize — handled via debounce
     onError: (e, vars) => { captureException(e, { action: 'updateWindow', screenId: vars.screenId, windowId: vars.windowId }) },
@@ -124,7 +229,7 @@ export function useGMScreenMutations(campaignId: string) {
 
   const closeWindowMutation = useMutation({
     mutationFn: ({ screenId, windowId }: { screenId: string; windowId: string }) =>
-      closeWindow({ data: { screenId, campaignId, windowId } }),
+      closeWindowFn({ data: { screenId, campaignId, windowId } }),
     onSuccess: (_data, vars) => { invalidateDetail(vars.screenId) },
     onError: (e) => { captureException(e, { action: 'closeWindow' }) },
   })
@@ -133,42 +238,42 @@ export function useGMScreenMutations(campaignId: string) {
 
   const createStackMutation = useMutation({
     mutationFn: ({ screenId, name }: { screenId: string; name: string }) =>
-      createStack({ data: { screenId, campaignId, name } }),
+      createStackFn({ data: { screenId, campaignId, name } }),
     onSuccess: (_data, vars) => { invalidateDetail(vars.screenId) },
     onError: (e) => { captureException(e, { action: 'createStack' }) },
   })
 
   const renameStackMutation = useMutation({
     mutationFn: ({ screenId, stackId, name }: { screenId: string; stackId: string; name: string }) =>
-      renameStack({ data: { screenId, campaignId, stackId, name } }),
+      renameStackFn({ data: { screenId, campaignId, stackId, name } }),
     onSuccess: (_data, vars) => { invalidateDetail(vars.screenId) },
     onError: (e) => { captureException(e, { action: 'renameStack' }) },
   })
 
   const moveStackMutation = useMutation({
     mutationFn: ({ screenId, stackId, x, y }: { screenId: string; stackId: string; x: number; y: number }) =>
-      moveStack({ data: { screenId, campaignId, stackId, x, y } }),
+      moveStackFn({ data: { screenId, campaignId, stackId, x, y } }),
     // Don't invalidate on every move — handled via debounce
     onError: (e, vars) => { captureException(e, { action: 'moveStack', screenId: vars.screenId, stackId: vars.stackId }) },
   })
 
   const deleteStackMutation = useMutation({
     mutationFn: ({ screenId, stackId }: { screenId: string; stackId: string }) =>
-      deleteStack({ data: { screenId, campaignId, stackId } }),
+      deleteStackFn({ data: { screenId, campaignId, stackId } }),
     onSuccess: (_data, vars) => { invalidateDetail(vars.screenId) },
     onError: (e) => { captureException(e, { action: 'deleteStack' }) },
   })
 
   const addStackItemMutation = useMutation({
     mutationFn: (params: { screenId: string; stackId: string; collection: string; documentId: string; label: string }) =>
-      addStackItem({ data: { screenId: params.screenId, campaignId, stackId: params.stackId, collection: params.collection, documentId: params.documentId, label: params.label } }),
+      addStackItemFn({ data: { screenId: params.screenId, campaignId, stackId: params.stackId, collection: params.collection, documentId: params.documentId, label: params.label } }),
     onSuccess: (_data, vars) => { invalidateDetail(vars.screenId) },
     onError: (e) => { captureException(e, { action: 'addStackItem' }) },
   })
 
   const removeStackItemMutation = useMutation({
     mutationFn: ({ screenId, stackId, itemId }: { screenId: string; stackId: string; itemId: string }) =>
-      removeStackItem({ data: { screenId, campaignId, stackId, itemId } }),
+      removeStackItemFn({ data: { screenId, campaignId, stackId, itemId } }),
     onSuccess: (_data, vars) => { invalidateDetail(vars.screenId) },
     onError: (e) => { captureException(e, { action: 'removeStackItem' }) },
   })
