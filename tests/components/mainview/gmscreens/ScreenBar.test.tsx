@@ -158,7 +158,15 @@ describe('ScreenBar — ARIA attributes', () => {
     const tab = screen.getByTestId('screen-tab-s2')
     expect(tab).toHaveAttribute('role', 'tab')
     expect(tab).toHaveAttribute('aria-selected', 'true')
-    expect(tab).toHaveAttribute('aria-controls', 'gmscreen-workspace')
+    expect(tab).toHaveAttribute('aria-controls', 'gmscreen-tabpanel-s2')
+  })
+
+  it('each tab has a unique aria-controls matching its screen', () => {
+    render(<ScreenBar {...defaultProps} />)
+
+    expect(screen.getByTestId('screen-tab-s1')).toHaveAttribute('aria-controls', 'gmscreen-tabpanel-s1')
+    expect(screen.getByTestId('screen-tab-s2')).toHaveAttribute('aria-controls', 'gmscreen-tabpanel-s2')
+    expect(screen.getByTestId('screen-tab-s3')).toHaveAttribute('aria-controls', 'gmscreen-tabpanel-s3')
   })
 
   it('settings trigger has correct aria-expanded', async () => {

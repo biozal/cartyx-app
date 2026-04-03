@@ -1,11 +1,11 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { X, GripVertical, ArrowUp, ArrowDown, Loader2 } from 'lucide-react'
 import type { GMScreenData } from '~/server/functions/gmscreens'
 import { useFocusTrap } from '~/hooks/useFocusTrap'
 
 export interface ReorderDialogProps {
   screens: GMScreenData[]
-  onSubmit: (screenIds: string[]) => void
+  onSubmit: (screenIds: string[]) => void | Promise<void>
   onCancel: () => void
   isLoading?: boolean
 }
@@ -18,6 +18,7 @@ export function ReorderDialog({
 }: ReorderDialogProps) {
   const [order, setOrder] = useState(() => [...screens].sort((a, b) => a.tabOrder - b.tabOrder))
   const trapRef = useFocusTrap<HTMLDivElement>()
+  const submittingRef = useRef(false)
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -46,7 +47,11 @@ export function ReorderDialog({
   }, [])
 
   const handleSubmit = useCallback(() => {
-    onSubmit(order.map(s => s.id))
+    if (submittingRef.current) return
+    submittingRef.current = true
+    Promise.resolve(onSubmit(order.map(s => s.id))).finally(() => {
+      submittingRef.current = false
+    })
   }, [order, onSubmit])
 
   return (

@@ -72,4 +72,21 @@ describe('ConfirmDialog', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
   })
+
+  it('prevents double-submission when onConfirm is async', async () => {
+    const user = userEvent.setup()
+    let resolveConfirm!: () => void
+    const onConfirm = vi.fn().mockImplementation(
+      () => new Promise<void>(resolve => { resolveConfirm = resolve }),
+    )
+    render(<ConfirmDialog {...defaultProps} onConfirm={onConfirm} />)
+
+    const confirmBtn = screen.getByRole('button', { name: 'Delete' })
+    await user.click(confirmBtn)
+    await user.click(confirmBtn)
+
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+
+    resolveConfirm()
+  })
 })

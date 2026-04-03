@@ -289,7 +289,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
 
       {/* Workspace */}
       <div
-        id="gmscreen-workspace"
+        id={activeScreenId ? `gmscreen-tabpanel-${activeScreenId}` : 'gmscreen-tabpanel'}
         role="tabpanel"
         aria-labelledby={activeScreenId ? `screen-tab-${activeScreenId}` : undefined}
         className="relative flex-1 overflow-hidden bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_38%),linear-gradient(180deg,#111827_0%,#0D1117_100%)]"
@@ -311,26 +311,9 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
               onWindowsChange={handleWindowsChange}
             />
 
-            {/* Stacks — mobile: scrollable list; desktop: absolutely positioned */}
-            <div className="pointer-events-none absolute inset-0 lg:pointer-events-auto">
-              {/* Mobile stacks — bottom scrollable row */}
-              <div className="pointer-events-auto flex gap-2 overflow-x-auto p-2 lg:hidden">
-                {activeScreen.stacks.map((stack) => (
-                  <StackCard
-                    key={stack.id}
-                    stack={stack}
-                    hydrated={activeScreen.hydrated}
-                    onRename={handleRenameStack}
-                    onDelete={handleDeleteStack}
-                    onRemoveItem={handleRemoveStackItem}
-                    onOpenItem={handleOpenItem}
-                    inFlowLayout
-                  />
-                ))}
-              </div>
-
-              {/* Desktop stacks — positioned */}
-              <div className="hidden lg:block">
+            {/* Desktop stacks — absolutely positioned overlay */}
+            <div className="pointer-events-none absolute inset-0 hidden lg:block">
+              <div className="pointer-events-auto">
                 {activeScreen.stacks.map((stack) => (
                   <StackCard
                     key={stack.id}
@@ -344,6 +327,24 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
                 ))}
               </div>
             </div>
+
+            {/* Mobile stacks — in-flow scrollable row at the bottom */}
+            {activeScreen.stacks.length > 0 && (
+              <div className="absolute bottom-14 left-0 right-0 z-30 flex gap-2 overflow-x-auto px-2 py-1 lg:hidden">
+                {activeScreen.stacks.map((stack) => (
+                  <StackCard
+                    key={stack.id}
+                    stack={stack}
+                    hydrated={activeScreen.hydrated}
+                    onRename={handleRenameStack}
+                    onDelete={handleDeleteStack}
+                    onRemoveItem={handleRemoveStackItem}
+                    onOpenItem={handleOpenItem}
+                    inFlowLayout
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Empty state */}
             {activeScreen.windows.length === 0 && activeScreen.stacks.length === 0 && (

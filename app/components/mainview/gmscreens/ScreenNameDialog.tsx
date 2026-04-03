@@ -5,7 +5,7 @@ import { useFocusTrap } from '~/hooks/useFocusTrap'
 export interface ScreenNameDialogProps {
   title: string
   initialName: string
-  onSubmit: (name: string) => void
+  onSubmit: (name: string) => void | Promise<void>
   onCancel: () => void
   isLoading?: boolean
   error?: string | null
@@ -22,6 +22,7 @@ export function ScreenNameDialog({
   const [name, setName] = useState(initialName)
   const inputRef = useRef<HTMLInputElement>(null)
   const trapRef = useFocusTrap<HTMLDivElement>()
+  const submittingRef = useRef(false)
 
   useEffect(() => {
     inputRef.current?.select()
@@ -37,8 +38,13 @@ export function ScreenNameDialog({
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
+    if (submittingRef.current) return
     const trimmed = name.trim()
-    if (trimmed) onSubmit(trimmed)
+    if (!trimmed) return
+    submittingRef.current = true
+    Promise.resolve(onSubmit(trimmed)).finally(() => {
+      submittingRef.current = false
+    })
   }, [name, onSubmit])
 
   return (
@@ -63,10 +69,11 @@ export function ScreenNameDialog({
         </div>
 
         <form onSubmit={handleSubmit} className="p-4">
-          <label className="block mb-1 font-sans text-[10px] text-slate-500 uppercase tracking-wider">
+          <label htmlFor="screen-name-input" className="block mb-1 font-sans text-[10px] text-slate-500 uppercase tracking-wider">
             Name
           </label>
           <input
+            id="screen-name-input"
             ref={inputRef}
             type="text"
             value={name}

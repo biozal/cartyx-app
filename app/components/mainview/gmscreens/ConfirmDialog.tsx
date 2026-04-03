@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useFocusTrap } from '~/hooks/useFocusTrap'
 
@@ -7,7 +7,7 @@ export interface ConfirmDialogProps {
   message: string
   confirmLabel?: string
   danger?: boolean
-  onConfirm: () => void
+  onConfirm: () => void | Promise<void>
   onCancel: () => void
   isLoading?: boolean
 }
@@ -23,6 +23,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const trapRef = useFocusTrap<HTMLDivElement>()
   const cancelRef = useRef<HTMLButtonElement>(null)
+  const submittingRef = useRef(false)
 
   // Auto-focus the cancel button for safety (destructive dialogs especially)
   useEffect(() => {
@@ -36,6 +37,14 @@ export function ConfirmDialog({
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
   }, [onCancel])
+
+  const handleConfirm = useCallback(() => {
+    if (submittingRef.current) return
+    submittingRef.current = true
+    Promise.resolve(onConfirm()).finally(() => {
+      submittingRef.current = false
+    })
+  }, [onConfirm])
 
   return (
     <div
@@ -65,7 +74,7 @@ export function ConfirmDialog({
             </button>
             <button
               type="button"
-              onClick={onConfirm}
+              onClick={handleConfirm}
               disabled={isLoading}
               className={`flex items-center gap-1.5 rounded px-3 py-1.5 font-sans text-xs font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 danger

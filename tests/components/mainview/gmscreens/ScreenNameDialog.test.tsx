@@ -89,4 +89,32 @@ describe('ScreenNameDialog', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     expect(dialog).toHaveAttribute('aria-label', 'New Screen')
   })
+
+  it('associates the label with the input via htmlFor/id', () => {
+    render(<ScreenNameDialog {...defaultProps} />)
+
+    const input = screen.getByRole('textbox')
+    expect(input).toHaveAttribute('id', 'screen-name-input')
+    expect(screen.getByText('Name').closest('label')).toHaveAttribute('for', 'screen-name-input')
+  })
+
+  it('prevents double-submission when onSubmit is async', async () => {
+    const user = userEvent.setup()
+    let resolveSubmit!: () => void
+    const onSubmit = vi.fn().mockImplementation(
+      () => new Promise<void>(resolve => { resolveSubmit = resolve }),
+    )
+    render(<ScreenNameDialog {...defaultProps} onSubmit={onSubmit} />)
+
+    await user.type(screen.getByRole('textbox'), 'Test')
+
+    // Submit twice rapidly via Enter
+    await user.keyboard('{Enter}')
+    await user.keyboard('{Enter}')
+
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+
+    // Resolve the pending submission
+    resolveSubmit()
+  })
 })

@@ -80,7 +80,7 @@ export function ScreenBar({
               type="button"
               role="tab"
               aria-selected={isActive}
-              aria-controls="gmscreen-workspace"
+              aria-controls={`gmscreen-tabpanel-${screen.id}`}
               tabIndex={isActive ? 0 : -1}
               onClick={() => onSelectScreen(screen.id)}
               data-testid={`screen-tab-${screen.id}`}
