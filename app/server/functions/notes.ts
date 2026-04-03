@@ -8,32 +8,9 @@ import { Note } from '../db/models/Note'
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
 import { normalizeTags } from '../utils/helpers'
 import { removeDocumentRefsFromScreens } from './gmscreens-helpers'
+import type { NoteData, NoteListItem } from '~/types/note'
 
-export interface NoteData {
-  id: string
-  campaignId: string
-  sessionId: string
-  createdBy: string
-  title: string
-  note: string
-  tags: string[]
-  isPublic: boolean
-  createdAt: string
-  updatedAt: string
-}
-
-/** Lightweight shape returned by listNotes — omits the full note body. */
-export interface NoteListItem {
-  id: string
-  campaignId: string
-  sessionId: string
-  createdBy: string
-  title: string
-  tags: string[]
-  isPublic: boolean
-  createdAt: string
-  updatedAt: string
-}
+export type { NoteData, NoteListItem } from '~/types/note'
 
 function serializeNote(n: {
   _id: unknown

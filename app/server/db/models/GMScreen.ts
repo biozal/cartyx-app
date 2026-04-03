@@ -1,4 +1,9 @@
 import mongoose from 'mongoose'
+import { WINDOW_STATES } from '~/types/gmscreen'
+import type { WindowState } from '~/types/gmscreen'
+
+export { WINDOW_STATES }
+export type { WindowState }
 
 // ---------------------------------------------------------------------------
 // Constants – practical guardrails for embedded arrays
@@ -8,12 +13,6 @@ export const GMSCREEN_LIMITS = {
   MAX_STACKS: 10,
   MAX_STACK_ITEMS: 50,
 } as const
-
-// ---------------------------------------------------------------------------
-// Window state enum
-// ---------------------------------------------------------------------------
-export const WINDOW_STATES = ['open', 'minimized', 'hidden'] as const
-export type WindowState = (typeof WINDOW_STATES)[number]
 
 // ---------------------------------------------------------------------------
 // Sub-schemas

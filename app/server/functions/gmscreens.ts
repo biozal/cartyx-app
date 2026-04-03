@@ -5,70 +5,13 @@ import { getSession } from '../session'
 import { connectDB, isDBConnected } from '../db/connection'
 import { User } from '../db/models/User'
 import { Campaign } from '../db/models/Campaign'
-import { GMScreen, GMSCREEN_LIMITS, WINDOW_STATES } from '../db/models/GMScreen'
+import { GMScreen, GMSCREEN_LIMITS } from '../db/models/GMScreen'
 import { Note } from '../db/models/Note'
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
+import { WINDOW_STATES } from '~/types/gmscreen'
+import type { GMScreenData, WindowData, StackItemData, StackData, HydratedDocument, GMScreenDetailData, WindowState } from '~/types/gmscreen'
 
-// ---------------------------------------------------------------------------
-// Serialized types
-// ---------------------------------------------------------------------------
-
-export interface GMScreenData {
-  id: string
-  campaignId: string
-  name: string
-  tabOrder: number
-  createdBy: string
-  createdAt: string
-  updatedAt: string
-}
-
-/**
- * Persisted window layout — position, size, and state only.
- * Title is intentionally omitted: it is always derived at read time via
- * {@link HydratedDocument} (see `GMScreenDetailData.hydrated`) so that
- * renames in the source document are reflected immediately without a
- * separate sync step.
- */
-export interface WindowData {
-  id: string
-  collection: string
-  documentId: string
-  state: string
-  x: number | null
-  y: number | null
-  width: number | null
-  height: number | null
-  zIndex: number
-}
-
-export interface StackItemData {
-  id: string
-  collection: string
-  documentId: string
-  label: string
-}
-
-export interface StackData {
-  id: string
-  name: string
-  x: number | null
-  y: number | null
-  items: StackItemData[]
-}
-
-export interface HydratedDocument {
-  id: string
-  collection: string
-  title: string
-}
-
-export interface GMScreenDetailData extends GMScreenData {
-  windows: WindowData[]
-  stacks: StackData[]
-  /** Keyed by "collection:documentId" for O(1) lookup by the client. */
-  hydrated: Record<string, HydratedDocument>
-}
+export type { GMScreenData, WindowData, StackItemData, StackData, HydratedDocument, GMScreenDetailData }
 
 function serializeGMScreen(doc: {
   _id: unknown
