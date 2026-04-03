@@ -7,7 +7,6 @@ export interface StackCardProps {
   hydrated: Record<string, HydratedDocument>
   onRename: (stackId: string, name: string) => void
   onDelete: (stackId: string) => void
-  onMove: (stackId: string, x: number, y: number) => void
   onRemoveItem: (stackId: string, itemId: string) => void
   onOpenItem: (collection: string, documentId: string) => void
 }
@@ -17,7 +16,6 @@ export function StackCard({
   hydrated,
   onRename,
   onDelete,
-  onMove: _onMove,
   onRemoveItem,
   onOpenItem,
 }: StackCardProps) {

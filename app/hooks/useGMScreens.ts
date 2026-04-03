@@ -119,6 +119,7 @@ export function useGMScreenMutations(campaignId: string) {
       return updateWindow({ data: { screenId, campaignId, windowId, ...fields } })
     },
     // Don't invalidate on every drag/resize — handled via debounce
+    onError: (e, vars) => { captureException(e, { action: 'updateWindow', screenId: vars.screenId, windowId: vars.windowId }) },
   })
 
   const closeWindowMutation = useMutation({
@@ -148,6 +149,7 @@ export function useGMScreenMutations(campaignId: string) {
     mutationFn: ({ screenId, stackId, x, y }: { screenId: string; stackId: string; x: number; y: number }) =>
       moveStack({ data: { screenId, campaignId, stackId, x, y } }),
     // Don't invalidate on every move — handled via debounce
+    onError: (e, vars) => { captureException(e, { action: 'moveStack', screenId: vars.screenId, stackId: vars.stackId }) },
   })
 
   const deleteStackMutation = useMutation({

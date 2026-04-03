@@ -36,7 +36,6 @@ const meta: Meta<typeof StackCard> = {
     hydrated: mockHydrated,
     onRename: () => {},
     onDelete: () => {},
-    onMove: () => {},
     onRemoveItem: () => {},
     onOpenItem: () => {},
   },

@@ -36,6 +36,9 @@ function PlayPage() {
 
   const activeSession = campaign?.sessions.find(s => s.status === 'active')
 
+  // Coerce non-owners away from the GM-only tab
+  const effectiveTab = (activeTab === 'gmscreens' && !campaign?.isOwner) ? 'dashboard' as const : activeTab
+
   function handleTabChange(tab: TabId) {
     navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, tab }) })
   }
@@ -46,17 +49,17 @@ function PlayPage() {
         campaignId={campaignId}
         isOwner={campaign?.isOwner}
         activeSessionName={activeSession?.name}
-        activeTab={activeTab}
+        activeTab={effectiveTab}
         onTabChange={handleTabChange}
       />
       <div className="flex-1 overflow-hidden">
-        <MainView showToolbar={activeTab === 'tabletop'} showInspector={activeTab !== 'gmscreens'}>
+        <MainView showToolbar={effectiveTab === 'tabletop'} showInspector={effectiveTab !== 'gmscreens'}>
           <div
             className="h-full overflow-y-auto"
             role="tabpanel"
             id="tab-panel-dashboard"
             aria-labelledby="tab-dashboard"
-            hidden={activeTab !== 'dashboard'}
+            hidden={effectiveTab !== 'dashboard'}
           >
             <DashboardView>
               <CatchUpWidget />
@@ -71,11 +74,11 @@ function PlayPage() {
             role="tabpanel"
             id="tab-panel-tabletop"
             aria-labelledby="tab-tabletop"
-            hidden={activeTab !== 'tabletop'}
+            hidden={effectiveTab !== 'tabletop'}
           >
             <TabletopView />
           </div>
-          {activeTab === 'gmscreens' && campaign?.isOwner && (
+          {effectiveTab === 'gmscreens' && campaign?.isOwner && (
             <div
               className="h-full"
               role="tabpanel"

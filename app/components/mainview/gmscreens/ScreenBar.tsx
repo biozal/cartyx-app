@@ -1,4 +1,5 @@
-import { useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import type React from 'react'
 import { Settings, Plus, Pencil, Trash2, ArrowUpDown } from 'lucide-react'
 import type { GMScreenData } from '~/server/functions/gmscreens'
 
@@ -23,8 +24,6 @@ export function ScreenBar({
   onReorderScreens,
   className = '',
 }: ScreenBarProps) {
-  const scrollRef = useRef<HTMLDivElement>(null)
-
   return (
     <div
       className={`flex items-center h-10 bg-[#080A12] border-b border-white/[0.07] ${className}`}
@@ -32,7 +31,6 @@ export function ScreenBar({
     >
       {/* Scrollable screen tabs */}
       <div
-        ref={scrollRef}
         className="flex-1 flex items-center gap-1 overflow-x-auto scrollbar-none px-2"
         role="tablist"
         aria-label="GM Screens"
@@ -42,6 +40,7 @@ export function ScreenBar({
           return (
             <button
               key={screen.id}
+              id={`screen-tab-${screen.id}`}
               type="button"
               role="tab"
               aria-selected={isActive}
@@ -193,9 +192,6 @@ function DropdownItem({ icon, label, onClick, disabled = false, danger = false }
 // ---------------------------------------------------------------------------
 // Hooks
 // ---------------------------------------------------------------------------
-
-import { useState, useEffect } from 'react'
-import type React from 'react'
 
 function useCloseOnOutsideClick(
   ref: React.RefObject<HTMLElement | null>,

@@ -44,8 +44,10 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
   const [dialog, setDialog] = useState<DialogState>({ type: 'none' })
   const mutations = useGMScreenMutations(campaignId)
 
-  // Auto-select first screen on load or when screens change
+  // Auto-select first screen once the list has settled (not while loading).
+  // Avoids bouncing the user between screens on refresh or after create/delete.
   useEffect(() => {
+    if (listLoading) return
     if (screens.length === 0) {
       setActiveScreenId(null)
       return
@@ -54,14 +56,28 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
     if (activeScreenId && screens.some(s => s.id === activeScreenId)) return
     // Otherwise, select first
     setActiveScreenId(screens[0].id)
-  }, [screens, activeScreenId])
+  }, [screens, activeScreenId, listLoading])
 
   const { screen: activeScreen, isLoading: detailLoading, error: detailError } =
     useGMScreenDetail(campaignId, activeScreenId)
 
   // --- Debounced persistence refs ---
-  const updateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Per-window timers so multi-window updates don't clobber each other
+  const updateTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const moveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cleanup pending timers on unmount
+  useEffect(() => {
+    const timers = updateTimersRef.current
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer)
+      timers.clear()
+      if (moveTimerRef.current) {
+        clearTimeout(moveTimerRef.current)
+        moveTimerRef.current = null
+      }
+    }
+  }, [])
 
   // --- Screen CRUD handlers ---
 
@@ -101,7 +117,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
   const handleWindowsChange = useCallback((nextWindows: ManagedWindow[]) => {
     if (!activeScreenId || !activeScreen) return
 
-    // Persist changes debounced
+    // Persist changes debounced — one timer per window
     for (const nw of nextWindows) {
       const orig = activeScreen.windows.find(w => w.id === nw.id)
       if (!orig) continue
@@ -112,22 +128,27 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
         nw.size?.width !== (orig.width ?? undefined) ||
         nw.size?.height !== (orig.height ?? undefined) ||
         nw.zIndex !== orig.zIndex ||
-        nw.state !== orig.state
+        toWindowState(nw.state) !== orig.state
 
       if (hasLayoutChange) {
-        if (updateTimerRef.current) clearTimeout(updateTimerRef.current)
-        updateTimerRef.current = setTimeout(() => {
-          mutations.updateWindow.mutate({
-            screenId: activeScreenId,
-            windowId: nw.id,
-            x: nw.position?.x ?? null,
-            y: nw.position?.y ?? null,
-            width: nw.size?.width ?? null,
-            height: nw.size?.height ?? null,
-            zIndex: nw.zIndex,
-            state: toWindowState(nw.state),
-          })
-        }, DEBOUNCE_MS)
+        const existing = updateTimersRef.current.get(nw.id)
+        if (existing) clearTimeout(existing)
+        updateTimersRef.current.set(
+          nw.id,
+          setTimeout(() => {
+            updateTimersRef.current.delete(nw.id)
+            mutations.updateWindow.mutate({
+              screenId: activeScreenId,
+              windowId: nw.id,
+              x: nw.position?.x ?? null,
+              y: nw.position?.y ?? null,
+              width: nw.size?.width ?? null,
+              height: nw.size?.height ?? null,
+              zIndex: nw.zIndex,
+              state: toWindowState(nw.state),
+            })
+          }, DEBOUNCE_MS),
+        )
       }
     }
 
@@ -234,6 +255,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
       <div
         id="gmscreen-workspace"
         role="tabpanel"
+        aria-labelledby={activeScreenId ? `screen-tab-${activeScreenId}` : undefined}
         className="relative flex-1 overflow-hidden bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_38%),linear-gradient(180deg,#111827_0%,#0D1117_100%)]"
       >
         {detailLoading ? (
@@ -264,7 +286,6 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
                     hydrated={activeScreen.hydrated}
                     onRename={handleRenameStack}
                     onDelete={handleDeleteStack}
-                    onMove={() => {}} // No drag on mobile
                     onRemoveItem={handleRemoveStackItem}
                     onOpenItem={handleOpenItem}
                   />
@@ -280,12 +301,6 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
                     hydrated={activeScreen.hydrated}
                     onRename={handleRenameStack}
                     onDelete={handleDeleteStack}
-                    onMove={(stackId, x, y) => {
-                      if (moveTimerRef.current) clearTimeout(moveTimerRef.current)
-                      moveTimerRef.current = setTimeout(() => {
-                        mutations.moveStack.mutate({ screenId: activeScreenId!, stackId, x, y })
-                      }, DEBOUNCE_MS)
-                    }}
                     onRemoveItem={handleRemoveStackItem}
                     onOpenItem={handleOpenItem}
                   />
