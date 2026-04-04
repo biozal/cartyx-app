@@ -162,10 +162,10 @@ describe('NoteModal', () => {
     expect(sessionSelect).toHaveValue('session-2')
   })
 
-  it('defaults session to first session when no defaultSessionId', () => {
+  it('defaults session to No Session when no defaultSessionId', () => {
     renderModal()
     const sessionSelect = screen.getByRole('combobox')
-    expect(sessionSelect).toHaveValue('session-1')
+    expect(sessionSelect).toHaveValue('')
   })
 
   it('defaults visibility to private for new notes', () => {
@@ -174,7 +174,7 @@ describe('NoteModal', () => {
     expect(privateRadio).toBeChecked()
   })
 
-  it('submits a new note on valid create', async () => {
+  it('submits a new note on valid create (no session by default)', async () => {
     const user = userEvent.setup()
     const { props } = renderModal()
 
@@ -190,12 +190,17 @@ describe('NoteModal', () => {
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           campaignId: 'campaign-123',
-          sessionId: 'session-1',
           title: 'My Note',
           note: 'Some markdown content',
           isPublic: false,
         }),
       )
+    })
+
+    // sessionId should NOT be included when "No Session" is selected
+    await waitFor(() => {
+      const callArg = mockCreate.mock.calls[0][0]
+      expect(callArg).not.toHaveProperty('sessionId')
     })
 
     expect(props.onClose).toHaveBeenCalled()
@@ -288,10 +293,13 @@ describe('NoteModal', () => {
     expect(mockCreate).not.toHaveBeenCalled()
   })
 
-  it('shows validation error when session is missing', () => {
+  it('allows creating a note with no sessions available', () => {
     renderModal({ sessions: [] })
 
-    expect(screen.getByText('Session Required')).toBeInTheDocument()
+    // No "Session Required" warning — notes can be created without sessions
+    expect(screen.queryByText('Session Required')).not.toBeInTheDocument()
+    // The submit button should still be enabled
+    expect(screen.getByRole('button', { name: 'Create Note' })).not.toBeDisabled()
   })
 
   it('shows multiple validation errors simultaneously', async () => {

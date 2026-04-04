@@ -135,15 +135,13 @@ export function NoteModal({
       finalTags = merged
     }
 
-    const input: Record<string, unknown> = {
+    const input = {
       campaignId,
       title: title.trim(),
       note: content.trim(),
       tags: finalTags,
       isPublic,
-    }
-    if (sessionId) {
-      input.sessionId = sessionId
+      ...(sessionId ? { sessionId } : {}),
     }
 
     let success = false

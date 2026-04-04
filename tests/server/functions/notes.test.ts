@@ -450,7 +450,7 @@ describe('listNotes', () => {
 
     await _listNotes({ data: { campaignId: 'camp-1', sessionId: '__none__' } })
 
-    const filter = vi.mocked(Note.find).mock.calls[0][0] as Record<string, unknown>
+    const filter = vi.mocked(Note.find).mock.calls[0][0] as unknown as Record<string, unknown>
     expect(filter.sessionId).toEqual({ $exists: false })
   })
 

@@ -38,3 +38,11 @@ export function useUpdateNote() {
     error: null,
   }
 }
+
+export function useDeleteNote() {
+  return {
+    remove: async (_input: unknown) => ({ success: true }),
+    isLoading: false,
+    error: null,
+  }
+}
