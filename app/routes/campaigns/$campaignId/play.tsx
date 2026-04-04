@@ -87,9 +87,7 @@ function PlayPage() {
               aria-labelledby="tab-gmscreens"
               hidden={effectiveTab !== 'gmscreens'}
             >
-              {effectiveTab === 'gmscreens' && (
-                <GMScreensView campaignId={campaignId} />
-              )}
+              <GMScreensView campaignId={campaignId} />
             </div>
           )}
         </MainView>
