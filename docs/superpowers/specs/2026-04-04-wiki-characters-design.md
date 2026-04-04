@@ -20,6 +20,7 @@ Add a Characters category to the Wiki Panel, enabling GMs and players to create,
 | `characterClass` | String | No | `""` | Freeform text (e.g., "Paladin", "Fighter/Wizard") |
 | `age` | Number | No | `null` | Positive integer |
 | `location` | String | No | `""` | Current residence |
+| `link` | String | No | `""` | HTTP URL to an external webpage (e.g., D&D Beyond character sheet, wiki page) |
 | `picture` | String | No | `""` | URL/path to uploaded image in storage |
 | `pictureCrop` | Object | No | `null` | `{ x: Number, y: Number, width: Number, height: Number }` — normalized 0-1 values relative to original image dimensions, defining the visible crop region |
 | `notes` | String | No | `""` | Markdown, public if character is public |
@@ -100,7 +101,7 @@ Same filter set as NotesFilterWidget, extracted as a reusable component.
 
 Contact-list style layout:
 - **Left:** 48px circular avatar (cropped image or initials fallback on deterministic gradient)
-- **Right:** Name + visibility icon (globe/lock), info line (Race · Age · Location — only populated fields), tag pills
+- **Right:** Name + visibility icon (globe/lock) + external link icon (if link set, opens in new tab), info line (Race · Age · Location — only populated fields), tag pills
 
 Behavior:
 - Draggable with payload `{ collection: 'character', documentId, title: "firstName lastName" }`
@@ -116,7 +117,7 @@ Character sheet layout inside FloatingWindow:
 
 1. **Title bar** — provided by FloatingWindow, with an added edit pencil icon next to minimize/maximize/close buttons
 2. **Circular portrait** — 96px, centered (cropped image or initials fallback)
-3. **Name** — centered, large text
+3. **Name** — centered, large text, with external link icon if link is set (opens in new tab)
 4. **Visibility badge** — "Public" or "Private" pill
 5. **Stats grid** — 2x2 grid of labeled fields (Race, Class, Age, Location), only shows populated fields
 6. **Tags** — colored pills
@@ -140,6 +141,7 @@ Full-screen overlay via portal, same pattern as NoteModal.
 | Class | FormInput | Optional |
 | Age | FormInput (type="number") | Optional, positive integer |
 | Location | FormInput | Optional |
+| Link | FormInput (type="url") | Optional, validated as HTTP/HTTPS URL |
 | Session Introduced | FormSelect | Optional, defaults to "No Session" |
 | Sessions Appeared In | Multi-select chip input | Optional, select from campaign sessions |
 | Notes | MarkdownEditor (Edit/Preview tabs) | Optional |
