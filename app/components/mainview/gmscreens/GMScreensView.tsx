@@ -76,6 +76,12 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
     })
   }, [screenIdsKey, listLoading])
 
+  // Clear drag highlight when switching screens
+  useEffect(() => {
+    setIsDragOver(false)
+    setFlashWindowId(null)
+  }, [activeScreenId])
+
   const { screen: activeScreen, isLoading: detailLoading, error: detailError } =
     useGMScreenDetail(campaignId, activeScreenId)
 
@@ -209,11 +215,12 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
   }, [activeScreenId, mutations.openWindow])
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    if (!activeScreenId) return
     if (!e.dataTransfer.types.includes('application/x-cartyx-document')) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'copy'
     setIsDragOver(true)
-  }, [])
+  }, [activeScreenId])
 
   const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
     // Only clear when leaving the container, not when entering a child
