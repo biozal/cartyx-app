@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo, type DragEvent } from 'react'
 import { Plus, Layers, Loader2, AlertTriangle } from 'lucide-react'
 import { useGMScreenList, useGMScreenDetail, useGMScreenMutations } from '~/hooks/useGMScreens'
 import { FloatingWindowManager, type ManagedWindow } from '~/components/mainview/FloatingWindowManager'
@@ -42,6 +42,9 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
   const [activeScreenId, setActiveScreenId] = useState<string | null>(null)
   const [dialog, setDialog] = useState<DialogState>({ type: 'none' })
   const mutations = useGMScreenMutations(campaignId)
+  const [isDragOver, setIsDragOver] = useState(false)
+  const [flashWindowId, setFlashWindowId] = useState<string | null>(null)
+  const workspaceRef = useRef<HTMLDivElement>(null)
 
   // Collision-safe primitive key that tracks the *set* of screen IDs.
   // Sorted so harmless order changes (reorder, query refetch jitter) don't
@@ -205,6 +208,68 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
     mutations.openWindow.mutate({ screenId: activeScreenId, collection, documentId })
   }, [activeScreenId, mutations.openWindow])
 
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer.types.includes('application/x-cartyx-document')) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    setIsDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    // Only clear when leaving the container, not when entering a child
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return
+    setIsDragOver(false)
+  }, [])
+
+  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragOver(false)
+
+    if (!activeScreenId || !activeScreen) return
+
+    const raw = e.dataTransfer.getData('application/x-cartyx-document')
+    if (!raw) return
+
+    let payload: { collection: string; documentId: string; title: string }
+    try {
+      payload = JSON.parse(raw)
+    } catch {
+      return
+    }
+
+    // Check for duplicate
+    const existing = activeScreen.windows.find(
+      (w) => w.collection === payload.collection && w.documentId === payload.documentId,
+    )
+
+    if (existing) {
+      // Focus + flash the existing window
+      const maxZ = activeScreen.windows.reduce((max, w) => Math.max(max, w.zIndex), 0)
+      mutations.updateWindow.mutate({
+        screenId: activeScreenId,
+        windowId: existing.id,
+        zIndex: maxZ + 1,
+        state: 'open',
+      })
+      setFlashWindowId(existing.id)
+      setTimeout(() => setFlashWindowId(null), 700)
+      return
+    }
+
+    // Calculate drop position relative to the workspace container
+    const rect = workspaceRef.current?.getBoundingClientRect()
+    const x = rect ? e.clientX - rect.left : 100
+    const y = rect ? e.clientY - rect.top : 100
+
+    mutations.openWindow.mutate({
+      screenId: activeScreenId,
+      collection: payload.collection,
+      documentId: payload.documentId,
+      x,
+      y,
+    })
+  }, [activeScreenId, activeScreen, mutations])
+
   // --- Stack handlers ---
 
   const handleCreateStack = useCallback(async (name: string) => {
@@ -265,6 +330,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
           return {
             ...existing,
             title,
+            className: flashWindowId === existing.id ? 'animate-flash-border' : '',
             content: (
               <div className="p-4 font-sans text-xs text-slate-400">
                 <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-2">{w.collection}</p>
@@ -282,6 +348,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
           size: w.width != null && w.height != null ? { width: w.width, height: w.height } : undefined,
           state: toFloatingState(w.state),
           zIndex: w.zIndex,
+          className: flashWindowId === w.id ? 'animate-flash-border' : '',
           content: (
             <div className="p-4 font-sans text-xs text-slate-400">
               <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-2">{w.collection}</p>
@@ -302,7 +369,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
 
       return merged
     })
-  }, [activeScreen, activeScreenId])
+  }, [activeScreen, activeScreenId, flashWindowId])
 
   // --- Render ---
 
@@ -343,10 +410,18 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
 
       {/* Workspace */}
       <div
+        ref={workspaceRef}
         id={activeScreenId ? `gmscreen-tabpanel-${activeScreenId}` : 'gmscreen-tabpanel'}
         role="tabpanel"
         aria-labelledby={activeScreenId ? `screen-tab-${activeScreenId}` : undefined}
-        className="relative flex-1 overflow-hidden bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_38%),linear-gradient(180deg,#111827_0%,#0D1117_100%)]"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={[
+          'relative flex-1 overflow-hidden bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_38%),linear-gradient(180deg,#111827_0%,#0D1117_100%)]',
+          'transition-shadow duration-200',
+          isDragOver ? 'ring-2 ring-inset ring-blue-500/40 bg-blue-500/[0.03]' : '',
+        ].join(' ')}
       >
         {detailLoading ? (
           <div className="flex h-full items-center justify-center">

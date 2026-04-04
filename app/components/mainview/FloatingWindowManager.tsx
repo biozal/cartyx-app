@@ -15,6 +15,7 @@ export interface ManagedWindow {
   size?: FloatingWindowSize
   state: FloatingWindowState
   zIndex: number
+  className?: string
 }
 
 export interface FloatingWindowManagerProps {
@@ -95,6 +96,7 @@ export function FloatingWindowManager({
           key={window.id}
           id={window.id}
           title={window.title}
+          className={window.className}
           initialPosition={window.position}
           initialSize={window.size}
           initialState={window.state}
