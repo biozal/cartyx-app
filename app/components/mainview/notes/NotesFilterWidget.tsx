@@ -54,6 +54,13 @@ export function NotesFilterWidget({
         </button>
       </div>
 
+      <TagAutocompleteInput
+        campaignId={campaignId}
+        selectedTags={filterTags}
+        onTagsChange={onFilterTagsChange}
+        placeholder="Filter by tags..."
+      />
+
       <div className="flex gap-2">
         <div className="flex-1">
           <label htmlFor="session-filter" className="sr-only">Filter by session</label>
@@ -87,13 +94,6 @@ export function NotesFilterWidget({
           </select>
         </div>
       </div>
-
-      <TagAutocompleteInput
-        campaignId={campaignId}
-        selectedTags={filterTags}
-        onTagsChange={onFilterTagsChange}
-        placeholder="Filter by tags..."
-      />
     </div>
   )
 }

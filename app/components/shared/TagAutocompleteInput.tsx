@@ -97,8 +97,8 @@ export function TagAutocompleteInput({
     <div className="relative">
       <div
         className={[
-          'flex flex-wrap items-center gap-1.5 bg-white/[0.04] border rounded-xl px-3 py-2 min-h-[44px] transition-all',
-          'focus-within:border-blue-500/50 border-white/10',
+          'flex flex-wrap items-center gap-1.5 bg-[#080A12] border rounded px-3 py-2 transition-all',
+          'focus-within:border-blue-500/50 border-white/[0.07]',
           disabled ? 'opacity-50 cursor-not-allowed' : '',
         ].filter(Boolean).join(' ')}
         onClick={() => inputRef.current?.focus()}
