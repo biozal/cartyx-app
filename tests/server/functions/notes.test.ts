@@ -596,7 +596,7 @@ describe('createNoteSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects whitespace-only sessionId', () => {
+  it('rejects whitespace-only sessionId when provided', () => {
     const result = createNoteSchema.safeParse({
       campaignId: 'camp-1',
       sessionId: '   ',
@@ -606,19 +606,22 @@ describe('createNoteSchema', () => {
     expect(result.success).toBe(false)
   })
 
+  it('accepts when sessionId is omitted', () => {
+    const result = createNoteSchema.safeParse({
+      campaignId: 'camp-1',
+      title: 'Title',
+      note: 'body',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.sessionId).toBeUndefined()
+    }
+  })
+
   it('rejects whitespace-only campaignId', () => {
     const result = createNoteSchema.safeParse({
       campaignId: '   ',
       sessionId: 'sess-1',
-      title: 'Title',
-      note: 'body',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects when sessionId is missing', () => {
-    const result = createNoteSchema.safeParse({
-      campaignId: 'camp-1',
       title: 'Title',
       note: 'body',
     })
@@ -682,6 +685,30 @@ describe('updateNoteSchema', () => {
       note: '   ',
     })
     expect(result.success).toBe(false)
+  })
+
+  it('rejects whitespace-only sessionId when provided', () => {
+    const result = updateNoteSchema.safeParse({
+      id: 'note-1',
+      campaignId: 'camp-1',
+      sessionId: '   ',
+      title: 'Title',
+      note: 'body',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts when sessionId is omitted', () => {
+    const result = updateNoteSchema.safeParse({
+      id: 'note-1',
+      campaignId: 'camp-1',
+      title: 'Title',
+      note: 'body',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.sessionId).toBeUndefined()
+    }
   })
 })
 
