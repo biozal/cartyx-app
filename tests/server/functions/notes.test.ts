@@ -196,6 +196,25 @@ describe('createNote', () => {
     expect(createArg).not.toHaveProperty('sessionId')
   })
 
+  it('does not persist the "__none__" sessionId sentinel', async () => {
+    const created = makeNote({ sessionId: undefined })
+    vi.mocked(Note.create).mockResolvedValue(created as never)
+
+    const result = await _createNote({
+      data: {
+        campaignId: 'camp-1',
+        sessionId: '__none__',
+        title: 'Sentinel Session Note',
+        note: 'body',
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.note.sessionId).toBeUndefined()
+    const createArg = vi.mocked(Note.create).mock.calls[0][0] as Record<string, unknown>
+    expect(createArg).not.toHaveProperty('sessionId')
+  })
+
   it('fires note_created analytics event', async () => {
     vi.mocked(Note.create).mockResolvedValue(makeNote() as never)
 
@@ -253,6 +272,26 @@ describe('updateNote', () => {
 
     expect(result.success).toBe(true)
     expect(existing.sessionId).toBeUndefined()
+    expect(existing.save).toHaveBeenCalled()
+  })
+
+  it('clears sessionId when update receives the __none__ sentinel', async () => {
+    const existing = makeNote({ sessionId: 'sess-1' })
+    vi.mocked(Note.findById).mockResolvedValue(existing as never)
+
+    const result = await _updateNote({
+      data: {
+        id: 'note-1',
+        campaignId: 'camp-1',
+        sessionId: '__none__',
+        title: 'Updated Title',
+        note: 'Updated body',
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(existing.sessionId).toBeUndefined()
+    expect(existing.sessionId).not.toBe('__none__')
     expect(existing.save).toHaveBeenCalled()
   })
 

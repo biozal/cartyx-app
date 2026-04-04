@@ -120,7 +120,7 @@ export const createNote = createServerFn({ method: 'POST' })
         createdAt: now,
         updatedAt: now,
       }
-      if (data.sessionId) {
+      if (data.sessionId && data.sessionId !== '__none__') {
         noteData.sessionId = data.sessionId
       }
       const doc = await Note.create(noteData)
@@ -158,7 +158,7 @@ export const updateNote = createServerFn({ method: 'POST' })
       if (String(existing.createdBy) !== userId) throw new Error('Forbidden')
       if (existing.isReadOnly) throw new Error('Note is read-only')
 
-      existing.sessionId = data.sessionId ?? undefined
+      existing.sessionId = data.sessionId && data.sessionId !== '__none__' ? data.sessionId : undefined
       existing.title = data.title.trim()
       existing.note = data.note.trim()
       existing.tags = normalizeTags(data.tags ?? [])

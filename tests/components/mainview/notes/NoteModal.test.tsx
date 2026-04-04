@@ -168,6 +168,12 @@ describe('NoteModal', () => {
     expect(sessionSelect).toHaveValue('')
   })
 
+  it('treats "__none__" defaultSessionId as No Session', () => {
+    renderModal({ defaultSessionId: '__none__' })
+    const sessionSelect = screen.getByRole('combobox')
+    expect(sessionSelect).toHaveValue('')
+  })
+
   it('defaults visibility to private for new notes', () => {
     renderModal()
     const privateRadio = screen.getByRole('radio', { name: /private/i })

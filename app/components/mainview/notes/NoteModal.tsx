@@ -52,7 +52,8 @@ export function NoteModal({
   // so stale values from a previous note never flash.
   useEffect(() => {
     setTitle('')
-    setSessionId(noteId ? '' : defaultSessionId || '')
+    const safeDefault = defaultSessionId === '__none__' ? '' : defaultSessionId
+    setSessionId(noteId ? '' : safeDefault || '')
     setContent('')
     setTags([])
     setIsPublic(false)
