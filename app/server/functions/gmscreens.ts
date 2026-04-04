@@ -6,6 +6,7 @@ import { User } from '../db/models/User'
 import { Campaign } from '../db/models/Campaign'
 import { GMScreen, GMSCREEN_LIMITS } from '../db/models/GMScreen'
 import { Note } from '../db/models/Note'
+import { Character } from '../db/models/Character'
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
 import type { GMScreenData, WindowData, StackItemData, StackData, HydratedDocument, GMScreenDetailData, WindowState } from '~/types/gmscreen'
 import { WINDOW_STATES } from '~/types/gmscreen'
@@ -115,6 +116,16 @@ const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
     async fetch(ids: string[], campaignId: string) {
       return Note.find({ _id: { $in: ids }, campaignId }, '_id title note').lean().then(docs =>
         docs.map(d => ({ _id: d._id, title: (d as { title?: string }).title, content: (d as { note?: string }).note }))
+      ) as Promise<Array<{ _id: unknown; title?: string; content?: string }>>
+    },
+  },
+  character: {
+    async fetch(ids: string[], campaignId: string) {
+      return Character.find({ _id: { $in: ids }, campaignId }, '_id firstName lastName notes').lean().then(docs =>
+        docs.map(d => {
+          const ch = d as { _id: unknown; firstName?: string; lastName?: string; notes?: string }
+          return { _id: ch._id, title: `${ch.firstName ?? ''} ${ch.lastName ?? ''}`.trim(), content: ch.notes }
+        })
       ) as Promise<Array<{ _id: unknown; title?: string; content?: string }>>
     },
   },
