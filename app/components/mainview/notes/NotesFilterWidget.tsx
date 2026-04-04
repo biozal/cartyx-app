@@ -1,6 +1,7 @@
 import React from 'react'
 import { Plus, Search } from 'lucide-react'
 import type { CampaignData } from '~/types/campaign'
+import { TagAutocompleteInput } from '~/components/shared/TagAutocompleteInput'
 
 interface NotesFilterWidgetProps {
   search: string
@@ -11,6 +12,9 @@ interface NotesFilterWidgetProps {
   onVisibilityChange: (value: 'all' | 'public' | 'private') => void
   sessions: CampaignData['sessions']
   onCreateClick: () => void
+  campaignId: string
+  filterTags: string[]
+  onFilterTagsChange: (tags: string[]) => void
 }
 
 export function NotesFilterWidget({
@@ -22,6 +26,9 @@ export function NotesFilterWidget({
   onVisibilityChange,
   sessions,
   onCreateClick,
+  campaignId,
+  filterTags,
+  onFilterTagsChange,
 }: NotesFilterWidgetProps) {
   return (
     <div className="flex flex-col gap-3 p-3 border-b border-white/[0.07] bg-[#0D1117]">
@@ -46,6 +53,13 @@ export function NotesFilterWidget({
           <Plus className="h-4 w-4" />
         </button>
       </div>
+
+      <TagAutocompleteInput
+        campaignId={campaignId}
+        selectedTags={filterTags}
+        onTagsChange={onFilterTagsChange}
+        placeholder="Filter by tags..."
+      />
 
       <div className="flex gap-2">
         <div className="flex-1">

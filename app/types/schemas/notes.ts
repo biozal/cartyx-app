@@ -29,6 +29,7 @@ export const listNotesSchema = z.object({
   sessionId: z.string().optional(),
   search: z.string().optional(),
   visibility: z.enum(['all', 'public', 'private']).optional().default('all'),
+  tags: z.array(z.string()).optional(),
 })
 
 export const getNoteSchema = z.object({

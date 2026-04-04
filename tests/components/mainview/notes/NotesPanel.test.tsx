@@ -9,6 +9,9 @@ import { useCampaign } from '~/hooks/useCampaigns'
 // Mock the hooks
 vi.mock('~/hooks/useNotes')
 vi.mock('~/hooks/useCampaigns')
+vi.mock('~/hooks/useTags', () => ({
+  useTags: () => ({ tags: [], isLoading: false, error: null }),
+}))
 vi.mock('@tanstack/react-router', () => ({
   useParams: () => ({ campaignId: 'campaign-123' }),
 }))

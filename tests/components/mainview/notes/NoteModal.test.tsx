@@ -7,6 +7,9 @@ import { useCreateNote, useUpdateNote, useDeleteNote, useNote } from '~/hooks/us
 
 // Mock hooks
 vi.mock('~/hooks/useNotes')
+vi.mock('~/hooks/useTags', () => ({
+  useTags: () => ({ tags: [], isLoading: false, error: null }),
+}))
 
 // Mock CodeMirror (same approach as MarkdownEditor tests)
 let lastCmOnChange: ((value: string) => void) | undefined
