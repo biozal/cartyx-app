@@ -54,6 +54,8 @@ export const openWindowSchema = z.object({
     }),
   }),
   documentId: z.string().trim().min(1),
+  x: z.number().nullable().optional(),
+  y: z.number().nullable().optional(),
 })
 
 export const updateWindowSchema = z.object({
