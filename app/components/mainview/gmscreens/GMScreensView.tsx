@@ -1,9 +1,12 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo, type DragEvent } from 'react'
 import { Plus, Layers, Loader2, AlertTriangle } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useGMScreenList, useGMScreenDetail, useGMScreenMutations } from '~/hooks/useGMScreens'
 import { FloatingWindowManager, type ManagedWindow } from '~/components/mainview/FloatingWindowManager'
 import type { FloatingWindowState } from '~/components/mainview/FloatingWindow'
 import type { WindowState } from '~/types/gmscreen'
+import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses'
 import { ScreenBar } from './ScreenBar'
 import { StackCard } from './StackCard'
 import { ScreenNameDialog } from './ScreenNameDialog'
@@ -42,6 +45,10 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
   const [activeScreenId, setActiveScreenId] = useState<string | null>(null)
   const [dialog, setDialog] = useState<DialogState>({ type: 'none' })
   const mutations = useGMScreenMutations(campaignId)
+  const [isDragOver, setIsDragOver] = useState(false)
+  const [flashWindowId, setFlashWindowId] = useState<string | null>(null)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const workspaceRef = useRef<HTMLDivElement>(null)
 
   // Collision-safe primitive key that tracks the *set* of screen IDs.
   // Sorted so harmless order changes (reorder, query refetch jitter) don't
@@ -73,21 +80,35 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
     })
   }, [screenIdsKey, listLoading])
 
+  // Clear drag highlight when switching screens
+  useEffect(() => {
+    setIsDragOver(false)
+    setFlashWindowId(null)
+  }, [activeScreenId])
+
   const { screen: activeScreen, isLoading: detailLoading, error: detailError } =
     useGMScreenDetail(campaignId, activeScreenId)
 
   // --- Debounced persistence refs ---
   // Per-window timers so multi-window updates don't clobber each other
   const updateTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  // Store pending payloads so they can be flushed on unmount
+  const pendingUpdatesRef = useRef<Map<string, Parameters<typeof mutations.updateWindow.mutate>[0]>>(new Map())
 
-  // Cleanup pending timers on unmount
+  // Flush pending updates on unmount instead of discarding them
   useEffect(() => {
     const timers = updateTimersRef.current
+    const pending = pendingUpdatesRef.current
     return () => {
       for (const timer of timers.values()) clearTimeout(timer)
       timers.clear()
+      for (const payload of pending.values()) {
+        mutations.updateWindow.mutate(payload)
+      }
+      pending.clear()
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
     }
-  }, [])
+  }, [mutations])
 
   // --- Screen CRUD handlers ---
 
@@ -165,22 +186,26 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
         toWindowState(nw.state) !== orig.state
 
       if (hasLayoutChange) {
+        const payload = {
+          screenId: activeScreenId,
+          windowId: nw.id,
+          x: nw.position?.x ?? null,
+          y: nw.position?.y ?? null,
+          width: nw.size?.width ?? null,
+          height: nw.size?.height ?? null,
+          zIndex: nw.zIndex,
+          state: toWindowState(nw.state),
+        }
+        pendingUpdatesRef.current.set(nw.id, payload)
+
         const existing = updateTimersRef.current.get(nw.id)
         if (existing) clearTimeout(existing)
         updateTimersRef.current.set(
           nw.id,
           setTimeout(() => {
             updateTimersRef.current.delete(nw.id)
-            mutations.updateWindow.mutate({
-              screenId: activeScreenId,
-              windowId: nw.id,
-              x: nw.position?.x ?? null,
-              y: nw.position?.y ?? null,
-              width: nw.size?.width ?? null,
-              height: nw.size?.height ?? null,
-              zIndex: nw.zIndex,
-              state: toWindowState(nw.state),
-            })
+            pendingUpdatesRef.current.delete(nw.id)
+            mutations.updateWindow.mutate(payload)
           }, DEBOUNCE_MS),
         )
       }
@@ -204,6 +229,73 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
     if (!activeScreenId) return
     mutations.openWindow.mutate({ screenId: activeScreenId, collection, documentId })
   }, [activeScreenId, mutations.openWindow])
+
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    if (!activeScreenId) return
+    if (!e.dataTransfer.types.includes('application/x-cartyx-document')) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    setIsDragOver(true)
+  }, [activeScreenId])
+
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    // Only clear when leaving the container, not when entering a child
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return
+    setIsDragOver(false)
+  }, [])
+
+  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragOver(false)
+
+    if (!activeScreenId || !activeScreen) return
+
+    const raw = e.dataTransfer.getData('application/x-cartyx-document')
+    if (!raw) return
+
+    let payload: { collection: string; documentId: string; title: string }
+    try {
+      payload = JSON.parse(raw)
+    } catch {
+      return
+    }
+
+    // Check for duplicate
+    const existing = activeScreen.windows.find(
+      (w) => w.collection === payload.collection && w.documentId === payload.documentId,
+    )
+
+    if (existing) {
+      // Focus + flash the existing window
+      const maxZ = activeScreen.windows.reduce((max, w) => Math.max(max, w.zIndex), 0)
+      mutations.updateWindow.mutate({
+        screenId: activeScreenId,
+        windowId: existing.id,
+        zIndex: maxZ + 1,
+        state: 'open',
+      })
+      setFlashWindowId(existing.id)
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+      flashTimerRef.current = setTimeout(() => {
+        flashTimerRef.current = null
+        setFlashWindowId(null)
+      }, 700)
+      return
+    }
+
+    // Calculate drop position relative to the workspace container
+    const rect = workspaceRef.current?.getBoundingClientRect()
+    const x = rect ? e.clientX - rect.left : 100
+    const y = rect ? e.clientY - rect.top : 100
+
+    mutations.openWindow.mutate({
+      screenId: activeScreenId,
+      collection: payload.collection,
+      documentId: payload.documentId,
+      x,
+      y,
+    })
+  }, [activeScreenId, activeScreen, mutations])
 
   // --- Stack handlers ---
 
@@ -258,6 +350,15 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
         const key = `${w.collection}:${w.documentId}`
         const doc = activeScreen.hydrated[key]
         const title = doc?.title || key
+        const markdownContent = doc?.content || ''
+
+        const windowContent = (
+          <div className="p-4 overflow-auto h-full">
+            <div className={MARKDOWN_PROSE_CLASSES}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdownContent}</ReactMarkdown>
+            </div>
+          </div>
+        )
 
         const existing = prevById.get(w.id)
         if (existing) {
@@ -265,12 +366,9 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
           return {
             ...existing,
             title,
-            content: (
-              <div className="p-4 font-sans text-xs text-slate-400">
-                <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-2">{w.collection}</p>
-                <p className="text-slate-300">{title}</p>
-              </div>
-            ),
+            contentKey: markdownContent,
+            className: flashWindowId === existing.id ? 'animate-flash-border' : '',
+            content: windowContent,
           }
         }
 
@@ -278,23 +376,20 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
         return {
           id: w.id,
           title,
+          contentKey: markdownContent,
           position: w.x != null && w.y != null ? { x: w.x, y: w.y } : undefined,
           size: w.width != null && w.height != null ? { width: w.width, height: w.height } : undefined,
           state: toFloatingState(w.state),
           zIndex: w.zIndex,
-          content: (
-            <div className="p-4 font-sans text-xs text-slate-400">
-              <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-2">{w.collection}</p>
-              <p className="text-slate-300">{title}</p>
-            </div>
-          ),
+          className: flashWindowId === w.id ? 'animate-flash-border' : '',
+          content: windowContent,
         }
       })
 
       // Only update if the window set or titles changed (avoid unnecessary renders)
       if (
         prev.length === merged.length &&
-        prev.every((p, i) => p.id === merged[i].id && p.title === merged[i].title) &&
+        prev.every((p, i) => p.id === merged[i].id && p.title === merged[i].title && p.contentKey === merged[i].contentKey && p.className === merged[i].className) &&
         serverIds.size === prev.length
       ) {
         return prev
@@ -302,7 +397,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
 
       return merged
     })
-  }, [activeScreen, activeScreenId])
+  }, [activeScreen, activeScreenId, flashWindowId])
 
   // --- Render ---
 
@@ -343,10 +438,18 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
 
       {/* Workspace */}
       <div
+        ref={workspaceRef}
         id={activeScreenId ? `gmscreen-tabpanel-${activeScreenId}` : 'gmscreen-tabpanel'}
         role="tabpanel"
         aria-labelledby={activeScreenId ? `screen-tab-${activeScreenId}` : undefined}
-        className="relative flex-1 overflow-hidden bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_38%),linear-gradient(180deg,#111827_0%,#0D1117_100%)]"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={[
+          'relative flex-1 overflow-hidden bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_38%),linear-gradient(180deg,#111827_0%,#0D1117_100%)]',
+          'transition-shadow duration-200',
+          isDragOver ? 'ring-2 ring-inset ring-blue-500/40 bg-blue-500/[0.03]' : '',
+        ].join(' ')}
       >
         {detailLoading ? (
           <div className="flex h-full items-center justify-center">

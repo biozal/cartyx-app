@@ -156,6 +156,8 @@ export function useUpdateNote() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notes.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.notes.detail(variables.id) })
+      // Refresh GM screen windows that may display this note's content
+      queryClient.invalidateQueries({ queryKey: queryKeys.gmscreens.all })
     },
     onError: (e, variables) => {
       captureException(e, { action: 'updateNote', noteId: variables.id })
@@ -190,6 +192,8 @@ export function useDeleteNote() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notes.all })
       queryClient.removeQueries({ queryKey: queryKeys.notes.detail(variables.id) })
+      // Refresh GM screen windows — server removes refs for deleted notes
+      queryClient.invalidateQueries({ queryKey: queryKeys.gmscreens.all })
     },
     onError: (e, variables) => {
       captureException(e, { action: 'deleteNote', noteId: variables.id })

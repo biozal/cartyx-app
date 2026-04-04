@@ -42,6 +42,7 @@ export interface HydratedDocument {
   id: string
   collection: string
   title: string
+  content: string
 }
 
 export interface GMScreenDetailData extends GMScreenData {

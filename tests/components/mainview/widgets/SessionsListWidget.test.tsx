@@ -3,11 +3,6 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { SessionsListWidget } from '~/components/mainview/widgets/SessionsListWidget'
 
-// Mock useParams so the widget can read campaignId
-vi.mock('@tanstack/react-router', () => ({
-  useParams: () => ({ campaignId: 'camp-1' }),
-}))
-
 // Mock useCampaign to provide session data when no prop is passed
 vi.mock('~/hooks/useCampaigns', () => ({
   useCampaign: () => ({

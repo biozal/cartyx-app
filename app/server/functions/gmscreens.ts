@@ -107,15 +107,15 @@ function serializeStack(s: {
 // ---------------------------------------------------------------------------
 
 interface CollectionFetcher {
-  fetch(ids: string[], campaignId: string): Promise<Array<{ _id: unknown; title?: string }>>
+  fetch(ids: string[], campaignId: string): Promise<Array<{ _id: unknown; title?: string; content?: string }>>
 }
 
 const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
   note: {
     async fetch(ids: string[], campaignId: string) {
-      return Note.find({ _id: { $in: ids }, campaignId }, '_id title').lean() as Promise<
-        Array<{ _id: unknown; title?: string }>
-      >
+      return Note.find({ _id: { $in: ids }, campaignId }, '_id title note').lean().then(docs =>
+        docs.map(d => ({ _id: d._id, title: (d as { title?: string }).title, content: (d as { note?: string }).note }))
+      ) as Promise<Array<{ _id: unknown; title?: string; content?: string }>>
     },
   },
 }
@@ -156,6 +156,7 @@ async function hydrateRefs(
           id,
           collection: collectionName,
           title: doc.title ?? '',
+          content: doc.content ?? '',
         }
       }
     }),
@@ -680,8 +681,8 @@ export const openWindow = createServerFn({ method: 'POST' })
         collection: data.collection,
         documentId: data.documentId,
         state: 'open' as const,
-        x: null,
-        y: null,
+        x: data.x ?? null,
+        y: data.y ?? null,
         width: null,
         height: null,
         zIndex: maxZ + 1,

@@ -49,6 +49,7 @@ export function useOptionalFeatureFlag(flag: string): { isEnabled: boolean; isLo
   const [timedOut, setTimedOut] = useState(false)
 
   useEffect(() => {
+    setTimedOut(false)
     if (!flag || enabled !== undefined) return
     const timer = setTimeout(() => setTimedOut(true), FLAG_LOADING_TIMEOUT_MS)
     return () => clearTimeout(timer)

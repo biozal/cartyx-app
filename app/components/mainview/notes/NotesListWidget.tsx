@@ -67,11 +67,34 @@ export function NotesListWidget({
         {notes.map((note) => {
           const session = note.sessionId ? sessionMap[note.sessionId] : undefined
           return (
-            <button
+            <div
               key={note.id}
-              type="button"
+              role="button"
+              tabIndex={0}
+              draggable="true"
+              onDragStart={(e) => {
+                e.dataTransfer.setData(
+                  'application/x-cartyx-document',
+                  JSON.stringify({
+                    collection: 'note',
+                    documentId: note.id,
+                    title: note.title,
+                  }),
+                )
+                e.dataTransfer.effectAllowed = 'copy'
+                e.currentTarget.style.opacity = '0.4'
+              }}
+              onDragEnd={(e) => {
+                e.currentTarget.style.opacity = ''
+              }}
               onClick={() => onNoteClick(note)}
-              className="flex flex-col gap-2 p-4 text-left border-b border-white/[0.05] hover:bg-white/[0.03] transition-colors group"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onNoteClick(note)
+                }
+              }}
+              className="flex flex-col gap-2 p-4 text-left border-b border-white/[0.05] hover:bg-white/[0.03] transition-colors group cursor-grab active:cursor-grabbing"
             >
               <div className="flex items-start justify-between gap-3">
                 <h3 className="font-sans font-bold text-sm text-slate-200 group-hover:text-blue-400 transition-colors line-clamp-1">
@@ -110,7 +133,7 @@ export function NotesListWidget({
                   ))}
                 </div>
               )}
-            </button>
+            </div>
           )
         })}
       </div>

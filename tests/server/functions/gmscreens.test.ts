@@ -711,9 +711,9 @@ describe('getGMScreen', () => {
     // Note.find batch fetch for hydration — all three note IDs
     vi.mocked(Note.find).mockReturnValue({
       lean: vi.fn().mockResolvedValue([
-        { _id: 'note-1', title: 'Session Notes' },
-        { _id: 'note-2', title: 'Combat Log' },
-        { _id: 'note-3', title: 'NPC: Gandalf' },
+        { _id: 'note-1', title: 'Session Notes', note: 'Notes from session 1' },
+        { _id: 'note-2', title: 'Combat Log', note: 'Round 1: Initiative order...' },
+        { _id: 'note-3', title: 'NPC: Gandalf', note: 'A wizard is never late' },
       ]),
     } as never)
 
@@ -731,15 +731,15 @@ describe('getGMScreen', () => {
     expect(result.stacks[0].items[0].label).toBe('Gandalf')
 
     // Hydrated map keyed by "collection:documentId"
-    expect(result.hydrated['note:note-1']).toEqual({ id: 'note-1', collection: 'note', title: 'Session Notes' })
-    expect(result.hydrated['note:note-2']).toEqual({ id: 'note-2', collection: 'note', title: 'Combat Log' })
-    expect(result.hydrated['note:note-3']).toEqual({ id: 'note-3', collection: 'note', title: 'NPC: Gandalf' })
+    expect(result.hydrated['note:note-1']).toEqual({ id: 'note-1', collection: 'note', title: 'Session Notes', content: 'Notes from session 1' })
+    expect(result.hydrated['note:note-2']).toEqual({ id: 'note-2', collection: 'note', title: 'Combat Log', content: 'Round 1: Initiative order...' })
+    expect(result.hydrated['note:note-3']).toEqual({ id: 'note-3', collection: 'note', title: 'NPC: Gandalf', content: 'A wizard is never late' })
 
     // Note.find was called once with all unique IDs batched, scoped by campaignId
     expect(Note.find).toHaveBeenCalledTimes(1)
     expect(Note.find).toHaveBeenCalledWith(
       { _id: { $in: expect.arrayContaining(['note-1', 'note-2', 'note-3']) }, campaignId: 'camp-1' },
-      '_id title',
+      '_id title note',
     )
   })
 

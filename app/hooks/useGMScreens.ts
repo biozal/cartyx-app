@@ -208,8 +208,14 @@ export function useGMScreenMutations(campaignId: string) {
   // --- Window lifecycle ---
 
   const openWindowMutation = useMutation({
-    mutationFn: ({ screenId, collection, documentId }: { screenId: string; collection: string; documentId: string }) =>
-      openWindowFn({ data: { screenId, campaignId, collection, documentId } }),
+    mutationFn: ({ screenId, collection, documentId, x, y }: {
+      screenId: string
+      collection: string
+      documentId: string
+      x?: number | null
+      y?: number | null
+    }) =>
+      openWindowFn({ data: { screenId, campaignId, collection, documentId, x, y } }),
     onSuccess: (_data, vars) => { invalidateDetail(vars.screenId) },
     onError: (e) => { captureException(e, { action: 'openWindow' }) },
   })

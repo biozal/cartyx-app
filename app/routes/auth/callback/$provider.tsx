@@ -43,8 +43,14 @@ const handleCallback = createServerFn({ method: 'GET' })
       serverCaptureEvent(user.id, 'user_logged_in', { provider })
       return { redirectTo: '/campaigns' }
     } catch (e) {
-      serverCaptureException(e, undefined, { action: 'handleOAuthCallback', provider })
-      return { redirectTo: '/', redirectSearch: { reason: 'auth_failed' } }
+      const errMessage = e instanceof Error ? e.message : String(e)
+      serverCaptureException(e, undefined, {
+        action: 'handleOAuthCallback',
+        provider,
+        errorType: 'internal',
+        errorMessage: errMessage,
+      })
+      return { redirectTo: '/', redirectSearch: { reason: 'internal_error' } }
     }
   })
 
