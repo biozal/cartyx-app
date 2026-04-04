@@ -59,15 +59,17 @@ interface ListNotesFilters {
   sessionId?: string
   search?: string
   visibility?: 'all' | 'public' | 'private'
+  tags?: string[]
 }
 
 export function useNotes(campaignId: string, filters?: ListNotesFilters) {
   const sessionId = filters?.sessionId
   const search = filters?.search
   const visibility = filters?.visibility
+  const tags = filters?.tags
 
   const { data: notes = [], isLoading, error } = useQuery({
-    queryKey: queryKeys.notes.list(campaignId, sessionId, search, visibility),
+    queryKey: queryKeys.notes.list(campaignId, sessionId, search, visibility, tags),
     queryFn: () =>
       listNotesFn({
         data: {
@@ -75,6 +77,7 @@ export function useNotes(campaignId: string, filters?: ListNotesFilters) {
           sessionId,
           search,
           visibility,
+          tags,
         },
       }),
     enabled: !!campaignId,
@@ -117,6 +120,7 @@ export function useCreateNote() {
       createNoteFn({ data: input }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notes.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.tags.all })
     },
     onError: (e) => {
       captureException(e, { action: 'createNote' })
@@ -156,6 +160,7 @@ export function useUpdateNote() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notes.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.notes.detail(variables.id) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.tags.all })
       // Refresh GM screen windows that may display this note's content
       queryClient.invalidateQueries({ queryKey: queryKeys.gmscreens.all })
     },
