@@ -7,6 +7,7 @@ import { Note } from '../db/models/Note'
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
 import { normalizeTags } from '../utils/helpers'
 import { removeDocumentRefsFromScreens } from './gmscreens-helpers'
+import { ensureTags as ensureTagsFn } from './tags'
 import type { NoteData, NoteListItem } from '~/types/note'
 import {
   createNoteSchema,
@@ -110,12 +111,13 @@ export const createNote = createServerFn({ method: 'POST' })
       const userId = member.userId
 
       const now = new Date()
+      const finalTags = normalizeTags(data.tags ?? [])
       const noteData: Record<string, unknown> = {
         campaignId: data.campaignId,
         createdBy: userId,
         title: data.title.trim(),
         note: data.note.trim(),
-        tags: normalizeTags(data.tags ?? []),
+        tags: finalTags,
         isPublic: data.isPublic ?? false,
         createdAt: now,
         updatedAt: now,
@@ -124,6 +126,9 @@ export const createNote = createServerFn({ method: 'POST' })
         noteData.sessionId = data.sessionId
       }
       const doc = await Note.create(noteData)
+
+      // Register any new tags in the campaign tag registry
+      await ensureTagsFn({ data: { campaignId: data.campaignId, tags: finalTags } })
 
       serverCaptureEvent(sessionUserId, 'note_created', {
         campaign_id: data.campaignId,
@@ -167,6 +172,9 @@ export const updateNote = createServerFn({ method: 'POST' })
       }
       existing.updatedAt = new Date()
       await existing.save()
+
+      // Register any new tags in the campaign tag registry
+      await ensureTagsFn({ data: { campaignId: data.campaignId, tags: normalizeTags(data.tags ?? []) } })
 
       serverCaptureEvent(sessionUserId, 'note_updated', {
         campaign_id: data.campaignId,
@@ -266,6 +274,10 @@ export const listNotes = createServerFn({ method: 'GET' })
 
       if (data.search && data.search.trim()) {
         filter.$text = { $search: data.search.trim() }
+      }
+
+      if (data.tags && data.tags.length > 0) {
+        filter.tags = { $all: data.tags }
       }
 
       const docs = await Note.find(filter)
