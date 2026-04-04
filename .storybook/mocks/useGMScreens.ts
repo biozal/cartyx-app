@@ -24,11 +24,11 @@ const MOCK_DETAIL: GMScreenDetailData = {
     },
   ],
   hydrated: {
-    'note:doc-1': { id: 'doc-1', collection: 'note', title: 'Ruined Observatory' },
-    'note:doc-2': { id: 'doc-2', collection: 'note', title: 'The Clocktower Mystery' },
-    'note:doc-3': { id: 'doc-3', collection: 'note', title: 'Aster Vane' },
-    'note:doc-4': { id: 'doc-4', collection: 'note', title: 'Ser Caldus' },
-    'note:doc-5': { id: 'doc-5', collection: 'note', title: 'Goblin Skirmisher' },
+    'note:doc-1': { id: 'doc-1', collection: 'note', title: 'Ruined Observatory', content: '' },
+    'note:doc-2': { id: 'doc-2', collection: 'note', title: 'The Clocktower Mystery', content: '' },
+    'note:doc-3': { id: 'doc-3', collection: 'note', title: 'Aster Vane', content: '' },
+    'note:doc-4': { id: 'doc-4', collection: 'note', title: 'Ser Caldus', content: '' },
+    'note:doc-5': { id: 'doc-5', collection: 'note', title: 'Goblin Skirmisher', content: '' },
   },
 }
 

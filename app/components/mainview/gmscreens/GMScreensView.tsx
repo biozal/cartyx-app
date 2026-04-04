@@ -1,9 +1,12 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type DragEvent } from 'react'
 import { Plus, Layers, Loader2, AlertTriangle } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useGMScreenList, useGMScreenDetail, useGMScreenMutations } from '~/hooks/useGMScreens'
 import { FloatingWindowManager, type ManagedWindow } from '~/components/mainview/FloatingWindowManager'
 import type { FloatingWindowState } from '~/components/mainview/FloatingWindow'
 import type { WindowState } from '~/types/gmscreen'
+import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses'
 import { ScreenBar } from './ScreenBar'
 import { StackCard } from './StackCard'
 import { ScreenNameDialog } from './ScreenNameDialog'
@@ -336,6 +339,15 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
         const key = `${w.collection}:${w.documentId}`
         const doc = activeScreen.hydrated[key]
         const title = doc?.title || key
+        const markdownContent = doc?.content || ''
+
+        const windowContent = (
+          <div className="p-4 overflow-auto h-full">
+            <div className={MARKDOWN_PROSE_CLASSES}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdownContent}</ReactMarkdown>
+            </div>
+          </div>
+        )
 
         const existing = prevById.get(w.id)
         if (existing) {
@@ -344,12 +356,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
             ...existing,
             title,
             className: flashWindowId === existing.id ? 'animate-flash-border' : '',
-            content: (
-              <div className="p-4 font-sans text-xs text-slate-400">
-                <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-2">{w.collection}</p>
-                <p className="text-slate-300">{title}</p>
-              </div>
-            ),
+            content: windowContent,
           }
         }
 
@@ -362,12 +369,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
           state: toFloatingState(w.state),
           zIndex: w.zIndex,
           className: flashWindowId === w.id ? 'animate-flash-border' : '',
-          content: (
-            <div className="p-4 font-sans text-xs text-slate-400">
-              <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-2">{w.collection}</p>
-              <p className="text-slate-300">{title}</p>
-            </div>
-          ),
+          content: windowContent,
         }
       })
 

@@ -15,9 +15,9 @@ const mockStack: StackData = {
 }
 
 const mockHydrated: Record<string, HydratedDocument> = {
-  'note:doc-1': { id: 'doc-1', collection: 'note', title: 'Aster Vane — HP 32/45' },
-  'note:doc-2': { id: 'doc-2', collection: 'note', title: 'Ser Caldus — HP 58/58' },
-  'note:doc-3': { id: 'doc-3', collection: 'note', title: 'Goblin Skirmisher — HP 12/12' },
+  'note:doc-1': { id: 'doc-1', collection: 'note', title: 'Aster Vane — HP 32/45', content: '' },
+  'note:doc-2': { id: 'doc-2', collection: 'note', title: 'Ser Caldus — HP 58/58', content: '' },
+  'note:doc-3': { id: 'doc-3', collection: 'note', title: 'Goblin Skirmisher — HP 12/12', content: '' },
 }
 
 const meta: Meta<typeof StackCard> = {
@@ -67,7 +67,7 @@ export const ManyItems: Story = {
     hydrated: Object.fromEntries(
       Array.from({ length: 12 }, (_, i) => [
         `note:doc-${i}`,
-        { id: `doc-${i}`, collection: 'note', title: `Magic Item #${i + 1}` },
+        { id: `doc-${i}`, collection: 'note', title: `Magic Item #${i + 1}`, content: '' },
       ])
     ),
   },
