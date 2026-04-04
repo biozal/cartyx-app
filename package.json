@@ -52,6 +52,7 @@
     "posthog-node": "^5.28.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-easy-crop": "^5.5.7",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "vite": "^7.3.1",
