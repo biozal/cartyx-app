@@ -1,0 +1,65 @@
+import { z } from 'zod'
+
+const pictureCropSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+})
+
+export const createCharacterSchema = z.object({
+  campaignId: z.string().trim().min(1),
+  firstName: z.string().trim().min(1, 'First name is required'),
+  lastName: z.string().trim().min(1, 'Last name is required'),
+  race: z.string().trim().optional().default(''),
+  characterClass: z.string().trim().optional().default(''),
+  age: z.number().int().positive().nullable().optional().default(null),
+  location: z.string().trim().optional().default(''),
+  link: z.string().trim().url().optional().or(z.literal('')).default(''),
+  picture: z.string().optional().default(''),
+  pictureCrop: pictureCropSchema.nullable().optional().default(null),
+  notes: z.string().optional().default(''),
+  gmNotes: z.string().optional().default(''),
+  tags: z.array(z.string()).optional().default([]),
+  isPublic: z.boolean().optional().default(false),
+  sessionId: z.string().trim().min(1).optional(),
+  sessions: z.array(z.string()).optional().default([]),
+})
+
+export const updateCharacterSchema = z.object({
+  id: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
+  firstName: z.string().trim().min(1, 'First name is required'),
+  lastName: z.string().trim().min(1, 'Last name is required'),
+  race: z.string().trim().optional().default(''),
+  characterClass: z.string().trim().optional().default(''),
+  age: z.number().int().positive().nullable().optional().default(null),
+  location: z.string().trim().optional().default(''),
+  link: z.string().trim().url().optional().or(z.literal('')).default(''),
+  picture: z.string().optional().default(''),
+  pictureCrop: pictureCropSchema.nullable().optional().default(null),
+  notes: z.string().optional().default(''),
+  gmNotes: z.string().optional().default(''),
+  tags: z.array(z.string()).optional().default([]),
+  isPublic: z.boolean().optional(),
+  sessionId: z.string().trim().min(1).optional(),
+  sessions: z.array(z.string()).optional().default([]),
+})
+
+export const deleteCharacterSchema = z.object({
+  id: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
+})
+
+export const listCharactersSchema = z.object({
+  campaignId: z.string().min(1),
+  sessionId: z.string().optional(),
+  search: z.string().optional(),
+  visibility: z.enum(['all', 'public', 'private']).optional().default('all'),
+  tags: z.array(z.string()).optional(),
+})
+
+export const getCharacterSchema = z.object({
+  id: z.string().trim().min(1),
+  campaignId: z.string().trim().min(1),
+})
