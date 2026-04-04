@@ -443,6 +443,17 @@ describe('listNotes', () => {
     expect(vi.mocked(Note.find).mock.calls[0][0]).not.toHaveProperty('$text')
   })
 
+  it('filters for notes with no session when sessionId is "__none__"', async () => {
+    vi.mocked(Note.find).mockReturnValue({
+      select: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) }),
+    } as never)
+
+    await _listNotes({ data: { campaignId: 'camp-1', sessionId: '__none__' } })
+
+    const filter = vi.mocked(Note.find).mock.calls[0][0] as Record<string, unknown>
+    expect(filter.sessionId).toEqual({ $exists: false })
+  })
+
   it('throws when not authenticated', async () => {
     vi.mocked(getSession).mockResolvedValue(null)
 

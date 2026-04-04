@@ -248,7 +248,9 @@ export const listNotes = createServerFn({ method: 'GET' })
       // Build query filter
       const filter: Record<string, unknown> = { campaignId: data.campaignId }
 
-      if (data.sessionId) {
+      if (data.sessionId === '__none__') {
+        filter.sessionId = { $exists: false }
+      } else if (data.sessionId) {
         filter.sessionId = data.sessionId
       }
 
