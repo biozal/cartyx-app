@@ -163,10 +163,11 @@ export const updateNote = createServerFn({ method: 'POST' })
       if (String(existing.createdBy) !== userId) throw new Error('Forbidden')
       if (existing.isReadOnly) throw new Error('Note is read-only')
 
+      const finalTags = normalizeTags(data.tags ?? [])
       existing.sessionId = data.sessionId && data.sessionId !== '__none__' ? data.sessionId : undefined
       existing.title = data.title.trim()
       existing.note = data.note.trim()
-      existing.tags = normalizeTags(data.tags ?? [])
+      existing.tags = finalTags
       if (data.isPublic !== undefined) {
         existing.isPublic = data.isPublic
       }
@@ -174,7 +175,7 @@ export const updateNote = createServerFn({ method: 'POST' })
       await existing.save()
 
       // Register any new tags in the campaign tag registry
-      await ensureTagsFn({ data: { campaignId: data.campaignId, tags: normalizeTags(data.tags ?? []) } })
+      await ensureTagsFn({ data: { campaignId: data.campaignId, tags: finalTags } })
 
       serverCaptureEvent(sessionUserId, 'note_updated', {
         campaign_id: data.campaignId,

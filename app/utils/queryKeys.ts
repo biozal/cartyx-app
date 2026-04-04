@@ -20,7 +20,7 @@ export const queryKeys = {
   notes: {
     all: ['notes'] as const,
     list: (campaignId: string, sessionId?: string, search?: string, visibility?: string, tags?: string[]) =>
-      ['notes', 'list', campaignId, sessionId ?? '', search ?? '', visibility ?? 'all', ...(tags ?? [])] as const,
+      ['notes', 'list', campaignId, sessionId ?? '', search ?? '', visibility ?? 'all', tags ?? []] as const,
     detail: (id: string) => ['notes', 'detail', id] as const,
   },
   tags: {
