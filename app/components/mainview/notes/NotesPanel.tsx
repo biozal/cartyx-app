@@ -14,6 +14,7 @@ export function NotesPanel() {
   const [search, setSearch] = useState('')
   const [sessionId, setSessionId] = useState('')
   const [visibility, setVisibility] = useState<'all' | 'public' | 'private'>('all')
+  const [filterTags, setFilterTags] = useState<string[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedNoteId, setSelectedNoteId] = useState<string | undefined>()
 
@@ -23,6 +24,7 @@ export function NotesPanel() {
     search: search || undefined,
     sessionId: sessionId || undefined,
     visibility,
+    tags: filterTags.length > 0 ? filterTags : undefined,
   })
 
   const handleCreateClick = () => {
@@ -51,6 +53,9 @@ export function NotesPanel() {
         onVisibilityChange={setVisibility}
         sessions={sessions}
         onCreateClick={handleCreateClick}
+        campaignId={campaignId}
+        filterTags={filterTags}
+        onFilterTagsChange={setFilterTags}
       />
       <NotesListWidget
         notes={notes}
