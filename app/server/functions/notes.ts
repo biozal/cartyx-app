@@ -32,7 +32,7 @@ function serializeNote(n: {
   return {
     id: String(n._id),
     campaignId: String(n.campaignId),
-    sessionId: String(n.sessionId),
+    sessionId: n.sessionId ? String(n.sessionId) : undefined,
     createdBy: String(n.createdBy),
     title: n.title ?? '',
     note: n.note ?? '',
@@ -57,7 +57,7 @@ function serializeNoteListItem(n: {
   return {
     id: String(n._id),
     campaignId: String(n.campaignId),
-    sessionId: String(n.sessionId),
+    sessionId: n.sessionId ? String(n.sessionId) : undefined,
     createdBy: String(n.createdBy),
     title: n.title ?? '',
     tags: n.tags ?? [],
@@ -110,9 +110,8 @@ export const createNote = createServerFn({ method: 'POST' })
       const userId = member.userId
 
       const now = new Date()
-      const doc = await Note.create({
+      const noteData: Record<string, unknown> = {
         campaignId: data.campaignId,
-        sessionId: data.sessionId,
         createdBy: userId,
         title: data.title.trim(),
         note: data.note.trim(),
@@ -120,7 +119,11 @@ export const createNote = createServerFn({ method: 'POST' })
         isPublic: data.isPublic ?? false,
         createdAt: now,
         updatedAt: now,
-      })
+      }
+      if (data.sessionId) {
+        noteData.sessionId = data.sessionId
+      }
+      const doc = await Note.create(noteData)
 
       serverCaptureEvent(sessionUserId, 'note_created', {
         campaign_id: data.campaignId,
@@ -155,7 +158,7 @@ export const updateNote = createServerFn({ method: 'POST' })
       if (String(existing.createdBy) !== userId) throw new Error('Forbidden')
       if (existing.isReadOnly) throw new Error('Note is read-only')
 
-      existing.sessionId = data.sessionId
+      existing.sessionId = data.sessionId ?? undefined
       existing.title = data.title.trim()
       existing.note = data.note.trim()
       existing.tags = normalizeTags(data.tags ?? [])

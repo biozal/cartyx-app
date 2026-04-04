@@ -178,6 +178,24 @@ describe('createNote', () => {
     ).rejects.toThrow('Forbidden')
   })
 
+  it('creates a note without sessionId when omitted', async () => {
+    const created = makeNote({ sessionId: undefined })
+    vi.mocked(Note.create).mockResolvedValue(created as never)
+
+    const result = await _createNote({
+      data: {
+        campaignId: 'camp-1',
+        title: 'No Session Note',
+        note: 'body',
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.note.sessionId).toBeUndefined()
+    const createArg = vi.mocked(Note.create).mock.calls[0][0] as Record<string, unknown>
+    expect(createArg).not.toHaveProperty('sessionId')
+  })
+
   it('fires note_created analytics event', async () => {
     vi.mocked(Note.create).mockResolvedValue(makeNote() as never)
 
@@ -218,6 +236,24 @@ describe('updateNote', () => {
     expect(existing.note).toBe('Updated body')
     expect(existing.tags).toEqual(['new-tag'])
     expect(existing.sessionId).toBe('sess-2')
+  })
+
+  it('clears sessionId when omitted from update', async () => {
+    const existing = makeNote()
+    vi.mocked(Note.findById).mockResolvedValue(existing as never)
+
+    const result = await _updateNote({
+      data: {
+        id: 'note-1',
+        campaignId: 'camp-1',
+        title: 'Updated Title',
+        note: 'Updated body',
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(existing.sessionId).toBeUndefined()
+    expect(existing.save).toHaveBeenCalled()
   })
 
   it('throws when note is not found', async () => {
