@@ -92,16 +92,23 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
   // --- Debounced persistence refs ---
   // Per-window timers so multi-window updates don't clobber each other
   const updateTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  // Store pending payloads so they can be flushed on unmount
+  const pendingUpdatesRef = useRef<Map<string, Parameters<typeof mutations.updateWindow.mutate>[0]>>(new Map())
 
-  // Cleanup pending timers on unmount
+  // Flush pending updates on unmount instead of discarding them
   useEffect(() => {
     const timers = updateTimersRef.current
+    const pending = pendingUpdatesRef.current
     return () => {
       for (const timer of timers.values()) clearTimeout(timer)
       timers.clear()
+      for (const payload of pending.values()) {
+        mutations.updateWindow.mutate(payload)
+      }
+      pending.clear()
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
     }
-  }, [])
+  }, [mutations])
 
   // --- Screen CRUD handlers ---
 
@@ -179,22 +186,26 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
         toWindowState(nw.state) !== orig.state
 
       if (hasLayoutChange) {
+        const payload = {
+          screenId: activeScreenId,
+          windowId: nw.id,
+          x: nw.position?.x ?? null,
+          y: nw.position?.y ?? null,
+          width: nw.size?.width ?? null,
+          height: nw.size?.height ?? null,
+          zIndex: nw.zIndex,
+          state: toWindowState(nw.state),
+        }
+        pendingUpdatesRef.current.set(nw.id, payload)
+
         const existing = updateTimersRef.current.get(nw.id)
         if (existing) clearTimeout(existing)
         updateTimersRef.current.set(
           nw.id,
           setTimeout(() => {
             updateTimersRef.current.delete(nw.id)
-            mutations.updateWindow.mutate({
-              screenId: activeScreenId,
-              windowId: nw.id,
-              x: nw.position?.x ?? null,
-              y: nw.position?.y ?? null,
-              width: nw.size?.width ?? null,
-              height: nw.size?.height ?? null,
-              zIndex: nw.zIndex,
-              state: toWindowState(nw.state),
-            })
+            pendingUpdatesRef.current.delete(nw.id)
+            mutations.updateWindow.mutate(payload)
           }, DEBOUNCE_MS),
         )
       }
