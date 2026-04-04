@@ -44,6 +44,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
   const mutations = useGMScreenMutations(campaignId)
   const [isDragOver, setIsDragOver] = useState(false)
   const [flashWindowId, setFlashWindowId] = useState<string | null>(null)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const workspaceRef = useRef<HTMLDivElement>(null)
 
   // Collision-safe primitive key that tracks the *set* of screen IDs.
@@ -95,6 +96,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
     return () => {
       for (const timer of timers.values()) clearTimeout(timer)
       timers.clear()
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
     }
   }, [])
 
@@ -259,7 +261,11 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
         state: 'open',
       })
       setFlashWindowId(existing.id)
-      setTimeout(() => setFlashWindowId(null), 700)
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+      flashTimerRef.current = setTimeout(() => {
+        flashTimerRef.current = null
+        setFlashWindowId(null)
+      }, 700)
       return
     }
 
@@ -368,7 +374,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
       // Only update if the window set or titles changed (avoid unnecessary renders)
       if (
         prev.length === merged.length &&
-        prev.every((p, i) => p.id === merged[i].id && p.title === merged[i].title) &&
+        prev.every((p, i) => p.id === merged[i].id && p.title === merged[i].title && p.className === merged[i].className) &&
         serverIds.size === prev.length
       ) {
         return prev
