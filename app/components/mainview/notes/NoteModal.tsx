@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useId } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Globe, Lock, AlertCircle } from 'lucide-react'
+import { X, Globe, Lock } from 'lucide-react'
 import { FormInput } from '~/components/FormInput'
 import { FormSelect } from '~/components/FormSelect'
 import { PixelButton } from '~/components/PixelButton'
@@ -19,7 +19,6 @@ interface NoteModalProps {
 
 interface FieldErrors {
   title?: string
-  sessionId?: string
   content?: string
 }
 
@@ -53,7 +52,7 @@ export function NoteModal({
   // so stale values from a previous note never flash.
   useEffect(() => {
     setTitle('')
-    setSessionId(noteId ? '' : defaultSessionId || sessions[0]?.id || '')
+    setSessionId(noteId ? '' : defaultSessionId || '')
     setContent('')
     setTags([])
     setIsPublic(false)
@@ -68,27 +67,27 @@ export function NoteModal({
   useEffect(() => {
     if (noteId && fetchedNote) {
       setTitle(fetchedNote.title)
-      setSessionId(fetchedNote.sessionId)
+      setSessionId(fetchedNote.sessionId ?? '')
       setContent(fetchedNote.note)
       setTags(fetchedNote.tags)
       setIsPublic(fetchedNote.isPublic)
     }
   }, [noteId, fetchedNote])
 
-  const sessionOptions = useMemo(() => sessions.map((s) => ({
-    value: s.id,
-    label: `Session ${s.number}: ${s.name}`,
-  })), [sessions])
-
-  const isSessionMissing = sessions.length === 0
+  const sessionOptions = useMemo(() => [
+    { value: '', label: 'No Session' },
+    ...sessions.map((s) => ({
+      value: s.id,
+      label: `Session ${s.number}: ${s.name}`,
+    })),
+  ], [sessions])
 
   const validate = useCallback((): FieldErrors => {
     const errors: FieldErrors = {}
     if (!title.trim()) errors.title = 'Title is required'
-    if (!sessionId) errors.sessionId = 'Session is required'
     if (!content.trim()) errors.content = 'Note body is required'
     return errors
-  }, [title, sessionId, content])
+  }, [title, content])
 
   useEffect(() => {
     if (hasSubmitted) {
@@ -119,8 +118,6 @@ export function NoteModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (isSessionMissing) return
-
     setHasSubmitted(true)
     setError(null)
 
@@ -138,13 +135,15 @@ export function NoteModal({
       finalTags = merged
     }
 
-    const input = {
+    const input: Record<string, unknown> = {
       campaignId,
-      sessionId,
       title: title.trim(),
       note: content.trim(),
       tags: finalTags,
       isPublic,
+    }
+    if (sessionId) {
+      input.sessionId = sessionId
     }
 
     let success = false
@@ -216,25 +215,13 @@ export function NoteModal({
             </div>
           )}
 
-          {isSessionMissing && (
-            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-3">
-              <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="text-amber-200 text-xs font-bold uppercase tracking-wider">Session Required</p>
-                <p className="text-slate-400 text-[11px] leading-relaxed">
-                  You cannot create a note without a session. Please ensure sessions are loaded before creating notes.
-                </p>
-              </div>
-            </div>
-          )}
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <FormInput
               label="Title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. The Traitor's Meeting"
-              disabled={isDisabled || isSessionMissing}
+              disabled={isDisabled}
               error={fieldErrors.title}
             />
             <FormSelect
@@ -242,20 +229,16 @@ export function NoteModal({
               value={sessionId}
               onChange={(e) => setSessionId(e.target.value)}
               options={sessionOptions}
-              disabled={isDisabled || isSessionMissing}
+              disabled={isDisabled}
             />
           </div>
-
-          {fieldErrors.sessionId && (
-            <p className="text-xs text-red-400 -mt-3" role="alert">{fieldErrors.sessionId}</p>
-          )}
 
           <MarkdownEditor
             label="Note"
             value={content}
             onChange={setContent}
             placeholder="What happened? What did you discover?..."
-            disabled={isDisabled || isSessionMissing}
+            disabled={isDisabled}
             error={fieldErrors.content}
             minHeight="16rem"
             id="note-modal-editor"
@@ -270,7 +253,7 @@ export function NoteModal({
               className={[
                 'flex flex-wrap items-center gap-1.5 bg-white/[0.04] border rounded-xl px-3 py-2 min-h-[44px] transition-all',
                 'focus-within:border-blue-500/50 border-white/10',
-                (isDisabled || isSessionMissing) ? 'opacity-50 cursor-not-allowed' : '',
+                isDisabled ? 'opacity-50 cursor-not-allowed' : '',
               ].filter(Boolean).join(' ')}
               onClick={() => document.getElementById(tagInputId)?.focus()}
             >
@@ -288,7 +271,7 @@ export function NoteModal({
                     }}
                     className="ml-0.5 text-blue-400/60 hover:text-blue-300 transition-colors"
                     aria-label={`Remove tag ${tag}`}
-                    disabled={isDisabled || isSessionMissing}
+                    disabled={isDisabled}
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -304,7 +287,7 @@ export function NoteModal({
                   if (tagInput.trim()) addTag(tagInput)
                 }}
                 placeholder={tags.length === 0 ? 'Type a tag and press Enter' : ''}
-                disabled={isDisabled || isSessionMissing}
+                disabled={isDisabled}
                 className="flex-1 min-w-[120px] bg-transparent border-none outline-none text-slate-200 text-sm placeholder-slate-700"
                 aria-label="Add tag"
               />
@@ -315,14 +298,14 @@ export function NoteModal({
           </div>
 
           <div className="flex items-center gap-6 pt-2">
-            <label className={`flex items-center gap-3 cursor-pointer group ${isSessionMissing ? 'pointer-events-none opacity-50' : ''}`}>
+            <label className="flex items-center gap-3 cursor-pointer group">
               <input
                 type="radio"
                 name="visibility"
                 checked={!isPublic}
                 onChange={() => setIsPublic(false)}
                 className="sr-only"
-                disabled={isDisabled || isSessionMissing}
+                disabled={isDisabled}
               />
               <div className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
                 !isPublic
@@ -334,14 +317,14 @@ export function NoteModal({
               </div>
             </label>
 
-            <label className={`flex items-center gap-3 cursor-pointer group ${isSessionMissing ? 'pointer-events-none opacity-50' : ''}`}>
+            <label className="flex items-center gap-3 cursor-pointer group">
               <input
                 type="radio"
                 name="visibility"
                 checked={isPublic}
                 onChange={() => setIsPublic(true)}
                 className="sr-only"
-                disabled={isDisabled || isSessionMissing}
+                disabled={isDisabled}
               />
               <div className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
                 isPublic
@@ -405,7 +388,7 @@ export function NoteModal({
             <PixelButton
               variant="primary"
               size="sm"
-              disabled={isDisabled || isSessionMissing}
+              disabled={isDisabled}
               type="submit"
             >
               {isSaving ? 'Saving...' : isLoadingNote ? 'Loading...' : noteId ? 'Update Note' : 'Create Note'}
