@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 export const createNoteSchema = z.object({
   campaignId: z.string().trim().min(1),
-  sessionId: z.string().trim().min(1),
+  sessionId: z.string().trim().min(1).optional(),
   title: z.string().trim().min(1, 'Title is required'),
   note: z.string().trim().min(1, 'Note body is required'),
   tags: z.array(z.string()).optional().default([]),
@@ -12,7 +12,7 @@ export const createNoteSchema = z.object({
 export const updateNoteSchema = z.object({
   id: z.string().trim().min(1),
   campaignId: z.string().trim().min(1),
-  sessionId: z.string().trim().min(1),
+  sessionId: z.string().trim().min(1).optional(),
   title: z.string().trim().min(1, 'Title is required'),
   note: z.string().trim().min(1, 'Note body is required'),
   tags: z.array(z.string()).optional().default([]),

@@ -103,7 +103,7 @@ export function useNote(id: string, campaignId: string) {
 
 interface CreateNoteInput {
   campaignId: string
-  sessionId: string
+  sessionId?: string
   title: string
   note: string
   tags?: string[]
@@ -141,7 +141,7 @@ export function useCreateNote() {
 interface UpdateNoteInput {
   id: string
   campaignId: string
-  sessionId: string
+  sessionId?: string
   title: string
   note: string
   tags?: string[]

@@ -178,6 +178,43 @@ describe('createNote', () => {
     ).rejects.toThrow('Forbidden')
   })
 
+  it('creates a note without sessionId when omitted', async () => {
+    const created = makeNote({ sessionId: undefined })
+    vi.mocked(Note.create).mockResolvedValue(created as never)
+
+    const result = await _createNote({
+      data: {
+        campaignId: 'camp-1',
+        title: 'No Session Note',
+        note: 'body',
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.note.sessionId).toBeUndefined()
+    const createArg = vi.mocked(Note.create).mock.calls[0][0] as Record<string, unknown>
+    expect(createArg).not.toHaveProperty('sessionId')
+  })
+
+  it('does not persist the "__none__" sessionId sentinel', async () => {
+    const created = makeNote({ sessionId: undefined })
+    vi.mocked(Note.create).mockResolvedValue(created as never)
+
+    const result = await _createNote({
+      data: {
+        campaignId: 'camp-1',
+        sessionId: '__none__',
+        title: 'Sentinel Session Note',
+        note: 'body',
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.note.sessionId).toBeUndefined()
+    const createArg = vi.mocked(Note.create).mock.calls[0][0] as Record<string, unknown>
+    expect(createArg).not.toHaveProperty('sessionId')
+  })
+
   it('fires note_created analytics event', async () => {
     vi.mocked(Note.create).mockResolvedValue(makeNote() as never)
 
@@ -218,6 +255,44 @@ describe('updateNote', () => {
     expect(existing.note).toBe('Updated body')
     expect(existing.tags).toEqual(['new-tag'])
     expect(existing.sessionId).toBe('sess-2')
+  })
+
+  it('clears sessionId when omitted from update', async () => {
+    const existing = makeNote()
+    vi.mocked(Note.findById).mockResolvedValue(existing as never)
+
+    const result = await _updateNote({
+      data: {
+        id: 'note-1',
+        campaignId: 'camp-1',
+        title: 'Updated Title',
+        note: 'Updated body',
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(existing.sessionId).toBeUndefined()
+    expect(existing.save).toHaveBeenCalled()
+  })
+
+  it('clears sessionId when update receives the __none__ sentinel', async () => {
+    const existing = makeNote({ sessionId: 'sess-1' })
+    vi.mocked(Note.findById).mockResolvedValue(existing as never)
+
+    const result = await _updateNote({
+      data: {
+        id: 'note-1',
+        campaignId: 'camp-1',
+        sessionId: '__none__',
+        title: 'Updated Title',
+        note: 'Updated body',
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(existing.sessionId).toBeUndefined()
+    expect(existing.sessionId).not.toBe('__none__')
+    expect(existing.save).toHaveBeenCalled()
   })
 
   it('throws when note is not found', async () => {
@@ -405,6 +480,17 @@ describe('listNotes', () => {
     await _listNotes({ data: { campaignId: 'camp-1', search: '   ' } })
 
     expect(vi.mocked(Note.find).mock.calls[0][0]).not.toHaveProperty('$text')
+  })
+
+  it('filters for notes with no session when sessionId is "__none__"', async () => {
+    vi.mocked(Note.find).mockReturnValue({
+      select: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) }),
+    } as never)
+
+    await _listNotes({ data: { campaignId: 'camp-1', sessionId: '__none__' } })
+
+    const filter = vi.mocked(Note.find).mock.calls[0][0] as unknown as Record<string, unknown>
+    expect(filter.sessionId).toEqual({ $exists: false })
   })
 
   it('throws when not authenticated', async () => {
@@ -596,7 +682,7 @@ describe('createNoteSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects whitespace-only sessionId', () => {
+  it('rejects whitespace-only sessionId when provided', () => {
     const result = createNoteSchema.safeParse({
       campaignId: 'camp-1',
       sessionId: '   ',
@@ -606,19 +692,22 @@ describe('createNoteSchema', () => {
     expect(result.success).toBe(false)
   })
 
+  it('accepts when sessionId is omitted', () => {
+    const result = createNoteSchema.safeParse({
+      campaignId: 'camp-1',
+      title: 'Title',
+      note: 'body',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.sessionId).toBeUndefined()
+    }
+  })
+
   it('rejects whitespace-only campaignId', () => {
     const result = createNoteSchema.safeParse({
       campaignId: '   ',
       sessionId: 'sess-1',
-      title: 'Title',
-      note: 'body',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects when sessionId is missing', () => {
-    const result = createNoteSchema.safeParse({
-      campaignId: 'camp-1',
       title: 'Title',
       note: 'body',
     })
@@ -682,6 +771,30 @@ describe('updateNoteSchema', () => {
       note: '   ',
     })
     expect(result.success).toBe(false)
+  })
+
+  it('rejects whitespace-only sessionId when provided', () => {
+    const result = updateNoteSchema.safeParse({
+      id: 'note-1',
+      campaignId: 'camp-1',
+      sessionId: '   ',
+      title: 'Title',
+      note: 'body',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts when sessionId is omitted', () => {
+    const result = updateNoteSchema.safeParse({
+      id: 'note-1',
+      campaignId: 'camp-1',
+      title: 'Title',
+      note: 'body',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.sessionId).toBeUndefined()
+    }
   })
 })
 

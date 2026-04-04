@@ -65,7 +65,7 @@ export function NotesListWidget({
     <div className="flex-1 overflow-y-auto min-h-0">
       <div className="flex flex-col">
         {notes.map((note) => {
-          const session = sessionMap[note.sessionId]
+          const session = note.sessionId ? sessionMap[note.sessionId] : undefined
           return (
             <button
               key={note.id}

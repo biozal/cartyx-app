@@ -1,7 +1,7 @@
 export interface NoteData {
   id: string
   campaignId: string
-  sessionId: string
+  sessionId?: string
   createdBy: string
   title: string
   note: string
@@ -14,7 +14,7 @@ export interface NoteData {
 export interface NoteListItem {
   id: string
   campaignId: string
-  sessionId: string
+  sessionId?: string
   createdBy: string
   title: string
   tags: string[]

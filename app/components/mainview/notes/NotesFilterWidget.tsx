@@ -57,6 +57,7 @@ export function NotesFilterWidget({
             className="w-full bg-[#080A12] border border-white/[0.07] rounded px-2 py-1.5 font-sans font-semibold text-[11px] text-slate-300 outline-none focus:border-blue-500/50 transition-colors"
           >
             <option value="">All Sessions</option>
+            <option value="__none__">No Session</option>
             {sessions.map((session) => (
               <option key={session.id} value={session.id}>
                 Session {session.number}: {session.name}
