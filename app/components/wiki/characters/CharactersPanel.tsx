@@ -1,7 +1,111 @@
+import { useState } from 'react'
+import { useParams } from '@tanstack/react-router'
+import { Users } from 'lucide-react'
+import { WikiCategoryHeader } from '~/components/wiki/shared/WikiCategoryHeader'
+import { WikiFilterBar } from '~/components/wiki/shared/WikiFilterBar'
+import { CharacterCard } from './CharacterCard'
+import { CharacterModal } from './CharacterModal'
+import { useCharacters } from '~/hooks/useCharacters'
+import { useCampaign } from '~/hooks/useCampaigns'
+import type { CharacterListItem } from '~/types/character'
+
 interface CharactersPanelProps {
   onBack: () => void
 }
 
 export function CharactersPanel({ onBack }: CharactersPanelProps) {
-  return <div>Characters panel placeholder</div>
+  const { campaignId } = useParams({ from: '/campaigns/$campaignId/play' })
+  const { campaign } = useCampaign(campaignId)
+
+  const [search, setSearch] = useState('')
+  const [sessionId, setSessionId] = useState('')
+  const [visibility, setVisibility] = useState<'all' | 'public' | 'private'>('all')
+  const [filterTags, setFilterTags] = useState<string[]>([])
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | undefined>()
+
+  const sessions = campaign?.sessions ?? []
+
+  const { characters, isLoading, error } = useCharacters(campaignId, {
+    search: search || undefined,
+    sessionId: sessionId || undefined,
+    visibility,
+    tags: filterTags.length > 0 ? filterTags : undefined,
+  })
+
+  const handleCreateClick = () => {
+    setSelectedCharacterId(undefined)
+    setIsModalOpen(true)
+  }
+
+  const handleCharacterClick = (character: CharacterListItem) => {
+    setSelectedCharacterId(character.id)
+    setIsModalOpen(true)
+  }
+
+  const handleModalClose = () => {
+    setIsModalOpen(false)
+    setSelectedCharacterId(undefined)
+  }
+
+  return (
+    <div className="flex flex-col h-full w-full bg-[#080A12]">
+      <WikiCategoryHeader title="Characters" onBack={onBack} />
+      <WikiFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        sessionId={sessionId}
+        onSessionChange={setSessionId}
+        visibility={visibility}
+        onVisibilityChange={setVisibility}
+        sessions={sessions}
+        onCreateClick={handleCreateClick}
+        campaignId={campaignId}
+        filterTags={filterTags}
+        onFilterTagsChange={setFilterTags}
+        searchPlaceholder="Search characters..."
+      />
+
+      {isLoading ? (
+        <div className="flex flex-1 items-center justify-center p-8">
+          <p className="font-sans font-semibold text-xs text-slate-500 animate-pulse">
+            Loading characters...
+          </p>
+        </div>
+      ) : error ? (
+        <div className="flex flex-1 items-center justify-center p-8 text-center">
+          <p className="font-sans font-semibold text-xs text-rose-400">{error}</p>
+        </div>
+      ) : characters.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+          <div className="h-12 w-12 rounded-full bg-white/[0.03] flex items-center justify-center mb-3">
+            <Users className="h-6 w-6 text-slate-600" />
+          </div>
+          <p className="font-sans font-semibold text-xs text-slate-500">
+            No characters found matching your filters.
+          </p>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex flex-col">
+            {characters.map((character) => (
+              <CharacterCard
+                key={character.id}
+                character={character}
+                onClick={handleCharacterClick}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <CharacterModal
+        isOpen={isModalOpen}
+        onClose={handleModalClose}
+        campaignId={campaignId}
+        characterId={selectedCharacterId}
+        sessions={sessions}
+      />
+    </div>
+  )
 }
