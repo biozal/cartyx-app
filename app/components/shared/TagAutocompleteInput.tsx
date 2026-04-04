@@ -24,7 +24,14 @@ export function TagAutocompleteInput({
   const [highlightIndex, setHighlightIndex] = useState(-1)
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputId = useId()
+
+  useEffect(() => {
+    return () => {
+      if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current)
+    }
+  }, [])
 
   const suggestions = allTags
     .filter((t) => !selectedTags.includes(t.name))
@@ -84,7 +91,8 @@ export function TagAutocompleteInput({
 
   const handleBlur = useCallback(() => {
     // Delay to allow click on dropdown item to fire first
-    setTimeout(() => {
+    if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current)
+    blurTimeoutRef.current = setTimeout(() => {
       if (input.trim()) {
         addTag(input)
       }

@@ -278,7 +278,10 @@ export const listNotes = createServerFn({ method: 'GET' })
       }
 
       if (data.tags && data.tags.length > 0) {
-        filter.tags = { $all: data.tags }
+        const normalizedTags = [...new Set(normalizeTags(data.tags))]
+        if (normalizedTags.length > 0) {
+          filter.tags = { $all: normalizedTags }
+        }
       }
 
       const docs = await Note.find(filter)
