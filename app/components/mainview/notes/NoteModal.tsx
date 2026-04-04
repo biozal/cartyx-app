@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useId } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Globe, Lock } from 'lucide-react'
 import { FormInput } from '~/components/FormInput'
@@ -7,6 +7,7 @@ import { PixelButton } from '~/components/PixelButton'
 import { MarkdownEditor } from '~/components/shared/MarkdownEditor'
 import type { CampaignData } from '~/types/campaign'
 import { useCreateNote, useUpdateNote, useDeleteNote, useNote } from '~/hooks/useNotes'
+import { TagAutocompleteInput } from '~/components/shared/TagAutocompleteInput'
 
 interface NoteModalProps {
   isOpen: boolean
@@ -39,14 +40,11 @@ export function NoteModal({
   const [sessionId, setSessionId] = useState('')
   const [content, setContent] = useState('')
   const [tags, setTags] = useState<string[]>([])
-  const [tagInput, setTagInput] = useState('')
   const [isPublic, setIsPublic] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [hasSubmitted, setHasSubmitted] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-
-  const tagInputId = useId()
 
   // Reset form to blank when switching noteId or opening the modal,
   // so stale values from a previous note never flash.
@@ -57,7 +55,6 @@ export function NoteModal({
     setContent('')
     setTags([])
     setIsPublic(false)
-    setTagInput('')
     setError(null)
     setFieldErrors({})
     setHasSubmitted(false)
@@ -96,27 +93,6 @@ export function NoteModal({
     }
   }, [hasSubmitted, validate])
 
-  const addTag = useCallback((raw: string) => {
-    const cleaned = raw.replace(/^#/, '').trim().toLowerCase()
-    if (cleaned) {
-      setTags((prev) => (prev.includes(cleaned) ? prev : [...prev, cleaned]))
-    }
-    setTagInput('')
-  }, [])
-
-  const handleTagKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault()
-      addTag(tagInput)
-    } else if (e.key === 'Backspace' && tagInput === '') {
-      setTags((prev) => (prev.length > 0 ? prev.slice(0, -1) : prev))
-    }
-  }, [tagInput, addTag])
-
-  const removeTag = useCallback((tagToRemove: string) => {
-    setTags((prev) => prev.filter((t) => t !== tagToRemove))
-  }, [])
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setHasSubmitted(true)
@@ -126,21 +102,11 @@ export function NoteModal({
     setFieldErrors(errors)
     if (Object.keys(errors).length > 0) return
 
-    // Flush any pending tag input into state so it's visible and not reprocessed
-    const pendingTag = tagInput.replace(/^#/, '').trim().toLowerCase()
-    let finalTags = tags
-    if (pendingTag) {
-      const merged = tags.includes(pendingTag) ? tags : [...tags, pendingTag]
-      setTags(merged)
-      setTagInput('')
-      finalTags = merged
-    }
-
     const input = {
       campaignId,
       title: title.trim(),
       note: content.trim(),
-      tags: finalTags,
+      tags,
       isPublic,
       ...(sessionId ? { sessionId } : {}),
     }
@@ -243,56 +209,20 @@ export function NoteModal({
             id="note-modal-editor"
           />
 
-          {/* Tag chips input */}
+          {/* Tags */}
           <div>
-            <label htmlFor={tagInputId} className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+            <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
               Tags
             </label>
-            <div
-              className={[
-                'flex flex-wrap items-center gap-1.5 bg-white/[0.04] border rounded-xl px-3 py-2 min-h-[44px] transition-all',
-                'focus-within:border-blue-500/50 border-white/10',
-                isDisabled ? 'opacity-50 cursor-not-allowed' : '',
-              ].filter(Boolean).join(' ')}
-              onClick={() => document.getElementById(tagInputId)?.focus()}
-            >
-              {tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-sans font-bold text-[11px] tracking-tight"
-                >
-                  #{tag}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      removeTag(tag)
-                    }}
-                    className="ml-0.5 text-blue-400/60 hover:text-blue-300 transition-colors"
-                    aria-label={`Remove tag ${tag}`}
-                    disabled={isDisabled}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
-              <input
-                id={tagInputId}
-                type="text"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={handleTagKeyDown}
-                onBlur={() => {
-                  if (tagInput.trim()) addTag(tagInput)
-                }}
-                placeholder={tags.length === 0 ? 'Type a tag and press Enter' : ''}
-                disabled={isDisabled}
-                className="flex-1 min-w-[120px] bg-transparent border-none outline-none text-slate-200 text-sm placeholder-slate-700"
-                aria-label="Add tag"
-              />
-            </div>
+            <TagAutocompleteInput
+              campaignId={campaignId}
+              selectedTags={tags}
+              onTagsChange={setTags}
+              placeholder="Type a tag and press Enter"
+              disabled={isDisabled}
+            />
             <p className="text-xs text-slate-700 mt-1.5">
-              Tags are displayed with # prefix. Press Enter or comma to add.
+              Press Enter or comma to add. Suggestions appear as you type.
             </p>
           </div>
 
