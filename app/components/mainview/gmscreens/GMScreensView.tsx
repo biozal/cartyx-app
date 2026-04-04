@@ -355,6 +355,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
           return {
             ...existing,
             title,
+            contentKey: markdownContent,
             className: flashWindowId === existing.id ? 'animate-flash-border' : '',
             content: windowContent,
           }
@@ -364,6 +365,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
         return {
           id: w.id,
           title,
+          contentKey: markdownContent,
           position: w.x != null && w.y != null ? { x: w.x, y: w.y } : undefined,
           size: w.width != null && w.height != null ? { width: w.width, height: w.height } : undefined,
           state: toFloatingState(w.state),
@@ -376,7 +378,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
       // Only update if the window set or titles changed (avoid unnecessary renders)
       if (
         prev.length === merged.length &&
-        prev.every((p, i) => p.id === merged[i].id && p.title === merged[i].title && p.className === merged[i].className) &&
+        prev.every((p, i) => p.id === merged[i].id && p.title === merged[i].title && p.contentKey === merged[i].contentKey && p.className === merged[i].className) &&
         serverIds.size === prev.length
       ) {
         return prev
