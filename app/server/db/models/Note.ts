@@ -10,7 +10,7 @@ const noteSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
-  sessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Session', required: true },
+  sessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Session', required: false },
   campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign', required: true },
 })
 
