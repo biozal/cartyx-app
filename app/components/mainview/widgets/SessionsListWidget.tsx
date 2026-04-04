@@ -1,6 +1,5 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faBookOpen } from '@fortawesome/pro-solid-svg-icons'
-import { useParams } from '@tanstack/react-router'
 import { Widget } from '~/components/mainview/Widget'
 import { useCampaign } from '~/hooks/useCampaigns'
 import type { CampaignData } from '~/types/campaign'
@@ -10,12 +9,12 @@ export type { Session }
 
 export interface SessionsListWidgetProps {
   sessions?: ReadonlyArray<Readonly<Session>>
+  campaignId?: string
   className?: string
 }
 
-export function SessionsListWidget({ sessions: sessionsProp, className = '' }: SessionsListWidgetProps) {
-  const { campaignId } = useParams({ from: '/campaigns/$campaignId/play' })
-  const { campaign, isLoading, error: fetchError } = useCampaign(campaignId)
+export function SessionsListWidget({ sessions: sessionsProp, campaignId, className = '' }: SessionsListWidgetProps) {
+  const { campaign, isLoading, error: fetchError } = useCampaign(campaignId ?? '')
 
   const sessions = sessionsProp ?? campaign?.sessions ?? []
   const error = fetchError && !sessionsProp ? fetchError : null

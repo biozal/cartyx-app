@@ -55,9 +55,9 @@ Uses the existing `updateWindow` mutation. No new server logic.
 | `app/components/mainview/gmscreens/GMScreensView.tsx` | Add `onDragOver`, `onDragLeave`, `onDrop` handlers with position calculation, duplicate check, highlight state |
 | CSS (existing stylesheet or inline) | Dragging opacity class, drop zone highlight, duplicate flash animation |
 
-## No Server Changes
+## Server Changes
 
-The existing `openWindow` and `updateWindow` server functions and mutations handle all persistence. No schema, API, or validation changes needed.
+Optional `x` and `y` fields were added to the `openWindow` Zod schema, server function, and client mutation so drop position can be persisted in a single round trip. The `updateWindow` function was already sufficient for subsequent position/size updates. No new endpoints or model changes were needed.
 
 ## Out of Scope
 

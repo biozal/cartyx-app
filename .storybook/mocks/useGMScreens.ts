@@ -1,5 +1,5 @@
 // Mock useGMScreens hooks for Storybook
-import type { GMScreenData, GMScreenDetailData } from '../../app/server/functions/gmscreens'
+import type { GMScreenData, GMScreenDetailData } from '../../app/types/gmscreen'
 
 const MOCK_SCREENS: GMScreenData[] = [
   { id: 'screen-1', campaignId: 'camp-1', name: 'Combat Tracker', tabOrder: 0, createdBy: 'user-1', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
