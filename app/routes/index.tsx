@@ -129,6 +129,11 @@ function LandingPage() {
             Authentication failed. Please try again.
           </div>
         )}
+        {reason === 'internal_error' && (
+          <div className="w-full mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-center">
+            An internal server error occurred. Please try again later or contact support if the problem persists.
+          </div>
+        )}
         {reason === 'session_expired' && (
           <div className="w-full mb-4 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm text-center">
             Your session has expired. Please sign in again.
