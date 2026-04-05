@@ -19,12 +19,7 @@ interface FieldErrors {
   content?: string;
 }
 
-export function RuleModal({
-  isOpen,
-  onClose,
-  campaignId,
-  ruleId,
-}: RuleModalProps) {
+export function RuleModal({ isOpen, onClose, campaignId, ruleId }: RuleModalProps) {
   const { rule: fetchedRule, isLoading: isFetchingRule } = useRule(ruleId ?? '', campaignId);
   const { create, isLoading: isCreating } = useCreateRule();
   const { update, isLoading: isUpdating } = useUpdateRule();
