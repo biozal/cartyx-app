@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo, type DragEvent } from 'react'
+import React, { useState, useCallback, useRef, useEffect, useMemo, type DragEvent } from 'react'
 import { Plus, Layers, Loader2, AlertTriangle, Pencil } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'

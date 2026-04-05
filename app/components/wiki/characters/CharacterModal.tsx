@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Globe, Lock } from 'lucide-react'
 import { FormInput } from '~/components/FormInput'
@@ -15,7 +15,7 @@ import {
 } from '~/hooks/useCharacters'
 import type { CampaignData } from '~/types/campaign'
 import type { PictureCrop } from '~/types/character'
-import { getUploadUrl } from '~/server/functions/uploads'
+import { uploadToR2 } from '~/utils/uploadToR2'
 
 interface CharacterModalProps {
   isOpen: boolean
@@ -135,15 +135,8 @@ export function CharacterModal({
   }, [hasSubmitted, validate])
 
   const handleUpload = useCallback(async (file: File): Promise<string> => {
-    const result = await getUploadUrl({
-      data: { contentType: file.type, subdir: 'uploads/characters' },
-    })
-    await fetch(result.uploadUrl, {
-      method: 'PUT',
-      body: file,
-      headers: { 'Content-Type': file.type },
-    })
-    return result.publicUrl
+    const { publicUrl } = await uploadToR2(file, 'uploads/characters')
+    return publicUrl
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
