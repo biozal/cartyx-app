@@ -79,14 +79,14 @@ React Compiler 1.0 shipped stable October 2025. **This project already has it co
 
 ### Tier 1 — Do This Week (high value, easy effort)
 
-| Tool                                             | What                                          | Effort              |
-| ------------------------------------------------ | --------------------------------------------- | ------------------- |
-| Fix CI trigger for `dev` branch                  | Change one line in `.github/workflows/ci.yml` | 1 min               |
-| `npm audit --audit-level=high` in CI             | Add one step to ci.yml                        | 5 min               |
-| `@tanstack/eslint-plugin-query`                  | Validates Query usage, catches real bugs      | 15 min              |
-| `eslint-plugin-react-compiler`                   | Catches code the compiler can't optimize      | 15 min              |
-| `noUncheckedIndexedAccess` in tsconfig           | Forces `T \| undefined` on index access       | 30 min (fix errors) |
-| `forceConsistentCasingInFileImports` in tsconfig | Prevents macOS/Linux path mismatches          | 5 min               |
+| Tool                                           | What                                                                                                                                                                                            | Effort |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Fix CI trigger for `dev` branch                | Change one line in `.github/workflows/ci.yml`                                                                                                                                                   | 1 min  |
+| `npm audit --audit-level=high` in CI           | Add one step to ci.yml                                                                                                                                                                          | 5 min  |
+| `@tanstack/eslint-plugin-query`                | Validates Query usage, catches real bugs                                                                                                                                                        | 15 min |
+| `eslint-plugin-react-compiler`                 | Catches code the compiler can't optimize                                                                                                                                                        | 15 min |
+| ~~`noUncheckedIndexedAccess` in tsconfig~~     | ~~Forces `T \| undefined` on index access~~ — **Reverted**: required 80+ `as any` casts on Mongoose queries, making server layer less safe. Revisit after adding typed Mongoose model generics. | N/A    |
+| `forceConsistentCasingInFileNames` in tsconfig | Prevents macOS/Linux path mismatches — **Done**                                                                                                                                                 | 5 min  |
 
 ### Tier 2 — Do This Month (high value, medium effort)
 
