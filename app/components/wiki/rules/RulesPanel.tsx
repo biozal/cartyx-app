@@ -63,12 +63,13 @@ export function RulesPanel({ onBack }: RulesPanelProps) {
         onSearchChange={setSearch}
         visibility={visibility}
         onVisibilityChange={setVisibility}
-        onCreateClick={handleCreateClick}
+        onCreateClick={isGM ? handleCreateClick : undefined}
         campaignId={campaignId}
         filterTags={filterTags}
         onFilterTagsChange={setFilterTags}
         searchPlaceholder="Search rules..."
         showSessionFilter={false}
+        showVisibilityFilter={isGM}
       />
 
       {isLoading ? (
