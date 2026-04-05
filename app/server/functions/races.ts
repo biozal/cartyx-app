@@ -122,8 +122,8 @@ export const createRace = createServerFn({ method: 'POST' })
       }
 
       serverCaptureEvent(sessionUserId!, 'race_created', {
-        campaignId: data.campaignId,
-        raceId: String(race._id),
+        campaign_id: data.campaignId,
+        race_id: String(race._id),
       });
 
       return { ...serializeRace(race), canEdit: true } as RaceData;
@@ -169,8 +169,8 @@ export const updateRace = createServerFn({ method: 'POST' })
       }
 
       serverCaptureEvent(sessionUserId!, 'race_updated', {
-        campaignId: data.campaignId,
-        raceId: data.id,
+        campaign_id: data.campaignId,
+        race_id: data.id,
       });
 
       return { ...serializeRace(race), canEdit: true } as RaceData;
@@ -200,12 +200,21 @@ export const deleteRace = createServerFn({ method: 'POST' })
 
       await race.deleteOne();
 
-      // Best-effort cleanup of GM screen references
-      removeDocumentRefsFromScreens(data.campaignId, 'race', data.id).catch(() => {});
+      // Best-effort cleanup of GM screen references — the race is already deleted,
+      // so cleanup failure must not surface as a user-facing error; report it and move on.
+      try {
+        await removeDocumentRefsFromScreens(data.campaignId, 'race', data.id);
+      } catch (cleanupError) {
+        serverCaptureException(cleanupError, sessionUserId, {
+          action: 'deleteRace.cleanup',
+          campaign_id: data.campaignId,
+          race_id: data.id,
+        });
+      }
 
       serverCaptureEvent(sessionUserId!, 'race_deleted', {
-        campaignId: data.campaignId,
-        raceId: data.id,
+        campaign_id: data.campaignId,
+        race_id: data.id,
       });
 
       return { success: true };
@@ -236,13 +245,13 @@ export const listRaces = createServerFn({ method: 'GET' })
       }
 
       if (data.tags && data.tags.length > 0) {
-        filter.tags = { $all: normalizeTags(data.tags) };
+        const normalizedTags = [...new Set(normalizeTags(data.tags))];
+        if (normalizedTags.length > 0) {
+          filter.tags = { $all: normalizedTags };
+        }
       }
 
-      const races = await Race.find(filter)
-        .select('-content')
-        .sort({ updatedAt: -1 })
-        .lean();
+      const races = await Race.find(filter).select('-content').sort({ updatedAt: -1 }).lean();
 
       return races.map((r) => ({
         ...serializeRaceListItem(r),

@@ -51,7 +51,7 @@ export function CharacterModal({
   const { create, isLoading: isCreating } = useCreateCharacter();
   const { update, isLoading: isUpdating } = useUpdateCharacter();
   const { remove, isLoading: isDeleting } = useDeleteCharacter();
-  const { races } = useRaces(campaignId);
+  const { races } = useRaces(campaignId, { enabled: isOpen });
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -73,14 +73,15 @@ export function CharacterModal({
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Close on Escape key
+  // Close on Escape key — only active when modal is open to avoid interfering with other dialogs
   useEffect(() => {
+    if (!isOpen) return;
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [onClose]);
+  }, [isOpen, onClose]);
 
   // Reset form when opening — clears stale values from a previous character
   useEffect(() => {

@@ -58,6 +58,7 @@ const deleteRaceFn = createServerFn({ method: 'POST' })
 interface ListRacesFilters {
   search?: string;
   tags?: string[];
+  enabled?: boolean;
 }
 
 export function useRaces(campaignId: string, filters?: ListRacesFilters) {
@@ -78,7 +79,7 @@ export function useRaces(campaignId: string, filters?: ListRacesFilters) {
           tags,
         },
       }),
-    enabled: !!campaignId,
+    enabled: (filters?.enabled ?? true) && !!campaignId,
   });
 
   return {
