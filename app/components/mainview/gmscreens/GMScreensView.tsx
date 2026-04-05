@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useEffect, useMemo, type DragEvent } from 'react'
-import { Plus, Layers, Loader2, AlertTriangle } from 'lucide-react'
+import React, { useState, useCallback, useRef, useEffect, useMemo, type DragEvent } from 'react'
+import { Plus, Layers, Loader2, AlertTriangle, Pencil } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useGMScreenList, useGMScreenDetail, useGMScreenMutations } from '~/hooks/useGMScreens'
@@ -7,6 +7,10 @@ import { FloatingWindowManager, type ManagedWindow } from '~/components/mainview
 import type { FloatingWindowState } from '~/components/mainview/FloatingWindow'
 import type { WindowState } from '~/types/gmscreen'
 import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses'
+import { CharacterWindow } from '~/components/wiki/characters/CharacterWindow'
+import { CharacterModal } from '~/components/wiki/characters/CharacterModal'
+import { useCharacter } from '~/hooks/useCharacters'
+import { useCampaign } from '~/hooks/useCampaigns'
 import { ScreenBar } from './ScreenBar'
 import { StackCard } from './StackCard'
 import { ScreenNameDialog } from './ScreenNameDialog'
@@ -40,11 +44,76 @@ function toFloatingState(state: string): FloatingWindowState {
   return 'normal'
 }
 
+function EditCharacterModalWrapper({
+  campaignId,
+  characterId,
+  onClose,
+}: {
+  campaignId: string
+  characterId: string
+  onClose: () => void
+}) {
+  const { campaign } = useCampaign(campaignId)
+  const sessions = campaign?.sessions ?? []
+  return (
+    <CharacterModal
+      isOpen
+      onClose={onClose}
+      campaignId={campaignId}
+      characterId={characterId}
+      sessions={sessions}
+    />
+  )
+}
+
+function CharacterWindowWrapper({
+  characterId,
+  campaignId,
+  onEdit,
+}: {
+  characterId: string
+  campaignId: string
+  onEdit: () => void
+}) {
+  const { character, isLoading } = useCharacter(characterId, campaignId)
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-xs text-slate-500 animate-pulse">Loading character...</p>
+      </div>
+    )
+  }
+
+  if (!character) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-xs text-slate-500">Character not found</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative h-full">
+      <button
+        type="button"
+        onClick={onEdit}
+        className="absolute top-2 right-2 z-10 p-1.5 rounded bg-white/[0.05] hover:bg-white/[0.1] text-slate-400 hover:text-white transition-colors"
+        aria-label="Edit character"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+      <CharacterWindow character={character} />
+    </div>
+  )
+}
+
 export function GMScreensView({ campaignId }: GMScreensViewProps) {
   const { screens, isLoading: listLoading, error: listError } = useGMScreenList(campaignId)
   const [activeScreenId, setActiveScreenId] = useState<string | null>(null)
   const [dialog, setDialog] = useState<DialogState>({ type: 'none' })
   const mutations = useGMScreenMutations(campaignId)
+  const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [flashWindowId, setFlashWindowId] = useState<string | null>(null)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -352,13 +421,25 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
         const title = doc?.title || key
         const markdownContent = doc?.content || ''
 
-        const windowContent = (
-          <div className="p-4 overflow-auto h-full">
-            <div className={MARKDOWN_PROSE_CLASSES}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdownContent}</ReactMarkdown>
+        let windowContent: React.ReactNode
+
+        if (w.collection === 'character') {
+          windowContent = (
+            <CharacterWindowWrapper
+              characterId={w.documentId}
+              campaignId={campaignId}
+              onEdit={() => setEditingCharacterId(w.documentId)}
+            />
+          )
+        } else {
+          windowContent = (
+            <div className="p-4 overflow-auto h-full">
+              <div className={MARKDOWN_PROSE_CLASSES}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdownContent}</ReactMarkdown>
+              </div>
             </div>
-          </div>
-        )
+          )
+        }
 
         const existing = prevById.get(w.id)
         if (existing) {
@@ -397,7 +478,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
 
       return merged
     })
-  }, [activeScreen, activeScreenId, flashWindowId])
+  }, [activeScreen, activeScreenId, flashWindowId, campaignId])
 
   // --- Render ---
 
@@ -596,6 +677,14 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
           onCancel={() => setDialog({ type: 'none' })}
           isLoading={mutations.createStack.isPending}
           error={mutations.createStack.error?.message ?? null}
+        />
+      )}
+
+      {editingCharacterId !== null && (
+        <EditCharacterModalWrapper
+          campaignId={campaignId}
+          characterId={editingCharacterId}
+          onClose={() => setEditingCharacterId(null)}
         />
       )}
     </div>

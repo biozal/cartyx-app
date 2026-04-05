@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { within, userEvent } from 'storybook/test'
-import { WikiPanel } from './WikiPanel'
+import { WikiPanel } from '~/components/wiki/WikiPanel'
 
 const meta: Meta<typeof WikiPanel> = {
-  title: 'Components/MainView/WikiPanel',
+  title: 'Components/Wiki/WikiPanel',
   component: WikiPanel,
   tags: ['autodocs'],
   parameters: {

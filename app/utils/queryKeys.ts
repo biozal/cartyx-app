@@ -23,6 +23,12 @@ export const queryKeys = {
       ['notes', 'list', campaignId, sessionId ?? '', search ?? '', visibility ?? 'all', tags ?? []] as const,
     detail: (id: string) => ['notes', 'detail', id] as const,
   },
+  characters: {
+    all: ['characters'] as const,
+    list: (campaignId: string, sessionId?: string, search?: string, visibility?: string, tags?: string[]) =>
+      ['characters', 'list', campaignId, sessionId ?? '', search ?? '', visibility ?? 'all', tags ?? []] as const,
+    detail: (id: string) => ['characters', 'detail', id] as const,
+  },
   tags: {
     all: ['tags'] as const,
     list: (campaignId: string) => ['tags', 'list', campaignId] as const,

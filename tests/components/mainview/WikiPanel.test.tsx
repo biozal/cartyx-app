@@ -1,65 +1,48 @@
 import React from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { WikiPanel } from '~/components/mainview/WikiPanel'
+import { WikiPanel } from '~/components/wiki/WikiPanel'
 
-const CATEGORY_NAMES = [
-  'Characters',
-  'Locations',
-  'Organizations',
-  'Lore',
-  'Creatures',
-  'Races',
-  'Calendar',
-  'Events',
-  'Notes',
-  'Quests',
-  'Objects',
-  'Art Gallery',
-]
+// Mock CharactersPanel since it requires routing/campaign context
+vi.mock('~/components/wiki/characters/CharactersPanel', () => ({
+  CharactersPanel: ({ onBack }: { onBack: () => void }) => (
+    <div data-testid="characters-panel">
+      <button onClick={onBack}>Back</button>
+    </div>
+  ),
+}))
 
 describe('WikiPanel', () => {
-  it('renders all 12 category buttons', () => {
+  it('renders the Characters category button', () => {
     render(<WikiPanel />)
 
-    expect(screen.getAllByRole('button')).toHaveLength(12)
-
-    CATEGORY_NAMES.forEach((category) => {
-      expect(screen.getByRole('button', { name: category })).toBeInTheDocument()
-    })
+    expect(screen.getByRole('button', { name: 'Characters' })).toBeInTheDocument()
   })
 
-  it('clicking a category shows Coming Soon content', async () => {
+  it('only shows Characters category (no other categories)', () => {
+    render(<WikiPanel />)
+
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+  })
+
+  it('clicking Characters shows CharactersPanel', async () => {
     const user = userEvent.setup()
     render(<WikiPanel />)
 
     await user.click(screen.getByRole('button', { name: 'Characters' }))
 
-    expect(screen.getByText('Characters - Coming Soon')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
+    expect(screen.getByTestId('characters-panel')).toBeInTheDocument()
   })
 
-  it('Back button returns to category list', async () => {
+  it('CharactersPanel onBack returns to category list', async () => {
     const user = userEvent.setup()
     render(<WikiPanel />)
 
     await user.click(screen.getByRole('button', { name: 'Characters' }))
     await user.click(screen.getByRole('button', { name: 'Back' }))
 
-    expect(screen.queryByText('Characters - Coming Soon')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument()
-    expect(screen.getAllByRole('button')).toHaveLength(12)
-  })
-
-  it('highlights the selected category', async () => {
-    const user = userEvent.setup()
-    render(<WikiPanel />)
-
-    const charactersButton = screen.getByRole('button', { name: 'Characters' })
-    await user.click(charactersButton)
-
-    expect(charactersButton).toHaveAttribute('aria-pressed', 'true')
-    expect(charactersButton).toHaveClass('bg-white/[0.05]')
+    expect(screen.queryByTestId('characters-panel')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Characters' })).toBeInTheDocument()
   })
 })

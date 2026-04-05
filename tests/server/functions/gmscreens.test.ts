@@ -44,6 +44,11 @@ vi.mock('~/server/db/models/Note', () => ({
     find: vi.fn(),
   },
 }))
+vi.mock('~/server/db/models/Character', () => ({
+  Character: {
+    find: vi.fn(),
+  },
+}))
 vi.mock('~/server/utils/posthog', () => ({
   serverCaptureException: vi.fn(),
   serverCaptureEvent: vi.fn(),
