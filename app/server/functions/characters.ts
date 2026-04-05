@@ -38,7 +38,7 @@ function serializeCharacter(c: {
   sessions?: unknown[];
   createdAt?: Date;
   updatedAt?: Date;
-}): CharacterData {
+}): Omit<CharacterData, 'canEdit'> {
   return {
     id: String(c._id),
     campaignId: String(c.campaignId),
@@ -89,7 +89,7 @@ function serializeCharacterListItem(c: {
   sessions?: unknown[];
   createdAt?: Date;
   updatedAt?: Date;
-}): CharacterListItem {
+}): Omit<CharacterListItem, 'canEdit'> {
   return {
     id: String(c._id),
     campaignId: String(c.campaignId),
@@ -200,7 +200,7 @@ export const createCharacter = createServerFn({ method: 'POST' })
         character_id: String(doc._id),
       });
 
-      return { success: true, character: serializeCharacter(doc) };
+      return { success: true, character: { ...serializeCharacter(doc), canEdit: true } };
     } catch (e) {
       serverCaptureException(e, sessionUserId, {
         action: 'createCharacter',
@@ -228,7 +228,7 @@ export const updateCharacter = createServerFn({ method: 'POST' })
       const existing = await Character.findById(data.id);
       if (!existing) throw new Error('Character not found');
       if (String(existing.campaignId) !== data.campaignId) throw new Error('Forbidden');
-      if (String(existing.createdBy) !== userId) throw new Error('Forbidden');
+      if (String(existing.createdBy) !== userId && !member.isGM) throw new Error('Forbidden');
 
       const finalTags = normalizeTags(data.tags ?? []);
       existing.sessionId =
@@ -261,7 +261,7 @@ export const updateCharacter = createServerFn({ method: 'POST' })
         updated_by: userId,
       });
 
-      return { success: true, character: serializeCharacter(existing) };
+      return { success: true, character: { ...serializeCharacter(existing), canEdit: true } };
     } catch (e) {
       serverCaptureException(e, sessionUserId, { action: 'updateCharacter', characterId: data.id });
       throw e;
@@ -286,7 +286,7 @@ export const deleteCharacter = createServerFn({ method: 'POST' })
       const existing = await Character.findById(data.id);
       if (!existing) throw new Error('Character not found');
       if (String(existing.campaignId) !== data.campaignId) throw new Error('Forbidden');
-      if (String(existing.createdBy) !== userId) throw new Error('Forbidden');
+      if (String(existing.createdBy) !== userId && !member.isGM) throw new Error('Forbidden');
 
       await existing.deleteOne();
 
@@ -349,9 +349,16 @@ export const listCharacters = createServerFn({ method: 'GET' })
         };
       }
 
-      // Visibility filter
+      // Visibility filter — GMs can see all characters in their campaign
       let visibilityCondition: Record<string, unknown> | undefined;
-      if (data.visibility === 'public') {
+      if (member.isGM) {
+        // GMs see everything; only narrow when explicitly filtering
+        if (data.visibility === 'public') {
+          filter.isPublic = true;
+        } else if (data.visibility === 'private') {
+          filter.isPublic = false;
+        }
+      } else if (data.visibility === 'public') {
         filter.isPublic = true;
       } else if (data.visibility === 'private') {
         filter.isPublic = false;
@@ -407,7 +414,10 @@ export const listCharacters = createServerFn({ method: 'GET' })
           createdAt?: Date;
           updatedAt?: Date;
         }>
-      ).map(serializeCharacterListItem);
+      ).map((doc) => ({
+        ...serializeCharacterListItem(doc),
+        canEdit: String(doc.createdBy) === userId || member.isGM,
+      }));
     } catch (e) {
       serverCaptureException(e, sessionUserId, {
         action: 'listCharacters',
@@ -436,8 +446,8 @@ export const getCharacter = createServerFn({ method: 'GET' })
       if (!doc) return null;
       if (String(doc.campaignId) !== data.campaignId) return null;
 
-      // Private characters are only visible to the creator
-      if (!doc.isPublic && String(doc.createdBy) !== userId) {
+      // Private characters are only visible to the creator and GMs
+      if (!doc.isPublic && String(doc.createdBy) !== userId && !member.isGM) {
         return null;
       }
 
@@ -448,7 +458,8 @@ export const getCharacter = createServerFn({ method: 'GET' })
         serialized.gmNotes = '';
       }
 
-      return serialized;
+      const canEdit = String(doc.createdBy) === userId || member.isGM;
+      return { ...serialized, canEdit };
     } catch (e) {
       serverCaptureException(e, sessionUserId, { action: 'getCharacter', characterId: data.id });
       throw e;

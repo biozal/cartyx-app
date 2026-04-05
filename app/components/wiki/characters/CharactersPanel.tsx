@@ -1,52 +1,62 @@
-import { useState } from 'react'
-import { useParams } from '@tanstack/react-router'
-import { Users } from 'lucide-react'
-import { WikiCategoryHeader } from '~/components/wiki/shared/WikiCategoryHeader'
-import { WikiFilterBar } from '~/components/wiki/shared/WikiFilterBar'
-import { CharacterCard } from './CharacterCard'
-import { CharacterModal } from './CharacterModal'
-import { useCharacters } from '~/hooks/useCharacters'
-import { useCampaign } from '~/hooks/useCampaigns'
-import type { CharacterListItem } from '~/types/character'
+import { useState } from 'react';
+import { useParams } from '@tanstack/react-router';
+import { Users } from 'lucide-react';
+import { WikiCategoryHeader } from '~/components/wiki/shared/WikiCategoryHeader';
+import { WikiFilterBar } from '~/components/wiki/shared/WikiFilterBar';
+import { CharacterCard } from './CharacterCard';
+import { CharacterModal } from './CharacterModal';
+import { CharacterViewModal } from './CharacterViewModal';
+import { useCharacters } from '~/hooks/useCharacters';
+import { useCampaign } from '~/hooks/useCampaigns';
+import type { CharacterListItem } from '~/types/character';
 
 interface CharactersPanelProps {
-  onBack: () => void
+  onBack: () => void;
 }
 
 export function CharactersPanel({ onBack }: CharactersPanelProps) {
-  const { campaignId } = useParams({ from: '/campaigns/$campaignId/play' })
-  const { campaign } = useCampaign(campaignId)
+  const { campaignId } = useParams({ from: '/campaigns/$campaignId/play' });
+  const { campaign } = useCampaign(campaignId);
 
-  const [search, setSearch] = useState('')
-  const [sessionId, setSessionId] = useState('')
-  const [visibility, setVisibility] = useState<'all' | 'public' | 'private'>('all')
-  const [filterTags, setFilterTags] = useState<string[]>([])
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [selectedCharacterId, setSelectedCharacterId] = useState<string | undefined>()
+  const [search, setSearch] = useState('');
+  const [sessionId, setSessionId] = useState('');
+  const [visibility, setVisibility] = useState<'all' | 'public' | 'private'>('all');
+  const [filterTags, setFilterTags] = useState<string[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | undefined>();
+  const [viewCharacterId, setViewCharacterId] = useState<string | undefined>();
 
-  const sessions = campaign?.sessions ?? []
+  const sessions = campaign?.sessions ?? [];
 
   const { characters, isLoading, error } = useCharacters(campaignId, {
     search: search || undefined,
     sessionId: sessionId || undefined,
     visibility,
     tags: filterTags.length > 0 ? filterTags : undefined,
-  })
+  });
 
   const handleCreateClick = () => {
-    setSelectedCharacterId(undefined)
-    setIsModalOpen(true)
-  }
+    setSelectedCharacterId(undefined);
+    setIsModalOpen(true);
+  };
 
   const handleCharacterClick = (character: CharacterListItem) => {
-    setSelectedCharacterId(character.id)
-    setIsModalOpen(true)
-  }
+    if (character.canEdit) {
+      setSelectedCharacterId(character.id);
+      setIsModalOpen(true);
+    } else {
+      setViewCharacterId(character.id);
+    }
+  };
 
   const handleModalClose = () => {
-    setIsModalOpen(false)
-    setSelectedCharacterId(undefined)
-  }
+    setIsModalOpen(false);
+    setSelectedCharacterId(undefined);
+  };
+
+  const handleViewModalClose = () => {
+    setViewCharacterId(undefined);
+  };
 
   return (
     <div className="flex flex-col h-full w-full bg-[#080A12]">
@@ -106,6 +116,14 @@ export function CharactersPanel({ onBack }: CharactersPanelProps) {
         characterId={selectedCharacterId}
         sessions={sessions}
       />
+      {viewCharacterId && (
+        <CharacterViewModal
+          isOpen={!!viewCharacterId}
+          onClose={handleViewModalClose}
+          characterId={viewCharacterId}
+          campaignId={campaignId}
+        />
+      )}
     </div>
-  )
+  );
 }
