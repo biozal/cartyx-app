@@ -16,6 +16,7 @@ import {
 import type { CampaignData } from '~/types/campaign'
 import type { PictureCrop } from '~/types/character'
 import { uploadToR2 } from '~/utils/uploadToR2'
+import { compressImage } from '~/utils/compressImage'
 
 interface CharacterModalProps {
   isOpen: boolean
@@ -135,7 +136,8 @@ export function CharacterModal({
   }, [hasSubmitted, validate])
 
   const handleUpload = useCallback(async (file: File): Promise<string> => {
-    const { publicUrl } = await uploadToR2(file, 'uploads/characters')
+    const compressed = await compressImage(file)
+    const { publicUrl } = await uploadToR2(compressed, 'uploads/characters')
     return publicUrl
   }, [])
 
