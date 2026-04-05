@@ -1,46 +1,47 @@
-import { z } from 'zod'
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { getMe } from '~/server/functions/auth'
-import { useCampaign } from '~/hooks/useCampaigns'
-import { CampaignHeader } from '~/components/mainview/CampaignHeader'
-import { DashboardView } from '~/components/mainview/DashboardView'
-import { MainView } from '~/components/mainview/MainView'
-import { TabletopView } from '~/components/mainview/TabletopView'
-import { GMScreensView } from '~/components/mainview/gmscreens'
-import type { TabId } from '~/components/mainview/TabNavigation'
-import { CatchUpWidget } from '~/components/mainview/widgets/CatchUpWidget'
-import { CampaignTimelineWidget } from '~/components/mainview/widgets/CampaignTimelineWidget'
-import { KeyAlliesWidget } from '~/components/mainview/widgets/KeyAlliesWidget'
-import { PartyMembersWidget } from '~/components/mainview/widgets/PartyMembersWidget'
-import { SessionsListWidget } from '~/components/mainview/widgets/SessionsListWidget'
+import { z } from 'zod';
+import { createFileRoute, redirect } from '@tanstack/react-router';
+import { getMe } from '~/server/functions/auth';
+import { useCampaign } from '~/hooks/useCampaigns';
+import { CampaignHeader } from '~/components/mainview/CampaignHeader';
+import { DashboardView } from '~/components/mainview/DashboardView';
+import { MainView } from '~/components/mainview/MainView';
+import { TabletopView } from '~/components/mainview/TabletopView';
+import { GMScreensView } from '~/components/mainview/gmscreens';
+import type { TabId } from '~/components/mainview/TabNavigation';
+import { CatchUpWidget } from '~/components/mainview/widgets/CatchUpWidget';
+import { CampaignTimelineWidget } from '~/components/mainview/widgets/CampaignTimelineWidget';
+import { KeyAlliesWidget } from '~/components/mainview/widgets/KeyAlliesWidget';
+import { PartyMembersWidget } from '~/components/mainview/widgets/PartyMembersWidget';
+import { SessionsListWidget } from '~/components/mainview/widgets/SessionsListWidget';
 
 export const playSearchSchema = z.object({
   tab: z.enum(['dashboard', 'tabletop', 'gmscreens']).catch('dashboard'),
-})
+});
 
 export const Route = createFileRoute('/campaigns/$campaignId/play')({
   validateSearch: (search: Record<string, unknown>) => playSearchSchema.parse(search),
   beforeLoad: async () => {
-    const user = await getMe()
-    if (!user) throw redirect({ to: '/', search: { reason: 'session_expired' } })
-    return { user }
+    const user = await getMe();
+    if (!user) throw redirect({ to: '/', search: { reason: 'session_expired' } });
+    return { user };
   },
   component: PlayPage,
-})
+});
 
 function PlayPage() {
-  const { tab: activeTab } = Route.useSearch()
-  const { campaignId } = Route.useParams()
-  const navigate = Route.useNavigate()
-  const { campaign } = useCampaign(campaignId)
+  const { tab: activeTab } = Route.useSearch();
+  const { campaignId } = Route.useParams();
+  const navigate = Route.useNavigate();
+  const { campaign } = useCampaign(campaignId);
 
-  const activeSession = campaign?.sessions.find(s => s.status === 'active')
+  const activeSession = campaign?.sessions.find((s) => s.status === 'active');
 
   // Coerce non-GMs away from the GM-only tab
-  const effectiveTab = (activeTab === 'gmscreens' && !campaign?.isGM) ? 'dashboard' as const : activeTab
+  const effectiveTab =
+    activeTab === 'gmscreens' && !campaign?.isGM ? ('dashboard' as const) : activeTab;
 
   function handleTabChange(tab: TabId) {
-    navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, tab }) })
+    navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, tab }) });
   }
 
   return (
@@ -87,11 +88,11 @@ function PlayPage() {
               aria-labelledby="tab-gmscreens"
               hidden={effectiveTab !== 'gmscreens'}
             >
-              <GMScreensView campaignId={campaignId} />
+              <GMScreensView campaignId={campaignId} isGM={campaign?.isGM} />
             </div>
           )}
         </MainView>
       </div>
     </div>
-  )
+  );
 }

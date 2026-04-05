@@ -11,12 +11,14 @@ import type { FloatingWindowState } from '~/components/mainview/FloatingWindow';
 import type { WindowState } from '~/types/gmscreen';
 import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
 import { CharacterWindowWrapper, EditCharacterModalWrapper } from './CharacterWindowWrapper';
+import { RuleWindowWrapper, EditRuleModalWrapper } from './RuleWindowWrapper';
 import { GMScreenDialogs, type DialogState } from './GMScreenDialogs';
 import { ScreenBar } from './ScreenBar';
 import { StackCard } from './StackCard';
 
 export interface GMScreensViewProps {
   campaignId: string;
+  isGM?: boolean;
 }
 
 const DEBOUNCE_MS = 500;
@@ -34,12 +36,13 @@ function toFloatingState(state: string): FloatingWindowState {
   return 'normal';
 }
 
-export function GMScreensView({ campaignId }: GMScreensViewProps) {
+export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
   const { screens, isLoading: listLoading, error: listError } = useGMScreenList(campaignId);
   const [activeScreenId, setActiveScreenId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogState>({ type: 'none' });
   const mutations = useGMScreenMutations(campaignId);
   const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [flashWindowId, setFlashWindowId] = useState<string | null>(null);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -397,6 +400,15 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
               onEdit={() => setEditingCharacterId(w.documentId)}
             />
           );
+        } else if (w.collection === 'rule') {
+          windowContent = (
+            <RuleWindowWrapper
+              ruleId={w.documentId}
+              campaignId={campaignId}
+              isGM={isGM}
+              onEdit={() => setEditingRuleId(w.documentId)}
+            />
+          );
         } else {
           windowContent = (
             <div className="p-4 overflow-auto h-full">
@@ -451,7 +463,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
 
       return merged;
     });
-  }, [activeScreen, activeScreenId, flashWindowId, campaignId]);
+  }, [activeScreen, activeScreenId, flashWindowId, campaignId, isGM]);
 
   // --- Render ---
 
@@ -615,6 +627,13 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
           campaignId={campaignId}
           characterId={editingCharacterId}
           onClose={() => setEditingCharacterId(null)}
+        />
+      )}
+      {editingRuleId !== null && (
+        <EditRuleModalWrapper
+          campaignId={campaignId}
+          ruleId={editingRuleId}
+          onClose={() => setEditingRuleId(null)}
         />
       )}
     </div>

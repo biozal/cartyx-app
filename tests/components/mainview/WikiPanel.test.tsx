@@ -1,48 +1,67 @@
-import React from 'react'
-import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { WikiPanel } from '~/components/wiki/WikiPanel'
+import React from 'react';
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { WikiPanel } from '~/components/wiki/WikiPanel';
 
-// Mock CharactersPanel since it requires routing/campaign context
+// Mock CharactersPanel and RulesPanel since they require routing/campaign context
 vi.mock('~/components/wiki/characters/CharactersPanel', () => ({
   CharactersPanel: ({ onBack }: { onBack: () => void }) => (
     <div data-testid="characters-panel">
       <button onClick={onBack}>Back</button>
     </div>
   ),
-}))
+}));
+
+vi.mock('~/components/wiki/rules/RulesPanel', () => ({
+  RulesPanel: ({ onBack }: { onBack: () => void }) => (
+    <div data-testid="rules-panel">
+      <button onClick={onBack}>Back</button>
+    </div>
+  ),
+}));
 
 describe('WikiPanel', () => {
   it('renders the Characters category button', () => {
-    render(<WikiPanel />)
+    render(<WikiPanel />);
 
-    expect(screen.getByRole('button', { name: 'Characters' })).toBeInTheDocument()
-  })
+    expect(screen.getByRole('button', { name: 'Characters' })).toBeInTheDocument();
+  });
 
-  it('only shows Characters category (no other categories)', () => {
-    render(<WikiPanel />)
+  it('shows Characters and Rules categories', () => {
+    render(<WikiPanel />);
 
-    expect(screen.getAllByRole('button')).toHaveLength(1)
-  })
+    expect(screen.getAllByRole('button')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Characters' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rules' })).toBeInTheDocument();
+  });
 
   it('clicking Characters shows CharactersPanel', async () => {
-    const user = userEvent.setup()
-    render(<WikiPanel />)
+    const user = userEvent.setup();
+    render(<WikiPanel />);
 
-    await user.click(screen.getByRole('button', { name: 'Characters' }))
+    await user.click(screen.getByRole('button', { name: 'Characters' }));
 
-    expect(screen.getByTestId('characters-panel')).toBeInTheDocument()
-  })
+    expect(screen.getByTestId('characters-panel')).toBeInTheDocument();
+  });
+
+  it('clicking Rules shows RulesPanel', async () => {
+    const user = userEvent.setup();
+    render(<WikiPanel />);
+
+    await user.click(screen.getByRole('button', { name: 'Rules' }));
+
+    expect(screen.getByTestId('rules-panel')).toBeInTheDocument();
+  });
 
   it('CharactersPanel onBack returns to category list', async () => {
-    const user = userEvent.setup()
-    render(<WikiPanel />)
+    const user = userEvent.setup();
+    render(<WikiPanel />);
 
-    await user.click(screen.getByRole('button', { name: 'Characters' }))
-    await user.click(screen.getByRole('button', { name: 'Back' }))
+    await user.click(screen.getByRole('button', { name: 'Characters' }));
+    await user.click(screen.getByRole('button', { name: 'Back' }));
 
-    expect(screen.queryByTestId('characters-panel')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Characters' })).toBeInTheDocument()
-  })
-})
+    expect(screen.queryByTestId('characters-panel')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Characters' })).toBeInTheDocument();
+  });
+});
