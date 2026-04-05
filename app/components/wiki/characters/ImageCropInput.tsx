@@ -3,6 +3,17 @@ import Cropper from 'react-easy-crop'
 import type { Area } from 'react-easy-crop'
 import 'react-easy-crop/react-easy-crop.css'
 import { Camera, X } from 'lucide-react'
+import type { PictureCrop } from '~/types/character'
+
+function getCropStyle(crop: PictureCrop): React.CSSProperties {
+  const centerX = (crop.x + crop.width / 2) * 100
+  const centerY = (crop.y + crop.height / 2) * 100
+  const scale = 1 / crop.width
+  return {
+    objectPosition: `${centerX}% ${centerY}%`,
+    transform: `scale(${scale})`,
+  }
+}
 
 interface ImageCropInputProps {
   imageUrl: string
@@ -175,13 +186,7 @@ export function ImageCropInput({
                   src={imageUrl}
                   alt="Character"
                   className="w-full h-full object-cover"
-                  style={
-                    savedCrop
-                      ? {
-                          objectPosition: `${savedCrop.x * 100}% ${savedCrop.y * 100}%`,
-                        }
-                      : undefined
-                  }
+                  style={savedCrop ? getCropStyle(savedCrop) : undefined}
                 />
               </div>
               <button

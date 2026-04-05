@@ -2,7 +2,17 @@ import React, { useState } from 'react'
 import { ExternalLink, ChevronDown, Globe, Lock } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { CharacterData } from '~/types/character'
+import type { CharacterData, PictureCrop } from '~/types/character'
+
+function getCropStyle(crop: PictureCrop): React.CSSProperties {
+  const centerX = (crop.x + crop.width / 2) * 100
+  const centerY = (crop.y + crop.height / 2) * 100
+  const scale = 1 / crop.width
+  return {
+    objectPosition: `${centerX}% ${centerY}%`,
+    transform: `scale(${scale})`,
+  }
+}
 import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses'
 
 interface CharacterWindowProps {
@@ -99,13 +109,7 @@ export function CharacterWindow({ character }: CharacterWindowProps) {
               src={character.picture}
               alt={fullName}
               className="w-full h-full object-cover"
-              style={
-                character.pictureCrop
-                  ? {
-                      objectPosition: `${character.pictureCrop.x * 100}% ${character.pictureCrop.y * 100}%`,
-                    }
-                  : undefined
-              }
+              style={character.pictureCrop ? getCropStyle(character.pictureCrop) : undefined}
             />
           ) : (
             <span className="text-2xl text-white font-semibold">{initials}</span>

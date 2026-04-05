@@ -1,5 +1,16 @@
 import { Globe, Lock, ExternalLink } from 'lucide-react'
 import type { CharacterListItem } from '~/types/character'
+import type { PictureCrop } from '~/types/character'
+
+function getCropStyle(crop: PictureCrop): React.CSSProperties {
+  const centerX = (crop.x + crop.width / 2) * 100
+  const centerY = (crop.y + crop.height / 2) * 100
+  const scale = 1 / crop.width
+  return {
+    objectPosition: `${centerX}% ${centerY}%`,
+    transform: `scale(${scale})`,
+  }
+}
 
 interface CharacterCardProps {
   character: CharacterListItem
@@ -84,13 +95,7 @@ export function CharacterCard({ character, onClick }: CharacterCardProps) {
             src={character.picture}
             alt={fullName}
             className="w-full h-full object-cover"
-            style={
-              character.pictureCrop
-                ? {
-                    objectPosition: `${character.pictureCrop.x * 100}% ${character.pictureCrop.y * 100}%`,
-                  }
-                : undefined
-            }
+            style={character.pictureCrop ? getCropStyle(character.pictureCrop) : undefined}
           />
         ) : (
           <span className="text-lg text-white font-semibold">{initials}</span>

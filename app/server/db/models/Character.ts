@@ -89,7 +89,7 @@ if (typeof (characterSchema as { index?: unknown }).index === 'function') {
   characterSchema.index({ createdBy: 1 })
   characterSchema.index({ tags: 1 })
   characterSchema.index({ isPublic: 1 })
-  characterSchema.index({ firstName: 'text', lastName: 'text', race: 'text', location: 'text', notes: 'text', gmNotes: 'text' })
+  characterSchema.index({ firstName: 'text', lastName: 'text', race: 'text', location: 'text', notes: 'text' })
 }
 
 export const Character = mongoose.models.Character || mongoose.model('Character', characterSchema)
