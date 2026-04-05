@@ -124,10 +124,11 @@ async function requireCampaignMember(campaignId: string): Promise<{ userId: stri
   if (!campaign) throw new Error('Campaign not found')
 
   const userId = String(dbUser._id)
-  const isGM = String(campaign.gameMasterId) === userId
   const members = campaign.members ?? []
-  const isMember =
-    members.some((m: { userId: unknown }) => String(m.userId) === userId) || isGM
+  const member = members.find((m: { userId: unknown; role?: string }) => String(m.userId) === userId)
+  const isGM =
+    String(campaign.gameMasterId) === userId || member?.role === 'gm'
+  const isMember = !!member || isGM
   if (!isMember) throw new Error('Forbidden')
 
   return { userId, sessionUserId: user.id, isGM }
@@ -313,15 +314,25 @@ export const listCharacters = createServerFn({ method: 'GET' })
       // Build query filter
       const filter: Record<string, unknown> = { campaignId: data.campaignId }
 
-      // Session filter: union of sessionId (introduced in) OR sessions array (appeared in)
-      const sessionConditions: Record<string, unknown>[] = []
+      // Session filter
+      let sessionCondition: Record<string, unknown> | undefined
 
       if (data.sessionId === '__none__') {
-        sessionConditions.push({ sessionId: { $exists: false } })
-        sessionConditions.push({ sessions: { $size: 0 } })
+        // "No session" means introduced in no session AND appeared in no sessions
+        sessionCondition = {
+          $and: [
+            { sessionId: { $exists: false } },
+            { sessions: { $size: 0 } },
+          ],
+        }
       } else if (data.sessionId) {
-        sessionConditions.push({ sessionId: data.sessionId })
-        sessionConditions.push({ sessions: data.sessionId })
+        // Union: introduced in OR appeared in this session
+        sessionCondition = {
+          $or: [
+            { sessionId: data.sessionId },
+            { sessions: data.sessionId },
+          ],
+        }
       }
 
       // Visibility filter
@@ -336,14 +347,11 @@ export const listCharacters = createServerFn({ method: 'GET' })
         visibilityCondition = { $or: [{ isPublic: true }, { createdBy: userId }] }
       }
 
-      // Merge session and visibility conditions using $and when both use $or
-      if (sessionConditions.length > 0 && visibilityCondition) {
-        filter.$and = [
-          { $or: sessionConditions },
-          visibilityCondition,
-        ]
-      } else if (sessionConditions.length > 0) {
-        filter.$or = sessionConditions
+      // Merge session and visibility conditions using $and when both need top-level operators
+      if (sessionCondition && visibilityCondition) {
+        filter.$and = [sessionCondition, visibilityCondition]
+      } else if (sessionCondition) {
+        Object.assign(filter, sessionCondition)
       } else if (visibilityCondition) {
         filter.$or = visibilityCondition.$or as Record<string, unknown>[]
       }

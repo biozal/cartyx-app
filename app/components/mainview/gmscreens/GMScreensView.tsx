@@ -44,6 +44,28 @@ function toFloatingState(state: string): FloatingWindowState {
   return 'normal'
 }
 
+function EditCharacterModalWrapper({
+  campaignId,
+  characterId,
+  onClose,
+}: {
+  campaignId: string
+  characterId: string
+  onClose: () => void
+}) {
+  const { campaign } = useCampaign(campaignId)
+  const sessions = campaign?.sessions ?? []
+  return (
+    <CharacterModal
+      isOpen
+      onClose={onClose}
+      campaignId={campaignId}
+      characterId={characterId}
+      sessions={sessions}
+    />
+  )
+}
+
 function CharacterWindowWrapper({
   characterId,
   campaignId,
@@ -92,8 +114,6 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
   const [dialog, setDialog] = useState<DialogState>({ type: 'none' })
   const mutations = useGMScreenMutations(campaignId)
   const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null)
-  const { campaign } = useCampaign(campaignId)
-  const campaignSessions = campaign?.sessions ?? []
   const [isDragOver, setIsDragOver] = useState(false)
   const [flashWindowId, setFlashWindowId] = useState<string | null>(null)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -660,13 +680,13 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
         />
       )}
 
-      <CharacterModal
-        isOpen={editingCharacterId !== null}
-        onClose={() => setEditingCharacterId(null)}
-        campaignId={campaignId}
-        characterId={editingCharacterId ?? undefined}
-        sessions={campaignSessions}
-      />
+      {editingCharacterId !== null && (
+        <EditCharacterModalWrapper
+          campaignId={campaignId}
+          characterId={editingCharacterId}
+          onClose={() => setEditingCharacterId(null)}
+        />
+      )}
     </div>
   )
 }

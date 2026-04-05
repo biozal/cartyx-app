@@ -7,7 +7,6 @@ import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses'
 
 interface CharacterWindowProps {
   character: CharacterData
-  onEdit?: () => void
 }
 
 const GRADIENT_PAIRS = [
@@ -71,7 +70,7 @@ function Accordion({
   )
 }
 
-export function CharacterWindow({ character, onEdit }: CharacterWindowProps) {
+export function CharacterWindow({ character }: CharacterWindowProps) {
   const fullName = `${character.firstName} ${character.lastName}`.trim()
   const initials = getInitials(character.firstName, character.lastName)
   const gradientIndex = hashName(fullName) % GRADIENT_PAIRS.length

@@ -1,10 +1,10 @@
 import { z } from 'zod'
 
 const pictureCropSchema = z.object({
-  x: z.number(),
-  y: z.number(),
-  width: z.number(),
-  height: z.number(),
+  x: z.number().finite().min(0).max(1),
+  y: z.number().finite().min(0).max(1),
+  width: z.number().finite().gt(0).max(1),
+  height: z.number().finite().gt(0).max(1),
 })
 
 export const createCharacterSchema = z.object({
@@ -15,7 +15,7 @@ export const createCharacterSchema = z.object({
   characterClass: z.string().trim().optional().default(''),
   age: z.number().int().positive().nullable().optional().default(null),
   location: z.string().trim().optional().default(''),
-  link: z.string().trim().url().optional().or(z.literal('')).default(''),
+  link: z.string().trim().regex(/^(https?:\/\/.+)?$/, 'Must be an HTTP or HTTPS URL').optional().default(''),
   picture: z.string().optional().default(''),
   pictureCrop: pictureCropSchema.nullable().optional().default(null),
   notes: z.string().optional().default(''),
@@ -35,7 +35,7 @@ export const updateCharacterSchema = z.object({
   characterClass: z.string().trim().optional().default(''),
   age: z.number().int().positive().nullable().optional().default(null),
   location: z.string().trim().optional().default(''),
-  link: z.string().trim().url().optional().or(z.literal('')).default(''),
+  link: z.string().trim().regex(/^(https?:\/\/.+)?$/, 'Must be an HTTP or HTTPS URL').optional().default(''),
   picture: z.string().optional().default(''),
   pictureCrop: pictureCropSchema.nullable().optional().default(null),
   notes: z.string().optional().default(''),
