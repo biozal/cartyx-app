@@ -200,7 +200,7 @@ export const createCharacter = createServerFn({ method: 'POST' })
         character_id: String(doc._id),
       });
 
-      return { success: true, character: serializeCharacter(doc) };
+      return { success: true, character: { ...serializeCharacter(doc), canEdit: true } };
     } catch (e) {
       serverCaptureException(e, sessionUserId, {
         action: 'createCharacter',
@@ -261,7 +261,7 @@ export const updateCharacter = createServerFn({ method: 'POST' })
         updated_by: userId,
       });
 
-      return { success: true, character: serializeCharacter(existing) };
+      return { success: true, character: { ...serializeCharacter(existing), canEdit: true } };
     } catch (e) {
       serverCaptureException(e, sessionUserId, { action: 'updateCharacter', characterId: data.id });
       throw e;
