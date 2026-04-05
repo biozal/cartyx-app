@@ -30,10 +30,10 @@ noteSchema.pre('findOneAndUpdate', function () {
     let hasSetStage = false
     update.forEach((stage) => {
       if (!stage || typeof stage !== 'object') return
-      const stageObj = stage as Record<string, any>
+      const stageObj = stage as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any -- Mongoose update object has dynamic shape
       if (!('$set' in stageObj)) return
       hasSetStage = true
-      const set = stageObj.$set as Record<string, unknown>
+      const set = stageObj.$set as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any -- Mongoose update object has dynamic shape
       if (Array.isArray(set.tags)) {
         set.tags = normalizeTags(set.tags as string[])
       }
@@ -46,7 +46,7 @@ noteSchema.pre('findOneAndUpdate', function () {
     return
   }
 
-  const updateObj = update as Record<string, any>
+  const updateObj = update as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any -- Mongoose update object has dynamic shape
   if ('$set' in updateObj) {
     const set = (updateObj.$set ??= {})
     if (Array.isArray(set.tags)) {

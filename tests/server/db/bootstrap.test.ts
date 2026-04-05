@@ -393,6 +393,7 @@ describe('bootstrapDB', () => {
   it('does not use console.log for bootstrap lifecycle events', async () => {
     await bootstrapDB(devPolicy)
 
+    // eslint-disable-next-line no-console
     const logSpy = vi.mocked(console.log)
     const bootstrapLogs = logSpy.mock.calls.filter(
       (c) => typeof c[0] === 'string' && c[0].includes('[bootstrap]'),

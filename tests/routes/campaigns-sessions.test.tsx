@@ -77,7 +77,7 @@ vi.mock('~/components/PixelButton', () => ({
 }))
 
 vi.mock('@fortawesome/react-fontawesome', () => ({
-  FontAwesomeIcon: ({ icon }: { icon: unknown }) => <span data-testid="fa-icon" />,
+  FontAwesomeIcon: ({ _icon }: { _icon: unknown }) => <span data-testid="fa-icon" />,
 }))
 
 vi.mock('@fortawesome/pro-solid-svg-icons', () => ({
