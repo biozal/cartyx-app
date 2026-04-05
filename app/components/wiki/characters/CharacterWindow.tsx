@@ -84,7 +84,7 @@ export function CharacterWindow({ character, onEdit }: CharacterWindowProps) {
   if (character.location) stats.push({ label: 'Location', value: character.location })
 
   return (
-    <div className="flex flex-col gap-4 p-4 overflow-auto h-full">
+    <div className="flex flex-col gap-4 p-4">
       {/* Portrait */}
       <div className="flex justify-center">
         <div
