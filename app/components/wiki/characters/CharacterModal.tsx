@@ -162,7 +162,7 @@ export function CharacterModal({
       location: location.trim(),
       link: link.trim(),
       picture,
-      pictureCrop,
+      pictureCrop: pictureCrop ? { x: pictureCrop.x, y: pictureCrop.y, width: pictureCrop.width, height: pictureCrop.height } : null,
       sessionId: sessionId || undefined,
       sessions: selectedSessions,
       notes,
