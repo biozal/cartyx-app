@@ -1,0 +1,106 @@
+<h2>Character Window on GM Screen</h2>
+<p class="subtitle">Character sheet layout inside a FloatingWindow — picture top, stats below, accordion sections</p>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">CharacterWindow.tsx — Inside FloatingWindow</div>
+    <div class="mockup-body" style="background: #0D1117; padding: 0; max-width: 420px; margin: 0 auto;">
+
+      <!-- Title bar (simulated) -->
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #242942; border-bottom: 1px solid rgba(255,255,255,0.07);">
+        <span style="color: #e2e8f0; font-size: 13px; font-weight: 600;">Theron Windwalker</span>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <!-- Edit icon -->
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="cursor: pointer;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <div style="display: flex; gap: 6px;">
+            <div style="width: 12px; height: 12px; border-radius: 50%; background: #f59e0b;"></div>
+            <div style="width: 12px; height: 12px; border-radius: 50%; background: #10b981;"></div>
+            <div style="width: 12px; height: 12px; border-radius: 50%; background: #ef4444;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Character sheet content -->
+      <div style="padding: 20px; overflow-y: auto;">
+
+        <!-- Circular portrait -->
+        <div style="display: flex; justify-content: center; margin-bottom: 16px;">
+          <div style="width: 96px; height: 96px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: flex; align-items: center; justify-content: center; border: 3px solid rgba(255,255,255,0.1);">
+            <span style="font-size: 36px; color: white; font-weight: 600;">TW</span>
+          </div>
+        </div>
+
+        <!-- Name centered -->
+        <div style="text-align: center; margin-bottom: 4px;">
+          <span style="color: #e2e8f0; font-size: 18px; font-weight: 700;">Theron Windwalker</span>
+        </div>
+
+        <!-- Visibility badge -->
+        <div style="text-align: center; margin-bottom: 16px;">
+          <span style="background: rgba(16,185,129,0.15); color: #34d399; font-size: 11px; padding: 2px 10px; border-radius: 9999px;">Public</span>
+        </div>
+
+        <!-- Stats grid -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;">
+          <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 10px 12px;">
+            <div style="color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Race</div>
+            <div style="color: #e2e8f0; font-size: 13px;">Half-Elf</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 10px 12px;">
+            <div style="color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Class</div>
+            <div style="color: #e2e8f0; font-size: 13px;">Ranger / Druid</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 10px 12px;">
+            <div style="color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Age</div>
+            <div style="color: #e2e8f0; font-size: 13px;">127</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 10px 12px;">
+            <div style="color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Location</div>
+            <div style="color: #e2e8f0; font-size: 13px;">Silverdeep</div>
+          </div>
+        </div>
+
+        <!-- Tags -->
+        <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 20px;">
+          <span style="background: rgba(59,130,246,0.15); color: #60a5fa; font-size: 11px; padding: 2px 8px; border-radius: 9999px;">ally</span>
+          <span style="background: rgba(16,185,129,0.15); color: #34d399; font-size: 11px; padding: 2px 8px; border-radius: 9999px;">quest-giver</span>
+        </div>
+
+        <!-- Accordion: Details (Notes) - Open -->
+        <div style="border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; margin-bottom: 8px; overflow: hidden;">
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: rgba(255,255,255,0.03); cursor: pointer;">
+            <span style="color: #e2e8f0; font-size: 13px; font-weight: 600;">Details</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div style="padding: 14px; border-top: 1px solid rgba(255,255,255,0.07);">
+            <p style="color: #c8d0db; font-size: 13px; line-height: 1.6; margin: 0;">Theron is a wandering half-elf ranger who has spent the last century mapping the uncharted forests of the Western Reaches. He serves as a reluctant guide for adventurers passing through Silverdeep, though his true purpose is guarding the ancient grove hidden deep within the forest.</p>
+            <p style="color: #c8d0db; font-size: 13px; line-height: 1.6; margin: 12px 0 0 0;">He carries a longbow carved from a treant's gift and speaks fluent Sylvan. His familiar, a silver hawk named Zephyr, scouts ahead during travels.</p>
+          </div>
+        </div>
+
+        <!-- Accordion: GM Notes - Collapsed -->
+        <div style="border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; overflow: hidden;">
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: rgba(255,255,255,0.03); cursor: pointer;">
+            <span style="color: #e2e8f0; font-size: 13px; font-weight: 600;">GM Notes</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 24px;">
+  <h3>Key Details</h3>
+  <ul style="color: #94a3b8; font-size: 14px; line-height: 1.8;">
+    <li><strong style="color: #e2e8f0;">Title bar:</strong> Provided by FloatingWindow — adds edit pencil icon next to the minimize/maximize/close buttons</li>
+    <li><strong style="color: #e2e8f0;">Edit icon:</strong> Opens CharacterModal in edit mode, same form as wiki panel edit</li>
+    <li><strong style="color: #e2e8f0;">Portrait:</strong> Circular cropped image (or initials fallback), centered at top</li>
+    <li><strong style="color: #e2e8f0;">Stats grid:</strong> 2-column grid, only shows fields that have values</li>
+    <li><strong style="color: #e2e8f0;">Details accordion:</strong> Public notes rendered as markdown, open by default</li>
+    <li><strong style="color: #e2e8f0;">GM Notes accordion:</strong> GM-only notes rendered as markdown, collapsed by default</li>
+    <li><strong style="color: #e2e8f0;">Scrollable:</strong> Content area scrolls if character has long notes</li>
+    <li><strong style="color: #e2e8f0;">Optimistic updates:</strong> Editing from the window updates content in real-time after save</li>
+  </ul>
+</div>

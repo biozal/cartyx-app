@@ -1,0 +1,116 @@
+<h2>Section 3: UI Components</h2>
+<p class="subtitle">Two areas need tag UI: the filter widget (new) and the note modal (enhanced with autocomplete)</p>
+
+<div style="display: flex; flex-direction: column; gap: 2rem;">
+
+  <!-- Mockup 1: NotesFilterWidget with tag filter -->
+  <div class="mockup">
+    <div class="mockup-header">NotesFilterWidget — Tag Filter Added Below Existing Filters</div>
+    <div class="mockup-body" style="background: #0D1117; padding: 12px; border-radius: 8px; font-family: system-ui, sans-serif;">
+
+      <!-- Row 1: Search + Create -->
+      <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+        <div style="flex: 1; position: relative;">
+          <div style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #475569; font-size: 12px;">🔍</div>
+          <input type="text" placeholder="Search notes..." disabled style="width: 100%; box-sizing: border-box; background: #080A12; border: 1px solid rgba(255,255,255,0.07); border-radius: 4px; padding: 8px 8px 8px 30px; font-size: 11px; font-weight: 600; color: #94a3b8; outline: none;">
+        </div>
+        <div style="width: 32px; height: 32px; background: #2563eb; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 16px; cursor: pointer;">+</div>
+      </div>
+
+      <!-- Row 2: Session + Visibility -->
+      <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+        <select disabled style="flex: 1; background: #080A12; border: 1px solid rgba(255,255,255,0.07); border-radius: 4px; padding: 6px 8px; font-size: 11px; font-weight: 600; color: #94a3b8;">
+          <option>All Sessions</option>
+        </select>
+        <select disabled style="width: 128px; background: #080A12; border: 1px solid rgba(255,255,255,0.07); border-radius: 4px; padding: 6px 8px; font-size: 11px; font-weight: 600; color: #94a3b8;">
+          <option>All Notes</option>
+        </select>
+      </div>
+
+      <!-- Row 3: NEW Tag Filter -->
+      <div style="background: #080A12; border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; padding: 6px 10px; min-height: 36px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+        <!-- Selected tag chips -->
+        <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); color: #60a5fa; font-size: 11px; font-weight: 700;">
+          #combat <span style="margin-left: 2px; opacity: 0.6; cursor: pointer;">✕</span>
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); color: #60a5fa; font-size: 11px; font-weight: 700;">
+          #boss <span style="margin-left: 2px; opacity: 0.6; cursor: pointer;">✕</span>
+        </span>
+        <!-- Inline input with placeholder -->
+        <span style="color: #334155; font-size: 12px; font-style: italic;">Filter by tags...</span>
+      </div>
+
+      <!-- Autocomplete dropdown preview -->
+      <div style="background: #0f1520; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; margin-top: 4px; padding: 4px 0; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+        <div style="padding: 6px 12px; font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Suggestions</div>
+        <div style="padding: 6px 12px; font-size: 12px; color: #e2e8f0; background: rgba(59,130,246,0.1); cursor: pointer; font-weight: 600;">#boss-encounter</div>
+        <div style="padding: 6px 12px; font-size: 12px; color: #94a3b8; cursor: pointer;">#boss-loot</div>
+        <div style="padding: 6px 12px; font-size: 12px; color: #94a3b8; cursor: pointer;">#boss-strategy</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mockup 2: NoteModal tag input with autocomplete -->
+  <div class="mockup">
+    <div class="mockup-header">NoteModal — Tag Input Enhanced With Autocomplete Dropdown</div>
+    <div class="mockup-body" style="background: #0D1117; padding: 16px; border-radius: 8px; font-family: system-ui, sans-serif;">
+
+      <div style="margin-bottom: 6px; font-size: 11px; font-weight: 600; color: #94a3b8; letter-spacing: 0.03em;">Tags</div>
+
+      <!-- Tag chips container -->
+      <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(59,130,246,0.5); border-radius: 12px; padding: 8px 12px; min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+        <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); color: #60a5fa; font-size: 11px; font-weight: 700;">
+          #lore <span style="margin-left: 2px; opacity: 0.6; cursor: pointer;">✕</span>
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); color: #60a5fa; font-size: 11px; font-weight: 700;">
+          #ancient <span style="margin-left: 2px; opacity: 0.6; cursor: pointer;">✕</span>
+        </span>
+        <!-- Typing state -->
+        <span style="color: #e2e8f0; font-size: 13px;">dra</span><span style="border-left: 2px solid #60a5fa; height: 14px; display: inline-block; animation: blink 1s step-end infinite;"></span>
+      </div>
+
+      <!-- Autocomplete dropdown -->
+      <div style="background: #0f1520; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; margin-top: 4px; padding: 4px 0; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+        <div style="padding: 6px 12px; font-size: 12px; color: #e2e8f0; background: rgba(59,130,246,0.1); cursor: pointer; font-weight: 600;">
+          #dragon
+        </div>
+        <div style="padding: 6px 12px; font-size: 12px; color: #94a3b8; cursor: pointer;">
+          #dragon-lair
+        </div>
+        <div style="padding: 6px 12px; font-size: 12px; color: #94a3b8; cursor: pointer;">
+          #dragonborn
+        </div>
+      </div>
+
+      <div style="margin-top: 6px; font-size: 11px; color: #334155;">
+        Tags are displayed with # prefix. Press Enter or comma to add. Autocomplete suggests existing campaign tags.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<h3 style="margin-top: 2rem;">Key UI Behaviors</h3>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+  <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 16px;">
+    <h4 style="color: #60a5fa; margin: 0 0 8px 0; font-size: 13px;">Tag Filter (NotesFilterWidget)</h4>
+    <ul style="margin: 0; padding-left: 16px; font-size: 12px; color: #94a3b8; line-height: 1.8;">
+      <li>New row below session/visibility filters</li>
+      <li>Chip-based input, same style as NoteModal</li>
+      <li>Autocomplete dropdown on focus/type</li>
+      <li>Selected tags filter with AND logic</li>
+      <li>Removing a chip re-runs the query</li>
+    </ul>
+  </div>
+  <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 16px;">
+    <h4 style="color: #60a5fa; margin: 0 0 8px 0; font-size: 13px;">Tag Autocomplete (NoteModal)</h4>
+    <ul style="margin: 0; padding-left: 16px; font-size: 12px; color: #94a3b8; line-height: 1.8;">
+      <li>Enhances existing tag chip input</li>
+      <li>Dropdown shows matching tags on keystroke</li>
+      <li>Keyboard nav: arrow keys + Enter to select</li>
+      <li>Click to select from dropdown</li>
+      <li>Already-added tags hidden from suggestions</li>
+      <li>New tags auto-created in Tag collection on save</li>
+    </ul>
+  </div>
+</div>
