@@ -11,6 +11,7 @@ import type { FloatingWindowState } from '~/components/mainview/FloatingWindow';
 import type { WindowState } from '~/types/gmscreen';
 import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
 import { CharacterWindowWrapper, EditCharacterModalWrapper } from './CharacterWindowWrapper';
+import { RaceWindowWrapper, EditRaceModalWrapper } from '~/components/wiki/races/RaceWindowWrapper';
 import { RuleWindowWrapper, EditRuleModalWrapper } from './RuleWindowWrapper';
 import { GMScreenDialogs, type DialogState } from './GMScreenDialogs';
 import { ScreenBar } from './ScreenBar';
@@ -42,6 +43,7 @@ export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
   const [dialog, setDialog] = useState<DialogState>({ type: 'none' });
   const mutations = useGMScreenMutations(campaignId);
   const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
+  const [editingRaceId, setEditingRaceId] = useState<string | null>(null);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [flashWindowId, setFlashWindowId] = useState<string | null>(null);
@@ -400,6 +402,14 @@ export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
               onEdit={() => setEditingCharacterId(w.documentId)}
             />
           );
+        } else if (w.collection === 'race') {
+          windowContent = (
+            <RaceWindowWrapper
+              raceId={w.documentId}
+              campaignId={campaignId}
+              onEdit={() => setEditingRaceId(w.documentId)}
+            />
+          );
         } else if (w.collection === 'rule') {
           windowContent = (
             <RuleWindowWrapper
@@ -627,6 +637,13 @@ export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
           campaignId={campaignId}
           characterId={editingCharacterId}
           onClose={() => setEditingCharacterId(null)}
+        />
+      )}
+      {editingRaceId !== null && (
+        <EditRaceModalWrapper
+          campaignId={campaignId}
+          raceId={editingRaceId}
+          onClose={() => setEditingRaceId(null)}
         />
       )}
       {editingRuleId !== null && (

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { userMock, campaignMock, playerMock, sessionMock, gmScreenMock, noteMock } = vi.hoisted(
-  () => {
+const { userMock, campaignMock, playerMock, sessionMock, gmScreenMock, noteMock, raceMock } =
+  vi.hoisted(() => {
     function make(
       name: string,
       collectionName: string,
@@ -41,9 +41,15 @@ const { userMock, campaignMock, playerMock, sessionMock, gmScreenMock, noteMock 
         [{ isPublic: 1 }, {}],
         [{ title: 'text', note: 'text' }, {}],
       ]),
+      raceMock: make('Race', 'races', [
+        [{ campaignId: 1 }, {}],
+        [{ campaignId: 1, updatedAt: -1 }, {}],
+        [{ createdBy: 1 }, {}],
+        [{ tags: 1 }, {}],
+        [{ title: 'text', content: 'text' }, {}],
+      ]),
     };
-  }
-);
+  });
 
 vi.mock('~/server/db/models/User', () => ({ User: userMock }));
 vi.mock('~/server/db/models/Campaign', () => ({ Campaign: campaignMock }));
@@ -51,6 +57,7 @@ vi.mock('~/server/db/models/Player', () => ({ Player: playerMock }));
 vi.mock('~/server/db/models/Session', () => ({ Session: sessionMock }));
 vi.mock('~/server/db/models/GMScreen', () => ({ GMScreen: gmScreenMock }));
 vi.mock('~/server/db/models/Note', () => ({ Note: noteMock }));
+vi.mock('~/server/db/models/Race', () => ({ Race: raceMock }));
 
 import {
   inspectIndexes,
@@ -59,11 +66,19 @@ import {
   ALL_MODELS,
 } from '~/server/db/inspect';
 
-const allMocks = [userMock, campaignMock, playerMock, sessionMock, gmScreenMock, noteMock];
+const allMocks = [
+  userMock,
+  campaignMock,
+  playerMock,
+  sessionMock,
+  gmScreenMock,
+  noteMock,
+  raceMock,
+];
 
 describe('ALL_MODELS', () => {
-  it('contains all six models', () => {
-    expect(ALL_MODELS).toHaveLength(6);
+  it('contains all seven models', () => {
+    expect(ALL_MODELS).toHaveLength(7);
   });
 
   // Regression: Session and GMScreen are included in bootstrap (#302)
@@ -118,6 +133,14 @@ describe('inspectIndexes', () => {
       { key: { createdBy: 1 } },
       { key: { tags: 1 } },
       { key: { isPublic: 1 } },
+      { key: { _fts: 'text', _ftsx: 1 } },
+    ]);
+    raceMock.listIndexes.mockResolvedValue([
+      { key: { _id: 1 } },
+      { key: { campaignId: 1 } },
+      { key: { campaignId: 1, updatedAt: -1 } },
+      { key: { createdBy: 1 } },
+      { key: { tags: 1 } },
       { key: { _fts: 'text', _ftsx: 1 } },
     ]);
 

@@ -37,3 +37,4 @@ storybook-static/
 coverage/
 .aider*
 .superpowers/
+.claude/settings.json

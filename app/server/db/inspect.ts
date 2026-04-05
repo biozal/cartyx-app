@@ -6,12 +6,13 @@ import { GMScreen } from './models/GMScreen';
 import { Player } from './models/Player';
 import { Session } from './models/Session';
 import { Note } from './models/Note';
+import { Race } from './models/Race';
 import { User } from './models/User';
 
 /** All Mongoose models the app declares. Order does not matter. */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mongoose models have different document types
-export const ALL_MODELS: mongoose.Model<any>[] = [User, Campaign, Player, Session, GMScreen, Note];
+export const ALL_MODELS: mongoose.Model<any>[] = [User, Campaign, Player, Session, GMScreen, Note, Race];
 
 /** Describes one expected-vs-actual index comparison for a single model. */
 export interface IndexDiff {

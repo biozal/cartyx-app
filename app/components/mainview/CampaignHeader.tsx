@@ -19,7 +19,6 @@ export interface CampaignHeaderProps {
 export function CampaignHeader({
   campaignId,
   sessionNumber,
-  isOwner,
   isGM,
   activeSessionName,
   activeTab,
@@ -38,7 +37,7 @@ export function CampaignHeader({
       </span>
 
       {/* Left-center: Active session name + gear (GM only) */}
-      {isOwner && campaignId && (
+      {isGM && campaignId && (
         <div className="flex items-center gap-2">
           <span
             className={`font-sans text-xs font-semibold whitespace-nowrap ${
@@ -60,7 +59,7 @@ export function CampaignHeader({
       )}
 
       {/* Left-center: Session number (fallback when session info not shown) */}
-      {!(isOwner && campaignId) && sessionNumber !== undefined && (
+      {!(isGM && campaignId) && sessionNumber !== undefined && (
         <span
           className="font-sans font-semibold text-xs text-slate-300 whitespace-nowrap"
           data-testid="session-number"
