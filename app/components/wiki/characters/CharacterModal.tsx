@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Globe, Lock } from 'lucide-react';
 import { FormInput } from '~/components/FormInput';
@@ -14,6 +14,7 @@ import {
   useUpdateCharacter,
   useDeleteCharacter,
 } from '~/hooks/useCharacters';
+import { useRaces } from '~/hooks/useRaces';
 import type { CampaignData } from '~/types/campaign';
 import type { PictureCrop } from '~/types/character';
 import { uploadToR2 } from '~/utils/uploadToR2';
@@ -41,6 +42,7 @@ export function CharacterModal({
   sessions,
 }: CharacterModalProps) {
   const isEdit = !!characterId;
+  const raceDatalistId = useId();
 
   const { character: existingCharacter, isLoading: isFetchingCharacter } = useCharacter(
     characterId ?? '',
@@ -49,6 +51,7 @@ export function CharacterModal({
   const { create, isLoading: isCreating } = useCreateCharacter();
   const { update, isLoading: isUpdating } = useUpdateCharacter();
   const { remove, isLoading: isDeleting } = useDeleteCharacter();
+  const { races } = useRaces(campaignId);
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -311,13 +314,21 @@ export function CharacterModal({
 
               {/* Race + Class */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <FormInput
-                  label="Race"
-                  value={race}
-                  onChange={(e) => setRace(e.target.value)}
-                  disabled={isDisabled}
-                  placeholder="e.g. Half-Elf"
-                />
+                <div>
+                  <FormInput
+                    label="Race"
+                    value={race}
+                    onChange={(e) => setRace(e.target.value)}
+                    disabled={isDisabled}
+                    placeholder="e.g. Half-Elf"
+                    list={raceDatalistId}
+                  />
+                  <datalist id={raceDatalistId}>
+                    {races.map((r) => (
+                      <option key={r.id} value={r.title} />
+                    ))}
+                  </datalist>
+                </div>
                 <FormInput
                   label="Class"
                   value={characterClass}

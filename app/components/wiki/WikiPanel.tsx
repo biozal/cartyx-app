@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
-import { Users } from 'lucide-react'
+import { Users, Dna } from 'lucide-react'
 import { CharactersPanel } from './characters/CharactersPanel'
+import { RacesPanel } from './races/RacesPanel'
 
-type WikiCategoryId = 'characters'
+type WikiCategoryId = 'characters' | 'races'
 
 interface WikiCategory {
   id: WikiCategoryId
@@ -12,6 +13,7 @@ interface WikiCategory {
 
 const WIKI_CATEGORIES: WikiCategory[] = [
   { id: 'characters', label: 'Characters', icon: Users },
+  { id: 'races', label: 'Races', icon: Dna },
 ]
 
 export function WikiPanel() {
@@ -43,6 +45,8 @@ export function WikiPanel() {
         </div>
       ) : selectedCategory === 'characters' ? (
         <CharactersPanel onBack={() => setSelectedCategory(null)} />
+      ) : selectedCategory === 'races' ? (
+        <RacesPanel onBack={() => setSelectedCategory(null)} />
       ) : null}
     </div>
   )

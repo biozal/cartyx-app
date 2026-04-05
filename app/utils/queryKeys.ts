@@ -63,4 +63,11 @@ export const queryKeys = {
     all: ['tags'] as const,
     list: (campaignId: string) => ['tags', 'list', campaignId] as const,
   },
+  races: {
+    all: ['races'] as const,
+    list: (campaignId: string, search?: string, tags?: string[]) =>
+      ['races', 'list', campaignId, search ?? '', tags ?? []] as const,
+    detail: (id: string, campaignId?: string) =>
+      ['races', 'detail', campaignId ?? '', id] as const,
+  },
 };

@@ -7,6 +7,7 @@ import { Campaign } from '../db/models/Campaign';
 import { GMScreen, GMSCREEN_LIMITS } from '../db/models/GMScreen';
 import { Note } from '../db/models/Note';
 import { Character } from '../db/models/Character';
+import { Race } from '../db/models/Race';
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog';
 import type {
   GMScreenData,
@@ -146,6 +147,22 @@ const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
               _id: ch._id,
               title: `${ch.firstName ?? ''} ${ch.lastName ?? ''}`.trim(),
               content: ch.notes,
+            };
+          })
+        ) as Promise<Array<{ _id: unknown; title?: string; content?: string }>>;
+    },
+  },
+  race: {
+    async fetch(ids: string[], campaignId: string) {
+      return Race.find({ _id: { $in: ids }, campaignId }, '_id title content')
+        .lean()
+        .then((docs) =>
+          docs.map((d) => {
+            const r = d as { _id: unknown; title?: string; content?: string };
+            return {
+              _id: r._id,
+              title: r.title,
+              content: r.content,
             };
           })
         ) as Promise<Array<{ _id: unknown; title?: string; content?: string }>>;
