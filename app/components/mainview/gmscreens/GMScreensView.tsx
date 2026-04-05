@@ -478,7 +478,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
 
       return merged
     })
-  }, [activeScreen, activeScreenId, flashWindowId])
+  }, [activeScreen, activeScreenId, flashWindowId, campaignId])
 
   // --- Render ---
 

@@ -1,6 +1,6 @@
+import React from 'react'
 import { Globe, Lock, ExternalLink } from 'lucide-react'
-import type { CharacterListItem } from '~/types/character'
-import type { PictureCrop } from '~/types/character'
+import type { CharacterListItem, PictureCrop } from '~/types/character'
 
 function getCropStyle(crop: PictureCrop): React.CSSProperties {
   const centerX = (crop.x + crop.width / 2) * 100
