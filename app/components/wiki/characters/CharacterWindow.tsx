@@ -3,6 +3,7 @@ import { ExternalLink, ChevronDown, Globe, Lock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { CharacterData, PictureCrop } from '~/types/character';
+import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
 
 function getCropStyle(crop: PictureCrop): React.CSSProperties {
   const centerX = (crop.x + crop.width / 2) * 100;
@@ -13,7 +14,6 @@ function getCropStyle(crop: PictureCrop): React.CSSProperties {
     transform: `scale(${scale})`,
   };
 }
-import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
 
 interface CharacterWindowProps {
   character: CharacterData;

@@ -35,7 +35,7 @@ export function SessionMultiSelect({
                 type="button"
                 onClick={() => onToggle(sessId)}
                 className="hover:text-white transition-colors"
-                aria-label={`Remove session ${sess?.number}`}
+                aria-label={sess ? `Remove session ${sess.number}` : `Remove session ${sessId}`}
               >
                 <X className="h-2.5 w-2.5" />
               </button>

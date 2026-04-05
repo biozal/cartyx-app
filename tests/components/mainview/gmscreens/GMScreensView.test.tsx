@@ -87,9 +87,10 @@ vi.mock('~/hooks/useGMScreens', () => ({
 // Lazy import after mocks are set up
 import { GMScreensView } from '~/components/mainview/gmscreens/GMScreensView';
 
-const testQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-
 function Wrapper({ children }: { children: React.ReactNode }) {
+  const [testQueryClient] = React.useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  );
   return <QueryClientProvider client={testQueryClient}>{children}</QueryClientProvider>;
 }
 

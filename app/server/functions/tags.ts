@@ -1,3 +1,8 @@
+// NOTE: `as any` casts on Mongoose query methods (findOne, find, bulkWrite, etc.)
+// are required because `noUncheckedIndexedAccess` in tsconfig breaks Mongoose's
+// overloaded method signatures. A future fix is to add typed model generics
+// (e.g., `Model<ITag>`) so filter objects are properly typed. See also:
+// app/server/functions/notes.ts, characters.ts, campaigns.ts, etc.
 import { createServerFn } from '@tanstack/react-start';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
