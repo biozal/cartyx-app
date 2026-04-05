@@ -36,3 +36,4 @@ app.config.timestamp_*.js
 storybook-static/
 coverage/
 .aider*
+.superpowers/

@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, dev]
   push:
-    branches-ignore: [main, dev]
+    branches-ignore: [main]
 
 jobs:
   quality:
