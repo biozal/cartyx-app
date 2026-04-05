@@ -3,6 +3,7 @@ import { Plus, Layers, Loader2, AlertTriangle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useGMScreenList, useGMScreenDetail, useGMScreenMutations } from '~/hooks/useGMScreens';
+import { useCampaign } from '~/hooks/useCampaigns';
 import {
   FloatingWindowManager,
   type ManagedWindow,
@@ -11,6 +12,7 @@ import type { FloatingWindowState } from '~/components/mainview/FloatingWindow';
 import type { WindowState } from '~/types/gmscreen';
 import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
 import { CharacterWindowWrapper, EditCharacterModalWrapper } from './CharacterWindowWrapper';
+import { RuleWindowWrapper, EditRuleModalWrapper } from './RuleWindowWrapper';
 import { GMScreenDialogs, type DialogState } from './GMScreenDialogs';
 import { ScreenBar } from './ScreenBar';
 import { StackCard } from './StackCard';
@@ -36,10 +38,12 @@ function toFloatingState(state: string): FloatingWindowState {
 
 export function GMScreensView({ campaignId }: GMScreensViewProps) {
   const { screens, isLoading: listLoading, error: listError } = useGMScreenList(campaignId);
+  const { campaign } = useCampaign(campaignId);
   const [activeScreenId, setActiveScreenId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogState>({ type: 'none' });
   const mutations = useGMScreenMutations(campaignId);
   const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [flashWindowId, setFlashWindowId] = useState<string | null>(null);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -397,6 +401,15 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
               onEdit={() => setEditingCharacterId(w.documentId)}
             />
           );
+        } else if (w.collection === 'rule') {
+          windowContent = (
+            <RuleWindowWrapper
+              ruleId={w.documentId}
+              campaignId={campaignId}
+              isGM={campaign?.isGM ?? false}
+              onEdit={() => setEditingRuleId(w.documentId)}
+            />
+          );
         } else {
           windowContent = (
             <div className="p-4 overflow-auto h-full">
@@ -451,7 +464,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
 
       return merged;
     });
-  }, [activeScreen, activeScreenId, flashWindowId, campaignId]);
+  }, [activeScreen, activeScreenId, flashWindowId, campaignId, campaign]);
 
   // --- Render ---
 
@@ -615,6 +628,13 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
           campaignId={campaignId}
           characterId={editingCharacterId}
           onClose={() => setEditingCharacterId(null)}
+        />
+      )}
+      {editingRuleId !== null && (
+        <EditRuleModalWrapper
+          campaignId={campaignId}
+          ruleId={editingRuleId}
+          onClose={() => setEditingRuleId(null)}
         />
       )}
     </div>
