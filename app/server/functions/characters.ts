@@ -349,9 +349,16 @@ export const listCharacters = createServerFn({ method: 'GET' })
         };
       }
 
-      // Visibility filter
+      // Visibility filter — GMs can see all characters in their campaign
       let visibilityCondition: Record<string, unknown> | undefined;
-      if (data.visibility === 'public') {
+      if (member.isGM) {
+        // GMs see everything; only narrow when explicitly filtering
+        if (data.visibility === 'public') {
+          filter.isPublic = true;
+        } else if (data.visibility === 'private') {
+          filter.isPublic = false;
+        }
+      } else if (data.visibility === 'public') {
         filter.isPublic = true;
       } else if (data.visibility === 'private') {
         filter.isPublic = false;
@@ -439,8 +446,8 @@ export const getCharacter = createServerFn({ method: 'GET' })
       if (!doc) return null;
       if (String(doc.campaignId) !== data.campaignId) return null;
 
-      // Private characters are only visible to the creator
-      if (!doc.isPublic && String(doc.createdBy) !== userId) {
+      // Private characters are only visible to the creator and GMs
+      if (!doc.isPublic && String(doc.createdBy) !== userId && !member.isGM) {
         return null;
       }
 
