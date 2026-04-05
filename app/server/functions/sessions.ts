@@ -23,10 +23,10 @@ async function requireGM(campaignId: string) {
   await connectDB();
   if (!isDBConnected()) throw new Error('Database not available');
 
-  const dbUser = await User.findOne({ providerId: user.id } as any);
+  const dbUser = await User.findOne({ providerId: user.id });
   if (!dbUser) throw new Error('User not found');
 
-  const campaign = await (Campaign.findById as any)(campaignId);
+  const campaign = await Campaign.findById(campaignId);
   if (!campaign) throw new Error('Campaign not found');
   if (String(campaign.gameMasterId) !== String(dbUser._id)) throw new Error('Forbidden');
 
@@ -45,7 +45,7 @@ export const listSessions = createServerFn({ method: 'GET' })
       }
 
       const sessions = await Session.find(
-        filter as any,
+        filter,
         '_id name number startDate endDate status createdAt updatedAt'
       )
         .sort({ startDate: -1 })
@@ -87,14 +87,14 @@ export const createSession = createServerFn({ method: 'POST' })
       let sessionId: string;
       try {
         sessionId = (await mongoSession.withTransaction(async () => {
-          const lastSession = (await Session.findOne({ campaignId: data.campaignId } as any)
+          const lastSession = (await Session.findOne({ campaignId: data.campaignId })
             .sort({ number: -1 })
             .select('number')
             .session(mongoSession)
             .lean()) as { number: number } | null;
           const number = lastSession ? lastSession.number + 1 : 0;
 
-          const createdSessions = (await Session.create(
+          const [doc] = (await Session.create(
             [
               {
                 campaignId: data.campaignId,
@@ -107,7 +107,6 @@ export const createSession = createServerFn({ method: 'POST' })
             ],
             { session: mongoSession }
           )) as unknown as Array<{ _id: unknown }>;
-          const doc = createdSessions[0]!;
 
           return String(doc._id);
         })) as string;
@@ -140,7 +139,7 @@ export const updateSession = createServerFn({ method: 'POST' })
       const session = await Session.findOne({
         _id: data.sessionId,
         campaignId: data.campaignId,
-      } as any);
+      });
       if (!session) throw new Error('Session not found');
 
       const setFields: Record<string, unknown> = {
@@ -151,9 +150,12 @@ export const updateSession = createServerFn({ method: 'POST' })
       if (data.startDate !== undefined) setFields.startDate = new Date(data.startDate);
       if (data.endDate !== undefined) setFields.endDate = new Date(data.endDate);
 
-      await Session.updateOne({ _id: data.sessionId, campaignId: data.campaignId } as any, {
-        $set: setFields,
-      });
+      await Session.updateOne(
+        { _id: data.sessionId, campaignId: data.campaignId },
+        {
+          $set: setFields,
+        }
+      );
 
       serverCaptureEvent(user.id, 'session_updated', {
         campaign_id: data.campaignId,

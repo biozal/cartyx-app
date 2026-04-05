@@ -304,7 +304,7 @@ export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
 
   try {
     const nameParts = (profile.name ?? '').split(' ');
-    const stored = await (User.findOneAndUpdate as any)(
+    const stored = await User.findOneAndUpdate(
       { providerId: profile.id },
       {
         $set: {

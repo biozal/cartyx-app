@@ -132,10 +132,10 @@ async function requireCampaignMember(
   await connectDB();
   if (!isDBConnected()) throw new Error('Database not available');
 
-  const dbUser = await User.findOne({ providerId: user.id } as any);
+  const dbUser = await User.findOne({ providerId: user.id });
   if (!dbUser) throw new Error('User not found');
 
-  const campaign = await (Campaign.findById as any)(campaignId);
+  const campaign = await Campaign.findById(campaignId);
   if (!campaign) throw new Error('Campaign not found');
 
   const userId = String(dbUser._id);
@@ -225,7 +225,7 @@ export const updateCharacter = createServerFn({ method: 'POST' })
       sessionUserId = member.sessionUserId;
       const userId = member.userId;
 
-      const existing = await (Character.findById as any)(data.id);
+      const existing = await Character.findById(data.id);
       if (!existing) throw new Error('Character not found');
       if (String(existing.campaignId) !== data.campaignId) throw new Error('Forbidden');
       if (String(existing.createdBy) !== userId) throw new Error('Forbidden');
@@ -283,7 +283,7 @@ export const deleteCharacter = createServerFn({ method: 'POST' })
       sessionUserId = member.sessionUserId;
       const userId = member.userId;
 
-      const existing = await (Character.findById as any)(data.id);
+      const existing = await Character.findById(data.id);
       if (!existing) throw new Error('Character not found');
       if (String(existing.campaignId) !== data.campaignId) throw new Error('Forbidden');
       if (String(existing.createdBy) !== userId) throw new Error('Forbidden');
@@ -381,7 +381,7 @@ export const listCharacters = createServerFn({ method: 'GET' })
         }
       }
 
-      const docs = await Character.find(filter as any)
+      const docs = await Character.find(filter)
         .select('-notes -gmNotes')
         .sort({ updatedAt: -1 })
         .lean();
@@ -432,7 +432,7 @@ export const getCharacter = createServerFn({ method: 'GET' })
       sessionUserId = member.sessionUserId;
       const userId = member.userId;
 
-      const doc = await (Character.findById as any)(data.id);
+      const doc = await Character.findById(data.id);
       if (!doc) return null;
       if (String(doc.campaignId) !== data.campaignId) return null;
 

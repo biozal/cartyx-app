@@ -115,7 +115,7 @@ const _getNote = getNote as unknown as (args: {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
-  vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
+  vi.mocked(User.findOne).mockResolvedValue(mockDbUser);
   vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign);
 });
 
@@ -141,7 +141,7 @@ describe('createNote', () => {
     expect(result.success).toBe(true);
     expect(result.note.id).toBe('note-1');
     // Verify tags were normalized (lowercase, trimmed, deduplicated)
-    expect(vi.mocked(Note.create).mock.calls[0]![0]).toMatchObject({
+    expect(vi.mocked(Note.create).mock.calls[0][0]).toMatchObject({
       title: 'My Note',
       note: '# Content',
       tags: ['combat', 'loot'],
@@ -160,7 +160,7 @@ describe('createNote', () => {
       },
     });
 
-    expect(vi.mocked(Note.create).mock.calls[0]![0]).toMatchObject({
+    expect(vi.mocked(Note.create).mock.calls[0][0]).toMatchObject({
       isPublic: false,
     });
   });
@@ -178,7 +178,7 @@ describe('createNote', () => {
       },
     });
 
-    expect(vi.mocked(Note.create).mock.calls[0]![0]).toMatchObject({
+    expect(vi.mocked(Note.create).mock.calls[0][0]).toMatchObject({
       isPublic: true,
     });
   });
@@ -217,7 +217,7 @@ describe('createNote', () => {
 
     expect(result.success).toBe(true);
     expect(result.note.sessionId).toBeUndefined();
-    const createArg = vi.mocked(Note.create).mock.calls[0]![0] as Record<string, unknown>;
+    const createArg = vi.mocked(Note.create).mock.calls[0][0] as Record<string, unknown>;
     expect(createArg).not.toHaveProperty('sessionId');
   });
 
@@ -236,7 +236,7 @@ describe('createNote', () => {
 
     expect(result.success).toBe(true);
     expect(result.note.sessionId).toBeUndefined();
-    const createArg = vi.mocked(Note.create).mock.calls[0]![0] as Record<string, unknown>;
+    const createArg = vi.mocked(Note.create).mock.calls[0][0] as Record<string, unknown>;
     expect(createArg).not.toHaveProperty('sessionId');
   });
 
@@ -410,20 +410,18 @@ describe('listNotes', () => {
   it('returns notes for a campaign (default visibility filters to visible notes)', async () => {
     const notes = [makeNote(), makeNote({ _id: 'note-2', title: 'Second Note' })];
     vi.mocked(Note.find).mockReturnValue({
-      select: vi
-        .fn()
-        .mockReturnValue({
-          sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(notes) }),
-        }),
+      select: vi.fn().mockReturnValue({
+        sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(notes) }),
+      }),
     } as never);
 
     const result = await _listNotes({ data: { campaignId: 'camp-1' } });
 
     expect(result).toHaveLength(2);
-    expect(result[0]!.id).toBe('note-1');
-    expect(result[1]!.title).toBe('Second Note');
+    expect(result[0].id).toBe('note-1');
+    expect(result[1].title).toBe('Second Note');
     // Default visibility='all' adds $or filter for privacy safety
-    expect(vi.mocked(Note.find).mock.calls[0]![0]).toMatchObject({
+    expect(vi.mocked(Note.find).mock.calls[0][0]).toMatchObject({
       campaignId: 'camp-1',
       $or: [{ isPublic: true }, { createdBy: 'dbuser-1' }],
     });
@@ -432,16 +430,14 @@ describe('listNotes', () => {
   it('does not return other users private notes with default visibility', async () => {
     // Simulate: another user's private note would be filtered by the $or clause
     vi.mocked(Note.find).mockReturnValue({
-      select: vi
-        .fn()
-        .mockReturnValue({
-          sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
-        }),
+      select: vi.fn().mockReturnValue({
+        sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+      }),
     } as never);
 
     await _listNotes({ data: { campaignId: 'camp-1' } });
 
-    const filter = vi.mocked(Note.find).mock.calls[0]![0] as unknown as Record<string, unknown>;
+    const filter = vi.mocked(Note.find).mock.calls[0][0] as unknown as Record<string, unknown>;
     // The $or ensures only public notes or the current user's notes are returned
     expect(filter.$or).toEqual([{ isPublic: true }, { createdBy: 'dbuser-1' }]);
     // No unscoped query that would leak private notes
@@ -452,31 +448,27 @@ describe('listNotes', () => {
   it('list responses omit note body field', async () => {
     const notes = [makeNote()];
     vi.mocked(Note.find).mockReturnValue({
-      select: vi
-        .fn()
-        .mockReturnValue({
-          sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(notes) }),
-        }),
+      select: vi.fn().mockReturnValue({
+        sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(notes) }),
+      }),
     } as never);
 
     const result = await _listNotes({ data: { campaignId: 'camp-1' } });
 
     // NoteListItem does not include 'note' field
-    expect(result[0]!).not.toHaveProperty('note');
+    expect(result[0]).not.toHaveProperty('note');
   });
 
   it('filters by sessionId', async () => {
     vi.mocked(Note.find).mockReturnValue({
-      select: vi
-        .fn()
-        .mockReturnValue({
-          sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
-        }),
+      select: vi.fn().mockReturnValue({
+        sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+      }),
     } as never);
 
     await _listNotes({ data: { campaignId: 'camp-1', sessionId: 'sess-2' } });
 
-    expect(vi.mocked(Note.find).mock.calls[0]![0]).toMatchObject({
+    expect(vi.mocked(Note.find).mock.calls[0][0]).toMatchObject({
       campaignId: 'camp-1',
       sessionId: 'sess-2',
     });
@@ -484,32 +476,28 @@ describe('listNotes', () => {
 
   it('filters by visibility=public', async () => {
     vi.mocked(Note.find).mockReturnValue({
-      select: vi
-        .fn()
-        .mockReturnValue({
-          sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
-        }),
+      select: vi.fn().mockReturnValue({
+        sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+      }),
     } as never);
 
     await _listNotes({ data: { campaignId: 'camp-1', visibility: 'public' } });
 
-    expect(vi.mocked(Note.find).mock.calls[0]![0]).toMatchObject({
+    expect(vi.mocked(Note.find).mock.calls[0][0]).toMatchObject({
       isPublic: true,
     });
   });
 
   it('filters by visibility=private (own notes only)', async () => {
     vi.mocked(Note.find).mockReturnValue({
-      select: vi
-        .fn()
-        .mockReturnValue({
-          sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
-        }),
+      select: vi.fn().mockReturnValue({
+        sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+      }),
     } as never);
 
     await _listNotes({ data: { campaignId: 'camp-1', visibility: 'private' } });
 
-    expect(vi.mocked(Note.find).mock.calls[0]![0]).toMatchObject({
+    expect(vi.mocked(Note.find).mock.calls[0][0]).toMatchObject({
       isPublic: false,
       createdBy: 'dbuser-1',
     });
@@ -517,46 +505,40 @@ describe('listNotes', () => {
 
   it('applies text search filter', async () => {
     vi.mocked(Note.find).mockReturnValue({
-      select: vi
-        .fn()
-        .mockReturnValue({
-          sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
-        }),
+      select: vi.fn().mockReturnValue({
+        sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+      }),
     } as never);
 
     await _listNotes({ data: { campaignId: 'camp-1', search: 'dragon' } });
 
-    expect(vi.mocked(Note.find).mock.calls[0]![0]).toMatchObject({
+    expect(vi.mocked(Note.find).mock.calls[0][0]).toMatchObject({
       $text: { $search: 'dragon' },
     });
   });
 
   it('ignores empty search string', async () => {
     vi.mocked(Note.find).mockReturnValue({
-      select: vi
-        .fn()
-        .mockReturnValue({
-          sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
-        }),
+      select: vi.fn().mockReturnValue({
+        sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+      }),
     } as never);
 
     await _listNotes({ data: { campaignId: 'camp-1', search: '   ' } });
 
-    expect(vi.mocked(Note.find).mock.calls[0]![0]).not.toHaveProperty('$text');
+    expect(vi.mocked(Note.find).mock.calls[0][0]).not.toHaveProperty('$text');
   });
 
   it('filters for notes with no session when sessionId is "__none__"', async () => {
     vi.mocked(Note.find).mockReturnValue({
-      select: vi
-        .fn()
-        .mockReturnValue({
-          sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
-        }),
+      select: vi.fn().mockReturnValue({
+        sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+      }),
     } as never);
 
     await _listNotes({ data: { campaignId: 'camp-1', sessionId: '__none__' } });
 
-    const filter = vi.mocked(Note.find).mock.calls[0]![0] as unknown as Record<string, unknown>;
+    const filter = vi.mocked(Note.find).mock.calls[0][0] as unknown as Record<string, unknown>;
     expect(filter.sessionId).toEqual({ $exists: false });
   });
 

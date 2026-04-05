@@ -1,8 +1,3 @@
-// NOTE: `as any` casts on Mongoose query methods (findOne, find, bulkWrite, etc.)
-// are required because `noUncheckedIndexedAccess` in tsconfig breaks Mongoose's
-// overloaded method signatures. A future fix is to add typed model generics
-// (e.g., `Model<ITag>`) so filter objects are properly typed. See also:
-// app/server/functions/notes.ts, characters.ts, campaigns.ts, etc.
 import { createServerFn } from '@tanstack/react-start';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
@@ -23,10 +18,10 @@ async function requireCampaignMember(
   await connectDB();
   if (!isDBConnected()) throw new Error('Database not available');
 
-  const dbUser = await User.findOne({ providerId: user.id } as any);
+  const dbUser = await User.findOne({ providerId: user.id });
   if (!dbUser) throw new Error('User not found');
 
-  const campaign = await (Campaign.findById as any)(campaignId);
+  const campaign = await Campaign.findById(campaignId);
   if (!campaign) throw new Error('Campaign not found');
 
   const userId = String(dbUser._id);
@@ -53,7 +48,7 @@ export const listTags = createServerFn({ method: 'GET' })
       const member = await requireCampaignMember(data.campaignId);
       sessionUserId = member.sessionUserId;
 
-      const docs = await Tag.find({ campaignId: data.campaignId } as any)
+      const docs = await Tag.find({ campaignId: data.campaignId })
         .select('name')
         .sort({ name: 1 })
         .lean();
@@ -102,7 +97,7 @@ export const ensureTags = createServerFn({ method: 'POST' })
         },
       }));
 
-      await (Tag.bulkWrite as any)(ops, { ordered: false });
+      await Tag.bulkWrite(ops, { ordered: false });
       return { success: true };
     } catch (e) {
       serverCaptureException(e, sessionUserId, {

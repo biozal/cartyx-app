@@ -115,7 +115,7 @@ export const listCampaigns = createServerFn({ method: 'GET' }).handler(async () 
     await connectDB();
     if (!isDBConnected()) return [];
 
-    const dbUser = await User.findOne({ providerId: user.id } as any);
+    const dbUser = await User.findOne({ providerId: user.id });
     if (!dbUser) return [];
 
     // Include legacy campaigns (pre-members migration) where user is the GM
@@ -126,7 +126,7 @@ export const listCampaigns = createServerFn({ method: 'GET' }).handler(async () 
         // Ensure the GM always sees their campaigns, even if members is non-empty and missing the GM
         { gameMasterId: dbUser._id },
       ],
-    } as any).sort({ createdAt: -1 });
+    }).sort({ createdAt: -1 });
 
     const campaignIds = raw.map((c) => c._id);
     let playersByCampaignId: Record<
@@ -142,7 +142,7 @@ export const listCampaigns = createServerFn({ method: 'GET' }).handler(async () 
 
     if (campaignIds.length > 0) {
       const allPlayers = await Player.find(
-        { campaignId: { $in: campaignIds } } as any,
+        { campaignId: { $in: campaignIds } },
         '_id campaignId userId characterName characterClass avatar'
       ).lean();
       playersByCampaignId = allPlayers.reduce(
@@ -202,8 +202,8 @@ export const getCampaign = createServerFn({ method: 'GET' })
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
 
-      const dbUser = await User.findOne({ providerId: user.id } as any);
-      const c = await (Campaign.findById as any)(data.id);
+      const dbUser = await User.findOne({ providerId: user.id });
+      const c = await Campaign.findById(data.id);
       if (!c) return null;
 
       const userId = dbUser ? String(dbUser._id) : undefined;
@@ -225,13 +225,13 @@ export const getCampaign = createServerFn({ method: 'GET' })
         ReturnType<typeof GMScreen.find> | null,
       ] = [
         Player.find(
-          { campaignId: c._id } as any,
+          { campaignId: c._id },
           '_id campaignId userId characterName characterClass avatar'
         ).lean(),
-        Session.find({ campaignId: c._id } as any, '_id name number startDate endDate status')
+        Session.find({ campaignId: c._id }, '_id name number startDate endDate status')
           .sort({ number: 1 })
           .lean(),
-        isOwner ? GMScreen.find({ campaignId: c._id } as any, '_id name').lean() : null,
+        isOwner ? GMScreen.find({ campaignId: c._id }, '_id name').lean() : null,
       ];
 
       const [playerDocs, sessionDocs, gmScreenDocs] = await Promise.all(queries);
@@ -328,7 +328,7 @@ export const createCampaign = createServerFn({ method: 'POST' })
 
       if (!name.trim()) throw new Error('Campaign name is required');
 
-      const dbUser = await User.findOne({ providerId: user.id } as any);
+      const dbUser = await User.findOne({ providerId: user.id });
       if (!dbUser) throw new Error('User not found');
 
       let imagePath: string | null = null;
@@ -368,7 +368,7 @@ export const createCampaign = createServerFn({ method: 'POST' })
           let attempts = 0;
           while (attempts < 10 && !campaign) {
             const inviteCode = generateInviteCode();
-            const inUse = await Campaign.exists({ inviteCode } as any).session(mongoSession);
+            const inUse = await Campaign.exists({ inviteCode }).session(mongoSession);
             attempts++;
             if (inUse) continue;
             try {
@@ -437,7 +437,7 @@ export const createCampaign = createServerFn({ method: 'POST' })
 
           // Sync User.campaigns array
           await User.updateOne(
-            { _id: dbUser._id } as any,
+            { _id: dbUser._id },
             {
               $push: {
                 campaigns: { campaignId: campaign._id, joinedAt: new Date(), status: 'active' },
@@ -480,10 +480,10 @@ export const updateCampaign = createServerFn({ method: 'POST' })
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
 
-      const dbUser = await User.findOne({ providerId: user.id } as any);
+      const dbUser = await User.findOne({ providerId: user.id });
       if (!dbUser) throw new Error('User not found');
 
-      const campaign = await (Campaign.findById as any)(data.id);
+      const campaign = await Campaign.findById(data.id);
       if (!campaign) throw new Error('Campaign not found');
       if (String(campaign.gameMasterId) !== String(dbUser._id)) throw new Error('Forbidden');
 
@@ -558,11 +558,11 @@ export const joinCampaign = createServerFn({ method: 'POST' })
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
 
-      const dbUser = await User.findOne({ providerId: user.id } as any);
+      const dbUser = await User.findOne({ providerId: user.id });
       if (!dbUser) throw new Error('User not found');
 
       const normalizedInviteCode = data.inviteCode.trim().toUpperCase();
-      const campaign = await Campaign.findOne({ inviteCode: normalizedInviteCode } as any);
+      const campaign = await Campaign.findOne({ inviteCode: normalizedInviteCode });
       if (!campaign) throw new Error('Invalid invite code');
       if (campaign.status !== 'active') throw new Error('Campaign is not active');
 
@@ -575,7 +575,7 @@ export const joinCampaign = createServerFn({ method: 'POST' })
 
       const now = new Date();
 
-      const updatedCampaign = (await Campaign.findOneAndUpdate(
+      const updatedCampaign = await Campaign.findOneAndUpdate(
         {
           _id: campaign._id,
           status: 'active',
@@ -594,24 +594,27 @@ export const joinCampaign = createServerFn({ method: 'POST' })
               { $ifNull: ['$maxPlayers', 4] },
             ],
           },
-        } as any,
+        },
         {
           $addToSet: { members: { userId: dbUser._id, role: 'player', joinedAt: now } },
         },
         {
           new: true,
-        } as any
-      )) as any;
+        }
+      );
 
       if (!updatedCampaign) {
         throw new Error('Campaign is full');
       }
 
-      await User.updateOne({ _id: dbUser._id } as any, {
-        $addToSet: {
-          campaigns: { campaignId: updatedCampaign._id, status: 'active', joinedAt: now },
-        },
-      });
+      await User.updateOne(
+        { _id: dbUser._id },
+        {
+          $addToSet: {
+            campaigns: { campaignId: updatedCampaign._id, status: 'active', joinedAt: now },
+          },
+        }
+      );
 
       // Create placeholder Player document (can be edited later)
       const displayName = [
@@ -625,7 +628,7 @@ export const joinCampaign = createServerFn({ method: 'POST' })
         {
           campaignId: updatedCampaign._id,
           userId: dbUser._id,
-        } as any,
+        },
         {
           $setOnInsert: {
             campaignId: updatedCampaign._id,
@@ -657,10 +660,10 @@ export const activateSession = createServerFn({ method: 'POST' })
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
 
-      const dbUser = await User.findOne({ providerId: user.id } as any);
+      const dbUser = await User.findOne({ providerId: user.id });
       if (!dbUser) throw new Error('User not found');
 
-      const campaign = await (Campaign.findById as any)(data.campaignId);
+      const campaign = await Campaign.findById(data.campaignId);
       if (!campaign) throw new Error('Campaign not found');
       if (String(campaign.gameMasterId) !== String(dbUser._id)) throw new Error('Forbidden');
 
@@ -670,7 +673,7 @@ export const activateSession = createServerFn({ method: 'POST' })
           const currentActive = await Session.findOne({
             campaignId: data.campaignId,
             status: 'active',
-          } as any).session(mongoSession);
+          }).session(mongoSession);
 
           // If the target is already the active session, no-op
           if (currentActive && String(currentActive._id) === data.sessionId) {
@@ -681,7 +684,7 @@ export const activateSession = createServerFn({ method: 'POST' })
           const targetSession = await Session.findOne({
             _id: data.sessionId,
             campaignId: data.campaignId,
-          } as any).session(mongoSession);
+          }).session(mongoSession);
           if (!targetSession) throw new Error('Session not found');
 
           const now = new Date();
@@ -690,7 +693,7 @@ export const activateSession = createServerFn({ method: 'POST' })
           if (currentActive) {
             const endDate = data.endDate ? new Date(data.endDate) : now;
             await Session.updateOne(
-              { _id: currentActive._id } as any,
+              { _id: currentActive._id },
               { $set: { status: 'completed', endDate, updatedAt: now } },
               { session: mongoSession }
             );
@@ -698,7 +701,7 @@ export const activateSession = createServerFn({ method: 'POST' })
 
           // Activate the target session
           await Session.updateOne(
-            { _id: data.sessionId, campaignId: data.campaignId } as any,
+            { _id: data.sessionId, campaignId: data.campaignId },
             { $set: { status: 'active', updatedAt: now } },
             { session: mongoSession }
           );

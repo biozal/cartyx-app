@@ -124,7 +124,7 @@ interface CollectionFetcher {
 const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
   note: {
     async fetch(ids: string[], campaignId: string) {
-      return Note.find({ _id: { $in: ids }, campaignId } as any, '_id title note')
+      return Note.find({ _id: { $in: ids }, campaignId }, '_id title note')
         .lean()
         .then((docs) =>
           docs.map((d) => ({
@@ -137,10 +137,7 @@ const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
   },
   character: {
     async fetch(ids: string[], campaignId: string) {
-      return Character.find(
-        { _id: { $in: ids }, campaignId } as any,
-        '_id firstName lastName notes'
-      )
+      return Character.find({ _id: { $in: ids }, campaignId }, '_id firstName lastName notes')
         .lean()
         .then((docs) =>
           docs.map((d) => {
@@ -229,10 +226,10 @@ async function requireCampaignGM(
   await connectDB();
   if (!isDBConnected()) throw new Error('Database not available');
 
-  const dbUser = await User.findOne({ providerId: user.id } as any);
+  const dbUser = await User.findOne({ providerId: user.id });
   if (!dbUser) throw new Error('User not found');
 
-  const campaign = await (Campaign.findById as any)(campaignId);
+  const campaign = await Campaign.findById(campaignId);
   if (!campaign) throw new Error('Campaign not found');
 
   const userId = String(dbUser._id);
@@ -264,7 +261,7 @@ export const listGMScreens = createServerFn({ method: 'GET' })
       sessionUserId = gm.sessionUserId;
 
       const docs = await GMScreen.find(
-        { campaignId: data.campaignId } as any,
+        { campaignId: data.campaignId },
         '_id campaignId name tabOrder createdBy createdAt updatedAt'
       )
         .sort({ tabOrder: 1 })
@@ -320,7 +317,7 @@ export const createGMScreen = createServerFn({ method: 'POST' })
         const mongoSession = await mongoose.startSession();
         try {
           doc = (await mongoSession.withTransaction(async () => {
-            const last = (await GMScreen.findOne({ campaignId: data.campaignId } as any)
+            const last = (await GMScreen.findOne({ campaignId: data.campaignId })
               .sort({ tabOrder: -1 })
               .select('tabOrder')
               .session(mongoSession)
@@ -402,7 +399,7 @@ export const renameGMScreen = createServerFn({ method: 'POST' })
       const gm = await requireCampaignGM(data.campaignId);
       sessionUserId = gm.sessionUserId;
 
-      const screen = await (GMScreen.findById as any)(data.id);
+      const screen = await GMScreen.findById(data.id);
       if (!screen) throw new Error('Screen not found');
       if (String(screen.campaignId) !== data.campaignId) throw new Error('Forbidden');
 
@@ -447,16 +444,16 @@ export const deleteGMScreen = createServerFn({ method: 'POST' })
           const screen = await GMScreen.findOne({
             _id: data.id,
             campaignId: data.campaignId,
-          } as any).session(mongoSession);
+          }).session(mongoSession);
           if (!screen) throw new Error('Screen not found');
 
           const count = await GMScreen.countDocuments({
             campaignId: data.campaignId,
-          } as any).session(mongoSession);
+          }).session(mongoSession);
           if (count <= 1) throw new Error('Cannot delete the last screen');
 
           const tabOrder = typeof screen.tabOrder === 'number' ? screen.tabOrder : 0;
-          await GMScreen.deleteOne({ _id: data.id, campaignId: data.campaignId } as any).session(
+          await GMScreen.deleteOne({ _id: data.id, campaignId: data.campaignId }).session(
             mongoSession
           );
 
@@ -468,7 +465,7 @@ export const deleteGMScreen = createServerFn({ method: 'POST' })
 
       // Return the remaining screens so the client can resolve the next active screen
       const remaining = await GMScreen.find(
-        { campaignId: data.campaignId } as any,
+        { campaignId: data.campaignId },
         '_id campaignId name tabOrder createdBy createdAt updatedAt'
       )
         .sort({ tabOrder: 1 })
@@ -518,7 +515,7 @@ export const reorderGMScreens = createServerFn({ method: 'POST' })
       const mongoSession = await mongoose.startSession();
       try {
         await mongoSession.withTransaction(async () => {
-          const screens = (await GMScreen.find({ campaignId: data.campaignId } as any, '_id')
+          const screens = (await GMScreen.find({ campaignId: data.campaignId }, '_id')
             .session(mongoSession)
             .lean()) as Array<{ _id: unknown }>;
 
@@ -543,7 +540,7 @@ export const reorderGMScreens = createServerFn({ method: 'POST' })
           // Two-phase reorder to avoid transient unique-index collisions:
           // Phase 1 — move all screens to negative tabOrder values
           const now = new Date();
-          await (GMScreen.bulkWrite as any)(
+          await GMScreen.bulkWrite(
             data.screenIds.map((id, index) => ({
               updateOne: {
                 filter: { _id: id, campaignId: data.campaignId },
@@ -554,7 +551,7 @@ export const reorderGMScreens = createServerFn({ method: 'POST' })
           );
 
           // Phase 2 — assign final tabOrder values (all non-negative, no collisions)
-          await (GMScreen.bulkWrite as any)(
+          await GMScreen.bulkWrite(
             data.screenIds.map((id, index) => ({
               updateOne: {
                 filter: { _id: id, campaignId: data.campaignId },
@@ -575,7 +572,7 @@ export const reorderGMScreens = createServerFn({ method: 'POST' })
 
       // Return the freshly ordered screens
       const ordered = await GMScreen.find(
-        { campaignId: data.campaignId } as any,
+        { campaignId: data.campaignId },
         '_id campaignId name tabOrder createdBy createdAt updatedAt'
       )
         .sort({ tabOrder: 1 })
@@ -621,7 +618,7 @@ export const getGMScreen = createServerFn({ method: 'GET' })
       const doc = (await GMScreen.findOne({
         _id: data.id,
         campaignId: data.campaignId,
-      } as any).lean()) as {
+      }).lean()) as {
         _id: unknown;
         campaignId: unknown;
         name?: string;
@@ -703,7 +700,7 @@ export const openWindow = createServerFn({ method: 'POST' })
       const screen = await GMScreen.findOne({
         _id: data.screenId,
         campaignId: data.campaignId,
-      } as any);
+      });
       if (!screen) throw new Error('Screen not found');
 
       if (!screen.windows) {
@@ -815,7 +812,7 @@ export const updateWindow = createServerFn({ method: 'POST' })
           _id: data.screenId,
           campaignId: data.campaignId,
           'windows._id': data.windowId,
-        } as any,
+        },
         { $set: setFields }
       );
 
@@ -824,7 +821,7 @@ export const updateWindow = createServerFn({ method: 'POST' })
         const screenExists = await GMScreen.countDocuments({
           _id: data.screenId,
           campaignId: data.campaignId,
-        } as any);
+        });
         if (screenExists === 0) {
           throw new Error('Screen not found');
         }
@@ -833,7 +830,7 @@ export const updateWindow = createServerFn({ method: 'POST' })
 
       // Fetch the updated window to return
       const screen = (await GMScreen.findOne(
-        { _id: data.screenId, campaignId: data.campaignId } as any,
+        { _id: data.screenId, campaignId: data.campaignId },
         { windows: { $elemMatch: { _id: data.windowId } } }
       ).lean()) as {
         windows?: Array<{
@@ -885,7 +882,7 @@ export const closeWindow = createServerFn({ method: 'POST' })
           _id: data.screenId,
           campaignId: data.campaignId,
           'windows._id': data.windowId,
-        } as any,
+        },
         {
           $pull: { windows: { _id: data.windowId } },
           $set: { updatedAt: new Date() },
@@ -897,7 +894,7 @@ export const closeWindow = createServerFn({ method: 'POST' })
         const screenExists = await GMScreen.countDocuments({
           _id: data.screenId,
           campaignId: data.campaignId,
-        } as any);
+        });
         if (screenExists === 0) {
           throw new Error('Screen not found');
         }
@@ -940,7 +937,7 @@ export const createStack = createServerFn({ method: 'POST' })
       const screen = await GMScreen.findOne({
         _id: data.screenId,
         campaignId: data.campaignId,
-      } as any);
+      });
       if (!screen) throw new Error('Screen not found');
 
       if (!screen.stacks) {
@@ -998,7 +995,7 @@ export const renameStack = createServerFn({ method: 'POST' })
           _id: data.screenId,
           campaignId: data.campaignId,
           'stacks._id': data.stackId,
-        } as any,
+        },
         {
           $set: {
             'stacks.$.name': data.name.trim(),
@@ -1011,7 +1008,7 @@ export const renameStack = createServerFn({ method: 'POST' })
         const screenExists = await GMScreen.countDocuments({
           _id: data.screenId,
           campaignId: data.campaignId,
-        } as any);
+        });
         if (screenExists === 0) {
           throw new Error('Screen not found');
         }
@@ -1055,7 +1052,7 @@ export const moveStack = createServerFn({ method: 'POST' })
           _id: data.screenId,
           campaignId: data.campaignId,
           'stacks._id': data.stackId,
-        } as any,
+        },
         {
           $set: {
             'stacks.$.x': data.x,
@@ -1069,7 +1066,7 @@ export const moveStack = createServerFn({ method: 'POST' })
         const screenExists = await GMScreen.countDocuments({
           _id: data.screenId,
           campaignId: data.campaignId,
-        } as any);
+        });
         if (screenExists === 0) {
           throw new Error('Screen not found');
         }
@@ -1113,7 +1110,7 @@ export const deleteStack = createServerFn({ method: 'POST' })
           _id: data.screenId,
           campaignId: data.campaignId,
           'stacks._id': data.stackId,
-        } as any,
+        },
         {
           $pull: { stacks: { _id: data.stackId } },
           $set: { updatedAt: new Date() },
@@ -1124,7 +1121,7 @@ export const deleteStack = createServerFn({ method: 'POST' })
         const screenExists = await GMScreen.countDocuments({
           _id: data.screenId,
           campaignId: data.campaignId,
-        } as any);
+        });
         if (screenExists === 0) {
           throw new Error('Screen not found');
         }
@@ -1173,7 +1170,7 @@ export const addStackItem = createServerFn({ method: 'POST' })
       const screen = await GMScreen.findOne({
         _id: data.screenId,
         campaignId: data.campaignId,
-      } as any);
+      });
       if (!screen) throw new Error('Screen not found');
 
       if (!screen.stacks) {
@@ -1249,7 +1246,7 @@ export const removeStackItem = createServerFn({ method: 'POST' })
       const screen = await GMScreen.findOne({
         _id: data.screenId,
         campaignId: data.campaignId,
-      } as any);
+      });
       if (!screen) throw new Error('Screen not found');
 
       if (!screen.stacks) {

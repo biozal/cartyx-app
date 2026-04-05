@@ -70,7 +70,7 @@ const mockCampaign = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
-  vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
+  vi.mocked(User.findOne).mockResolvedValue(mockDbUser);
   vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign);
 });
 
@@ -133,7 +133,7 @@ describe('listSessions', () => {
         id: 's1',
         name: 'Session 1',
         number: 1,
-        startDate: baseSessions[0]!.startDate.toISOString(),
+        startDate: baseSessions[0].startDate.toISOString(),
         endDate: null,
         status: 'active',
       },
@@ -312,7 +312,7 @@ describe('updateSession', () => {
     );
 
     // Verify endDate is NOT in the $set when not provided
-    const updateCall = vi.mocked(Session.updateOne).mock.calls[0]!;
+    const updateCall = vi.mocked(Session.updateOne).mock.calls[0];
     const setFields = (updateCall[1] as { $set: Record<string, unknown> }).$set;
     expect(setFields).not.toHaveProperty('endDate');
   });

@@ -49,9 +49,11 @@ characterSchema.pre('findOneAndUpdate', function () {
     let hasSetStage = false;
     update.forEach((stage) => {
       if (!stage || typeof stage !== 'object') return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mongoose pipeline stage
       const stageObj = stage as Record<string, any>;
       if (!('$set' in stageObj)) return;
       hasSetStage = true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mongoose $set object
       const set = stageObj.$set as Record<string, any>;
       if (Array.isArray(set.tags)) {
         set.tags = normalizeTags(set.tags as string[]);
@@ -65,6 +67,7 @@ characterSchema.pre('findOneAndUpdate', function () {
     return;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mongoose update object
   const updateObj = update as Record<string, any>;
   if ('$set' in updateObj) {
     const set = (updateObj.$set ??= {});

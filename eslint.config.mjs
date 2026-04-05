@@ -49,14 +49,6 @@ export default [
     },
   },
   {
-    files: ['app/server/**/*.{ts,tsx}'],
-    rules: {
-      // Mongoose query/filter objects require `as any` casts due to overloaded method signatures
-      // that TypeScript cannot resolve with noUncheckedIndexedAccess enabled
-      '@typescript-eslint/no-explicit-any': 'off',
-    },
-  },
-  {
     files: [
       'app/hooks/**',
       'app/components/**',
