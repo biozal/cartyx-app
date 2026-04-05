@@ -6,73 +6,73 @@ import {
   useId,
   useRef,
   useState,
-} from 'react'
-import { ChevronDown, Maximize2, Minimize2, X } from 'lucide-react'
+} from 'react';
+import { ChevronDown, Maximize2, Minimize2, X } from 'lucide-react';
 
 export interface FloatingWindowPosition {
-  x: number
-  y: number
+  x: number;
+  y: number;
 }
 
 export interface FloatingWindowSize {
-  width: number
-  height: number
+  width: number;
+  height: number;
 }
 
-export type FloatingWindowState = 'normal' | 'minimized' | 'maximized'
+export type FloatingWindowState = 'normal' | 'minimized' | 'maximized';
 
 export interface FloatingWindowProps {
-  id: string
-  title: string
-  children: ReactNode
-  initialPosition?: FloatingWindowPosition
-  initialSize?: FloatingWindowSize
-  initialState?: FloatingWindowState
-  zIndex?: number
-  onClose?: () => void
-  onFocus?: () => void
-  onStateChange?: (state: FloatingWindowState) => void
-  onLayoutChange?: (layout: { position: FloatingWindowPosition; size: FloatingWindowSize }) => void
-  className?: string
+  id: string;
+  title: string;
+  children: ReactNode;
+  initialPosition?: FloatingWindowPosition;
+  initialSize?: FloatingWindowSize;
+  initialState?: FloatingWindowState;
+  zIndex?: number;
+  onClose?: () => void;
+  onFocus?: () => void;
+  onStateChange?: (state: FloatingWindowState) => void;
+  onLayoutChange?: (layout: { position: FloatingWindowPosition; size: FloatingWindowSize }) => void;
+  className?: string;
 }
 
-const DEFAULT_POSITION: FloatingWindowPosition = { x: 100, y: 100 }
-const DEFAULT_SIZE: FloatingWindowSize = { width: 400, height: 300 }
-const TITLE_BAR_HEIGHT = 36
-const MIN_VISIBLE_TITLE_WIDTH = 50
-const MIN_WIDTH = 200
-const MIN_HEIGHT = 150
+const DEFAULT_POSITION: FloatingWindowPosition = { x: 100, y: 100 };
+const DEFAULT_SIZE: FloatingWindowSize = { width: 400, height: 300 };
+const TITLE_BAR_HEIGHT = 36;
+const MIN_VISIBLE_TITLE_WIDTH = 50;
+const MIN_WIDTH = 200;
+const MIN_HEIGHT = 150;
 
 interface DragState {
-  offsetX: number
-  offsetY: number
+  offsetX: number;
+  offsetY: number;
 }
 
 interface ResizeState {
-  startX: number
-  startY: number
-  startWidth: number
-  startHeight: number
+  startX: number;
+  startY: number;
+  startWidth: number;
+  startHeight: number;
 }
 
 function clampPosition(
   nextPosition: FloatingWindowPosition,
   size: FloatingWindowSize,
-  parent: HTMLElement | null,
+  parent: HTMLElement | null
 ): FloatingWindowPosition {
   if (!parent) {
-    return nextPosition
+    return nextPosition;
   }
 
-  const maxX = parent.clientWidth - MIN_VISIBLE_TITLE_WIDTH
-  const minX = MIN_VISIBLE_TITLE_WIDTH - size.width
-  const minY = 0
-  const maxY = parent.clientHeight - TITLE_BAR_HEIGHT
+  const maxX = parent.clientWidth - MIN_VISIBLE_TITLE_WIDTH;
+  const minX = MIN_VISIBLE_TITLE_WIDTH - size.width;
+  const minY = 0;
+  const maxY = parent.clientHeight - TITLE_BAR_HEIGHT;
 
   return {
     x: Math.min(Math.max(nextPosition.x, minX), maxX),
     y: Math.min(Math.max(nextPosition.y, minY), maxY),
-  }
+  };
 }
 
 export function FloatingWindow({
@@ -89,83 +89,97 @@ export function FloatingWindow({
   onLayoutChange,
   className = '',
 }: FloatingWindowProps) {
-  const [position, setPosition] = useState<FloatingWindowPosition>(initialPosition)
-  const [size, setSize] = useState<FloatingWindowSize>(initialSize)
-  const [windowState, setWindowState] = useState<FloatingWindowState>(initialState)
-  const [isFocused, setIsFocused] = useState(false)
+  const [position, setPosition] = useState<FloatingWindowPosition>(initialPosition);
+  const [size, setSize] = useState<FloatingWindowSize>(initialSize);
+  const [windowState, setWindowState] = useState<FloatingWindowState>(initialState);
+  const [isFocused, setIsFocused] = useState(false);
 
-  const windowRef = useRef<HTMLDivElement | null>(null)
-  const dragStateRef = useRef<DragState | null>(null)
-  const resizeStateRef = useRef<ResizeState | null>(null)
-  const positionRef = useRef<FloatingWindowPosition>(initialPosition)
-  const sizeRef = useRef<FloatingWindowSize>(initialSize)
+  const windowRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef<DragState | null>(null);
+  const resizeStateRef = useRef<ResizeState | null>(null);
+  const positionRef = useRef<FloatingWindowPosition>(initialPosition);
+  const sizeRef = useRef<FloatingWindowSize>(initialSize);
   // Stash normal-mode geometry so maximize→restore round-trips cleanly
-  const preMaxRef = useRef<{ position: FloatingWindowPosition; size: FloatingWindowSize } | null>(null)
-  const cleanupListenersRef = useRef<(() => void) | null>(null)
-  const onLayoutChangeRef = useRef(onLayoutChange)
-  onLayoutChangeRef.current = onLayoutChange
-  const titleId = useId()
+  const preMaxRef = useRef<{ position: FloatingWindowPosition; size: FloatingWindowSize } | null>(
+    null
+  );
+  const cleanupListenersRef = useRef<(() => void) | null>(null);
+  const onLayoutChangeRef = useRef(onLayoutChange);
+  onLayoutChangeRef.current = onLayoutChange;
+  const titleId = useId();
 
   useEffect(() => {
-    setWindowState(initialState)
-  }, [initialState])
+    setWindowState(initialState);
+  }, [initialState]);
 
   useEffect(() => {
     return () => {
-      cleanupListenersRef.current?.()
-    }
-  }, [])
+      cleanupListenersRef.current?.();
+    };
+  }, []);
 
   const focusWindow = useCallback(() => {
-    const element = windowRef.current
+    const element = windowRef.current;
     if (element && document.activeElement !== element) {
-      element.focus()
+      element.focus();
     }
-    onFocus?.()
-  }, [onFocus])
+    onFocus?.();
+  }, [onFocus]);
 
-  const setState = useCallback((nextState: FloatingWindowState) => {
-    setWindowState(nextState)
-    onStateChange?.(nextState)
-  }, [onStateChange])
+  const setState = useCallback(
+    (nextState: FloatingWindowState) => {
+      setWindowState(nextState);
+      onStateChange?.(nextState);
+    },
+    [onStateChange]
+  );
 
-  const handleMinimize = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    setState('minimized')
-  }, [setState])
+  const handleMinimize = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      setState('minimized');
+    },
+    [setState]
+  );
 
-  const handleMaximizeToggle = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    if (windowState === 'maximized') {
-      // Restore pre-maximize geometry
-      if (preMaxRef.current) {
-        const { position: p, size: s } = preMaxRef.current
-        positionRef.current = p
-        sizeRef.current = s
-        setPosition(p)
-        setSize(s)
-        preMaxRef.current = null
+  const handleMaximizeToggle = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      if (windowState === 'maximized') {
+        // Restore pre-maximize geometry
+        if (preMaxRef.current) {
+          const { position: p, size: s } = preMaxRef.current;
+          positionRef.current = p;
+          sizeRef.current = s;
+          setPosition(p);
+          setSize(s);
+          preMaxRef.current = null;
+        }
+        setState('normal');
+      } else {
+        // Save current geometry before maximizing
+        preMaxRef.current = { position: positionRef.current, size: sizeRef.current };
+        setState('maximized');
       }
-      setState('normal')
-    } else {
-      // Save current geometry before maximizing
-      preMaxRef.current = { position: positionRef.current, size: sizeRef.current }
-      setState('maximized')
-    }
-  }, [setState, windowState])
+    },
+    [setState, windowState]
+  );
 
-  const handleClose = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    onClose?.()
-  }, [onClose])
+  const handleClose = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      onClose?.();
+    },
+    [onClose]
+  );
 
   const handleWindowMouseDown = useCallback(() => {
-    focusWindow()
-  }, [focusWindow])
+    focusWindow();
+  }, [focusWindow]);
 
   const handleDocumentMouseMove = useCallback((event: MouseEvent) => {
-    const element = windowRef.current
-    const parent = element?.parentElement ?? null
+    const element = windowRef.current;
+    const parent = element?.parentElement ?? null;
 
     if (dragStateRef.current && element) {
       const nextPosition = clampPosition(
@@ -174,113 +188,124 @@ export function FloatingWindow({
           y: event.clientY - dragStateRef.current.offsetY,
         },
         sizeRef.current,
-        parent,
-      )
-      positionRef.current = nextPosition
-      setPosition(nextPosition)
-      return
+        parent
+      );
+      positionRef.current = nextPosition;
+      setPosition(nextPosition);
+      return;
     }
 
     if (resizeStateRef.current && element) {
       const nextSize = {
         width: Math.max(
           MIN_WIDTH,
-          resizeStateRef.current.startWidth + (event.clientX - resizeStateRef.current.startX),
+          resizeStateRef.current.startWidth + (event.clientX - resizeStateRef.current.startX)
         ),
         height: Math.max(
           MIN_HEIGHT,
-          resizeStateRef.current.startHeight + (event.clientY - resizeStateRef.current.startY),
+          resizeStateRef.current.startHeight + (event.clientY - resizeStateRef.current.startY)
         ),
-      }
-      sizeRef.current = nextSize
-      const nextPosition = clampPosition(positionRef.current, nextSize, parent)
-      positionRef.current = nextPosition
-      setSize(nextSize)
-      setPosition(nextPosition)
+      };
+      sizeRef.current = nextSize;
+      const nextPosition = clampPosition(positionRef.current, nextSize, parent);
+      positionRef.current = nextPosition;
+      setSize(nextSize);
+      setPosition(nextPosition);
     }
-  }, []) // stable — reads from refs, not state
+  }, []); // stable — reads from refs, not state
 
   const handleDocumentMouseUp = useCallback(() => {
-    dragStateRef.current = null
-    resizeStateRef.current = null
-  }, [])
+    dragStateRef.current = null;
+    resizeStateRef.current = null;
+  }, []);
 
   // Only attach document-level listeners while actively dragging/resizing
-  const handlePointerCapture = useCallback((event: ReactMouseEvent<HTMLDivElement>, mode: 'drag' | 'resize') => {
-    if (mode === 'drag') {
-      dragStateRef.current = {
-        offsetX: event.clientX - positionRef.current.x,
-        offsetY: event.clientY - positionRef.current.y,
+  const handlePointerCapture = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>, mode: 'drag' | 'resize') => {
+      if (mode === 'drag') {
+        dragStateRef.current = {
+          offsetX: event.clientX - positionRef.current.x,
+          offsetY: event.clientY - positionRef.current.y,
+        };
+      } else {
+        resizeStateRef.current = {
+          startX: event.clientX,
+          startY: event.clientY,
+          startWidth: sizeRef.current.width,
+          startHeight: sizeRef.current.height,
+        };
       }
-    } else {
-      resizeStateRef.current = {
-        startX: event.clientX,
-        startY: event.clientY,
-        startWidth: sizeRef.current.width,
-        startHeight: sizeRef.current.height,
+
+      const onMove = handleDocumentMouseMove;
+      const onUp = () => {
+        handleDocumentMouseUp();
+        cleanup();
+        onLayoutChangeRef.current?.({ position: positionRef.current, size: sizeRef.current });
+      };
+      const cleanup = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        cleanupListenersRef.current = null;
+      };
+      cleanupListenersRef.current = cleanup;
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    },
+    [handleDocumentMouseMove, handleDocumentMouseUp]
+  );
+
+  const handleTitleBarMouseDown = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (windowState === 'maximized') {
+        handleWindowMouseDown();
+        return;
       }
-    }
 
-    const onMove = handleDocumentMouseMove
-    const onUp = () => {
-      handleDocumentMouseUp()
-      cleanup()
-      onLayoutChangeRef.current?.({ position: positionRef.current, size: sizeRef.current })
-    }
-    const cleanup = () => {
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-      cleanupListenersRef.current = null
-    }
-    cleanupListenersRef.current = cleanup
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-  }, [handleDocumentMouseMove, handleDocumentMouseUp])
+      handleWindowMouseDown();
+      handlePointerCapture(event, 'drag');
+    },
+    [handleWindowMouseDown, windowState, handlePointerCapture]
+  );
 
-  const handleTitleBarMouseDown = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
-    if (windowState === 'maximized') {
-      handleWindowMouseDown()
-      return
-    }
+  const handleResizeMouseDown = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      event.stopPropagation();
+      if (windowState === 'maximized') {
+        return;
+      }
 
-    handleWindowMouseDown()
-    handlePointerCapture(event, 'drag')
-  }, [handleWindowMouseDown, windowState, handlePointerCapture])
-
-  const handleResizeMouseDown = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
-    event.stopPropagation()
-    if (windowState === 'maximized') {
-      return
-    }
-
-    handleWindowMouseDown()
-    handlePointerCapture(event, 'resize')
-  }, [handleWindowMouseDown, windowState, handlePointerCapture])
+      handleWindowMouseDown();
+      handlePointerCapture(event, 'resize');
+    },
+    [handleWindowMouseDown, windowState, handlePointerCapture]
+  );
 
   if (windowState === 'minimized') {
-    return null
+    return null;
   }
 
-  const isMaximized = windowState === 'maximized'
-  const maximizeLabel = isMaximized ? `Restore ${title}` : `Maximize ${title}`
+  const isMaximized = windowState === 'maximized';
+  const maximizeLabel = isMaximized ? `Restore ${title}` : `Maximize ${title}`;
   const maximizeIcon = isMaximized ? (
     <Minimize2 className="h-3.5 w-3.5" aria-hidden="true" />
   ) : (
     <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
-  )
+  );
 
   return (
+    // TODO: a11y — FloatingWindow uses role="dialog" with mouse/keyboard handlers; needs full a11y review
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <div
       ref={windowRef}
       role="dialog"
       aria-labelledby={titleId}
       data-window-id={id}
-      tabIndex={0}
+      tabIndex={0} // eslint-disable-line jsx-a11y/no-noninteractive-tabindex
       onMouseDown={handleWindowMouseDown}
       onFocusCapture={() => setIsFocused(true)}
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setIsFocused(false)
+          setIsFocused(false);
         }
       }}
       className={[
@@ -288,13 +313,19 @@ export function FloatingWindow({
         isMaximized ? 'absolute inset-0' : 'absolute left-0 top-0',
         className,
       ].join(' ')}
-      style={isMaximized ? { zIndex } : {
-        zIndex,
-        width: size.width,
-        height: size.height,
-        transform: `translate(${position.x}px, ${position.y}px)`,
-      }}
+      style={
+        isMaximized
+          ? { zIndex }
+          : {
+              zIndex,
+              width: size.width,
+              height: size.height,
+              transform: `translate(${position.x}px, ${position.y}px)`,
+            }
+      }
     >
+      {/* TODO: a11y — drag handle needs keyboard alternative for moving the window */}
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div
         className={[
           'flex h-9 cursor-move items-center justify-between gap-3 border-b border-white/[0.07] px-3',
@@ -338,9 +369,7 @@ export function FloatingWindow({
         </div>
       </div>
 
-      <div className="h-[calc(100%-36px)] overflow-auto">
-        {children}
-      </div>
+      <div className="h-[calc(100%-36px)] overflow-auto">{children}</div>
 
       {!isMaximized ? (
         <div
@@ -350,5 +379,5 @@ export function FloatingWindow({
         />
       ) : null}
     </div>
-  )
+  );
 }

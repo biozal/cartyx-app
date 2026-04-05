@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@tanstack/react-start', () => ({
   createServerFn: () => ({
@@ -7,29 +7,29 @@ vi.mock('@tanstack/react-start', () => ({
     }),
     handler: (fn: unknown) => fn,
   }),
-}))
+}));
 
 const mockMongoSessionObj = {
   withTransaction: vi.fn(async (fn: () => Promise<unknown>) => fn()),
   endSession: vi.fn(),
-}
+};
 vi.mock('mongoose', () => ({
   default: {
     startSession: vi.fn(() => mockMongoSessionObj),
   },
-}))
+}));
 
-vi.mock('~/server/session', () => ({ getSession: vi.fn() }))
+vi.mock('~/server/session', () => ({ getSession: vi.fn() }));
 vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
   isDBConnected: vi.fn(() => true),
-}))
+}));
 vi.mock('~/server/db/models/User', () => ({
   User: { findOne: vi.fn() },
-}))
+}));
 vi.mock('~/server/db/models/Campaign', () => ({
   Campaign: { findById: vi.fn() },
-}))
+}));
 vi.mock('~/server/db/models/Session', () => ({
   Session: {
     find: vi.fn(),
@@ -37,17 +37,17 @@ vi.mock('~/server/db/models/Session', () => ({
     create: vi.fn(),
     updateOne: vi.fn(),
   },
-}))
+}));
 vi.mock('~/server/utils/posthog', () => ({
   serverCaptureException: vi.fn(),
   serverCaptureEvent: vi.fn(),
-}))
+}));
 
-import { getSession } from '~/server/session'
-import { User } from '~/server/db/models/User'
-import { Campaign } from '~/server/db/models/Campaign'
-import { Session } from '~/server/db/models/Session'
-import { listSessions, createSession, updateSession } from '~/server/functions/sessions'
+import { getSession } from '~/server/session';
+import { User } from '~/server/db/models/User';
+import { Campaign } from '~/server/db/models/Campaign';
+import { Session } from '~/server/db/models/Session';
+import { listSessions, createSession, updateSession } from '~/server/functions/sessions';
 
 const mockSession = {
   id: 'session-user-1',
@@ -59,81 +59,109 @@ const mockSession = {
   accessToken: null,
   refreshToken: null,
   tokenIssuedAt: 0,
-}
-const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' }
+};
+const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
 const mockCampaign = {
   _id: 'camp-1',
   gameMasterId: 'dbuser-1',
   members: [{ userId: 'dbuser-1', role: 'gm' }],
-}
+};
 
 beforeEach(() => {
-  vi.clearAllMocks()
-  vi.mocked(getSession).mockResolvedValue(mockSession)
-  vi.mocked(User.findOne).mockResolvedValue(mockDbUser)
-  vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign)
-})
+  vi.clearAllMocks();
+  vi.mocked(getSession).mockResolvedValue(mockSession);
+  vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
+  vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign);
+});
 
 // Cast server functions to callable handler signatures
-const _listSessions = listSessions as unknown as (args: { data: { campaignId: string; includeCompleted?: boolean } }) => Promise<unknown>
-const _createSession = createSession as unknown as (args: { data: { campaignId: string; name: string; startDate: string } }) => Promise<unknown>
-const _updateSession = updateSession as unknown as (args: { data: { sessionId: string; campaignId: string; name?: string; startDate?: string; endDate?: string } }) => Promise<unknown>
+const _listSessions = listSessions as unknown as (args: {
+  data: { campaignId: string; includeCompleted?: boolean };
+}) => Promise<unknown>;
+const _createSession = createSession as unknown as (args: {
+  data: { campaignId: string; name: string; startDate: string };
+}) => Promise<unknown>;
+const _updateSession = updateSession as unknown as (args: {
+  data: {
+    sessionId: string;
+    campaignId: string;
+    name?: string;
+    startDate?: string;
+    endDate?: string;
+  };
+}) => Promise<unknown>;
 
 // ---------------------------------------------------------------------------
 // listSessions
 // ---------------------------------------------------------------------------
 describe('listSessions', () => {
   const baseSessions = [
-    { _id: 's1', name: 'Session 1', number: 1, startDate: new Date('2025-01-01'), endDate: null, status: 'active' },
-    { _id: 's2', name: 'Session 0', number: 0, startDate: new Date('2024-12-01'), endDate: new Date('2024-12-02'), status: 'not_started' },
-  ]
+    {
+      _id: 's1',
+      name: 'Session 1',
+      number: 1,
+      startDate: new Date('2025-01-01'),
+      endDate: null,
+      status: 'active',
+    },
+    {
+      _id: 's2',
+      name: 'Session 0',
+      number: 0,
+      startDate: new Date('2024-12-01'),
+      endDate: new Date('2024-12-02'),
+      status: 'not_started',
+    },
+  ];
 
   it('returns incomplete sessions by default (no endDate)', async () => {
-    const incompleteSessions = [baseSessions[0]]
-    const mockSort = vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(incompleteSessions) })
-    vi.mocked(Session.find).mockReturnValue({ sort: mockSort } as never)
+    const incompleteSessions = [baseSessions[0]];
+    const mockSort = vi
+      .fn()
+      .mockReturnValue({ lean: vi.fn().mockResolvedValue(incompleteSessions) });
+    vi.mocked(Session.find).mockReturnValue({ sort: mockSort } as never);
 
-    const result = await _listSessions({ data: { campaignId: 'camp-1' } })
+    const result = await _listSessions({ data: { campaignId: 'camp-1' } });
 
     expect(Session.find).toHaveBeenCalledWith(
       { campaignId: 'camp-1', status: { $ne: 'completed' } },
       '_id name number startDate endDate status createdAt updatedAt'
-    )
-    expect(mockSort).toHaveBeenCalledWith({ startDate: -1 })
+    );
+    expect(mockSort).toHaveBeenCalledWith({ startDate: -1 });
     expect(result).toEqual([
       {
         id: 's1',
         name: 'Session 1',
         number: 1,
-        startDate: baseSessions[0].startDate.toISOString(),
+        startDate: baseSessions[0]!.startDate.toISOString(),
         endDate: null,
         status: 'active',
       },
-    ])
-  })
+    ]);
+  });
 
   it('returns all sessions when includeCompleted is true', async () => {
-    const mockSort = vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(baseSessions) })
-    vi.mocked(Session.find).mockReturnValue({ sort: mockSort } as never)
+    const mockSort = vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(baseSessions) });
+    vi.mocked(Session.find).mockReturnValue({ sort: mockSort } as never);
 
-    const result = await _listSessions({ data: { campaignId: 'camp-1', includeCompleted: true } })
+    const result = await _listSessions({ data: { campaignId: 'camp-1', includeCompleted: true } });
 
     expect(Session.find).toHaveBeenCalledWith(
       { campaignId: 'camp-1' },
       '_id name number startDate endDate status createdAt updatedAt'
-    )
-    expect(result).toHaveLength(2)
-  })
+    );
+    expect(result).toHaveLength(2);
+  });
 
   it('throws when user is not the GM of the campaign', async () => {
     vi.mocked(Campaign.findById).mockResolvedValue({
       ...mockCampaign,
       gameMasterId: 'other-user-id',
-    })
+    });
 
-    await expect(_listSessions({ data: { campaignId: 'camp-1' } })).rejects.toThrow('Forbidden')
-  })
-})
+    await expect(_listSessions({ data: { campaignId: 'camp-1' } })).rejects.toThrow('Forbidden');
+  });
+});
 
 // ---------------------------------------------------------------------------
 // createSession
@@ -148,51 +176,61 @@ describe('createSession', () => {
           }),
         }),
       }),
-    } as never)
-    vi.mocked(Session.create).mockResolvedValue([{
-      _id: 'new-session-1',
-      name: 'The Dragon Quest',
-      number: 3,
-      startDate: new Date('2025-06-01'),
-      endDate: null,
-      status: 'not_started',
-    }] as never)
+    } as never);
+    vi.mocked(Session.create).mockResolvedValue([
+      {
+        _id: 'new-session-1',
+        name: 'The Dragon Quest',
+        number: 3,
+        startDate: new Date('2025-06-01'),
+        endDate: null,
+        status: 'not_started',
+      },
+    ] as never);
 
     const result = await _createSession({
-      data: { campaignId: 'camp-1', name: 'The Dragon Quest', startDate: '2025-06-01T00:00:00.000Z' },
-    })
-
-    expect(Session.create).toHaveBeenCalledWith(
-      [expect.objectContaining({
+      data: {
         campaignId: 'camp-1',
         name: 'The Dragon Quest',
-        gm: 'dbuser-1',
-        number: 3,
-        startDate: expect.any(Date),
-        status: 'not_started',
-      })],
+        startDate: '2025-06-01T00:00:00.000Z',
+      },
+    });
+
+    expect(Session.create).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          campaignId: 'camp-1',
+          name: 'The Dragon Quest',
+          gm: 'dbuser-1',
+          number: 3,
+          startDate: expect.any(Date),
+          status: 'not_started',
+        }),
+      ],
       expect.objectContaining({ session: mockMongoSessionObj })
-    )
-    expect(mockMongoSessionObj.endSession).toHaveBeenCalled()
+    );
+    expect(mockMongoSessionObj.endSession).toHaveBeenCalled();
     expect(result).toEqual(
       expect.objectContaining({
         success: true,
         sessionId: 'new-session-1',
       })
-    )
-  })
+    );
+  });
 
   it('throws when user is not the GM', async () => {
     vi.mocked(Campaign.findById).mockResolvedValue({
       ...mockCampaign,
       gameMasterId: 'other-user-id',
-    })
+    });
 
     await expect(
-      _createSession({ data: { campaignId: 'camp-1', name: 'Test', startDate: '2025-06-01T00:00:00.000Z' } })
-    ).rejects.toThrow('Forbidden')
-  })
-})
+      _createSession({
+        data: { campaignId: 'camp-1', name: 'Test', startDate: '2025-06-01T00:00:00.000Z' },
+      })
+    ).rejects.toThrow('Forbidden');
+  });
+});
 
 // ---------------------------------------------------------------------------
 // updateSession
@@ -203,8 +241,8 @@ describe('updateSession', () => {
       _id: 's1',
       campaignId: 'camp-1',
       name: 'Old Name',
-    })
-    vi.mocked(Session.updateOne).mockResolvedValue({ modifiedCount: 1 } as never)
+    } as never);
+    vi.mocked(Session.updateOne).mockResolvedValue({ modifiedCount: 1 } as never);
 
     const result = await _updateSession({
       data: {
@@ -214,9 +252,9 @@ describe('updateSession', () => {
         startDate: '2025-07-01T00:00:00.000Z',
         endDate: '2025-07-02T00:00:00.000Z',
       },
-    })
+    });
 
-    expect(Session.findOne).toHaveBeenCalledWith({ _id: 's1', campaignId: 'camp-1' })
+    expect(Session.findOne).toHaveBeenCalledWith({ _id: 's1', campaignId: 'camp-1' });
     expect(Session.updateOne).toHaveBeenCalledWith(
       { _id: 's1', campaignId: 'camp-1' },
       {
@@ -227,12 +265,12 @@ describe('updateSession', () => {
           updatedAt: expect.any(Date),
         }),
       }
-    )
-    expect(result).toEqual({ success: true })
-  })
+    );
+    expect(result).toEqual({ success: true });
+  });
 
   it('throws when session does not belong to campaign', async () => {
-    vi.mocked(Session.findOne).mockResolvedValue(null)
+    vi.mocked(Session.findOne).mockResolvedValue(null);
 
     await expect(
       _updateSession({
@@ -243,15 +281,15 @@ describe('updateSession', () => {
           startDate: '2025-07-01T00:00:00.000Z',
         },
       })
-    ).rejects.toThrow('Session not found')
-  })
+    ).rejects.toThrow('Session not found');
+  });
 
   it('updates without endDate when not provided', async () => {
     vi.mocked(Session.findOne).mockResolvedValue({
       _id: 's1',
       campaignId: 'camp-1',
-    })
-    vi.mocked(Session.updateOne).mockResolvedValue({ modifiedCount: 1 } as never)
+    } as never);
+    vi.mocked(Session.updateOne).mockResolvedValue({ modifiedCount: 1 } as never);
 
     await _updateSession({
       data: {
@@ -260,7 +298,7 @@ describe('updateSession', () => {
         name: 'Updated',
         startDate: '2025-07-01T00:00:00.000Z',
       },
-    })
+    });
 
     expect(Session.updateOne).toHaveBeenCalledWith(
       { _id: 's1', campaignId: 'camp-1' },
@@ -271,11 +309,11 @@ describe('updateSession', () => {
           updatedAt: expect.any(Date),
         }),
       }
-    )
+    );
 
     // Verify endDate is NOT in the $set when not provided
-    const updateCall = vi.mocked(Session.updateOne).mock.calls[0]
-    const setFields = (updateCall[1] as { $set: Record<string, unknown> }).$set
-    expect(setFields).not.toHaveProperty('endDate')
-  })
-})
+    const updateCall = vi.mocked(Session.updateOne).mock.calls[0]!;
+    const setFields = (updateCall[1] as { $set: Record<string, unknown> }).$set;
+    expect(setFields).not.toHaveProperty('endDate');
+  });
+});

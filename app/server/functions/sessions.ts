@@ -1,64 +1,64 @@
-import { createServerFn } from '@tanstack/react-start'
-import mongoose from 'mongoose'
-import { getSession } from '../session'
-import { connectDB, isDBConnected } from '../db/connection'
-import { User } from '../db/models/User'
-import { Campaign } from '../db/models/Campaign'
-import { Session } from '../db/models/Session'
-import { serverCaptureException, serverCaptureEvent } from '../utils/posthog'
+import { createServerFn } from '@tanstack/react-start';
+import mongoose from 'mongoose';
+import { getSession } from '../session';
+import { connectDB, isDBConnected } from '../db/connection';
+import { User } from '../db/models/User';
+import { Campaign } from '../db/models/Campaign';
+import { Session } from '../db/models/Session';
+import { serverCaptureException, serverCaptureEvent } from '../utils/posthog';
 import {
   listSessionsSchema,
   createSessionSchema,
   updateSessionSchema,
-} from '~/types/schemas/sessions'
+} from '~/types/schemas/sessions';
 
 /**
  * Validates auth, connects to DB, and verifies the current user is the GM of the given campaign.
  * Returns { user, dbUser, campaign } on success; throws on failure.
  */
 async function requireGM(campaignId: string) {
-  const user = await getSession()
-  if (!user) throw new Error('Not authenticated')
+  const user = await getSession();
+  if (!user) throw new Error('Not authenticated');
 
-  await connectDB()
-  if (!isDBConnected()) throw new Error('Database not available')
+  await connectDB();
+  if (!isDBConnected()) throw new Error('Database not available');
 
-  const dbUser = await User.findOne({ providerId: user.id })
-  if (!dbUser) throw new Error('User not found')
+  const dbUser = await User.findOne({ providerId: user.id } as any);
+  if (!dbUser) throw new Error('User not found');
 
-  const campaign = await Campaign.findById(campaignId)
-  if (!campaign) throw new Error('Campaign not found')
-  if (String(campaign.gameMasterId) !== String(dbUser._id)) throw new Error('Forbidden')
+  const campaign = await (Campaign.findById as any)(campaignId);
+  if (!campaign) throw new Error('Campaign not found');
+  if (String(campaign.gameMasterId) !== String(dbUser._id)) throw new Error('Forbidden');
 
-  return { user, dbUser, campaign }
+  return { user, dbUser, campaign };
 }
 
 export const listSessions = createServerFn({ method: 'GET' })
   .inputValidator(listSessionsSchema)
   .handler(async ({ data }) => {
     try {
-      await requireGM(data.campaignId)
+      await requireGM(data.campaignId);
 
-      const filter: Record<string, unknown> = { campaignId: data.campaignId }
+      const filter: Record<string, unknown> = { campaignId: data.campaignId };
       if (!data.includeCompleted) {
-        filter.status = { $ne: 'completed' }
+        filter.status = { $ne: 'completed' };
       }
 
       const sessions = await Session.find(
-        filter,
+        filter as any,
         '_id name number startDate endDate status createdAt updatedAt'
       )
         .sort({ startDate: -1 })
-        .lean()
+        .lean();
 
       return (
         sessions as Array<{
-          _id: unknown
-          name: string
-          number: number
-          startDate: Date
-          endDate: Date | null
-          status: string
+          _id: unknown;
+          name: string;
+          number: number;
+          startDate: Date;
+          endDate: Date | null;
+          status: string;
         }>
       ).map((s) => ({
         id: String(s._id),
@@ -67,101 +67,106 @@ export const listSessions = createServerFn({ method: 'GET' })
         startDate: s.startDate.toISOString(),
         endDate: s.endDate ? s.endDate.toISOString() : null,
         status: (s.status ?? 'not_started') as 'not_started' | 'active' | 'completed',
-      }))
+      }));
     } catch (e) {
       serverCaptureException(e, undefined, {
         action: 'listSessions',
         campaignId: data.campaignId,
-      })
-      throw e
+      });
+      throw e;
     }
-  })
+  });
 
 export const createSession = createServerFn({ method: 'POST' })
   .inputValidator(createSessionSchema)
   .handler(async ({ data }) => {
     try {
-      const { user, dbUser } = await requireGM(data.campaignId)
+      const { user, dbUser } = await requireGM(data.campaignId);
 
-      const mongoSession = await mongoose.startSession()
-      let sessionId: string
+      const mongoSession = await mongoose.startSession();
+      let sessionId: string;
       try {
-        sessionId = await mongoSession.withTransaction(async () => {
-          const lastSession = await Session.findOne({ campaignId: data.campaignId })
+        sessionId = (await mongoSession.withTransaction(async () => {
+          const lastSession = (await Session.findOne({ campaignId: data.campaignId } as any)
             .sort({ number: -1 })
             .select('number')
             .session(mongoSession)
-            .lean() as { number: number } | null
-          const number = lastSession ? lastSession.number + 1 : 0
+            .lean()) as { number: number } | null;
+          const number = lastSession ? lastSession.number + 1 : 0;
 
-          const [doc] = await Session.create([{
-            campaignId: data.campaignId,
-            name: data.name,
-            gm: dbUser._id,
-            number,
-            startDate: new Date(data.startDate),
-            status: 'not_started',
-          }], { session: mongoSession })
+          const createdSessions = (await Session.create(
+            [
+              {
+                campaignId: data.campaignId,
+                name: data.name,
+                gm: dbUser._id,
+                number,
+                startDate: new Date(data.startDate),
+                status: 'not_started',
+              },
+            ],
+            { session: mongoSession }
+          )) as unknown as Array<{ _id: unknown }>;
+          const doc = createdSessions[0]!;
 
-          return String(doc._id)
-        }) as string
+          return String(doc._id);
+        })) as string;
       } finally {
-        await mongoSession.endSession()
+        await mongoSession.endSession();
       }
 
       serverCaptureEvent(user.id, 'session_created', {
         campaign_id: data.campaignId,
         session_id: sessionId,
         session_name: data.name,
-      })
+      });
 
-      return { success: true, sessionId }
+      return { success: true, sessionId };
     } catch (e) {
       serverCaptureException(e, undefined, {
         action: 'createSession',
         campaignId: data.campaignId,
-      })
-      throw e
+      });
+      throw e;
     }
-  })
+  });
 
 export const updateSession = createServerFn({ method: 'POST' })
   .inputValidator(updateSessionSchema)
   .handler(async ({ data }) => {
     try {
-      const { user } = await requireGM(data.campaignId)
+      const { user } = await requireGM(data.campaignId);
 
       const session = await Session.findOne({
         _id: data.sessionId,
         campaignId: data.campaignId,
-      })
-      if (!session) throw new Error('Session not found')
+      } as any);
+      if (!session) throw new Error('Session not found');
 
       const setFields: Record<string, unknown> = {
         updatedAt: new Date(),
-      }
+      };
 
-      if (data.name !== undefined) setFields.name = data.name
-      if (data.startDate !== undefined) setFields.startDate = new Date(data.startDate)
-      if (data.endDate !== undefined) setFields.endDate = new Date(data.endDate)
+      if (data.name !== undefined) setFields.name = data.name;
+      if (data.startDate !== undefined) setFields.startDate = new Date(data.startDate);
+      if (data.endDate !== undefined) setFields.endDate = new Date(data.endDate);
 
-      await Session.updateOne(
-        { _id: data.sessionId, campaignId: data.campaignId },
-        { $set: setFields }
-      )
+      await Session.updateOne({ _id: data.sessionId, campaignId: data.campaignId } as any, {
+        $set: setFields,
+      });
 
       serverCaptureEvent(user.id, 'session_updated', {
         campaign_id: data.campaignId,
         session_id: data.sessionId,
-      })
+      });
 
-      return { success: true }
+      return { success: true };
     } catch (e) {
       serverCaptureException(e, undefined, {
         action: 'updateSession',
         campaignId: data.campaignId,
         sessionId: data.sessionId,
-      })
-      throw e
+      });
+      throw e;
     }
-  })
+  });

@@ -1,20 +1,20 @@
-import React from 'react'
-import { Globe, Lock, ExternalLink } from 'lucide-react'
-import type { CharacterListItem, PictureCrop } from '~/types/character'
+import React from 'react';
+import { Globe, Lock, ExternalLink } from 'lucide-react';
+import type { CharacterListItem, PictureCrop } from '~/types/character';
 
 function getCropStyle(crop: PictureCrop): React.CSSProperties {
-  const centerX = (crop.x + crop.width / 2) * 100
-  const centerY = (crop.y + crop.height / 2) * 100
-  const scale = 1 / crop.width
+  const centerX = (crop.x + crop.width / 2) * 100;
+  const centerY = (crop.y + crop.height / 2) * 100;
+  const scale = 1 / crop.width;
   return {
     objectPosition: `${centerX}% ${centerY}%`,
     transform: `scale(${scale})`,
-  }
+  };
 }
 
 interface CharacterCardProps {
-  character: CharacterListItem
-  onClick: (character: CharacterListItem) => void
+  character: CharacterListItem;
+  onClick: (character: CharacterListItem) => void;
 }
 
 const GRADIENT_PAIRS = [
@@ -24,33 +24,33 @@ const GRADIENT_PAIRS = [
   ['#ec4899', '#8b5cf6'],
   ['#f97316', '#eab308'],
   ['#14b8a6', '#3b82f6'],
-]
+];
 
 function hashName(name: string): number {
-  let hash = 0
+  let hash = 0;
   for (let i = 0; i < name.length; i++) {
-    hash = (hash << 5) - hash + name.charCodeAt(i)
-    hash |= 0
+    hash = (hash << 5) - hash + name.charCodeAt(i);
+    hash |= 0;
   }
-  return Math.abs(hash)
+  return Math.abs(hash);
 }
 
 function getInitials(firstName: string, lastName: string): string {
-  const f = firstName.charAt(0).toUpperCase()
-  const l = lastName.charAt(0).toUpperCase()
-  return l ? `${f}${l}` : f
+  const f = firstName.charAt(0).toUpperCase();
+  const l = lastName.charAt(0).toUpperCase();
+  return l ? `${f}${l}` : f;
 }
 
 export function CharacterCard({ character, onClick }: CharacterCardProps) {
-  const fullName = `${character.firstName} ${character.lastName}`.trim()
-  const initials = getInitials(character.firstName, character.lastName)
-  const gradientIndex = hashName(fullName) % GRADIENT_PAIRS.length
-  const [gradFrom, gradTo] = GRADIENT_PAIRS[gradientIndex]
+  const fullName = `${character.firstName} ${character.lastName}`.trim();
+  const initials = getInitials(character.firstName, character.lastName);
+  const gradientIndex = hashName(fullName) % GRADIENT_PAIRS.length;
+  const [gradFrom, gradTo] = GRADIENT_PAIRS[gradientIndex]!;
 
-  const infoSegments: string[] = []
-  if (character.race) infoSegments.push(character.race)
-  if (character.age != null) infoSegments.push(`Age ${character.age}`)
-  if (character.location) infoSegments.push(character.location)
+  const infoSegments: string[] = [];
+  if (character.race) infoSegments.push(character.race);
+  if (character.age != null) infoSegments.push(`Age ${character.age}`);
+  if (character.location) infoSegments.push(character.location);
 
   return (
     <div
@@ -64,19 +64,19 @@ export function CharacterCard({ character, onClick }: CharacterCardProps) {
             collection: 'character',
             documentId: character.id,
             title: fullName,
-          }),
-        )
-        e.dataTransfer.effectAllowed = 'copy'
-        e.currentTarget.style.opacity = '0.4'
+          })
+        );
+        e.dataTransfer.effectAllowed = 'copy';
+        e.currentTarget.style.opacity = '0.4';
       }}
       onDragEnd={(e) => {
-        e.currentTarget.style.opacity = ''
+        e.currentTarget.style.opacity = '';
       }}
       onClick={() => onClick(character)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onClick(character)
+          e.preventDefault();
+          onClick(character);
         }
       }}
       className="flex items-start gap-3 px-4 py-3 border-b border-white/[0.05] hover:bg-white/[0.03] transition-colors group cursor-grab active:cursor-grabbing"
@@ -152,5 +152,5 @@ export function CharacterCard({ character, onClick }: CharacterCardProps) {
         )}
       </div>
     </div>
-  )
+  );
 }

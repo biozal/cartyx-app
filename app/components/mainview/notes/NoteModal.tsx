@@ -1,26 +1,26 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import { createPortal } from 'react-dom'
-import { X, Globe, Lock } from 'lucide-react'
-import { FormInput } from '~/components/FormInput'
-import { FormSelect } from '~/components/FormSelect'
-import { PixelButton } from '~/components/PixelButton'
-import { MarkdownEditor } from '~/components/shared/MarkdownEditor'
-import type { CampaignData } from '~/types/campaign'
-import { useCreateNote, useUpdateNote, useDeleteNote, useNote } from '~/hooks/useNotes'
-import { TagAutocompleteInput } from '~/components/shared/TagAutocompleteInput'
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { X, Globe, Lock } from 'lucide-react';
+import { FormInput } from '~/components/FormInput';
+import { FormSelect } from '~/components/FormSelect';
+import { PixelButton } from '~/components/PixelButton';
+import { MarkdownEditor } from '~/components/shared/MarkdownEditor';
+import type { CampaignData } from '~/types/campaign';
+import { useCreateNote, useUpdateNote, useDeleteNote, useNote } from '~/hooks/useNotes';
+import { TagAutocompleteInput } from '~/components/shared/TagAutocompleteInput';
 
 interface NoteModalProps {
-  isOpen: boolean
-  onClose: () => void
-  campaignId: string
-  noteId?: string
-  sessions: CampaignData['sessions']
-  defaultSessionId?: string
+  isOpen: boolean;
+  onClose: () => void;
+  campaignId: string;
+  noteId?: string;
+  sessions: CampaignData['sessions'];
+  defaultSessionId?: string;
 }
 
 interface FieldErrors {
-  title?: string
-  content?: string
+  title?: string;
+  content?: string;
 }
 
 export function NoteModal({
@@ -31,76 +31,79 @@ export function NoteModal({
   sessions,
   defaultSessionId,
 }: NoteModalProps) {
-  const { note: fetchedNote, isLoading: isFetchingNote } = useNote(noteId ?? '', campaignId)
-  const { create, isLoading: isCreating } = useCreateNote()
-  const { update, isLoading: isUpdating } = useUpdateNote()
-  const { remove, isLoading: isDeleting } = useDeleteNote()
+  const { note: fetchedNote, isLoading: isFetchingNote } = useNote(noteId ?? '', campaignId);
+  const { create, isLoading: isCreating } = useCreateNote();
+  const { update, isLoading: isUpdating } = useUpdateNote();
+  const { remove, isLoading: isDeleting } = useDeleteNote();
 
-  const [title, setTitle] = useState('')
-  const [sessionId, setSessionId] = useState('')
-  const [content, setContent] = useState('')
-  const [tags, setTags] = useState<string[]>([])
-  const [isPublic, setIsPublic] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
-  const [hasSubmitted, setHasSubmitted] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [title, setTitle] = useState('');
+  const [sessionId, setSessionId] = useState('');
+  const [content, setContent] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [isPublic, setIsPublic] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Reset form to blank when switching noteId or opening the modal,
   // so stale values from a previous note never flash.
   useEffect(() => {
-    setTitle('')
-    const safeDefault = defaultSessionId === '__none__' ? '' : defaultSessionId
-    setSessionId(noteId ? '' : safeDefault || '')
-    setContent('')
-    setTags([])
-    setIsPublic(false)
-    setError(null)
-    setFieldErrors({})
-    setHasSubmitted(false)
-    setShowDeleteConfirm(false)
-  }, [noteId, defaultSessionId, sessions, isOpen])
+    setTitle('');
+    const safeDefault = defaultSessionId === '__none__' ? '' : defaultSessionId;
+    setSessionId(noteId ? '' : safeDefault || '');
+    setContent('');
+    setTags([]);
+    setIsPublic(false);
+    setError(null);
+    setFieldErrors({});
+    setHasSubmitted(false);
+    setShowDeleteConfirm(false);
+  }, [noteId, defaultSessionId, sessions, isOpen]);
 
   // Populate form once the fetched note resolves in edit mode
   useEffect(() => {
     if (noteId && fetchedNote) {
-      setTitle(fetchedNote.title)
-      setSessionId(fetchedNote.sessionId ?? '')
-      setContent(fetchedNote.note)
-      setTags(fetchedNote.tags)
-      setIsPublic(fetchedNote.isPublic)
+      setTitle(fetchedNote.title);
+      setSessionId(fetchedNote.sessionId ?? '');
+      setContent(fetchedNote.note);
+      setTags(fetchedNote.tags);
+      setIsPublic(fetchedNote.isPublic);
     }
-  }, [noteId, fetchedNote])
+  }, [noteId, fetchedNote]);
 
-  const sessionOptions = useMemo(() => [
-    { value: '', label: 'No Session' },
-    ...sessions.map((s) => ({
-      value: s.id,
-      label: `Session ${s.number}: ${s.name}`,
-    })),
-  ], [sessions])
+  const sessionOptions = useMemo(
+    () => [
+      { value: '', label: 'No Session' },
+      ...sessions.map((s) => ({
+        value: s.id,
+        label: `Session ${s.number}: ${s.name}`,
+      })),
+    ],
+    [sessions]
+  );
 
   const validate = useCallback((): FieldErrors => {
-    const errors: FieldErrors = {}
-    if (!title.trim()) errors.title = 'Title is required'
-    if (!content.trim()) errors.content = 'Note body is required'
-    return errors
-  }, [title, content])
+    const errors: FieldErrors = {};
+    if (!title.trim()) errors.title = 'Title is required';
+    if (!content.trim()) errors.content = 'Note body is required';
+    return errors;
+  }, [title, content]);
 
   useEffect(() => {
     if (hasSubmitted) {
-      setFieldErrors(validate())
+      setFieldErrors(validate());
     }
-  }, [hasSubmitted, validate])
+  }, [hasSubmitted, validate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setHasSubmitted(true)
-    setError(null)
+    e.preventDefault();
+    setHasSubmitted(true);
+    setError(null);
 
-    const errors = validate()
-    setFieldErrors(errors)
-    if (Object.keys(errors).length > 0) return
+    const errors = validate();
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
 
     const input = {
       campaignId,
@@ -109,47 +112,49 @@ export function NoteModal({
       tags,
       isPublic,
       ...(sessionId ? { sessionId } : {}),
-    }
+    };
 
-    let success = false
+    let success = false;
     if (noteId) {
-      const result = await update({ ...input, id: noteId })
-      success = !!result
+      const result = await update({ ...input, id: noteId });
+      success = !!result;
     } else {
-      const result = await create(input)
-      success = !!result
+      const result = await create(input);
+      success = !!result;
     }
 
     if (success) {
-      onClose()
+      onClose();
     } else {
-      setError('Failed to save note. Please try again.')
+      setError('Failed to save note. Please try again.');
     }
-  }
+  };
 
   const handleDelete = async () => {
-    if (!noteId) return
-    setError(null)
-    const result = await remove({ id: noteId, campaignId })
+    if (!noteId) return;
+    setError(null);
+    const result = await remove({ id: noteId, campaignId });
     if (result) {
-      onClose()
+      onClose();
     } else {
-      setError('Failed to delete note. Please try again.')
-      setShowDeleteConfirm(false)
+      setError('Failed to delete note. Please try again.');
+      setShowDeleteConfirm(false);
     }
-  }
+  };
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
-  const isLoadingNote = !!(noteId && isFetchingNote)
-  const isSaving = isCreating || isUpdating
-  const isDisabled = isLoadingNote || isSaving || isDeleting
+  const isLoadingNote = !!(noteId && isFetchingNote);
+  const isSaving = isCreating || isUpdating;
+  const isDisabled = isLoadingNote || isSaving || isDeleting;
 
   return createPortal(
+    // TODO: a11y — dialog backdrop click to close needs keyboard equivalent
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-2 sm:p-4 backdrop-blur-sm"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) onClose();
       }}
       role="dialog"
       aria-modal="true"
@@ -160,7 +165,10 @@ export function NoteModal({
         className="w-full h-full max-w-[90vw] max-h-[90vh] sm:max-w-[90vw] sm:max-h-[90vh] bg-[#0D1117] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
       >
         <header className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/[0.07] shrink-0">
-          <h2 id="note-modal-title" className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest">
+          <h2
+            id="note-modal-title"
+            className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest"
+          >
             {noteId ? 'Edit Note' : 'Create Note'}
           </h2>
           <button
@@ -211,6 +219,8 @@ export function NoteModal({
 
           {/* Tags */}
           <div>
+            {/* TODO: a11y — associate label with TagAutocompleteInput via htmlFor/id */}
+            {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
             <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
               Tags
             </label>
@@ -236,11 +246,13 @@ export function NoteModal({
                 className="sr-only"
                 disabled={isDisabled}
               />
-              <div className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
-                !isPublic
-                  ? 'bg-blue-600/10 border-blue-500/50 text-blue-300 shadow-sm shadow-blue-500/10'
-                  : 'bg-white/[0.03] border-white/[0.07] text-slate-500 hover:border-white/20'
-              }`}>
+              <div
+                className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
+                  !isPublic
+                    ? 'bg-blue-600/10 border-blue-500/50 text-blue-300 shadow-sm shadow-blue-500/10'
+                    : 'bg-white/[0.03] border-white/[0.07] text-slate-500 hover:border-white/20'
+                }`}
+              >
                 <Lock className="h-3.5 w-3.5" />
                 <span className="font-sans font-bold text-xs">Private</span>
               </div>
@@ -255,11 +267,13 @@ export function NoteModal({
                 className="sr-only"
                 disabled={isDisabled}
               />
-              <div className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
-                isPublic
-                  ? 'bg-emerald-600/10 border-emerald-500/50 text-emerald-300 shadow-sm shadow-emerald-500/10'
-                  : 'bg-white/[0.03] border-white/[0.07] text-slate-500 hover:border-white/20'
-              }`}>
+              <div
+                className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
+                  isPublic
+                    ? 'bg-emerald-600/10 border-emerald-500/50 text-emerald-300 shadow-sm shadow-emerald-500/10'
+                    : 'bg-white/[0.03] border-white/[0.07] text-slate-500 hover:border-white/20'
+                }`}
+              >
                 <Globe className="h-3.5 w-3.5" />
                 <span className="font-sans font-bold text-xs">Public</span>
               </div>
@@ -290,7 +304,9 @@ export function NoteModal({
                   disabled={isDeleting}
                   type="button"
                 >
-                  <span className="text-rose-400">{isDeleting ? 'Deleting...' : 'Yes, delete'}</span>
+                  <span className="text-rose-400">
+                    {isDeleting ? 'Deleting...' : 'Yes, delete'}
+                  </span>
                 </PixelButton>
                 <PixelButton
                   variant="secondary"
@@ -314,18 +330,19 @@ export function NoteModal({
             >
               Cancel
             </PixelButton>
-            <PixelButton
-              variant="primary"
-              size="sm"
-              disabled={isDisabled}
-              type="submit"
-            >
-              {isSaving ? 'Saving...' : isLoadingNote ? 'Loading...' : noteId ? 'Update Note' : 'Create Note'}
+            <PixelButton variant="primary" size="sm" disabled={isDisabled} type="submit">
+              {isSaving
+                ? 'Saving...'
+                : isLoadingNote
+                  ? 'Loading...'
+                  : noteId
+                    ? 'Update Note'
+                    : 'Create Note'}
             </PixelButton>
           </div>
         </footer>
       </form>
     </div>,
     document.body
-  )
+  );
 }

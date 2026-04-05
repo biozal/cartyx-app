@@ -1,103 +1,99 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
-import { FormInput } from '~/components/FormInput'
-import { PixelButton } from '~/components/PixelButton'
-import type { CampaignData } from '~/types/campaign'
+import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
+import { FormInput } from '~/components/FormInput';
+import { PixelButton } from '~/components/PixelButton';
+import type { CampaignData } from '~/types/campaign';
 
-type SessionData = CampaignData['sessions'][number]
+type SessionData = CampaignData['sessions'][number];
 
 interface FieldErrors {
-  name?: string
-  startDate?: string
+  name?: string;
+  startDate?: string;
 }
 
 export interface SessionModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onSubmit: (data: { name: string; startDate: string; endDate?: string }) => Promise<boolean>
-  isLoading: boolean
-  session?: SessionData
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: { name: string; startDate: string; endDate?: string }) => Promise<boolean>;
+  isLoading: boolean;
+  session?: SessionData;
 }
 
-export function SessionModal({
-  isOpen,
-  onClose,
-  onSubmit,
-  isLoading,
-  session,
-}: SessionModalProps) {
-  const isEditMode = !!session
+export function SessionModal({ isOpen, onClose, onSubmit, isLoading, session }: SessionModalProps) {
+  const isEditMode = !!session;
 
-  const [name, setName] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
-  const [hasSubmitted, setHasSubmitted] = useState(false)
+  const [name, setName] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [hasSubmitted, setHasSubmitted] = useState(false);
 
   // Reset form when modal opens or session changes
   useEffect(() => {
     if (session) {
-      setName(session.name)
+      setName(session.name);
       // session.startDate / endDate may be full ISO strings (e.g. 2026-03-01T00:00:00.000Z)
       // Normalize to YYYY-MM-DD for use with <input type="date">
-      setStartDate(session.startDate.slice(0, 10))
-      setEndDate(session.endDate ? session.endDate.slice(0, 10) : '')
+      setStartDate(session.startDate.slice(0, 10));
+      setEndDate(session.endDate ? session.endDate.slice(0, 10) : '');
     } else {
-      setName('')
-      setStartDate('')
-      setEndDate('')
+      setName('');
+      setStartDate('');
+      setEndDate('');
     }
-    setError(null)
-    setFieldErrors({})
-    setHasSubmitted(false)
-  }, [session, isOpen])
+    setError(null);
+    setFieldErrors({});
+    setHasSubmitted(false);
+  }, [session, isOpen]);
 
   const validate = useCallback((): FieldErrors => {
-    const errors: FieldErrors = {}
-    if (!name.trim()) errors.name = 'Name is required'
-    if (!startDate.trim()) errors.startDate = 'Start Date is required'
-    return errors
-  }, [name, startDate])
+    const errors: FieldErrors = {};
+    if (!name.trim()) errors.name = 'Name is required';
+    if (!startDate.trim()) errors.startDate = 'Start Date is required';
+    return errors;
+  }, [name, startDate]);
 
   // Live-validate after first submit attempt
   useEffect(() => {
     if (hasSubmitted) {
-      setFieldErrors(validate())
+      setFieldErrors(validate());
     }
-  }, [hasSubmitted, validate])
+  }, [hasSubmitted, validate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setHasSubmitted(true)
-    setError(null)
+    e.preventDefault();
+    setHasSubmitted(true);
+    setError(null);
 
-    const errors = validate()
-    setFieldErrors(errors)
-    if (Object.keys(errors).length > 0) return
+    const errors = validate();
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
 
-    const trimmedEndDate = endDate.trim()
+    const trimmedEndDate = endDate.trim();
     const data: { name: string; startDate: string; endDate?: string } = {
       name: name.trim(),
       startDate: startDate.trim(),
       ...(trimmedEndDate ? { endDate: trimmedEndDate } : {}),
-    }
-    const success = await onSubmit(data)
+    };
+    const success = await onSubmit(data);
     if (success) {
-      onClose()
+      onClose();
     } else {
-      setError('Failed to save session. Please try again.')
+      setError('Failed to save session. Please try again.');
     }
-  }
+  };
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return createPortal(
+    // TODO: a11y — dialog backdrop click to close needs keyboard equivalent
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-2 sm:p-4 backdrop-blur-sm"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) onClose();
       }}
       role="dialog"
       aria-modal="true"
@@ -173,17 +169,12 @@ export function SessionModal({
           >
             Cancel
           </PixelButton>
-          <PixelButton
-            variant="primary"
-            size="sm"
-            disabled={isLoading}
-            type="submit"
-          >
+          <PixelButton variant="primary" size="sm" disabled={isLoading} type="submit">
             {isLoading ? 'Saving...' : isEditMode ? 'Save' : 'Create'}
           </PixelButton>
         </footer>
       </form>
     </div>,
     document.body
-  )
+  );
 }

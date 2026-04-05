@@ -1,28 +1,25 @@
-import { useEffect, useState } from 'react'
-import { Widget } from '~/components/mainview/Widget'
-import {
-  getTimelineEvents,
-  type TimelineEvent,
-} from '~/services/mocks/timelineService'
+import { useEffect, useState } from 'react';
+import { Widget } from '~/components/mainview/Widget';
+import { getTimelineEvents, type TimelineEvent } from '~/services/mocks/timelineService';
 
-export type { TimelineEvent }
+export type { TimelineEvent };
 
 export interface CampaignTimelineWidgetProps {
   // Timeline events are provided most-recent first; we render oldest -> newest
   // so the horizontal rail reads naturally from left to right.
-  events?: ReadonlyArray<Readonly<TimelineEvent>>
-  className?: string
+  events?: ReadonlyArray<Readonly<TimelineEvent>>;
+  className?: string;
 }
 
 function getEventTone(event: TimelineEvent) {
-  if (event.isCurrent) return 'current'
-  if (event.importance === 'major') return 'major'
-  return 'normal'
+  if (event.isCurrent) return 'current';
+  if (event.importance === 'major') return 'major';
+  return 'normal';
 }
 
 function getToneClasses(tone: ReturnType<typeof getEventTone>) {
-  const isCurrent = tone === 'current'
-  const isMajor = tone === 'major'
+  const isCurrent = tone === 'current';
+  const isMajor = tone === 'major';
 
   return {
     isCurrent,
@@ -36,53 +33,50 @@ function getToneClasses(tone: ReturnType<typeof getEventTone>) {
     titleClasses: isCurrent ? 'text-white' : isMajor ? 'text-blue-light' : 'text-slate-500',
     labelClasses: isCurrent ? 'text-primary' : isMajor ? 'text-blue-light' : 'text-slate-600',
     summaryClasses: isCurrent || isMajor ? 'text-slate-300' : 'text-slate-400',
-  }
+  };
 }
 
 function toDisplayOrder(events: ReadonlyArray<TimelineEvent>) {
   // Mock/service data is most-recent first; reverse it so the rail reads left-to-right.
-  return [...events].reverse()
+  return [...events].reverse();
 }
 
-export function CampaignTimelineWidget({
-  events,
-  className = '',
-}: CampaignTimelineWidgetProps) {
+export function CampaignTimelineWidget({ events, className = '' }: CampaignTimelineWidgetProps) {
   const [resolvedEvents, setResolvedEvents] = useState<TimelineEvent[] | null>(
-    events ? events.map((event) => ({ ...event })) : null,
-  )
-  const [error, setError] = useState<string | null>(null)
+    events ? events.map((event) => ({ ...event })) : null
+  );
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (events) {
-      setResolvedEvents(events.map((event) => ({ ...event })))
-      setError(null)
-      return
+      setResolvedEvents(events.map((event) => ({ ...event })));
+      setError(null);
+      return;
     }
 
-    let isMounted = true
-    setError(null)
+    let isMounted = true;
+    setError(null);
 
     void getTimelineEvents()
       .then((nextEvents) => {
         if (isMounted) {
-          setResolvedEvents(nextEvents)
+          setResolvedEvents(nextEvents);
         }
       })
       .catch((error) => {
-        console.error(error)
+        console.error(error);
         if (isMounted) {
-          setError('Unable to load timeline.')
-          setResolvedEvents([])
+          setError('Unable to load timeline.');
+          setResolvedEvents([]);
         }
-      })
+      });
 
     return () => {
-      isMounted = false
-    }
-  }, [events])
+      isMounted = false;
+    };
+  }, [events]);
 
-  const displayEvents = resolvedEvents ? toDisplayOrder(resolvedEvents) : []
+  const displayEvents = resolvedEvents ? toDisplayOrder(resolvedEvents) : [];
 
   return (
     <Widget title="Campaign Timeline" className={className}>
@@ -100,10 +94,7 @@ export function CampaignTimelineWidget({
         </div>
       ) : (
         <>
-          <div
-            className="relative md:hidden"
-            data-testid="timeline-vertical"
-          >
+          <div className="relative md:hidden" data-testid="timeline-vertical">
             <div
               aria-hidden="true"
               data-part="timeline-rail"
@@ -112,7 +103,7 @@ export function CampaignTimelineWidget({
 
             <ol className="relative flex flex-col gap-6 pl-8">
               {displayEvents.map((event) => {
-                const tone = getEventTone(event)
+                const tone = getEventTone(event);
                 const {
                   isCurrent,
                   isMajor,
@@ -121,7 +112,7 @@ export function CampaignTimelineWidget({
                   titleClasses,
                   labelClasses,
                   summaryClasses,
-                } = getToneClasses(tone)
+                } = getToneClasses(tone);
 
                 return (
                   <li
@@ -136,7 +127,9 @@ export function CampaignTimelineWidget({
                       className={`absolute left-0 top-1.5 z-10 -translate-x-1/2 rounded-full ${dotClasses}`}
                     />
 
-                    <p className={`font-sans font-semibold text-[0.6rem] tracking-[0.16em] ${dateClasses}`}>
+                    <p
+                      className={`font-sans font-semibold text-[0.6rem] tracking-[0.16em] ${dateClasses}`}
+                    >
                       {event.calendarDate}
                     </p>
 
@@ -147,11 +140,15 @@ export function CampaignTimelineWidget({
                     </h3>
 
                     {isCurrent ? (
-                      <p className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                      <p
+                        className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}
+                      >
                         CURRENT SESSION
                       </p>
                     ) : isMajor ? (
-                      <p className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                      <p
+                        className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}
+                      >
                         MAJOR EVENT
                       </p>
                     ) : null}
@@ -163,15 +160,16 @@ export function CampaignTimelineWidget({
                       {event.summary}
                     </p>
                   </li>
-                )
+                );
               })}
             </ol>
           </div>
 
+          {/* TODO: a11y — scrollable region tabIndex is intentional for keyboard scrolling */}
           <div
             data-testid="timeline-scroll"
             className="relative hidden overflow-x-auto overflow-y-hidden pb-2 md:block"
-            tabIndex={0}
+            tabIndex={0} // eslint-disable-line jsx-a11y/no-noninteractive-tabindex
             aria-label="Campaign timeline, horizontally scrollable events"
           >
             <div className="relative min-w-[760px] px-4 pt-2">
@@ -183,7 +181,7 @@ export function CampaignTimelineWidget({
 
               <ol className="grid grid-flow-col auto-cols-[minmax(10.5rem,1fr)] gap-4">
                 {displayEvents.map((event) => {
-                  const tone = getEventTone(event)
+                  const tone = getEventTone(event);
                   const {
                     isCurrent,
                     isMajor,
@@ -192,7 +190,7 @@ export function CampaignTimelineWidget({
                     titleClasses,
                     labelClasses,
                     summaryClasses,
-                  } = getToneClasses(tone)
+                  } = getToneClasses(tone);
 
                   return (
                     <li
@@ -202,7 +200,9 @@ export function CampaignTimelineWidget({
                       className="grid min-h-[12rem] grid-rows-[2.5rem_2rem_1fr] px-1 text-center"
                     >
                       <div className="flex items-end justify-center pb-3">
-                        <p className={`font-sans font-semibold text-[0.6rem] tracking-[0.16em] ${dateClasses}`}>
+                        <p
+                          className={`font-sans font-semibold text-[0.6rem] tracking-[0.16em] ${dateClasses}`}
+                        >
                           {event.calendarDate}
                         </p>
                       </div>
@@ -226,11 +226,15 @@ export function CampaignTimelineWidget({
                         </h3>
 
                         {isCurrent ? (
-                          <p className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                          <p
+                            className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}
+                          >
                             CURRENT SESSION
                           </p>
                         ) : isMajor ? (
-                          <p className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}>
+                          <p
+                            className={`mt-2 font-sans text-[0.5rem] font-bold tracking-[0.18em] ${labelClasses}`}
+                          >
                             MAJOR EVENT
                           </p>
                         ) : null}
@@ -243,7 +247,7 @@ export function CampaignTimelineWidget({
                         </p>
                       </div>
                     </li>
-                  )
+                  );
                 })}
               </ol>
             </div>
@@ -251,5 +255,5 @@ export function CampaignTimelineWidget({
         </>
       )}
     </Widget>
-  )
+  );
 }

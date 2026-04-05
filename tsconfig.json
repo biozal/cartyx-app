@@ -12,6 +12,8 @@
     "resolveJsonModule": true,
     "incremental": true,
     "types": ["vite/client"],
+    "noUncheckedIndexedAccess": true,
+    "forceConsistentCasingInFileNames": true,
     "paths": {
       "~/*": ["./app/*"]
     }

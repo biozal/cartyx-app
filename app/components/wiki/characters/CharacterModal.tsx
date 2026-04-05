@@ -1,35 +1,36 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import { createPortal } from 'react-dom'
-import { X, Globe, Lock } from 'lucide-react'
-import { FormInput } from '~/components/FormInput'
-import { FormSelect } from '~/components/FormSelect'
-import { PixelButton } from '~/components/PixelButton'
-import { MarkdownEditor } from '~/components/shared/MarkdownEditor'
-import { TagAutocompleteInput } from '~/components/shared/TagAutocompleteInput'
-import { ImageCropInput } from './ImageCropInput'
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { X, Globe, Lock } from 'lucide-react';
+import { FormInput } from '~/components/FormInput';
+import { FormSelect } from '~/components/FormSelect';
+import { PixelButton } from '~/components/PixelButton';
+import { MarkdownEditor } from '~/components/shared/MarkdownEditor';
+import { TagAutocompleteInput } from '~/components/shared/TagAutocompleteInput';
+import { ImageCropInput } from './ImageCropInput';
+import { SessionMultiSelect } from './SessionMultiSelect';
 import {
   useCharacter,
   useCreateCharacter,
   useUpdateCharacter,
   useDeleteCharacter,
-} from '~/hooks/useCharacters'
-import type { CampaignData } from '~/types/campaign'
-import type { PictureCrop } from '~/types/character'
-import { uploadToR2 } from '~/utils/uploadToR2'
-import { compressImage } from '~/utils/compressImage'
+} from '~/hooks/useCharacters';
+import type { CampaignData } from '~/types/campaign';
+import type { PictureCrop } from '~/types/character';
+import { uploadToR2 } from '~/utils/uploadToR2';
+import { compressImage } from '~/utils/compressImage';
 
 interface CharacterModalProps {
-  isOpen: boolean
-  onClose: () => void
-  campaignId: string
-  characterId?: string
-  sessions: CampaignData['sessions']
+  isOpen: boolean;
+  onClose: () => void;
+  campaignId: string;
+  characterId?: string;
+  sessions: CampaignData['sessions'];
 }
 
 interface FieldErrors {
-  firstName?: string
-  lastName?: string
-  link?: string
+  firstName?: string;
+  lastName?: string;
+  link?: string;
 }
 
 export function CharacterModal({
@@ -39,118 +40,121 @@ export function CharacterModal({
   characterId,
   sessions,
 }: CharacterModalProps) {
-  const isEdit = !!characterId
+  const isEdit = !!characterId;
 
   const { character: existingCharacter, isLoading: isFetchingCharacter } = useCharacter(
     characterId ?? '',
-    campaignId,
-  )
-  const { create, isLoading: isCreating } = useCreateCharacter()
-  const { update, isLoading: isUpdating } = useUpdateCharacter()
-  const { remove, isLoading: isDeleting } = useDeleteCharacter()
+    campaignId
+  );
+  const { create, isLoading: isCreating } = useCreateCharacter();
+  const { update, isLoading: isUpdating } = useUpdateCharacter();
+  const { remove, isLoading: isDeleting } = useDeleteCharacter();
 
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [race, setRace] = useState('')
-  const [characterClass, setCharacterClass] = useState('')
-  const [age, setAge] = useState('')
-  const [location, setLocation] = useState('')
-  const [link, setLink] = useState('')
-  const [picture, setPicture] = useState('')
-  const [pictureCrop, setPictureCrop] = useState<PictureCrop | null>(null)
-  const [sessionId, setSessionId] = useState('')
-  const [selectedSessions, setSelectedSessions] = useState<string[]>([])
-  const [notes, setNotes] = useState('')
-  const [gmNotes, setGmNotes] = useState('')
-  const [tags, setTags] = useState<string[]>([])
-  const [isPublic, setIsPublic] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
-  const [hasSubmitted, setHasSubmitted] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [race, setRace] = useState('');
+  const [characterClass, setCharacterClass] = useState('');
+  const [age, setAge] = useState('');
+  const [location, setLocation] = useState('');
+  const [link, setLink] = useState('');
+  const [picture, setPicture] = useState('');
+  const [pictureCrop, setPictureCrop] = useState<PictureCrop | null>(null);
+  const [sessionId, setSessionId] = useState('');
+  const [selectedSessions, setSelectedSessions] = useState<string[]>([]);
+  const [notes, setNotes] = useState('');
+  const [gmNotes, setGmNotes] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [isPublic, setIsPublic] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Reset form when opening — clears stale values from a previous character
   useEffect(() => {
-    setFirstName('')
-    setLastName('')
-    setRace('')
-    setCharacterClass('')
-    setAge('')
-    setLocation('')
-    setLink('')
-    setPicture('')
-    setPictureCrop(null)
-    setSessionId('')
-    setSelectedSessions([])
-    setNotes('')
-    setGmNotes('')
-    setTags([])
-    setIsPublic(false)
-    setError(null)
-    setFieldErrors({})
-    setHasSubmitted(false)
-    setShowDeleteConfirm(false)
-  }, [characterId, isOpen])
+    setFirstName('');
+    setLastName('');
+    setRace('');
+    setCharacterClass('');
+    setAge('');
+    setLocation('');
+    setLink('');
+    setPicture('');
+    setPictureCrop(null);
+    setSessionId('');
+    setSelectedSessions([]);
+    setNotes('');
+    setGmNotes('');
+    setTags([]);
+    setIsPublic(false);
+    setError(null);
+    setFieldErrors({});
+    setHasSubmitted(false);
+    setShowDeleteConfirm(false);
+  }, [characterId, isOpen]);
 
   // Populate form once the fetched character resolves in edit mode
   useEffect(() => {
     if (isEdit && existingCharacter) {
-      setFirstName(existingCharacter.firstName)
-      setLastName(existingCharacter.lastName)
-      setRace(existingCharacter.race)
-      setCharacterClass(existingCharacter.characterClass)
-      setAge(existingCharacter.age != null ? String(existingCharacter.age) : '')
-      setLocation(existingCharacter.location)
-      setLink(existingCharacter.link)
-      setPicture(existingCharacter.picture)
-      setPictureCrop(existingCharacter.pictureCrop)
-      setSessionId(existingCharacter.sessionId ?? '')
-      setSelectedSessions(existingCharacter.sessions)
-      setNotes(existingCharacter.notes)
-      setGmNotes(existingCharacter.gmNotes)
-      setTags(existingCharacter.tags)
-      setIsPublic(existingCharacter.isPublic)
+      setFirstName(existingCharacter.firstName);
+      setLastName(existingCharacter.lastName);
+      setRace(existingCharacter.race);
+      setCharacterClass(existingCharacter.characterClass);
+      setAge(existingCharacter.age != null ? String(existingCharacter.age) : '');
+      setLocation(existingCharacter.location);
+      setLink(existingCharacter.link);
+      setPicture(existingCharacter.picture);
+      setPictureCrop(existingCharacter.pictureCrop);
+      setSessionId(existingCharacter.sessionId ?? '');
+      setSelectedSessions(existingCharacter.sessions);
+      setNotes(existingCharacter.notes);
+      setGmNotes(existingCharacter.gmNotes);
+      setTags(existingCharacter.tags);
+      setIsPublic(existingCharacter.isPublic);
     }
-  }, [isEdit, existingCharacter])
+  }, [isEdit, existingCharacter]);
 
-  const sessionOptions = useMemo(() => [
-    { value: '', label: 'No Session' },
-    ...sessions.map((s) => ({
-      value: s.id,
-      label: `Session ${s.number}: ${s.name}`,
-    })),
-  ], [sessions])
+  const sessionOptions = useMemo(
+    () => [
+      { value: '', label: 'No Session' },
+      ...sessions.map((s) => ({
+        value: s.id,
+        label: `Session ${s.number}: ${s.name}`,
+      })),
+    ],
+    [sessions]
+  );
 
   const validate = useCallback((): FieldErrors => {
-    const errors: FieldErrors = {}
-    if (!firstName.trim()) errors.firstName = 'First name is required'
-    if (!lastName.trim()) errors.lastName = 'Last name is required'
+    const errors: FieldErrors = {};
+    if (!firstName.trim()) errors.firstName = 'First name is required';
+    if (!lastName.trim()) errors.lastName = 'Last name is required';
     if (link.trim() && !/^https?:\/\/.+/.test(link.trim())) {
-      errors.link = 'Must be a valid HTTP or HTTPS URL'
+      errors.link = 'Must be a valid HTTP or HTTPS URL';
     }
-    return errors
-  }, [firstName, lastName, link])
+    return errors;
+  }, [firstName, lastName, link]);
 
   useEffect(() => {
-    if (hasSubmitted) setFieldErrors(validate())
-  }, [hasSubmitted, validate])
+    if (hasSubmitted) setFieldErrors(validate());
+  }, [hasSubmitted, validate]);
 
   const handleUpload = useCallback(async (file: File): Promise<string> => {
-    const compressed = await compressImage(file)
-    const { publicUrl } = await uploadToR2(compressed, 'uploads/characters')
-    return publicUrl
-  }, [])
+    const compressed = await compressImage(file);
+    const { publicUrl } = await uploadToR2(compressed, 'uploads/characters');
+    return publicUrl;
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setHasSubmitted(true)
-    setError(null)
+    e.preventDefault();
+    setHasSubmitted(true);
+    setError(null);
 
-    const errors = validate()
-    setFieldErrors(errors)
-    if (Object.keys(errors).length > 0) return
+    const errors = validate();
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
 
-    const parsedAge = age.trim() ? parseInt(age, 10) : null
+    const parsedAge = age.trim() ? parseInt(age, 10) : null;
 
     const input = {
       campaignId,
@@ -162,62 +166,69 @@ export function CharacterModal({
       location: location.trim(),
       link: link.trim(),
       picture,
-      pictureCrop: pictureCrop ? { x: pictureCrop.x, y: pictureCrop.y, width: pictureCrop.width, height: pictureCrop.height } : null,
+      pictureCrop: pictureCrop
+        ? {
+            x: pictureCrop.x,
+            y: pictureCrop.y,
+            width: pictureCrop.width,
+            height: pictureCrop.height,
+          }
+        : null,
       sessionId: sessionId || undefined,
       sessions: selectedSessions,
       notes,
       gmNotes,
       tags,
       isPublic,
-    }
+    };
 
-    let success = false
+    let success = false;
     if (isEdit && characterId) {
-      const result = await update({ ...input, id: characterId })
-      success = !!result
+      const result = await update({ ...input, id: characterId });
+      success = !!result;
     } else {
-      const result = await create(input)
-      success = !!result
+      const result = await create(input);
+      success = !!result;
     }
 
     if (success) {
-      onClose()
+      onClose();
     } else {
-      setError(`Failed to ${isEdit ? 'update' : 'create'} character. Please try again.`)
+      setError(`Failed to ${isEdit ? 'update' : 'create'} character. Please try again.`);
     }
-  }
+  };
 
   const handleDelete = async () => {
-    if (!characterId) return
-    setError(null)
-    const result = await remove({ id: characterId, campaignId })
+    if (!characterId) return;
+    setError(null);
+    const result = await remove({ id: characterId, campaignId });
     if (result) {
-      onClose()
+      onClose();
     } else {
-      setError('Failed to delete character. Please try again.')
-      setShowDeleteConfirm(false)
+      setError('Failed to delete character. Please try again.');
+      setShowDeleteConfirm(false);
     }
-  }
+  };
 
   const handleSessionToggle = useCallback((sessId: string) => {
     setSelectedSessions((prev) =>
-      prev.includes(sessId)
-        ? prev.filter((s) => s !== sessId)
-        : [...prev, sessId],
-    )
-  }, [])
+      prev.includes(sessId) ? prev.filter((s) => s !== sessId) : [...prev, sessId]
+    );
+  }, []);
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
-  const isLoadingCharacter = !!(isEdit && isFetchingCharacter)
-  const isSaving = isCreating || isUpdating
-  const isDisabled = isLoadingCharacter || isSaving || isDeleting
+  const isLoadingCharacter = !!(isEdit && isFetchingCharacter);
+  const isSaving = isCreating || isUpdating;
+  const isDisabled = isLoadingCharacter || isSaving || isDeleting;
 
   return createPortal(
+    // TODO: a11y — dialog backdrop click to close needs keyboard equivalent
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-2 sm:p-4 backdrop-blur-sm"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) onClose();
       }}
       role="dialog"
       aria-modal="true"
@@ -228,7 +239,10 @@ export function CharacterModal({
         className="w-full h-full max-w-[90vw] max-h-[90vh] sm:max-w-[90vw] sm:max-h-[90vh] bg-[#0D1117] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
       >
         <header className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/[0.07] shrink-0">
-          <h2 id="character-modal-title" className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest">
+          <h2
+            id="character-modal-title"
+            className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest"
+          >
             {isEdit ? 'Edit Character' : 'Create Character'}
           </h2>
           <button
@@ -344,49 +358,12 @@ export function CharacterModal({
               />
 
               {/* Sessions Appeared In — chip multi-select */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
-                  Sessions Appeared In
-                </label>
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {selectedSessions.map((sessId) => {
-                    const sess = sessions.find((s) => s.id === sessId)
-                    return (
-                      <span
-                        key={sessId}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-semibold"
-                      >
-                        {sess ? `S${sess.number}` : sessId}
-                        <button
-                          type="button"
-                          onClick={() => handleSessionToggle(sessId)}
-                          className="hover:text-white transition-colors"
-                          aria-label={`Remove session ${sess?.number}`}
-                        >
-                          <X className="h-2.5 w-2.5" />
-                        </button>
-                      </span>
-                    )
-                  })}
-                </div>
-                <select
-                  value=""
-                  onChange={(e) => {
-                    if (e.target.value) handleSessionToggle(e.target.value)
-                  }}
-                  disabled={isDisabled}
-                  className="w-full bg-[#080A12] border border-white/[0.07] rounded px-2 py-1.5 font-sans font-semibold text-[11px] text-slate-300 outline-none focus:border-blue-500/50 transition-colors"
-                >
-                  <option value="">Add session...</option>
-                  {sessions
-                    .filter((s) => !selectedSessions.includes(s.id))
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        Session {s.number}: {s.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
+              <SessionMultiSelect
+                sessions={sessions}
+                selectedSessions={selectedSessions}
+                onToggle={handleSessionToggle}
+                disabled={isDisabled}
+              />
 
               {/* Notes */}
               <MarkdownEditor
@@ -404,7 +381,9 @@ export function CharacterModal({
                 label={
                   <span>
                     GM Notes{' '}
-                    <span className="text-amber-500 text-[10px] font-normal">(only visible to GM)</span>
+                    <span className="text-amber-500 text-[10px] font-normal">
+                      (only visible to GM)
+                    </span>
                   </span>
                 }
                 value={gmNotes}
@@ -417,6 +396,8 @@ export function CharacterModal({
 
               {/* Tags */}
               <div>
+                {/* TODO: a11y — associate label with TagAutocompleteInput via htmlFor/id */}
+                {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
                 <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
                   Tags
                 </label>
@@ -443,11 +424,13 @@ export function CharacterModal({
                     className="sr-only"
                     disabled={isDisabled}
                   />
-                  <div className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
-                    !isPublic
-                      ? 'bg-blue-600/10 border-blue-500/50 text-blue-300 shadow-sm shadow-blue-500/10'
-                      : 'bg-white/[0.03] border-white/[0.07] text-slate-500 hover:border-white/20'
-                  }`}>
+                  <div
+                    className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
+                      !isPublic
+                        ? 'bg-blue-600/10 border-blue-500/50 text-blue-300 shadow-sm shadow-blue-500/10'
+                        : 'bg-white/[0.03] border-white/[0.07] text-slate-500 hover:border-white/20'
+                    }`}
+                  >
                     <Lock className="h-3.5 w-3.5" />
                     <span className="font-sans font-bold text-xs">Private</span>
                   </div>
@@ -462,11 +445,13 @@ export function CharacterModal({
                     className="sr-only"
                     disabled={isDisabled}
                   />
-                  <div className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
-                    isPublic
-                      ? 'bg-emerald-600/10 border-emerald-500/50 text-emerald-300 shadow-sm shadow-emerald-500/10'
-                      : 'bg-white/[0.03] border-white/[0.07] text-slate-500 hover:border-white/20'
-                  }`}>
+                  <div
+                    className={`h-10 px-4 rounded-xl border flex items-center gap-2.5 transition-all ${
+                      isPublic
+                        ? 'bg-emerald-600/10 border-emerald-500/50 text-emerald-300 shadow-sm shadow-emerald-500/10'
+                        : 'bg-white/[0.03] border-white/[0.07] text-slate-500 hover:border-white/20'
+                    }`}
+                  >
                     <Globe className="h-3.5 w-3.5" />
                     <span className="font-sans font-bold text-xs">Public</span>
                   </div>
@@ -499,7 +484,9 @@ export function CharacterModal({
                   disabled={isDeleting}
                   type="button"
                 >
-                  <span className="text-rose-400">{isDeleting ? 'Deleting...' : 'Yes, delete'}</span>
+                  <span className="text-rose-400">
+                    {isDeleting ? 'Deleting...' : 'Yes, delete'}
+                  </span>
                 </PixelButton>
                 <PixelButton
                   variant="secondary"
@@ -523,18 +510,19 @@ export function CharacterModal({
             >
               Cancel
             </PixelButton>
-            <PixelButton
-              variant="primary"
-              size="sm"
-              disabled={isDisabled}
-              type="submit"
-            >
-              {isSaving ? 'Saving...' : isLoadingCharacter ? 'Loading...' : isEdit ? 'Update Character' : 'Create Character'}
+            <PixelButton variant="primary" size="sm" disabled={isDisabled} type="submit">
+              {isSaving
+                ? 'Saving...'
+                : isLoadingCharacter
+                  ? 'Loading...'
+                  : isEdit
+                    ? 'Update Character'
+                    : 'Create Character'}
             </PixelButton>
           </div>
         </footer>
       </form>
     </div>,
-    document.body,
-  )
+    document.body
+  );
 }

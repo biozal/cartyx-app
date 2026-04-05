@@ -1,43 +1,45 @@
-import React, { useCallback, useEffect, useId, useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { EditorView, placeholder as cmPlaceholder, keymap } from '@codemirror/view'
-import { EditorState, Compartment } from '@codemirror/state'
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
-import { syntaxHighlighting } from '@codemirror/language'
-import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark'
-import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses'
+// TODO: a11y & react-compiler — MarkdownEditor intentionally uses mount-once effect; react-compiler skips optimization here
+/* eslint-disable react-compiler/react-compiler */
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { EditorView, placeholder as cmPlaceholder, keymap } from '@codemirror/view';
+import { EditorState, Compartment } from '@codemirror/state';
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { syntaxHighlighting } from '@codemirror/language';
+import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark';
+import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
 
-export type MarkdownEditorMode = 'edit' | 'preview'
+export type MarkdownEditorMode = 'edit' | 'preview';
 
 export interface MarkdownEditorProps {
   /** Controlled markdown string. */
-  value: string
+  value: string;
   /** Called when the markdown content changes. */
-  onChange: (value: string) => void
+  onChange: (value: string) => void;
   /** Label content rendered above the editor. */
-  label?: React.ReactNode
+  label?: React.ReactNode;
   /** Placeholder text shown in the editor when empty. */
-  placeholder?: string
+  placeholder?: string;
   /** Error message — renders red border and text below editor. */
-  error?: string
+  error?: string;
   /** Hint text rendered below the editor (hidden when error is shown). */
-  hint?: string
+  hint?: string;
   /** Whether the editor is disabled / read-only. */
-  disabled?: boolean
+  disabled?: boolean;
   /** Additional CSS classes applied to the outermost wrapper. */
-  className?: string
+  className?: string;
   /** Minimum height of the editor area (CSS value). Defaults to "12rem". */
-  minHeight?: string
+  minHeight?: string;
   /** Optional id forwarded to the editor for label association. */
-  id?: string
+  id?: string;
   /** Initial mode. Defaults to "edit". */
-  defaultMode?: MarkdownEditorMode
+  defaultMode?: MarkdownEditorMode;
 }
 
-const readOnlyCompartment = new Compartment()
-const placeholderCompartment = new Compartment()
+const readOnlyCompartment = new Compartment();
+const placeholderCompartment = new Compartment();
 
 const editorTheme = EditorView.theme({
   '&': {
@@ -75,7 +77,7 @@ const editorTheme = EditorView.theme({
   '.cm-cursor': {
     borderLeftColor: '#85adff',
   },
-})
+});
 
 export function MarkdownEditor({
   value,
@@ -90,21 +92,21 @@ export function MarkdownEditor({
   id,
   defaultMode = 'edit',
 }: MarkdownEditorProps) {
-  const generatedId = useId()
-  const editorId = id ?? generatedId
-  const labelId = `${editorId}-label`
-  const [mode, setMode] = useState<MarkdownEditorMode>(defaultMode)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const viewRef = useRef<EditorView | null>(null)
-  const onChangeRef = useRef(onChange)
-  const isProgrammaticRef = useRef(false)
-  const editTabRef = useRef<HTMLButtonElement>(null)
-  const previewTabRef = useRef<HTMLButtonElement>(null)
-  onChangeRef.current = onChange
+  const generatedId = useId();
+  const editorId = id ?? generatedId;
+  const labelId = `${editorId}-label`;
+  const [mode, setMode] = useState<MarkdownEditorMode>(defaultMode);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  const onChangeRef = useRef(onChange);
+  const isProgrammaticRef = useRef(false);
+  const editTabRef = useRef<HTMLButtonElement>(null);
+  const previewTabRef = useRef<HTMLButtonElement>(null);
+  onChangeRef.current = onChange;
 
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
+    const container = containerRef.current;
+    if (!container) return;
 
     const state = EditorState.create({
       doc: value,
@@ -118,134 +120,125 @@ export function MarkdownEditor({
         placeholderCompartment.of(placeholder ? cmPlaceholder(placeholder) : []),
         EditorView.updateListener.of((update) => {
           if (update.docChanged && !isProgrammaticRef.current) {
-            onChangeRef.current(update.state.doc.toString())
+            onChangeRef.current(update.state.doc.toString());
           }
         }),
         EditorView.lineWrapping,
       ],
-    })
+    });
 
-    const view = new EditorView({ state, parent: container })
-    viewRef.current = view
+    const view = new EditorView({ state, parent: container });
+    viewRef.current = view;
 
     // Associate focusable content element with accessible name and role
-    view.contentDOM.id = editorId
-    view.contentDOM.setAttribute('role', 'textbox')
-    view.contentDOM.setAttribute('aria-multiline', 'true')
+    view.contentDOM.id = editorId;
+    view.contentDOM.setAttribute('role', 'textbox');
+    view.contentDOM.setAttribute('aria-multiline', 'true');
     if (label) {
-      view.contentDOM.setAttribute('aria-labelledby', labelId)
+      view.contentDOM.setAttribute('aria-labelledby', labelId);
     }
     if (disabled) {
-      view.contentDOM.setAttribute('aria-disabled', 'true')
+      view.contentDOM.setAttribute('aria-disabled', 'true');
     }
 
     return () => {
-      view.destroy()
-      viewRef.current = null
-    }
+      view.destroy();
+      viewRef.current = null;
+    };
     // Mount once — value/placeholder/disabled handled via separate effects
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, []);
 
   // Sync external value changes into CodeMirror (guarded to prevent bounce-back)
   useEffect(() => {
-    const view = viewRef.current
-    if (!view) return
-    const current = view.state.doc.toString()
+    const view = viewRef.current;
+    if (!view) return;
+    const current = view.state.doc.toString();
     if (current !== value) {
-      isProgrammaticRef.current = true
+      isProgrammaticRef.current = true;
       view.dispatch({
         changes: { from: 0, to: current.length, insert: value },
-      })
-      isProgrammaticRef.current = false
+      });
+      isProgrammaticRef.current = false;
     }
-  }, [value])
+  }, [value]);
 
   // Sync disabled/readOnly and aria-disabled
   useEffect(() => {
-    const view = viewRef.current
-    if (!view) return
+    const view = viewRef.current;
+    if (!view) return;
     view.dispatch({
       effects: readOnlyCompartment.reconfigure(EditorState.readOnly.of(disabled)),
-    })
+    });
     if (disabled) {
-      view.contentDOM.setAttribute('aria-disabled', 'true')
+      view.contentDOM.setAttribute('aria-disabled', 'true');
     } else {
-      view.contentDOM.removeAttribute('aria-disabled')
+      view.contentDOM.removeAttribute('aria-disabled');
     }
-  }, [disabled])
+  }, [disabled]);
 
   // Sync placeholder reactively
   useEffect(() => {
-    const view = viewRef.current
-    if (!view) return
+    const view = viewRef.current;
+    if (!view) return;
     view.dispatch({
-      effects: placeholderCompartment.reconfigure(
-        placeholder ? cmPlaceholder(placeholder) : [],
-      ),
-    })
-  }, [placeholder])
+      effects: placeholderCompartment.reconfigure(placeholder ? cmPlaceholder(placeholder) : []),
+    });
+  }, [placeholder]);
 
   // Sync id and aria-labelledby when id/label props change
   useEffect(() => {
-    const view = viewRef.current
-    if (!view) return
-    view.contentDOM.id = editorId
+    const view = viewRef.current;
+    if (!view) return;
+    view.contentDOM.id = editorId;
     if (label) {
-      view.contentDOM.setAttribute('aria-labelledby', labelId)
+      view.contentDOM.setAttribute('aria-labelledby', labelId);
     } else {
-      view.contentDOM.removeAttribute('aria-labelledby')
+      view.contentDOM.removeAttribute('aria-labelledby');
     }
-  }, [editorId, label, labelId])
+  }, [editorId, label, labelId]);
 
   // Sync aria-describedby and aria-invalid onto the CodeMirror content element
   useEffect(() => {
-    const view = viewRef.current
-    if (!view) return
-    const el = view.contentDOM
+    const view = viewRef.current;
+    if (!view) return;
+    const el = view.contentDOM;
 
-    const describedBy = error
-      ? `${editorId}-error`
-      : hint
-        ? `${editorId}-hint`
-        : undefined
+    const describedBy = error ? `${editorId}-error` : hint ? `${editorId}-hint` : undefined;
     if (describedBy) {
-      el.setAttribute('aria-describedby', describedBy)
+      el.setAttribute('aria-describedby', describedBy);
     } else {
-      el.removeAttribute('aria-describedby')
+      el.removeAttribute('aria-describedby');
     }
 
     if (error) {
-      el.setAttribute('aria-invalid', 'true')
+      el.setAttribute('aria-invalid', 'true');
     } else {
-      el.removeAttribute('aria-invalid')
+      el.removeAttribute('aria-invalid');
     }
-  }, [error, hint, editorId])
+  }, [error, hint, editorId]);
 
-  const handleTabKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLButtonElement>) => {
-      let nextMode: MarkdownEditorMode | null = null
+  const handleTabKeyDown = useCallback((e: React.KeyboardEvent<HTMLButtonElement>) => {
+    let nextMode: MarkdownEditorMode | null = null;
 
-      if (e.key === 'ArrowRight' || e.key === 'End') {
-        e.preventDefault()
-        nextMode = 'preview'
-      } else if (e.key === 'ArrowLeft' || e.key === 'Home') {
-        e.preventDefault()
-        nextMode = 'edit'
-      }
+    if (e.key === 'ArrowRight' || e.key === 'End') {
+      e.preventDefault();
+      nextMode = 'preview';
+    } else if (e.key === 'ArrowLeft' || e.key === 'Home') {
+      e.preventDefault();
+      nextMode = 'edit';
+    }
 
-      if (nextMode !== null) {
-        setMode(nextMode)
-        const targetRef = nextMode === 'edit' ? editTabRef : previewTabRef
-        targetRef.current?.focus()
-      }
-    },
-    [],
-  )
+    if (nextMode !== null) {
+      setMode(nextMode);
+      const targetRef = nextMode === 'edit' ? editTabRef : previewTabRef;
+      targetRef.current?.focus();
+    }
+  }, []);
 
   const borderCls = error
     ? 'border-red-500/50 focus-within:border-red-500/70'
-    : 'border-white/10 focus-within:border-blue-500/50'
+    : 'border-white/10 focus-within:border-blue-500/50';
 
   const wrapperCls = [
     'rounded-xl border overflow-hidden transition-all',
@@ -254,11 +247,13 @@ export function MarkdownEditor({
     className,
   ]
     .filter(Boolean)
-    .join(' ')
+    .join(' ');
 
   return (
     <div className={wrapperCls}>
       {label && (
+        // TODO: a11y — label span click-to-focus needs keyboard handler; consider using a <label> element
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
         <span
           id={labelId}
           className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide px-4 pt-3 cursor-pointer"
@@ -332,9 +327,7 @@ export function MarkdownEditor({
       >
         {value.trim() ? (
           <div className={`${MARKDOWN_PROSE_CLASSES} text-sm`}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {value}
-            </ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
           </div>
         ) : (
           <p className="text-slate-700 text-sm italic">Nothing to preview</p>
@@ -343,17 +336,15 @@ export function MarkdownEditor({
 
       {/* Error / hint */}
       {error && (
-        <p
-          id={`${editorId}-error`}
-          className="text-xs text-red-400 mt-1.5 px-4 pb-3"
-          role="alert"
-        >
+        <p id={`${editorId}-error`} className="text-xs text-red-400 mt-1.5 px-4 pb-3" role="alert">
           {error}
         </p>
       )}
       {!error && hint && (
-        <p id={`${editorId}-hint`} className="text-xs text-slate-600 mt-1.5 px-4 pb-3">{hint}</p>
+        <p id={`${editorId}-hint`} className="text-xs text-slate-600 mt-1.5 px-4 pb-3">
+          {hint}
+        </p>
       )}
     </div>
-  )
+  );
 }
