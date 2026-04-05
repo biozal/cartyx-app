@@ -35,14 +35,15 @@ export function RaceModal({ isOpen, onClose, campaignId, raceId }: RaceModalProp
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Close on Escape key
+  // Close on Escape key — only active when the modal is open
   useEffect(() => {
+    if (!isOpen) return;
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [onClose]);
+  }, [isOpen, onClose]);
 
   // Reset form when opening
   useEffect(() => {
@@ -111,9 +112,9 @@ export function RaceModal({ isOpen, onClose, campaignId, raceId }: RaceModalProp
 
   // Update field errors on change if user has already submitted
   useEffect(() => {
-    if (!hasSubmitted) return;
+    if (!isOpen || !hasSubmitted) return;
     setFieldErrors(validate());
-  }, [hasSubmitted, validate]);
+  }, [isOpen, hasSubmitted, validate]);
 
   if (!isOpen) return null;
 
