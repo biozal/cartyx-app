@@ -19,7 +19,6 @@ export interface CampaignHeaderProps {
 export function CampaignHeader({
   campaignId,
   sessionNumber,
-  isOwner,
   isGM,
   activeSessionName,
   activeTab,
