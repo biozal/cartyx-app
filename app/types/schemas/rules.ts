@@ -23,7 +23,7 @@ export const deleteRuleSchema = z.object({
 });
 
 export const listRulesSchema = z.object({
-  campaignId: z.string().min(1),
+  campaignId: z.string().trim().min(1),
   search: z.string().optional(),
   visibility: z.enum(['all', 'public', 'private']).optional().default('all'),
   tags: z.array(z.string()).optional(),

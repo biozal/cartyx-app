@@ -3,7 +3,6 @@ import { Plus, Layers, Loader2, AlertTriangle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useGMScreenList, useGMScreenDetail, useGMScreenMutations } from '~/hooks/useGMScreens';
-import { useCampaign } from '~/hooks/useCampaigns';
 import {
   FloatingWindowManager,
   type ManagedWindow,
@@ -19,6 +18,7 @@ import { StackCard } from './StackCard';
 
 export interface GMScreensViewProps {
   campaignId: string;
+  isGM?: boolean;
 }
 
 const DEBOUNCE_MS = 500;
@@ -36,10 +36,8 @@ function toFloatingState(state: string): FloatingWindowState {
   return 'normal';
 }
 
-export function GMScreensView({ campaignId }: GMScreensViewProps) {
+export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
   const { screens, isLoading: listLoading, error: listError } = useGMScreenList(campaignId);
-  const { campaign } = useCampaign(campaignId);
-  const isGM = campaign?.isGM ?? false;
   const [activeScreenId, setActiveScreenId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogState>({ type: 'none' });
   const mutations = useGMScreenMutations(campaignId);
