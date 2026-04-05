@@ -8,15 +8,15 @@
 
 All 7 current warnings, all safe to fix with no behavior changes:
 
-| #   | File                                       | Line | Rule              | Fix                                                                                                      |
-| --- | ------------------------------------------ | ---- | ----------------- | -------------------------------------------------------------------------------------------------------- |
-| 1   | `app/server/db/models/Character.ts`        | 52   | `no-explicit-any` | Suppressed via ESLint config (`no-explicit-any` off for `app/server/**`) — Mongoose requires `any` casts |
-| 2   | `app/server/db/models/Character.ts`        | 68   | `no-explicit-any` | Same as above                                                                                            |
-| 3   | `app/server/db/models/GMScreen.ts`         | 3    | `no-unused-vars`  | Remove unused `WindowState` import                                                                       |
-| 4   | `app/server/db/models/Note.ts`             | 33   | `no-explicit-any` | Suppressed via ESLint config (same as #1)                                                                |
-| 5   | `app/server/db/models/Note.ts`             | 49   | `no-explicit-any` | Same as above                                                                                            |
-| 6   | `tests/routes/campaigns-sessions.test.tsx` | 80   | `no-unused-vars`  | Destructure as `icon: _icon` to preserve real prop name                                                  |
-| 7   | `tests/server/db/bootstrap.test.ts`        | 396  | `no-console`      | Add `// eslint-disable-next-line no-console`                                                             |
+| #   | File                                       | Line | Rule              | Fix                                                                                     |
+| --- | ------------------------------------------ | ---- | ----------------- | --------------------------------------------------------------------------------------- |
+| 1   | `app/server/db/models/Character.ts`        | 52   | `no-explicit-any` | Inline `eslint-disable-next-line` — Mongoose update hooks require dynamic object shapes |
+| 2   | `app/server/db/models/Character.ts`        | 68   | `no-explicit-any` | Same as above                                                                           |
+| 3   | `app/server/db/models/GMScreen.ts`         | 3    | `no-unused-vars`  | Remove unused `WindowState` import                                                      |
+| 4   | `app/server/db/models/Note.ts`             | 33   | `no-explicit-any` | Inline `eslint-disable-next-line` — same Mongoose hook pattern                          |
+| 5   | `app/server/db/models/Note.ts`             | 49   | `no-explicit-any` | Same as above                                                                           |
+| 6   | `tests/routes/campaigns-sessions.test.tsx` | 80   | `no-unused-vars`  | Destructure as `icon: _icon` to preserve real prop name                                 |
+| 7   | `tests/server/db/bootstrap.test.ts`        | 396  | `no-console`      | Add `// eslint-disable-next-line no-console`                                            |
 
 ---
 
