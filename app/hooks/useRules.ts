@@ -171,6 +171,7 @@ export function useUpdateRule() {
         queryKey: queryKeys.rules.detail(variables.id, variables.campaignId),
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.tags.list(variables.campaignId) });
+      // Refresh GM screen windows that may display this rule's content
       queryClient.invalidateQueries({ queryKey: queryKeys.gmscreens.all });
     },
     onError: (e, variables) => {
@@ -215,6 +216,7 @@ export function useDeleteRule() {
       queryClient.removeQueries({
         queryKey: queryKeys.rules.detail(variables.id, variables.campaignId),
       });
+      // Refresh GM screen windows — server removes refs for deleted rules
       queryClient.invalidateQueries({ queryKey: queryKeys.gmscreens.all });
     },
     onError: (e, variables) => {

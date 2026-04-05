@@ -39,6 +39,7 @@ function toFloatingState(state: string): FloatingWindowState {
 export function GMScreensView({ campaignId }: GMScreensViewProps) {
   const { screens, isLoading: listLoading, error: listError } = useGMScreenList(campaignId);
   const { campaign } = useCampaign(campaignId);
+  const isGM = campaign?.isGM ?? false;
   const [activeScreenId, setActiveScreenId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogState>({ type: 'none' });
   const mutations = useGMScreenMutations(campaignId);
@@ -406,7 +407,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
             <RuleWindowWrapper
               ruleId={w.documentId}
               campaignId={campaignId}
-              isGM={campaign?.isGM ?? false}
+              isGM={isGM}
               onEdit={() => setEditingRuleId(w.documentId)}
             />
           );
@@ -464,7 +465,7 @@ export function GMScreensView({ campaignId }: GMScreensViewProps) {
 
       return merged;
     });
-  }, [activeScreen, activeScreenId, flashWindowId, campaignId, campaign]);
+  }, [activeScreen, activeScreenId, flashWindowId, campaignId, isGM]);
 
   // --- Render ---
 

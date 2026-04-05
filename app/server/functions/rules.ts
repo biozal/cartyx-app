@@ -63,6 +63,10 @@ function serializeRuleListItem(r: {
   };
 }
 
+/**
+ * Verify the authenticated user is a member of the given campaign.
+ * Returns the DB user ID string, session user ID, and whether the user is the GM.
+ */
 async function requireCampaignMember(
   campaignId: string
 ): Promise<{ userId: string; sessionUserId: string; isGM: boolean }> {
@@ -90,6 +94,10 @@ async function requireCampaignMember(
   return { userId, sessionUserId: user.id, isGM };
 }
 
+/**
+ * Verify the authenticated user is a GM for the given campaign.
+ * Any GM can create, edit, or delete rules — no per-creator ownership.
+ */
 async function requireCampaignGM(
   campaignId: string
 ): Promise<{ userId: string; sessionUserId: string }> {
@@ -228,6 +236,9 @@ export const deleteRule = createServerFn({ method: 'POST' })
 
       await existing.deleteOne();
 
+      // Clean up GM Screen references to this rule.
+      // Best-effort: the rule is already deleted, so cleanup failure must not
+      // surface as a user-facing error — report it and move on.
       try {
         await removeDocumentRefsFromScreens(data.campaignId, 'rule', data.id);
       } catch (cleanupError) {
