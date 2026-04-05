@@ -9,6 +9,8 @@ interface TagAutocompleteInputProps {
   onTagsChange: (tags: string[]) => void;
   placeholder?: string;
   disabled?: boolean;
+  /** Optional id to pass to the internal <input>, useful for associating an external <label> via htmlFor. */
+  id?: string;
 }
 
 export function TagAutocompleteInput({
@@ -17,6 +19,7 @@ export function TagAutocompleteInput({
   onTagsChange,
   placeholder = 'Type a tag and press Enter',
   disabled = false,
+  id,
 }: TagAutocompleteInputProps) {
   const { tags: allTags } = useTags(campaignId);
   const [input, setInput] = useState('');
@@ -25,7 +28,8 @@ export function TagAutocompleteInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inputId = useId();
+  const fallbackId = useId();
+  const inputId = id ?? fallbackId;
 
   useEffect(() => {
     return () => {
@@ -114,9 +118,9 @@ export function TagAutocompleteInput({
 
   return (
     <div className="relative">
-      {/* TODO: a11y — click-to-focus container needs keyboard alternative */}
-      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+      {/* role="presentation": click-to-focus is a convenience; the inner <input> is keyboard-reachable via Tab */}
       <div
+        role="presentation"
         className={[
           'flex flex-wrap items-center gap-1.5 bg-[#080A12] border rounded px-3 py-2 transition-all',
           'focus-within:border-blue-500/50 border-white/[0.07]',

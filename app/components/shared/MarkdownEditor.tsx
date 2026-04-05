@@ -1,5 +1,4 @@
-// TODO: a11y & react-compiler — MarkdownEditor intentionally uses mount-once effect; react-compiler skips optimization here
-/* eslint-disable react-compiler/react-compiler */
+/* eslint-disable react-compiler/react-compiler -- MarkdownEditor creates a CodeMirror EditorView in a mount-once useEffect and mutates refs (viewRef, isProgrammaticRef) across multiple effects to sync external props into the imperative CM instance. The react-compiler cannot safely optimize these intentional ref mutations. */
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -252,15 +251,13 @@ export function MarkdownEditor({
   return (
     <div className={wrapperCls}>
       {label && (
-        // TODO: a11y — label span click-to-focus needs keyboard handler; consider using a <label> element
-        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
-        <span
+        <label
           id={labelId}
+          htmlFor={editorId}
           className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide px-4 pt-3 cursor-pointer"
-          onClick={() => viewRef.current?.focus()}
         >
           {label}
-        </span>
+        </label>
       )}
 
       {/* Tab bar */}

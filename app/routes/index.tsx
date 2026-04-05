@@ -305,11 +305,12 @@ function LandingPage() {
 
             {showInvite ? (
               <div className="w-full">
-                {/* TODO: a11y — associate label with input via htmlFor/id */}
-                {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-                <label className="block text-xs text-slate-500 mb-2">Have an invite code?</label>
+                <label htmlFor="landing-invite-code" className="block text-xs text-slate-500 mb-2">
+                  Have an invite code?
+                </label>
                 <div className="flex gap-2">
                   <input
+                    id="landing-invite-code"
                     className="flex-1 py-3 px-4 bg-white/[0.04] border border-white/[0.08] rounded-xl text-slate-200 font-sans font-semibold text-xs tracking-wider focus:outline-none focus:border-blue-400/40"
                     placeholder="XXXX-XXXX"
                     maxLength={9}

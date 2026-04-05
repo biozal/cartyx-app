@@ -60,12 +60,11 @@ export function ChatPanel() {
       </div>
 
       <div className="flex items-center justify-between border-b border-white/[0.07] px-3">
-        {/* TODO: a11y — add tabIndex and keyboard focus support to tablist */}
-        {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus */}
         <div
           ref={tablistRef}
           role="tablist"
           aria-label="Chat channels"
+          tabIndex={0}
           onKeyDown={handleKeyDown}
           className="flex items-center gap-1"
         >

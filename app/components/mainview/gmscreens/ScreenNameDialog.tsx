@@ -51,19 +51,19 @@ export function ScreenNameDialog({
   );
 
   return (
-    // TODO: a11y — dialog backdrop click to close needs keyboard equivalent
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
+    // role="presentation": backdrop click-to-close is a convenience; Escape key handler closes the dialog
     <div
+      role="presentation"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel();
       }}
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
     >
       <div
         ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         className="w-full max-w-sm rounded-lg border border-white/[0.07] bg-[#0D1117] shadow-2xl shadow-black/60"
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07]">
@@ -94,8 +94,7 @@ export function ScreenNameDialog({
             disabled={isLoading}
             maxLength={50}
             required
-            // TODO: a11y — evaluate if autoFocus is appropriate here; intentional for dialog UX
-            // eslint-disable-next-line jsx-a11y/no-autofocus
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- autoFocus is intentional per WAI-ARIA for modal dialogs; the input is the primary interactive element
             autoFocus
             className="w-full rounded border border-white/[0.12] bg-[#080A12] px-3 py-2 font-sans text-xs text-slate-200 outline-none placeholder:text-slate-600 focus:border-blue-500 transition-colors"
             placeholder="Enter a name..."

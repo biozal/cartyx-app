@@ -118,12 +118,14 @@ export function Widget({
 
       {isFullscreen
         ? createPortal(
-            // TODO: a11y — dialog backdrop click to close needs keyboard equivalent
-            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- backdrop click-to-dismiss and Escape-to-close are standard modal dialog patterns
             <div
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
               onClick={(e) => {
                 if (e.target === e.currentTarget) closeFullscreen();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') closeFullscreen();
               }}
               role="dialog"
               aria-modal="true"

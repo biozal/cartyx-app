@@ -182,15 +182,15 @@ export function NewCampaignPage() {
                     textareaClassName="min-h-[100px]"
                   />
                   <div>
-                    {/* TODO: a11y — label not associated with file input; use htmlFor/id */}
-                    {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-                    <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+                    <label
+                      htmlFor="banner-image-input"
+                      className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide"
+                    >
                       Banner Image <span className="text-slate-600 font-normal">(optional)</span>
                     </label>
-                    {/* TODO: a11y — file drop zone should use button or have keyboard handler */}
-                    {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
-                    <div
-                      className="border-2 border-dashed border-white/10 rounded-xl p-7 text-center cursor-pointer hover:border-blue-500/40 hover:bg-blue-600/[0.04] transition-all"
+                    <button
+                      type="button"
+                      className="w-full border-2 border-dashed border-white/10 rounded-xl p-7 text-center cursor-pointer hover:border-blue-500/40 hover:bg-blue-600/[0.04] transition-all bg-transparent"
                       onClick={() => fileRef.current?.click()}
                     >
                       {imagePreview ? (
@@ -213,9 +213,10 @@ export function NewCampaignPage() {
                           </div>
                         </>
                       )}
-                    </div>
+                    </button>
                     <input
                       ref={fileRef}
+                      id="banner-image-input"
                       type="file"
                       accept="image/png,image/jpeg,image/gif,image/webp"
                       className="hidden"
@@ -232,12 +233,10 @@ export function NewCampaignPage() {
                   THE SCHEDULE
                 </SectionHeader>
                 <div className="space-y-5">
-                  <div>
-                    {/* TODO: a11y — label for button group; use fieldset/legend or aria-label on the group instead */}
-                    {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-                    <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+                  <fieldset className="border-none p-0 m-0">
+                    <legend className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
                       Frequency
-                    </label>
+                    </legend>
                     <div className="flex flex-wrap gap-2">
                       {['weekly', 'biweekly', 'monthly'].map((f) => (
                         <button
@@ -254,13 +253,11 @@ export function NewCampaignPage() {
                         </button>
                       ))}
                     </div>
-                  </div>
-                  <div>
-                    {/* TODO: a11y — label for button group; use fieldset/legend or aria-label on the group instead */}
-                    {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-                    <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+                  </fieldset>
+                  <fieldset className="border-none p-0 m-0">
+                    <legend className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
                       Day of Week
-                    </label>
+                    </legend>
                     <div className="flex flex-wrap gap-2">
                       {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
                         <button
@@ -277,7 +274,7 @@ export function NewCampaignPage() {
                         </button>
                       ))}
                     </div>
-                  </div>
+                  </fieldset>
                   <div className="grid grid-cols-2 gap-4">
                     <FormInput
                       label="Time"
@@ -301,12 +298,10 @@ export function NewCampaignPage() {
                 <SectionHeader size="xs" tracking="tracking-[3px]" className="mb-7">
                   THE GATHERING
                 </SectionHeader>
-                <div className="space-y-3">
-                  {/* TODO: a11y — label for dynamic list; associate with first input or use aria-label */}
-                  {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-                  <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+                <fieldset className="space-y-3 border-none p-0 m-0">
+                  <legend className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
                     Links <span className="text-slate-600 font-normal">(optional)</span>
-                  </label>
+                  </legend>
                   {links.map((link, i) => (
                     <div key={i} className="flex gap-2 items-center">
                       <input
@@ -348,7 +343,7 @@ export function NewCampaignPage() {
                   >
                     + Add Link
                   </button>
-                </div>
+                </fieldset>
               </>
             )}
 
@@ -357,12 +352,10 @@ export function NewCampaignPage() {
                 <SectionHeader size="xs" tracking="tracking-[3px]" className="mb-7">
                   THE ROSTER
                 </SectionHeader>
-                <div>
-                  {/* TODO: a11y — label for button group; use fieldset/legend or aria-label on the group instead */}
-                  {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-                  <label className="block text-xs font-semibold text-slate-400 mb-3 tracking-wide">
+                <fieldset className="border-none p-0 m-0">
+                  <legend className="block text-xs font-semibold text-slate-400 mb-3 tracking-wide">
                     Max Player Slots
-                  </label>
+                  </legend>
                   <div className="flex flex-wrap gap-2.5">
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                       <button
@@ -382,7 +375,7 @@ export function NewCampaignPage() {
                   <p className="text-xs text-slate-700 mt-3.5">
                     The GM does not occupy a player slot.
                   </p>
-                </div>
+                </fieldset>
               </>
             )}
 

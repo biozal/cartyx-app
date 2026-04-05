@@ -55,19 +55,19 @@ export function ReorderDialog({
   }, [order, onSubmit]);
 
   return (
-    // TODO: a11y — dialog backdrop click to close needs keyboard equivalent
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
+    // role="presentation": backdrop click-to-close is a convenience; Escape key handler closes the dialog
     <div
+      role="presentation"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel();
       }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Reorder Screens"
     >
       <div
         ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Reorder Screens"
         className="w-full max-w-sm rounded-lg border border-white/[0.07] bg-[#0D1117] shadow-2xl shadow-black/60"
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07]">

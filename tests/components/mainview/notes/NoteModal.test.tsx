@@ -510,9 +510,9 @@ describe('NoteModal', () => {
     const user = userEvent.setup();
     const { props } = renderModal();
 
-    // The dialog overlay div is the click target for backdrop dismissal
-    const backdrop = screen.getByRole('dialog');
-    await user.click(backdrop);
+    // The backdrop has role="presentation"; the inner form has role="dialog"
+    const [backdrop] = screen.getAllByRole('presentation');
+    await user.click(backdrop!);
 
     expect(props.onClose).toHaveBeenCalled();
   });
@@ -537,17 +537,19 @@ describe('NoteModal', () => {
 
   it('renders with 90% viewport constraints', () => {
     renderModal();
-    const form = screen.getByRole('dialog').querySelector('form');
-    expect(form).toBeInTheDocument();
-    expect(form!.className).toContain('max-w-[90vw]');
-    expect(form!.className).toContain('max-h-[90vh]');
+    // role="dialog" is on the <form> element itself
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(dialog.className).toContain('max-w-[90vw]');
+    expect(dialog.className).toContain('max-h-[90vh]');
   });
 
   it('uses full width and height within the modal', () => {
     renderModal();
-    const form = screen.getByRole('dialog').querySelector('form');
-    expect(form!.className).toContain('w-full');
-    expect(form!.className).toContain('h-full');
+    // role="dialog" is on the <form> element itself
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.className).toContain('w-full');
+    expect(dialog.className).toContain('h-full');
   });
 
   // ── Error handling ──────────────────────────────────────

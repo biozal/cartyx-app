@@ -72,12 +72,11 @@ export function TabNavigation({
     <div
       className={`flex items-center h-10 px-4 bg-[#080A12] border-b border-white/[0.07] ${className}`}
     >
-      {/* TODO: a11y — add tabIndex and keyboard focus support to tablist */}
-      {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus */}
       <div
         role="tablist"
         aria-label="View navigation"
         ref={tablistRef}
+        tabIndex={0}
         onKeyDown={(e) => handleTabsKeyDown(e, effectiveActiveTab, onTabChange, tablistRef, tabs)}
         className="flex items-center gap-1"
       >

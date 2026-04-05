@@ -109,13 +109,12 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
     <div className="flex flex-col h-full w-full bg-[#0D1117]">
       {/* Tab bar */}
       <div className="flex h-12 border-b border-white/[0.07] flex-shrink-0">
-        {/* TODO: a11y — add tabIndex and keyboard focus support to tablist */}
-        {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus */}
         <div
           className="flex flex-1"
           role="tablist"
           aria-label="Inspector panels"
           ref={tablistRef}
+          tabIndex={0}
           onKeyDown={handleKeyDown}
         >
           {tabs.map((tab) => {

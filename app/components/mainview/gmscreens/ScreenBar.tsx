@@ -67,13 +67,12 @@ export function ScreenBar({
       data-testid="screen-bar"
     >
       {/* Scrollable screen tabs */}
-      {/* TODO: a11y — add tabIndex and keyboard focus support to tablist */}
-      {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus */}
       <div
         className="flex-1 flex items-center gap-1 overflow-x-auto scrollbar-none px-2"
         role="tablist"
         aria-label="GM Screens"
         ref={tablistRef}
+        tabIndex={0}
         onKeyDown={handleKeyDown}
       >
         {screens.map((screen) => {
@@ -208,11 +207,10 @@ function ScreenSettingsDropdown({
       </button>
 
       {open && (
-        // TODO: a11y — add tabIndex to make menu focusable
-        // eslint-disable-next-line jsx-a11y/interactive-supports-focus
         <div
           ref={menuRef}
           role="menu"
+          tabIndex={-1}
           data-testid="screen-settings-menu"
           onKeyDown={handleMenuKeyDown}
           className="absolute right-0 top-full mt-1 z-50 w-48 rounded-lg border border-white/[0.07] bg-[#0D1117] shadow-xl shadow-black/50 py-1"

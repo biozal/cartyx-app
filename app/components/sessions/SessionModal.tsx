@@ -30,6 +30,15 @@ export function SessionModal({ isOpen, onClose, onSubmit, isLoading, session }: 
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
+  // Close on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
   // Reset form when modal opens or session changes
   useEffect(() => {
     if (session) {
@@ -88,19 +97,19 @@ export function SessionModal({ isOpen, onClose, onSubmit, isLoading, session }: 
   if (!isOpen) return null;
 
   return createPortal(
-    // TODO: a11y — dialog backdrop click to close needs keyboard equivalent
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
+    // role="presentation": backdrop click-to-close is a convenience; Escape key handler closes the dialog
     <div
+      role="presentation"
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-2 sm:p-4 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="session-modal-title"
     >
       <form
         onSubmit={handleSubmit}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="session-modal-title"
         className="w-full max-w-md bg-[#0D1117] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
       >
         {/* Header */}

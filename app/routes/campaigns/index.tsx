@@ -134,7 +134,7 @@ function CampaignsListPage() {
       <Toast />
 
       {showJoinForm && (
-        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- backdrop click-to-dismiss and Escape-to-close are standard modal dialog patterns
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
           role="dialog"
@@ -142,6 +142,9 @@ function CampaignsListPage() {
           aria-labelledby="join-campaign-title"
           onClick={(e) => {
             if (e.target === e.currentTarget) closeJoinForm();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') closeJoinForm();
           }}
         >
           <div className="bg-[#0D1117] border border-white/[0.07] rounded-2xl p-8 w-full max-w-md mx-4">
@@ -159,8 +162,7 @@ function CampaignsListPage() {
                 placeholder="Enter invite code (e.g. ABCD-EFGH)"
                 className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.1] text-white text-sm placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
                 disabled={isJoining}
-                // TODO: a11y — evaluate if autoFocus is appropriate here; intentional for dialog UX
-                // eslint-disable-next-line jsx-a11y/no-autofocus
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- autoFocus is intentional: this is the primary input inside a modal dialog, and focusing it on open is the expected accessible UX pattern
                 autoFocus
                 aria-label="Invite code"
               />

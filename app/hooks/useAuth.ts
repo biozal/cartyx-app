@@ -23,8 +23,7 @@ export function useAuth() {
   };
 
   const login = (provider: 'google' | 'github' | 'apple') => {
-    // TODO: react-compiler — window.location.href assignment is intentional navigation, not state mutation
-    // eslint-disable-next-line react-compiler/react-compiler
+    // eslint-disable-next-line react-compiler/react-compiler -- window.location.href assignment triggers a full-page navigation to the OAuth provider; this is intentional and not a React state mutation
     window.location.href = `/auth/${provider}`;
   };
 

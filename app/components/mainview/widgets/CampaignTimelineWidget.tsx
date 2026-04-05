@@ -165,11 +165,11 @@ export function CampaignTimelineWidget({ events, className = '' }: CampaignTimel
             </ol>
           </div>
 
-          {/* TODO: a11y — scrollable region tabIndex is intentional for keyboard scrolling */}
           <div
             data-testid="timeline-scroll"
             className="relative hidden overflow-x-auto overflow-y-hidden pb-2 md:block"
-            tabIndex={0} // eslint-disable-line jsx-a11y/no-noninteractive-tabindex
+            role="region"
+            tabIndex={0} // eslint-disable-line jsx-a11y/no-noninteractive-tabindex -- intentional: keyboard users need tabIndex to scroll this horizontally-overflowing region with arrow keys
             aria-label="Campaign timeline, horizontally scrollable events"
           >
             <div className="relative min-w-[760px] px-4 pt-2">

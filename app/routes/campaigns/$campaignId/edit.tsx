@@ -141,10 +141,9 @@ function EditCampaignPage() {
             Banner Image
           </SectionHeader>
           {imageError && <StatusBanner variant="error" message={imageError} className="mb-3" />}
-          {/* TODO: a11y — file drop zone should use button or have keyboard handler */}
-          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
-          <div
-            className="border-2 border-dashed border-white/10 rounded-xl p-7 text-center cursor-pointer hover:border-blue-500/40 hover:bg-blue-600/[0.04] transition-all relative overflow-hidden"
+          <button
+            type="button"
+            className="w-full border-2 border-dashed border-white/10 rounded-xl p-7 text-center cursor-pointer hover:border-blue-500/40 hover:bg-blue-600/[0.04] transition-all relative overflow-hidden bg-transparent"
             onClick={() => fileRef.current?.click()}
           >
             <input
@@ -153,6 +152,7 @@ function EditCampaignPage() {
               accept="image/png,image/jpeg,image/gif,image/webp"
               className="absolute inset-0 opacity-0 cursor-pointer w-full"
               onChange={handleImageChange}
+              tabIndex={-1}
             />
             {imagePreview ? (
               <img
@@ -171,17 +171,15 @@ function EditCampaignPage() {
                 </div>
               </>
             )}
-          </div>
+          </button>
         </div>
 
         <div className={sectionCls}>
           <SectionHeader size="xs" tracking="tracking-widest" className="mb-5">
             Schedule
           </SectionHeader>
-          <div className="mb-5">
-            {/* TODO: a11y — label for button group; use fieldset/legend or aria-label on the group instead */}
-            {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-            <label className={labelCls}>Frequency</label>
+          <fieldset className="mb-5 border-none p-0 m-0">
+            <legend className={labelCls}>Frequency</legend>
             <div className="flex flex-wrap gap-2">
               {[
                 ['weekly', 'Weekly'],
@@ -198,11 +196,9 @@ function EditCampaignPage() {
                 </button>
               ))}
             </div>
-          </div>
-          <div className="mb-5">
-            {/* TODO: a11y — label for button group; use fieldset/legend or aria-label on the group instead */}
-            {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-            <label className={labelCls}>Day of Week</label>
+          </fieldset>
+          <fieldset className="mb-5 border-none p-0 m-0">
+            <legend className={labelCls}>Day of Week</legend>
             <div className="flex flex-wrap gap-2">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
                 <button
@@ -215,7 +211,7 @@ function EditCampaignPage() {
                 </button>
               ))}
             </div>
-          </div>
+          </fieldset>
           <div className="grid grid-cols-2 gap-4">
             <FormInput
               label="Time"
@@ -283,21 +279,21 @@ function EditCampaignPage() {
           <SectionHeader size="xs" tracking="tracking-widest" className="mb-5">
             Players
           </SectionHeader>
-          {/* TODO: a11y — label for button group; use fieldset/legend or aria-label on the group instead */}
-          {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-          <label className={labelCls}>Max Players</label>
-          <div className="flex flex-wrap gap-2">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setMaxPlayers(n)}
-                className={`w-11 h-11 rounded-xl border text-sm font-bold transition-all ${maxPlayers === n ? 'bg-blue-600/20 border-blue-500/70 text-blue-300' : 'bg-white/[0.04] border-white/10 text-slate-500 hover:border-blue-500/30 hover:text-slate-400'}`}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
+          <fieldset className="border-none p-0 m-0">
+            <legend className={labelCls}>Max Players</legend>
+            <div className="flex flex-wrap gap-2">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setMaxPlayers(n)}
+                  className={`w-11 h-11 rounded-xl border text-sm font-bold transition-all ${maxPlayers === n ? 'bg-blue-600/20 border-blue-500/70 text-blue-300' : 'bg-white/[0.04] border-white/10 text-slate-500 hover:border-blue-500/30 hover:text-slate-400'}`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </fieldset>
         </div>
 
         <PixelButton

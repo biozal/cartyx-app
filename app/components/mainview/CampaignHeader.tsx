@@ -70,13 +70,12 @@ export function CampaignHeader({
       )}
 
       {/* Center: Tab bar */}
-      {/* TODO: a11y — add tabIndex and keyboard focus support to tablist */}
-      {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus */}
       <div
         className="flex-1 flex items-center justify-center gap-1"
         role="tablist"
         aria-label="MainView navigation"
         ref={tablistRef}
+        tabIndex={0}
         onKeyDown={(e) =>
           handleTabsKeyDown(e, effectiveActiveTab, onTabChange, tablistRef, visibleTabs)
         }

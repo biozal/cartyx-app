@@ -46,6 +46,15 @@ export function NoteModal({
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // Close on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
   // Reset form to blank when switching noteId or opening the modal,
   // so stale values from a previous note never flash.
   useEffect(() => {
@@ -149,19 +158,19 @@ export function NoteModal({
   const isDisabled = isLoadingNote || isSaving || isDeleting;
 
   return createPortal(
-    // TODO: a11y — dialog backdrop click to close needs keyboard equivalent
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
+    // role="presentation": backdrop click-to-close is a convenience; Escape key handler closes the dialog
     <div
+      role="presentation"
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-2 sm:p-4 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="note-modal-title"
     >
       <form
         onSubmit={handleSubmit}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="note-modal-title"
         className="w-full h-full max-w-[90vw] max-h-[90vh] sm:max-w-[90vw] sm:max-h-[90vh] bg-[#0D1117] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
       >
         <header className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/[0.07] shrink-0">
@@ -219,9 +228,10 @@ export function NoteModal({
 
           {/* Tags */}
           <div>
-            {/* TODO: a11y — associate label with TagAutocompleteInput via htmlFor/id */}
-            {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-            <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+            <label
+              htmlFor="note-tags-input"
+              className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide"
+            >
               Tags
             </label>
             <TagAutocompleteInput
@@ -230,6 +240,7 @@ export function NoteModal({
               onTagsChange={setTags}
               placeholder="Type a tag and press Enter"
               disabled={isDisabled}
+              id="note-tags-input"
             />
             <p className="text-xs text-slate-700 mt-1.5">
               Press Enter or comma to add. Suggestions appear as you type.

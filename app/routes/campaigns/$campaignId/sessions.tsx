@@ -149,17 +149,23 @@ export function SessionsPage() {
               const showActivate = session.status === 'not_started';
 
               return (
-                // TODO: a11y — session card should be a button or have role="button" with keyboard handler
-                // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
                 <div
                   key={session.id}
                   data-testid={`session-card-${session.id}`}
+                  role="button"
+                  tabIndex={0}
                   className={`
                     rounded-lg border border-white/10 p-4 cursor-pointer transition-colors
                     ${isActive ? 'border-l-4 border-l-[#2563EB] bg-blue-950/20' : ''}
                     ${isCompleted ? 'opacity-60' : ''}
                   `}
                   onClick={() => setEditSession(session)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setEditSession(session);
+                    }
+                  }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
@@ -184,10 +190,13 @@ export function SessionsPage() {
                           : 'In Progress'}
                       </div>
                     </div>
+                    {/* role="presentation" — click handler only prevents event bubbling to parent card; child buttons are keyboard-accessible */}
                     {showActivate && (
-                      // TODO: a11y — stopPropagation div should not use click handler on non-interactive element
-                      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
-                      <div className="ml-4 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <div
+                        role="presentation"
+                        className="ml-4 flex-shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {confirmingActivateId === session.id ? (
                           <div className="flex items-center gap-2 text-sm">
                             {hasActiveSession && (
