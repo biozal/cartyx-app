@@ -1,30 +1,32 @@
-import React, { useState } from 'react'
-import { Users, Dna } from 'lucide-react'
-import { CharactersPanel } from './characters/CharactersPanel'
-import { RacesPanel } from './races/RacesPanel'
+import React, { useState } from 'react';
+import { Users, Dna, ScrollText } from 'lucide-react';
+import { CharactersPanel } from './characters/CharactersPanel';
+import { RacesPanel } from './races/RacesPanel';
+import { RulesPanel } from './rules/RulesPanel';
 
-type WikiCategoryId = 'characters' | 'races'
+type WikiCategoryId = 'characters' | 'races' | 'rules';
 
 interface WikiCategory {
-  id: WikiCategoryId
-  label: string
-  icon: React.ComponentType<{ className?: string }>
+  id: WikiCategoryId;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 const WIKI_CATEGORIES: WikiCategory[] = [
   { id: 'characters', label: 'Characters', icon: Users },
   { id: 'races', label: 'Races', icon: Dna },
-]
+  { id: 'rules', label: 'Rules', icon: ScrollText },
+];
 
 export function WikiPanel() {
-  const [selectedCategory, setSelectedCategory] = useState<WikiCategoryId | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<WikiCategoryId | null>(null);
 
   return (
     <div className="h-full flex flex-col bg-[#080A12] w-full">
       {selectedCategory === null ? (
         <div className="flex-1 overflow-y-auto">
           {WIKI_CATEGORIES.map((category, index) => {
-            const Icon = category.icon
+            const Icon = category.icon;
             return (
               <button
                 key={category.id}
@@ -40,14 +42,16 @@ export function WikiPanel() {
                   {category.label}
                 </span>
               </button>
-            )
+            );
           })}
         </div>
       ) : selectedCategory === 'characters' ? (
         <CharactersPanel onBack={() => setSelectedCategory(null)} />
       ) : selectedCategory === 'races' ? (
         <RacesPanel onBack={() => setSelectedCategory(null)} />
+      ) : selectedCategory === 'rules' ? (
+        <RulesPanel onBack={() => setSelectedCategory(null)} />
       ) : null}
     </div>
-  )
+  );
 }

@@ -1,118 +1,119 @@
 import { useState } from 'react';
 import { useParams } from '@tanstack/react-router';
-import { Dna } from 'lucide-react';
+import { ScrollText } from 'lucide-react';
 import { WikiCategoryHeader } from '~/components/wiki/shared/WikiCategoryHeader';
 import { WikiFilterBar } from '~/components/wiki/shared/WikiFilterBar';
-import { RaceCard } from './RaceCard';
-import { RaceModal } from './RaceModal';
-import { RaceViewModal } from './RaceViewModal';
-import { useRaces } from '~/hooks/useRaces';
+import { RuleCard } from './RuleCard';
+import { RuleModal } from './RuleModal';
+import { RuleViewModal } from './RuleViewModal';
+import { useRules } from '~/hooks/useRules';
 import { useCampaign } from '~/hooks/useCampaigns';
-import type { RaceListItem } from '~/types/race';
+import type { RuleListItem } from '~/types/rule';
 
-interface RacesPanelProps {
+interface RulesPanelProps {
   onBack: () => void;
 }
 
-export function RacesPanel({ onBack }: RacesPanelProps) {
+export function RulesPanel({ onBack }: RulesPanelProps) {
   const { campaignId } = useParams({ from: '/campaigns/$campaignId/play' });
   const { campaign } = useCampaign(campaignId);
-
-  const [search, setSearch] = useState('');
-  const [filterTags, setFilterTags] = useState<string[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedRaceId, setSelectedRaceId] = useState<string | undefined>();
-  const [viewRaceId, setViewRaceId] = useState<string | undefined>();
-
   const isGM = campaign?.isGM ?? false;
 
-  const { races, isLoading, error } = useRaces(campaignId, {
+  const [search, setSearch] = useState('');
+  const [visibility, setVisibility] = useState<'all' | 'public' | 'private'>('all');
+  const [filterTags, setFilterTags] = useState<string[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedRuleId, setSelectedRuleId] = useState<string | undefined>();
+  const [viewRuleId, setViewRuleId] = useState<string | undefined>();
+
+  const { rules, isLoading, error } = useRules(campaignId, {
     search: search || undefined,
+    visibility,
     tags: filterTags.length > 0 ? filterTags : undefined,
   });
 
   const handleCreateClick = () => {
-    setSelectedRaceId(undefined);
+    setSelectedRuleId(undefined);
     setIsModalOpen(true);
   };
 
-  const handleRaceClick = (race: RaceListItem) => {
-    if (race.canEdit) {
-      setSelectedRaceId(race.id);
+  const handleRuleClick = (rule: RuleListItem) => {
+    if (isGM) {
+      setSelectedRuleId(rule.id);
       setIsModalOpen(true);
     } else {
-      setViewRaceId(race.id);
+      setViewRuleId(rule.id);
     }
   };
 
   const handleModalClose = () => {
     setIsModalOpen(false);
-    setSelectedRaceId(undefined);
+    setSelectedRuleId(undefined);
   };
 
   const handleViewModalClose = () => {
-    setViewRaceId(undefined);
+    setViewRuleId(undefined);
   };
 
   return (
     <div className="flex flex-col h-full w-full bg-[#080A12]">
-      <WikiCategoryHeader title="Races" onBack={onBack} />
+      <WikiCategoryHeader title="Rules" onBack={onBack} />
       <WikiFilterBar
         search={search}
         onSearchChange={setSearch}
+        visibility={visibility}
+        onVisibilityChange={setVisibility}
         onCreateClick={isGM ? handleCreateClick : undefined}
         campaignId={campaignId}
         filterTags={filterTags}
         onFilterTagsChange={setFilterTags}
-        searchPlaceholder="Search races..."
+        searchPlaceholder="Search rules..."
         showSessionFilter={false}
-        showVisibilityFilter={false}
-        visibility="all"
-        onVisibilityChange={() => {}}
+        showVisibilityFilter={isGM}
       />
 
       {isLoading ? (
         <div className="flex flex-1 items-center justify-center p-8">
           <p className="font-sans font-semibold text-xs text-slate-500 animate-pulse">
-            Loading races...
+            Loading rules...
           </p>
         </div>
       ) : error ? (
         <div className="flex flex-1 items-center justify-center p-8 text-center">
           <p className="font-sans font-semibold text-xs text-rose-400">{error}</p>
         </div>
-      ) : races.length === 0 ? (
+      ) : rules.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
           <div className="h-12 w-12 rounded-full bg-white/[0.03] flex items-center justify-center mb-3">
-            <Dna className="h-6 w-6 text-slate-600" />
+            <ScrollText className="h-6 w-6 text-slate-600" />
           </div>
           <p className="font-sans font-semibold text-xs text-slate-500">
-            No races found matching your filters.
+            No rules found matching your filters.
           </p>
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto min-h-0">
           <div className="flex flex-col">
-            {races.map((race) => (
-              <RaceCard key={race.id} race={race} onClick={handleRaceClick} />
+            {rules.map((rule) => (
+              <RuleCard key={rule.id} rule={rule} onClick={handleRuleClick} />
             ))}
           </div>
         </div>
       )}
 
       {isGM && (
-        <RaceModal
+        <RuleModal
           isOpen={isModalOpen}
           onClose={handleModalClose}
           campaignId={campaignId}
-          raceId={selectedRaceId}
+          ruleId={selectedRuleId}
         />
       )}
-      {viewRaceId && (
-        <RaceViewModal
-          isOpen={!!viewRaceId}
+      {viewRuleId && (
+        <RuleViewModal
+          isOpen={!!viewRuleId}
           onClose={handleViewModalClose}
-          raceId={viewRaceId}
+          ruleId={viewRuleId}
           campaignId={campaignId}
         />
       )}

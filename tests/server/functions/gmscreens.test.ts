@@ -54,6 +54,11 @@ vi.mock('~/server/db/models/Race', () => ({
     find: vi.fn(),
   },
 }));
+vi.mock('~/server/db/models/Rule', () => ({
+  Rule: {
+    find: vi.fn(),
+  },
+}));
 vi.mock('~/server/utils/posthog', () => ({
   serverCaptureException: vi.fn(),
   serverCaptureEvent: vi.fn(),
@@ -1765,8 +1770,10 @@ describe('openWindowSchema', () => {
 });
 
 describe('SUPPORTED_COLLECTIONS', () => {
-  it('contains only collections registered for hydration', () => {
+  it('contains all collections registered for hydration', () => {
     expect(SUPPORTED_COLLECTIONS).toContain('note');
+    expect(SUPPORTED_COLLECTIONS).toContain('character');
+    expect(SUPPORTED_COLLECTIONS).toContain('rule');
     expect(SUPPORTED_COLLECTIONS.length).toBeGreaterThan(0);
   });
 });

@@ -1,26 +1,22 @@
-import { Plus, Search } from 'lucide-react'
-import type { CampaignData } from '~/types/campaign'
-import { TagAutocompleteInput } from '~/components/shared/TagAutocompleteInput'
+import { Plus, Search } from 'lucide-react';
+import type { CampaignData } from '~/types/campaign';
+import { TagAutocompleteInput } from '~/components/shared/TagAutocompleteInput';
 
 interface WikiFilterBarProps {
-  search: string
-  onSearchChange: (value: string) => void
-  sessionId?: string
-  onSessionChange?: (value: string) => void
-  visibility?: 'all' | 'public' | 'private'
-  onVisibilityChange?: (value: 'all' | 'public' | 'private') => void
-  sessions?: CampaignData['sessions']
-  onCreateClick: () => void
-  campaignId: string
-  filterTags: string[]
-  onFilterTagsChange: (tags: string[]) => void
-  searchPlaceholder?: string
-  /** Whether to show the session filter dropdown. Defaults to true. */
-  showSessionFilter?: boolean
-  /** Whether to show the visibility filter dropdown. Defaults to true. */
-  showVisibilityFilter?: boolean
-  /** Whether to show the create button. Defaults to true. */
-  showCreateButton?: boolean
+  search: string;
+  onSearchChange: (value: string) => void;
+  sessionId?: string;
+  onSessionChange?: (value: string) => void;
+  visibility: 'all' | 'public' | 'private';
+  onVisibilityChange: (value: 'all' | 'public' | 'private') => void;
+  sessions?: CampaignData['sessions'];
+  onCreateClick?: () => void;
+  campaignId: string;
+  filterTags: string[];
+  onFilterTagsChange: (tags: string[]) => void;
+  searchPlaceholder?: string;
+  showSessionFilter?: boolean;
+  showVisibilityFilter?: boolean;
 }
 
 export function WikiFilterBar({
@@ -38,10 +34,7 @@ export function WikiFilterBar({
   searchPlaceholder = 'Search...',
   showSessionFilter = true,
   showVisibilityFilter = true,
-  showCreateButton = true,
 }: WikiFilterBarProps) {
-  const showBottomRow = showSessionFilter || showVisibilityFilter
-
   return (
     <div className="flex flex-col gap-3 p-3 border-b border-white/[0.07] bg-[#0D1117]">
       <div className="flex items-center gap-2">
@@ -56,7 +49,7 @@ export function WikiFilterBar({
             className="w-full bg-[#080A12] border border-white/[0.07] rounded px-9 py-2 font-sans font-semibold text-xs text-white outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-600"
           />
         </div>
-        {showCreateButton && (
+        {onCreateClick && (
           <button
             type="button"
             onClick={onCreateClick}
@@ -75,15 +68,17 @@ export function WikiFilterBar({
         placeholder="Filter by tags..."
       />
 
-      {showBottomRow && (
+      {(showSessionFilter || showVisibilityFilter) && (
         <div className="flex gap-2">
-          {showSessionFilter && (
+          {showSessionFilter && sessions && onSessionChange && (
             <div className="flex-1">
-              <label htmlFor="wiki-session-filter" className="sr-only">Filter by session</label>
+              <label htmlFor="wiki-session-filter" className="sr-only">
+                Filter by session
+              </label>
               <select
                 id="wiki-session-filter"
-                value={sessionId}
-                onChange={(e) => onSessionChange?.(e.target.value)}
+                value={sessionId ?? ''}
+                onChange={(e) => onSessionChange(e.target.value)}
                 className="w-full bg-[#080A12] border border-white/[0.07] rounded px-2 py-1.5 font-sans font-semibold text-[11px] text-slate-300 outline-none focus:border-blue-500/50 transition-colors"
               >
                 <option value="">All Sessions</option>
@@ -98,12 +93,14 @@ export function WikiFilterBar({
           )}
 
           {showVisibilityFilter && (
-            <div className={showSessionFilter ? 'w-32' : 'flex-1'}>
-              <label htmlFor="wiki-visibility-filter" className="sr-only">Filter by visibility</label>
+            <div className={showSessionFilter && sessions && onSessionChange ? 'w-32' : 'flex-1'}>
+              <label htmlFor="wiki-visibility-filter" className="sr-only">
+                Filter by visibility
+              </label>
               <select
                 id="wiki-visibility-filter"
                 value={visibility}
-                onChange={(e) => onVisibilityChange?.(e.target.value as 'all' | 'public' | 'private')}
+                onChange={(e) => onVisibilityChange(e.target.value as 'all' | 'public' | 'private')}
                 className="w-full bg-[#080A12] border border-white/[0.07] rounded px-2 py-1.5 font-sans font-semibold text-[11px] text-slate-300 outline-none focus:border-blue-500/50 transition-colors"
               >
                 <option value="all">All</option>
@@ -115,5 +112,5 @@ export function WikiFilterBar({
         </div>
       )}
     </div>
-  )
+  );
 }

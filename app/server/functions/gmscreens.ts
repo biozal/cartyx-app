@@ -8,6 +8,7 @@ import { GMScreen, GMSCREEN_LIMITS } from '../db/models/GMScreen';
 import { Note } from '../db/models/Note';
 import { Character } from '../db/models/Character';
 import { Race } from '../db/models/Race';
+import { Rule } from '../db/models/Rule';
 import { serverCaptureException, serverCaptureEvent } from '../utils/posthog';
 import type {
   GMScreenData,
@@ -157,14 +158,24 @@ const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
       return Race.find({ _id: { $in: ids }, campaignId }, '_id title content')
         .lean()
         .then((docs) =>
-          docs.map((d) => {
-            const r = d as { _id: unknown; title?: string; content?: string };
-            return {
-              _id: r._id,
-              title: r.title,
-              content: r.content,
-            };
-          })
+          docs.map((d) => ({
+            _id: d._id,
+            title: (d as { title?: string }).title,
+            content: (d as { content?: string }).content,
+          }))
+        ) as Promise<Array<{ _id: unknown; title?: string; content?: string }>>;
+    },
+  },
+  rule: {
+    async fetch(ids: string[], campaignId: string) {
+      return Rule.find({ _id: { $in: ids }, campaignId }, '_id title content')
+        .lean()
+        .then((docs) =>
+          docs.map((d) => ({
+            _id: d._id,
+            title: (d as { title?: string }).title,
+            content: (d as { content?: string }).content,
+          }))
         ) as Promise<Array<{ _id: unknown; title?: string; content?: string }>>;
     },
   },

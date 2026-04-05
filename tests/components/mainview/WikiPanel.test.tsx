@@ -21,6 +21,14 @@ vi.mock('~/components/wiki/races/RacesPanel', () => ({
   ),
 }));
 
+vi.mock('~/components/wiki/rules/RulesPanel', () => ({
+  RulesPanel: ({ onBack }: { onBack: () => void }) => (
+    <div data-testid="rules-panel">
+      <button onClick={onBack}>Back</button>
+    </div>
+  ),
+}));
+
 describe('WikiPanel', () => {
   it('renders the Characters category button', () => {
     render(<WikiPanel />);
@@ -28,16 +36,13 @@ describe('WikiPanel', () => {
     expect(screen.getByRole('button', { name: 'Characters' })).toBeInTheDocument();
   });
 
-  it('renders the Races category button', () => {
+  it('shows Characters, Races, and Rules categories', () => {
     render(<WikiPanel />);
 
+    expect(screen.getAllByRole('button')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: 'Characters' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Races' })).toBeInTheDocument();
-  });
-
-  it('shows exactly two category buttons', () => {
-    render(<WikiPanel />);
-
-    expect(screen.getAllByRole('button')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Rules' })).toBeInTheDocument();
   });
 
   it('clicking Characters shows CharactersPanel', async () => {
@@ -49,6 +54,24 @@ describe('WikiPanel', () => {
     expect(screen.getByTestId('characters-panel')).toBeInTheDocument();
   });
 
+  it('clicking Races shows RacesPanel', async () => {
+    const user = userEvent.setup();
+    render(<WikiPanel />);
+
+    await user.click(screen.getByRole('button', { name: 'Races' }));
+
+    expect(screen.getByTestId('races-panel')).toBeInTheDocument();
+  });
+
+  it('clicking Rules shows RulesPanel', async () => {
+    const user = userEvent.setup();
+    render(<WikiPanel />);
+
+    await user.click(screen.getByRole('button', { name: 'Rules' }));
+
+    expect(screen.getByTestId('rules-panel')).toBeInTheDocument();
+  });
+
   it('CharactersPanel onBack returns to category list', async () => {
     const user = userEvent.setup();
     render(<WikiPanel />);
@@ -58,15 +81,6 @@ describe('WikiPanel', () => {
 
     expect(screen.queryByTestId('characters-panel')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Characters' })).toBeInTheDocument();
-  });
-
-  it('clicking Races shows RacesPanel', async () => {
-    const user = userEvent.setup();
-    render(<WikiPanel />);
-
-    await user.click(screen.getByRole('button', { name: 'Races' }));
-
-    expect(screen.getByTestId('races-panel')).toBeInTheDocument();
   });
 
   it('RacesPanel onBack returns to category list', async () => {
