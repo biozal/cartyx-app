@@ -72,7 +72,7 @@ function CharacterWindowWrapper({
   }
 
   return (
-    <div className="relative h-full">
+    <div className="relative h-full overflow-hidden">
       <button
         type="button"
         onClick={onEdit}
