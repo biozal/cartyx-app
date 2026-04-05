@@ -1,13 +1,13 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { X, GripVertical, ArrowUp, ArrowDown, Loader2 } from 'lucide-react'
-import type { GMScreenData } from '~/types/gmscreen'
-import { useFocusTrap } from '~/hooks/useFocusTrap'
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { X, GripVertical, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
+import type { GMScreenData } from '~/types/gmscreen';
+import { useFocusTrap } from '~/hooks/useFocusTrap';
 
 export interface ReorderDialogProps {
-  screens: GMScreenData[]
-  onSubmit: (screenIds: string[]) => void | Promise<void>
-  onCancel: () => void
-  isLoading?: boolean
+  screens: GMScreenData[];
+  onSubmit: (screenIds: string[]) => void | Promise<void>;
+  onCancel: () => void;
+  isLoading?: boolean;
 }
 
 export function ReorderDialog({
@@ -16,53 +16,60 @@ export function ReorderDialog({
   onCancel,
   isLoading = false,
 }: ReorderDialogProps) {
-  const [order, setOrder] = useState(() => [...screens].sort((a, b) => a.tabOrder - b.tabOrder))
-  const trapRef = useFocusTrap<HTMLDivElement>()
-  const submittingRef = useRef(false)
+  const [order, setOrder] = useState(() => [...screens].sort((a, b) => a.tabOrder - b.tabOrder));
+  const trapRef = useFocusTrap<HTMLDivElement>();
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [onCancel])
+      if (e.key === 'Escape') onCancel();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onCancel]);
 
   const moveUp = useCallback((index: number) => {
-    if (index <= 0) return
-    setOrder(prev => {
-      const next = [...prev]
-      ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
-      return next
-    })
-  }, [])
+    if (index <= 0) return;
+    setOrder((prev) => {
+      const next = [...prev];
+      [next[index - 1], next[index]] = [next[index]!, next[index - 1]!];
+      return next;
+    });
+  }, []);
 
   const moveDown = useCallback((index: number) => {
-    setOrder(prev => {
-      if (index >= prev.length - 1) return prev
-      const next = [...prev]
-      ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
-      return next
-    })
-  }, [])
+    setOrder((prev) => {
+      if (index >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[index], next[index + 1]] = [next[index + 1]!, next[index]!];
+      return next;
+    });
+  }, []);
 
   const handleSubmit = useCallback(() => {
-    if (submittingRef.current) return
-    submittingRef.current = true
-    Promise.resolve(onSubmit(order.map(s => s.id))).finally(() => {
-      submittingRef.current = false
-    })
-  }, [order, onSubmit])
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    Promise.resolve(onSubmit(order.map((s) => s.id))).finally(() => {
+      submittingRef.current = false;
+    });
+  }, [order, onSubmit]);
 
   return (
+    // role="presentation": backdrop click-to-close is a convenience; Escape key handler closes the dialog
     <div
+      role="presentation"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Reorder Screens"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
     >
-      <div ref={trapRef} className="w-full max-w-sm rounded-lg border border-white/[0.07] bg-[#0D1117] shadow-2xl shadow-black/60">
+      <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Reorder Screens"
+        className="w-full max-w-sm rounded-lg border border-white/[0.07] bg-[#0D1117] shadow-2xl shadow-black/60"
+      >
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07]">
           <h2 className="font-sans font-semibold text-xs text-white">Reorder Screens</h2>
           <button
@@ -76,14 +83,16 @@ export function ReorderDialog({
         </div>
 
         <div className="p-4">
-          <ul className="space-y-1" role="list" aria-label="Screen order">
+          <ul className="space-y-1" aria-label="Screen order">
             {order.map((screen, index) => (
               <li
                 key={screen.id}
                 className="flex items-center gap-2 rounded border border-white/[0.07] bg-[#080A12] px-3 py-2"
               >
                 <GripVertical className="h-3.5 w-3.5 text-slate-600 shrink-0" aria-hidden="true" />
-                <span className="flex-1 font-sans text-xs text-slate-300 truncate">{screen.name}</span>
+                <span className="flex-1 font-sans text-xs text-slate-300 truncate">
+                  {screen.name}
+                </span>
                 <button
                   type="button"
                   onClick={() => moveUp(index)}
@@ -128,5 +137,5 @@ export function ReorderDialog({
         </div>
       </div>
     </div>
-  )
+  );
 }

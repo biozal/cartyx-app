@@ -1,22 +1,22 @@
-import React, { useState } from 'react'
-import { ExternalLink, ChevronDown, Globe, Lock } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import type { CharacterData, PictureCrop } from '~/types/character'
+import React, { useState } from 'react';
+import { ExternalLink, ChevronDown, Globe, Lock } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import type { CharacterData, PictureCrop } from '~/types/character';
+import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
 
 function getCropStyle(crop: PictureCrop): React.CSSProperties {
-  const centerX = (crop.x + crop.width / 2) * 100
-  const centerY = (crop.y + crop.height / 2) * 100
-  const scale = 1 / crop.width
+  const centerX = (crop.x + crop.width / 2) * 100;
+  const centerY = (crop.y + crop.height / 2) * 100;
+  const scale = 1 / crop.width;
   return {
     objectPosition: `${centerX}% ${centerY}%`,
     transform: `scale(${scale})`,
-  }
+  };
 }
-import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses'
 
 interface CharacterWindowProps {
-  character: CharacterData
+  character: CharacterData;
 }
 
 const GRADIENT_PAIRS = [
@@ -26,21 +26,21 @@ const GRADIENT_PAIRS = [
   ['#ec4899', '#8b5cf6'],
   ['#f97316', '#eab308'],
   ['#14b8a6', '#3b82f6'],
-]
+];
 
 function hashName(name: string): number {
-  let hash = 0
+  let hash = 0;
   for (let i = 0; i < name.length; i++) {
-    hash = (hash << 5) - hash + name.charCodeAt(i)
-    hash |= 0
+    hash = (hash << 5) - hash + name.charCodeAt(i);
+    hash |= 0;
   }
-  return Math.abs(hash)
+  return Math.abs(hash);
 }
 
 function getInitials(firstName: string, lastName: string): string {
-  const f = firstName.charAt(0).toUpperCase()
-  const l = lastName.charAt(0).toUpperCase()
-  return l ? `${f}${l}` : f
+  const f = firstName.charAt(0).toUpperCase();
+  const l = lastName.charAt(0).toUpperCase();
+  return l ? `${f}${l}` : f;
 }
 
 function StatBlock({ label, value }: { label: string; value: string }) {
@@ -49,7 +49,7 @@ function StatBlock({ label, value }: { label: string; value: string }) {
       <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">{label}</p>
       <p className="text-xs text-slate-300 font-medium truncate">{value}</p>
     </div>
-  )
+  );
 }
 
 function Accordion({
@@ -57,11 +57,11 @@ function Accordion({
   defaultOpen = false,
   children,
 }: {
-  title: string
-  defaultOpen?: boolean
-  children: React.ReactNode
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen)
+  const [open, setOpen] = useState(defaultOpen);
 
   return (
     <div className="border border-white/[0.06] rounded-md overflow-hidden">
@@ -77,20 +77,20 @@ function Accordion({
       </button>
       {open && <div className="px-3 pb-3">{children}</div>}
     </div>
-  )
+  );
 }
 
 export function CharacterWindow({ character }: CharacterWindowProps) {
-  const fullName = `${character.firstName} ${character.lastName}`.trim()
-  const initials = getInitials(character.firstName, character.lastName)
-  const gradientIndex = hashName(fullName) % GRADIENT_PAIRS.length
-  const [gradFrom, gradTo] = GRADIENT_PAIRS[gradientIndex]
+  const fullName = `${character.firstName} ${character.lastName}`.trim();
+  const initials = getInitials(character.firstName, character.lastName);
+  const gradientIndex = hashName(fullName) % GRADIENT_PAIRS.length;
+  const [gradFrom, gradTo] = GRADIENT_PAIRS[gradientIndex]!;
 
-  const stats: { label: string; value: string }[] = []
-  if (character.race) stats.push({ label: 'Race', value: character.race })
-  if (character.characterClass) stats.push({ label: 'Class', value: character.characterClass })
-  if (character.age != null) stats.push({ label: 'Age', value: String(character.age) })
-  if (character.location) stats.push({ label: 'Location', value: character.location })
+  const stats: { label: string; value: string }[] = [];
+  if (character.race) stats.push({ label: 'Race', value: character.race });
+  if (character.characterClass) stats.push({ label: 'Class', value: character.characterClass });
+  if (character.age != null) stats.push({ label: 'Age', value: String(character.age) });
+  if (character.location) stats.push({ label: 'Location', value: character.location });
 
   return (
     <div className="flex flex-col gap-4 p-4">
@@ -189,5 +189,5 @@ export function CharacterWindow({ character }: CharacterWindowProps) {
         </Accordion>
       )}
     </div>
-  )
+  );
 }

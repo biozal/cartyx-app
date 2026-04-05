@@ -1,83 +1,85 @@
-import { createServerFn } from '@tanstack/react-start'
-import { getSession } from '../session'
-import { connectDB, isDBConnected } from '../db/connection'
-import { User } from '../db/models/User'
-import { Campaign } from '../db/models/Campaign'
-import { Tag } from '../db/models/Tag'
-import { serverCaptureException } from '../utils/posthog'
-import { normalizeTags } from '../utils/helpers'
-import type { TagListItem } from '~/types/tag'
-import { listTagsSchema, ensureTagsSchema } from '~/types/tag'
+import { createServerFn } from '@tanstack/react-start';
+import { getSession } from '../session';
+import { connectDB, isDBConnected } from '../db/connection';
+import { User } from '../db/models/User';
+import { Campaign } from '../db/models/Campaign';
+import { Tag } from '../db/models/Tag';
+import { serverCaptureException } from '../utils/posthog';
+import { normalizeTags } from '../utils/helpers';
+import type { TagListItem } from '~/types/tag';
+import { listTagsSchema, ensureTagsSchema } from '~/types/tag';
 
-async function requireCampaignMember(campaignId: string): Promise<{ userId: string; sessionUserId: string }> {
-  const user = await getSession()
-  if (!user) throw new Error('Not authenticated')
+async function requireCampaignMember(
+  campaignId: string
+): Promise<{ userId: string; sessionUserId: string }> {
+  const user = await getSession();
+  if (!user) throw new Error('Not authenticated');
 
-  await connectDB()
-  if (!isDBConnected()) throw new Error('Database not available')
+  await connectDB();
+  if (!isDBConnected()) throw new Error('Database not available');
 
-  const dbUser = await User.findOne({ providerId: user.id })
-  if (!dbUser) throw new Error('User not found')
+  const dbUser = await User.findOne({ providerId: user.id });
+  if (!dbUser) throw new Error('User not found');
 
-  const campaign = await Campaign.findById(campaignId)
-  if (!campaign) throw new Error('Campaign not found')
+  const campaign = await Campaign.findById(campaignId);
+  if (!campaign) throw new Error('Campaign not found');
 
-  const userId = String(dbUser._id)
-  const members = campaign.members ?? []
+  const userId = String(dbUser._id);
+  const members = campaign.members ?? [];
   const isMember =
     members.some((m: { userId: unknown }) => String(m.userId) === userId) ||
-    String(campaign.gameMasterId) === userId
-  if (!isMember) throw new Error('Forbidden')
+    String(campaign.gameMasterId) === userId;
+  if (!isMember) throw new Error('Forbidden');
 
-  return { userId, sessionUserId: user.id }
+  return { userId, sessionUserId: user.id };
 }
 
 // ---------------------------------------------------------------------------
 // listTags
 // ---------------------------------------------------------------------------
 
-export { listTagsSchema }
+export { listTagsSchema };
 
 export const listTags = createServerFn({ method: 'GET' })
   .inputValidator(listTagsSchema)
   .handler(async ({ data }): Promise<TagListItem[]> => {
-    let sessionUserId: string | undefined
+    let sessionUserId: string | undefined;
     try {
-      const member = await requireCampaignMember(data.campaignId)
-      sessionUserId = member.sessionUserId
+      const member = await requireCampaignMember(data.campaignId);
+      sessionUserId = member.sessionUserId;
 
       const docs = await Tag.find({ campaignId: data.campaignId })
         .select('name')
         .sort({ name: 1 })
-        .lean()
+        .lean();
 
       return docs.map((d: { _id: unknown; name?: string }) => ({
         id: String(d._id),
         name: d.name ?? '',
-      }))
+      }));
     } catch (e) {
-      serverCaptureException(e, sessionUserId, { action: 'listTags', campaignId: data.campaignId })
-      throw e
+      serverCaptureException(e, sessionUserId, { action: 'listTags', campaignId: data.campaignId });
+      throw e;
     }
-  })
+  });
 
 // ---------------------------------------------------------------------------
 // ensureTags
 // ---------------------------------------------------------------------------
 
-export { ensureTagsSchema }
+export { ensureTagsSchema };
 
 export const ensureTags = createServerFn({ method: 'POST' })
   .inputValidator(ensureTagsSchema)
   .handler(async ({ data }) => {
-    let sessionUserId: string | undefined
+    let sessionUserId: string | undefined;
     try {
-      const member = await requireCampaignMember(data.campaignId)
-      sessionUserId = member.sessionUserId
-      const userId = member.userId
+      const member = await requireCampaignMember(data.campaignId);
+      sessionUserId = member.sessionUserId;
+      const userId = member.userId;
 
-      const normalized = normalizeTags(data.tags)
-      if (normalized.length === 0) return { success: true }
+      const normalized = normalizeTags(data.tags);
+      if (normalized.length === 0) return { success: true };
 
       const ops = normalized.map((name) => ({
         updateOne: {
@@ -93,12 +95,15 @@ export const ensureTags = createServerFn({ method: 'POST' })
           },
           upsert: true,
         },
-      }))
+      }));
 
-      await Tag.bulkWrite(ops, { ordered: false })
-      return { success: true }
+      await Tag.bulkWrite(ops, { ordered: false });
+      return { success: true };
     } catch (e) {
-      serverCaptureException(e, sessionUserId, { action: 'ensureTags', campaignId: data.campaignId })
-      throw e
+      serverCaptureException(e, sessionUserId, {
+        action: 'ensureTags',
+        campaignId: data.campaignId,
+      });
+      throw e;
     }
-  })
+  });

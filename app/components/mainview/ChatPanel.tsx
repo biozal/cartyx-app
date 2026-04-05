@@ -1,43 +1,43 @@
-import React, { useId, useRef, useState } from 'react'
-import { MessageSquare, Plus } from 'lucide-react'
+import React, { useId, useRef, useState } from 'react';
+import { MessageSquare, Plus } from 'lucide-react';
 
-type ChannelTab = 'general' | 'gm'
+type ChannelTab = 'general' | 'gm';
 
-const SESSIONS = [8, 9, 10, 11, 12, 13, 14]
+const SESSIONS = [8, 9, 10, 11, 12, 13, 14];
 
 const CHANNELS: { id: ChannelTab; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'gm', label: 'GM' },
-]
+];
 
 export function ChatPanel() {
-  const [activeChannel, setActiveChannel] = useState<ChannelTab>('general')
-  const tablistRef = useRef<HTMLDivElement>(null)
-  const tabsId = useId()
+  const [activeChannel, setActiveChannel] = useState<ChannelTab>('general');
+  const tablistRef = useRef<HTMLDivElement>(null);
+  const tabsId = useId();
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    const currentIndex = CHANNELS.findIndex(channel => channel.id === activeChannel)
-    let nextIndex = currentIndex
+    const currentIndex = CHANNELS.findIndex((channel) => channel.id === activeChannel);
+    let nextIndex = currentIndex;
 
     if (e.key === 'ArrowRight') {
-      e.preventDefault()
-      nextIndex = (currentIndex + 1) % CHANNELS.length
+      e.preventDefault();
+      nextIndex = (currentIndex + 1) % CHANNELS.length;
     } else if (e.key === 'ArrowLeft') {
-      e.preventDefault()
-      nextIndex = (currentIndex - 1 + CHANNELS.length) % CHANNELS.length
+      e.preventDefault();
+      nextIndex = (currentIndex - 1 + CHANNELS.length) % CHANNELS.length;
     } else if (e.key === 'Home') {
-      e.preventDefault()
-      nextIndex = 0
+      e.preventDefault();
+      nextIndex = 0;
     } else if (e.key === 'End') {
-      e.preventDefault()
-      nextIndex = CHANNELS.length - 1
+      e.preventDefault();
+      nextIndex = CHANNELS.length - 1;
     } else {
-      return
+      return;
     }
 
-    setActiveChannel(CHANNELS[nextIndex].id)
-    const buttons = tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
-    buttons?.[nextIndex]?.focus()
+    setActiveChannel(CHANNELS[nextIndex]!.id);
+    const buttons = tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    buttons?.[nextIndex]?.focus();
   }
 
   return (
@@ -64,11 +64,12 @@ export function ChatPanel() {
           ref={tablistRef}
           role="tablist"
           aria-label="Chat channels"
+          tabIndex={0}
           onKeyDown={handleKeyDown}
           className="flex items-center gap-1"
         >
           {CHANNELS.map((channel) => {
-            const isActive = channel.id === activeChannel
+            const isActive = channel.id === activeChannel;
             return (
               <button
                 key={channel.id}
@@ -87,7 +88,7 @@ export function ChatPanel() {
               >
                 {channel.label}
               </button>
-            )
+            );
           })}
         </div>
 
@@ -131,5 +132,5 @@ export function ChatPanel() {
         </div>
       </div>
     </div>
-  )
+  );
 }

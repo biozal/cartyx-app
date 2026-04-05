@@ -1,6 +1,5 @@
 import mongoose from 'mongoose'
 import { WINDOW_STATES } from '~/types/gmscreen'
-import type { WindowState } from '~/types/gmscreen'
 
 
 // ---------------------------------------------------------------------------

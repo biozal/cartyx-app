@@ -1,27 +1,35 @@
-import React, { useRef } from 'react'
-import { Link } from '@tanstack/react-router'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faGear } from '@fortawesome/pro-solid-svg-icons'
-import { UserMenu } from '~/components/shared/UserMenu'
-import { TABS, handleTabsKeyDown } from './TabNavigation'
-import type { TabId } from './TabNavigation'
+import React, { useRef } from 'react';
+import { Link } from '@tanstack/react-router';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faGear } from '@fortawesome/pro-solid-svg-icons';
+import { UserMenu } from '~/components/shared/UserMenu';
+import { TABS, handleTabsKeyDown } from './TabNavigation';
+import type { TabId } from './TabNavigation';
 
 export interface CampaignHeaderProps {
-  campaignId?: string
-  sessionNumber?: number
-  isOwner?: boolean
-  isGM?: boolean
-  activeSessionName?: string
-  activeTab: TabId
-  onTabChange: (tab: TabId) => void
+  campaignId?: string;
+  sessionNumber?: number;
+  isOwner?: boolean;
+  isGM?: boolean;
+  activeSessionName?: string;
+  activeTab: TabId;
+  onTabChange: (tab: TabId) => void;
 }
 
-export function CampaignHeader({ campaignId, sessionNumber, isOwner, isGM, activeSessionName, activeTab, onTabChange }: CampaignHeaderProps) {
-  const tablistRef = useRef<HTMLDivElement>(null)
-  const visibleTabs = TABS.filter(tab => !tab.gmOnly || isGM)
-  const effectiveActiveTab = visibleTabs.some(t => t.id === activeTab)
+export function CampaignHeader({
+  campaignId,
+  sessionNumber,
+  isOwner,
+  isGM,
+  activeSessionName,
+  activeTab,
+  onTabChange,
+}: CampaignHeaderProps) {
+  const tablistRef = useRef<HTMLDivElement>(null);
+  const visibleTabs = TABS.filter((tab) => !tab.gmOnly || isGM);
+  const effectiveActiveTab = visibleTabs.some((t) => t.id === activeTab)
     ? activeTab
-    : visibleTabs[0]?.id ?? 'dashboard'
+    : (visibleTabs[0]?.id ?? 'dashboard');
 
   return (
     <nav className="flex items-center h-14 px-4 bg-[#0D1117] border-b border-white/[0.07] sticky top-0 z-50 gap-4">
@@ -53,7 +61,10 @@ export function CampaignHeader({ campaignId, sessionNumber, isOwner, isGM, activ
 
       {/* Left-center: Session number (fallback when session info not shown) */}
       {!(isOwner && campaignId) && sessionNumber !== undefined && (
-        <span className="font-sans font-semibold text-xs text-slate-300 whitespace-nowrap" data-testid="session-number">
+        <span
+          className="font-sans font-semibold text-xs text-slate-300 whitespace-nowrap"
+          data-testid="session-number"
+        >
           Session {sessionNumber}
         </span>
       )}
@@ -64,10 +75,13 @@ export function CampaignHeader({ campaignId, sessionNumber, isOwner, isGM, activ
         role="tablist"
         aria-label="MainView navigation"
         ref={tablistRef}
-        onKeyDown={(e) => handleTabsKeyDown(e, effectiveActiveTab, onTabChange, tablistRef, visibleTabs)}
+        tabIndex={0}
+        onKeyDown={(e) =>
+          handleTabsKeyDown(e, effectiveActiveTab, onTabChange, tablistRef, visibleTabs)
+        }
       >
         {visibleTabs.map((tab) => {
-          const isActive = effectiveActiveTab === tab.id
+          const isActive = effectiveActiveTab === tab.id;
           return (
             <button
               key={tab.id}
@@ -86,7 +100,7 @@ export function CampaignHeader({ campaignId, sessionNumber, isOwner, isGM, activ
             >
               {tab.label}
             </button>
-          )
+          );
         })}
       </div>
 
@@ -103,5 +117,5 @@ export function CampaignHeader({ campaignId, sessionNumber, isOwner, isGM, activ
         <UserMenu contextualAction={{ label: 'Close Campaign', to: '/campaigns' }} />
       </div>
     </nav>
-  )
+  );
 }
