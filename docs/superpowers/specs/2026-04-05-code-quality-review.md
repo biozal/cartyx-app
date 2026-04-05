@@ -56,7 +56,7 @@ All 7 current warnings, all safe to fix with no behavior changes:
 
 ### Status
 
-React Compiler 1.0 shipped stable October 2025. **This project already has it configured** (`babel-plugin-react-compiler` v19.1.0-rc.3 in vite.config.ts).
+React Compiler 1.0 shipped stable October 2025. **This project already has it configured** (`babel-plugin-react-compiler` `^1.0.0` in package.json).
 
 ### Recommendation: Monitor, Don't Rely On
 

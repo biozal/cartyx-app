@@ -125,9 +125,9 @@ export function useCreateNote() {
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: async (input: CreateNoteInput) => createNoteFn({ data: input }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notes', 'list'], exact: false });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
+    onSuccess: (_data, { campaignId }) => {
+      queryClient.invalidateQueries({ queryKey: ['notes', 'list', campaignId], exact: false });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tags.list(campaignId) });
     },
     onError: (e) => {
       captureException(e, { action: 'createNote' });
@@ -169,11 +169,14 @@ export function useUpdateNote() {
   const mutation = useMutation({
     mutationFn: async (input: UpdateNoteInput) => updateNoteFn({ data: input }),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['notes', 'list'], exact: false });
+      queryClient.invalidateQueries({
+        queryKey: ['notes', 'list', variables.campaignId],
+        exact: false,
+      });
       queryClient.invalidateQueries({
         queryKey: queryKeys.notes.detail(variables.id, variables.campaignId),
       });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tags.list(variables.campaignId) });
       // Refresh GM screen windows that may display this note's content
       queryClient.invalidateQueries({ queryKey: queryKeys.gmscreens.all });
     },
@@ -212,7 +215,10 @@ export function useDeleteNote() {
   const mutation = useMutation({
     mutationFn: async (input: DeleteNoteInput) => deleteNoteFn({ data: input }),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['notes', 'list'], exact: false });
+      queryClient.invalidateQueries({
+        queryKey: ['notes', 'list', variables.campaignId],
+        exact: false,
+      });
       queryClient.removeQueries({
         queryKey: queryKeys.notes.detail(variables.id, variables.campaignId),
       });

@@ -17,9 +17,10 @@ export function SessionMultiSelect({
 }: SessionMultiSelectProps) {
   return (
     <div>
-      {/* TODO: a11y — associate label with control via htmlFor/id */}
-      {/* eslint-disable-next-line jsx-a11y/label-has-associated-control */}
-      <label className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide">
+      <label
+        htmlFor="session-multi-select"
+        className="block text-xs font-semibold text-slate-400 mb-2 tracking-wide"
+      >
         Sessions Appeared In
       </label>
       <div className="flex flex-wrap gap-1.5 mb-2">
@@ -44,6 +45,7 @@ export function SessionMultiSelect({
         })}
       </div>
       <select
+        id="session-multi-select"
         value=""
         onChange={(e) => {
           if (e.target.value) onToggle(e.target.value);

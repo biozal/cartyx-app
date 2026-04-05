@@ -59,7 +59,7 @@ export function useCreateSession() {
     mutationFn: (input: { campaignId: string; name: string; startDate: string }) =>
       createSessionFn({ data: input }),
     onSuccess: (_data, { campaignId }) => {
-      queryClient.invalidateQueries({ queryKey: ['sessions', 'list'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['sessions', 'list', campaignId], exact: false });
       queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(campaignId) });
     },
     onError: (e, { campaignId }) => {
@@ -98,7 +98,7 @@ export function useUpdateSession() {
       endDate?: string;
     }) => updateSessionFn({ data: input }),
     onSuccess: (_data, { campaignId }) => {
-      queryClient.invalidateQueries({ queryKey: ['sessions', 'list'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['sessions', 'list', campaignId], exact: false });
       queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(campaignId) });
     },
     onError: (e, { campaignId }) => {
@@ -138,7 +138,7 @@ export function useActivateSession() {
     mutationFn: (input: { campaignId: string; sessionId: string; endDate?: string }) =>
       activateSessionFn({ data: input }),
     onSuccess: (_data, { campaignId }) => {
-      queryClient.invalidateQueries({ queryKey: ['sessions', 'list'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['sessions', 'list', campaignId], exact: false });
       queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(campaignId) });
     },
     onError: (e, { campaignId }) => {

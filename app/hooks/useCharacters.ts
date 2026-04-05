@@ -135,9 +135,9 @@ export function useCreateCharacter() {
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: async (input: CreateCharacterInput) => createCharacterFn({ data: input }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['characters', 'list'], exact: false });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
+    onSuccess: (_data, { campaignId }) => {
+      queryClient.invalidateQueries({ queryKey: ['characters', 'list', campaignId], exact: false });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tags.list(campaignId) });
     },
     onError: (e) => {
       captureException(e, { action: 'createCharacter' });
@@ -189,11 +189,14 @@ export function useUpdateCharacter() {
   const mutation = useMutation({
     mutationFn: async (input: UpdateCharacterInput) => updateCharacterFn({ data: input }),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['characters', 'list'], exact: false });
+      queryClient.invalidateQueries({
+        queryKey: ['characters', 'list', variables.campaignId],
+        exact: false,
+      });
       queryClient.invalidateQueries({
         queryKey: queryKeys.characters.detail(variables.id, variables.campaignId),
       });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tags.list(variables.campaignId) });
       // Refresh GM screen windows that may display this character's content
       queryClient.invalidateQueries({ queryKey: queryKeys.gmscreens.all });
     },
@@ -232,7 +235,10 @@ export function useDeleteCharacter() {
   const mutation = useMutation({
     mutationFn: async (input: DeleteCharacterInput) => deleteCharacterFn({ data: input }),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['characters', 'list'], exact: false });
+      queryClient.invalidateQueries({
+        queryKey: ['characters', 'list', variables.campaignId],
+        exact: false,
+      });
       queryClient.removeQueries({
         queryKey: queryKeys.characters.detail(variables.id, variables.campaignId),
       });
