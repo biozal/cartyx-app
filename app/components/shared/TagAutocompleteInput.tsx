@@ -124,7 +124,9 @@ export function TagAutocompleteInput({
         ]
           .filter(Boolean)
           .join(' ')}
-        onClick={() => inputRef.current?.focus()}
+        onClick={() => {
+          if (!disabled) inputRef.current?.focus();
+        }}
       >
         {selectedTags.map((tag) => (
           <span
@@ -136,7 +138,7 @@ export function TagAutocompleteInput({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                removeTag(tag);
+                if (!disabled) removeTag(tag);
               }}
               className="ml-0.5 text-blue-400/60 hover:text-blue-300 transition-colors"
               aria-label={`Remove tag ${tag}`}
@@ -185,7 +187,7 @@ export function TagAutocompleteInput({
               ].join(' ')}
               onMouseDown={(e) => {
                 e.preventDefault();
-                addTag(tag.name);
+                if (!disabled) addTag(tag.name);
               }}
               onMouseEnter={() => setHighlightIndex(index)}
             >

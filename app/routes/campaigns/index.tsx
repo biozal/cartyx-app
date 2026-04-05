@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { getMe } from '~/server/functions/auth';
 import { listCampaigns } from '~/server/functions/campaigns';
@@ -34,6 +34,21 @@ function CampaignsListPage() {
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const { join, isLoading: isJoining, error: joinError } = useJoinCampaign();
+
+  const closeJoinForm = useCallback(() => {
+    setShowJoinForm(false);
+    setJoinCode('');
+  }, []);
+
+  // Close join form on Escape key — uses document listener so the backdrop doesn't need to be focusable
+  useEffect(() => {
+    if (!showJoinForm) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeJoinForm();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showJoinForm, closeJoinForm]);
 
   async function handleJoin(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -119,24 +134,14 @@ function CampaignsListPage() {
       <Toast />
 
       {showJoinForm && (
-        // TODO: a11y — dialog backdrop click/key handlers on non-interactive element
-        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
           role="dialog"
           aria-modal="true"
           aria-labelledby="join-campaign-title"
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              setShowJoinForm(false);
-              setJoinCode('');
-            }
-          }}
           onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowJoinForm(false);
-              setJoinCode('');
-            }
+            if (e.target === e.currentTarget) closeJoinForm();
           }}
         >
           <div className="bg-[#0D1117] border border-white/[0.07] rounded-2xl p-8 w-full max-w-md mx-4">
@@ -168,10 +173,7 @@ function CampaignsListPage() {
                 <PixelButton
                   variant="secondary"
                   size="md"
-                  onClick={() => {
-                    setShowJoinForm(false);
-                    setJoinCode('');
-                  }}
+                  onClick={closeJoinForm}
                   disabled={isJoining}
                   className="flex-1"
                   type="button"

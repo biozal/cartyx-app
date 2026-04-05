@@ -140,10 +140,12 @@ function ScreenSettingsDropdown({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const close = useCallback(() => {
+  const close = useCallback(({ returnFocus = true }: { returnFocus?: boolean } = {}) => {
     setOpen(false);
-    // Return focus to the trigger button after the menu closes
-    triggerRef.current?.focus();
+    // Return focus to the trigger button after the menu closes (unless caller opts out)
+    if (returnFocus) {
+      triggerRef.current?.focus();
+    }
   }, []);
 
   useCloseOnOutsideClick(dropdownRef, close, open);
@@ -184,7 +186,7 @@ function ScreenSettingsDropdown({
         items[items.length - 1]?.focus();
       } else if (e.key === 'Tab') {
         // Tab should close the menu and let focus move naturally
-        close();
+        close({ returnFocus: false });
       }
     },
     [close]
