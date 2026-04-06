@@ -435,9 +435,17 @@ export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
 
         if (w.collection === 'rule' || w.collection === 'character') {
           if (doc?.isPublic === true) {
-            titleIcon = <Globe className="h-3 w-3 text-emerald-400" />;
+            titleIcon = (
+              <span aria-label="Public">
+                <Globe className="h-3 w-3 text-emerald-400" aria-hidden="true" />
+              </span>
+            );
           } else if (doc?.isPublic === false) {
-            titleIcon = <Lock className="h-3 w-3 text-amber-400" />;
+            titleIcon = (
+              <span aria-label="Private">
+                <Lock className="h-3 w-3 text-amber-400" aria-hidden="true" />
+              </span>
+            );
           }
         }
 

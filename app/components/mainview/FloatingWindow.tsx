@@ -336,12 +336,11 @@ export function FloatingWindow({
         ].join(' ')}
         onMouseDown={handleTitleBarMouseDown}
       >
-        <div
-          id={titleId}
-          className="flex items-center gap-1.5 min-w-0 font-sans font-semibold text-xs text-slate-300"
-        >
+        <div className="flex items-center gap-1.5 min-w-0 font-sans font-semibold text-xs text-slate-300">
           {titleIcon && <span className="shrink-0 flex items-center">{titleIcon}</span>}
-          <span className="truncate">{title}</span>
+          <span id={titleId} className="truncate">
+            {title}
+          </span>
           {titleSuffix && <span className="shrink-0 flex items-center">{titleSuffix}</span>}
         </div>
 

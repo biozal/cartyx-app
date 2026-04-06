@@ -44,9 +44,9 @@ export function RuleViewModal({ isOpen, onClose, ruleId, campaignId }: RuleViewM
           <div className="flex items-center gap-2 min-w-0">
             {rule &&
               (rule.isPublic ? (
-                <Globe className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                <Globe className="h-3.5 w-3.5 text-emerald-400 shrink-0" aria-hidden="true" />
               ) : (
-                <Lock className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                <Lock className="h-3.5 w-3.5 text-amber-400 shrink-0" aria-hidden="true" />
               ))}
             <h2
               id="rule-view-modal-title"
