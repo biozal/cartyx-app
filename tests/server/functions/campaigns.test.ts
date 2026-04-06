@@ -183,7 +183,10 @@ beforeEach(() => {
     sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
   } as never);
   vi.mocked(Session.create).mockResolvedValue([] as never);
-  vi.mocked(Session.findOne).mockReturnValue({ session: vi.fn().mockReturnValue(null) } as never);
+  vi.mocked(Session.findOne).mockReturnValue({
+    session: vi.fn().mockReturnValue(null),
+    lean: vi.fn().mockResolvedValue(null),
+  } as never);
   vi.mocked(Session.updateOne).mockResolvedValue({ modifiedCount: 1 } as never);
   vi.mocked(GMScreen.find).mockReturnValue({ lean: vi.fn().mockResolvedValue([]) } as never);
   vi.mocked(GMScreen.create).mockResolvedValue([] as never);
@@ -304,18 +307,16 @@ describe('listCampaigns', () => {
       sort: vi.fn().mockResolvedValue([campaign]),
     } as never);
     vi.mocked(Player.find).mockReturnValue({
-      lean: vi
-        .fn()
-        .mockResolvedValue([
-          {
-            _id: 'p-1',
-            campaignId: 'camp-1',
-            userId: 'dbuser-2',
-            characterName: 'Aragorn',
-            characterClass: 'Ranger',
-            avatar: null,
-          },
-        ]),
+      lean: vi.fn().mockResolvedValue([
+        {
+          _id: 'p-1',
+          campaignId: 'camp-1',
+          userId: 'dbuser-2',
+          characterName: 'Aragorn',
+          characterClass: 'Ranger',
+          avatar: null,
+        },
+      ]),
     } as never);
 
     const result = await _listCampaigns();
@@ -395,18 +396,16 @@ describe('getCampaign', () => {
     const campaign = makeCampaign();
     vi.mocked(Campaign.findById).mockResolvedValue(campaign);
     vi.mocked(Player.find).mockReturnValue({
-      lean: vi
-        .fn()
-        .mockResolvedValue([
-          {
-            _id: 'p-1',
-            campaignId: 'camp-1',
-            userId: 'dbuser-2',
-            characterName: 'Gandalf',
-            characterClass: 'Wizard',
-            avatar: null,
-          },
-        ]),
+      lean: vi.fn().mockResolvedValue([
+        {
+          _id: 'p-1',
+          campaignId: 'camp-1',
+          userId: 'dbuser-2',
+          characterName: 'Gandalf',
+          characterClass: 'Wizard',
+          avatar: null,
+        },
+      ]),
     } as never);
 
     const result = await _getCampaign({ data: { id: 'camp-1' } });

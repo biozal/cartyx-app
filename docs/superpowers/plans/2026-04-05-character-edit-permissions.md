@@ -453,3 +453,7 @@ If a dev environment is available, verify:
 - As **GM**: clicking any character opens the edit modal; GM screen edit button visible
 - As **other player**: clicking a public character opens the read-only `CharacterViewModal`; GM screen edit button hidden (if character is on a shared screen)
 - Server rejects update/delete from a non-creator, non-GM user (403 Forbidden)
+
+# Final Check
+
+Review all the code after it's changed to validate all code changes follow Typescript, React, and Tanstack best practices and that it doesn't introduct regression or PR comements about the code quality.

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { FormInput } from '~/components/FormInput';
 import { PixelButton } from '~/components/PixelButton';
+import { MarkdownEditor } from '~/components/shared/MarkdownEditor';
 import type { CampaignData } from '~/types/campaign';
 
 type SessionData = CampaignData['sessions'][number];
@@ -15,7 +16,12 @@ interface FieldErrors {
 export interface SessionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: { name: string; startDate: string; endDate?: string }) => Promise<boolean>;
+  onSubmit: (data: {
+    name: string;
+    startDate: string;
+    endDate?: string;
+    catchUp?: string;
+  }) => Promise<boolean>;
   isLoading: boolean;
   session?: SessionData;
 }
@@ -26,6 +32,7 @@ export function SessionModal({ isOpen, onClose, onSubmit, isLoading, session }: 
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [catchUp, setCatchUp] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [hasSubmitted, setHasSubmitted] = useState(false);
@@ -47,10 +54,12 @@ export function SessionModal({ isOpen, onClose, onSubmit, isLoading, session }: 
       // Normalize to YYYY-MM-DD for use with <input type="date">
       setStartDate(session.startDate.slice(0, 10));
       setEndDate(session.endDate ? session.endDate.slice(0, 10) : '');
+      setCatchUp(session.catchUp ?? '');
     } else {
       setName('');
       setStartDate('');
       setEndDate('');
+      setCatchUp('');
     }
     setError(null);
     setFieldErrors({});
@@ -81,10 +90,11 @@ export function SessionModal({ isOpen, onClose, onSubmit, isLoading, session }: 
     if (Object.keys(errors).length > 0) return;
 
     const trimmedEndDate = endDate.trim();
-    const data: { name: string; startDate: string; endDate?: string } = {
+    const data: { name: string; startDate: string; endDate?: string; catchUp?: string } = {
       name: name.trim(),
       startDate: startDate.trim(),
       ...(trimmedEndDate ? { endDate: trimmedEndDate } : {}),
+      ...(isEditMode ? { catchUp: catchUp } : {}),
     };
     const success = await onSubmit(data);
     if (success) {
@@ -110,7 +120,7 @@ export function SessionModal({ isOpen, onClose, onSubmit, isLoading, session }: 
         role="dialog"
         aria-modal="true"
         aria-labelledby="session-modal-title"
-        className="w-full max-w-md bg-[#0D1117] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+        className="w-full max-w-2xl bg-[#0D1117] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
       >
         {/* Header */}
         <header className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/[0.07] shrink-0">
@@ -163,6 +173,17 @@ export function SessionModal({ isOpen, onClose, onSubmit, isLoading, session }: 
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               disabled={isLoading}
+            />
+          )}
+
+          {isEditMode && (
+            <MarkdownEditor
+              label="Catch Up"
+              value={catchUp}
+              onChange={setCatchUp}
+              placeholder="Summarize what happened this session so players can catch up before the next game..."
+              disabled={isLoading}
+              minHeight="180px"
             />
           )}
         </div>

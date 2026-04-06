@@ -1,65 +1,24 @@
-import { useEffect, useState } from 'react'
-import { faBookOpen } from '@fortawesome/pro-solid-svg-icons'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { Widget } from '~/components/mainview/Widget'
-import { getCatchUpContent, type CatchUpContent } from '~/services/mocks/catchUpService'
-import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses'
-
-const emptyCatchUpContent: CatchUpContent = {
-  title: 'Session Catch-Up',
-  lastUpdated: '',
-  content: '',
-}
+import { faBookOpen } from '@fortawesome/pro-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Widget } from '~/components/mainview/Widget';
+import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
 
 export function CatchUpWidget({
   className = '',
-  content,
+  catchUp,
 }: {
-  className?: string
-  content?: CatchUpContent
+  className?: string;
+  /** `undefined` = campaign still loading; `null` = loaded but no content; `string` = content */
+  catchUp: string | null | undefined;
 }) {
-  const [resolvedContent, setResolvedContent] = useState<CatchUpContent | null>(content ?? null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (content) {
-      setResolvedContent(content)
-      setError(null)
-      return
-    }
-
-    let isMounted = true
-    setError(null)
-
-    void getCatchUpContent()
-      .then((nextContent) => {
-        if (isMounted) {
-          setResolvedContent(nextContent)
-        }
-      })
-      .catch((error) => {
-        console.error(error)
-        if (isMounted) {
-          setError('Unable to load catch-up content.')
-          setResolvedContent(emptyCatchUpContent)
-        }
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [content])
-
-  const markdownContent = resolvedContent?.content ?? ''
-
   const customHeader = (
     <h2 className="flex items-center gap-3 font-sans text-3xl font-bold tracking-tight text-primary">
       <FontAwesomeIcon icon={faBookOpen} className="text-xl" />
       CATCH UP
     </h2>
-  )
+  );
 
   return (
     <Widget
@@ -71,31 +30,22 @@ export function CatchUpWidget({
         <FontAwesomeIcon icon={faBookOpen} className="text-9xl text-primary" aria-hidden="true" />
       </div>
 
-      <div
-        data-testid="catchup-scroll"
-        className="max-h-[400px] overflow-y-auto"
-      >
-        {resolvedContent === null ? (
+      <div data-testid="catchup-scroll" className="max-h-[400px] overflow-y-auto">
+        {catchUp === undefined ? (
           <p className="font-sans font-semibold text-xs text-slate-500">Loading catch-up...</p>
+        ) : catchUp ? (
+          <div
+            data-testid="catchup-markdown"
+            className={`w-full ${MARKDOWN_PROSE_CLASSES} text-xs`}
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{catchUp}</ReactMarkdown>
+          </div>
         ) : (
-          <>
-            {error ? (
-              <p className="mb-3 font-sans font-semibold text-xs text-rose-400">{error}</p>
-            ) : null}
-
-            {markdownContent ? (
-              <div
-                data-testid="catchup-markdown"
-                className={`w-full ${MARKDOWN_PROSE_CLASSES} text-xs`}
-              >
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdownContent}</ReactMarkdown>
-              </div>
-            ) : (
-              <p className="font-sans font-semibold text-xs text-slate-500">No catch-up content available</p>
-            )}
-          </>
+          <p className="font-sans font-semibold text-xs text-slate-500">
+            No catch-up content available
+          </p>
         )}
       </div>
     </Widget>
-  )
+  );
 }

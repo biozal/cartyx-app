@@ -32,7 +32,7 @@ function PlayPage() {
   const { tab: activeTab } = Route.useSearch();
   const { campaignId } = Route.useParams();
   const navigate = Route.useNavigate();
-  const { campaign } = useCampaign(campaignId);
+  const { campaign, isLoading: isCampaignLoading } = useCampaign(campaignId);
 
   const activeSession = campaign?.sessions.find((s) => s.status === 'active');
 
@@ -64,7 +64,9 @@ function PlayPage() {
             hidden={effectiveTab !== 'dashboard'}
           >
             <DashboardView>
-              <CatchUpWidget />
+              <CatchUpWidget
+                catchUp={isCampaignLoading ? undefined : (activeSession?.catchUp ?? null)}
+              />
               <PartyMembersWidget />
               <KeyAlliesWidget />
               <SessionsListWidget campaignId={campaignId} className="col-span-full" />

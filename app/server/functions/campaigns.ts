@@ -218,11 +218,14 @@ export const getCampaign = createServerFn({ method: 'GET' })
 
       const isOwner = !!userId && c.gameMasterId != null && String(c.gameMasterId) === userId;
 
-      // Load players and sessions in parallel; GM also gets gmscreen docs
+      // Load players and sessions in parallel; GM also gets gmscreen docs.
+      // The active session's summary is fetched separately to avoid including
+      // potentially large catch-up markdown in every session row.
       const queries: [
         ReturnType<typeof Player.find>,
         ReturnType<typeof Session.find>,
         ReturnType<typeof GMScreen.find> | null,
+        ReturnType<typeof Session.findOne>,
       ] = [
         Player.find(
           { campaignId: c._id },
@@ -232,9 +235,10 @@ export const getCampaign = createServerFn({ method: 'GET' })
           .sort({ number: 1 })
           .lean(),
         isOwner ? GMScreen.find({ campaignId: c._id }, '_id name').lean() : null,
+        Session.findOne({ campaignId: c._id, status: 'active' }, '_id summary').lean(),
       ];
 
-      const [playerDocs, sessionDocs, gmScreenDocs] = await Promise.all(queries);
+      const [playerDocs, sessionDocs, gmScreenDocs, activeSessionDoc] = await Promise.all(queries);
 
       const partyMembers = (
         playerDocs as Array<{
@@ -252,6 +256,10 @@ export const getCampaign = createServerFn({ method: 'GET' })
         userId: String(p.userId),
       }));
 
+      const activeDoc = activeSessionDoc as { _id: unknown; summary?: string } | null;
+      const activeId = activeDoc ? String(activeDoc._id) : null;
+      const activeCatchUp = activeDoc?.summary ?? null;
+
       const sessions = (
         sessionDocs as Array<{
           _id: unknown;
@@ -268,6 +276,7 @@ export const getCampaign = createServerFn({ method: 'GET' })
         startDate: (s.startDate as Date).toISOString(),
         endDate: s.endDate ? (s.endDate as Date).toISOString() : null,
         status: ((s.status as string) ?? 'not_started') as 'not_started' | 'active' | 'completed',
+        catchUp: String(s._id) === activeId ? activeCatchUp : null,
       }));
 
       const gmScreens = gmScreenDocs
@@ -418,6 +427,21 @@ export const createCampaign = createServerFn({ method: 'POST' })
                   startDate: now,
                   endDate: null,
                   status: 'active',
+                  summary: `## Welcome to Your Campaign!
+
+This is the **Catch Up** section. Your players will see this on their Dashboard to stay up to date on the story.
+
+**Update this after each session** with a summary of what happened so everyone is caught up before the next game.
+
+---
+
+### Getting started
+
+- **Create a new session:** Go to the Sessions page and click "New Session"
+- **Update catch-up info:** Click on any session to edit it and fill in the Catch Up field
+- **Session notes:** Use the session editor to keep notes during and after each session
+
+*Replace this text with your Session 0 recap once you're ready!*`,
                 },
               ],
               { session: mongoSession }

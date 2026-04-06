@@ -149,6 +149,7 @@ export const updateSession = createServerFn({ method: 'POST' })
       if (data.name !== undefined) setFields.name = data.name;
       if (data.startDate !== undefined) setFields.startDate = new Date(data.startDate);
       if (data.endDate !== undefined) setFields.endDate = new Date(data.endDate);
+      if (data.summary !== undefined) setFields.summary = data.summary;
 
       await Session.updateOne(
         { _id: data.sessionId, campaignId: data.campaignId },

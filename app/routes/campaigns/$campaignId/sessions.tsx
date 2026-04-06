@@ -43,6 +43,7 @@ interface SessionData {
   startDate: string;
   endDate: string | null;
   status: 'not_started' | 'active' | 'completed';
+  catchUp: string | null;
 }
 
 export function SessionsPage() {
@@ -74,7 +75,12 @@ export function SessionsPage() {
     return false;
   }
 
-  async function handleEditSubmit(data: { name: string; startDate: string; endDate?: string }) {
+  async function handleEditSubmit(data: {
+    name: string;
+    startDate: string;
+    endDate?: string;
+    catchUp?: string;
+  }) {
     if (!editSession) return false;
     const result = await update({
       sessionId: editSession.id,
@@ -82,6 +88,7 @@ export function SessionsPage() {
       name: data.name,
       startDate: new Date(data.startDate).toISOString(),
       endDate: data.endDate ? new Date(data.endDate).toISOString() : undefined,
+      summary: data.catchUp,
     });
     if (result) {
       setEditSession(null);
