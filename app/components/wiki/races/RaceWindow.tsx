@@ -38,7 +38,7 @@ export function RaceWindow({ race, onEdit }: RaceWindowProps) {
           )}
         </div>
       )}
-      <div className="flex-1 overflow-y-auto p-4 min-h-0">
+      <div className="flex-1 overflow-y-auto p-3 min-h-0">
         <div className={MARKDOWN_PROSE_CLASSES}>
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{race.content}</ReactMarkdown>
         </div>

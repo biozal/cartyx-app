@@ -41,4 +41,11 @@ describe('RaceWindow', () => {
     render(<RaceWindow race={{ ...baseRace, canEdit: false }} onEdit={vi.fn()} />);
     expect(screen.queryByRole('button', { name: 'Edit race' })).not.toBeInTheDocument();
   });
+
+  it('hides the meta row entirely when there are no tags and canEdit is false', () => {
+    const { container } = render(
+      <RaceWindow race={{ ...baseRace, tags: [], canEdit: false }} onEdit={vi.fn()} />
+    );
+    expect(container.querySelector('.border-b')).not.toBeInTheDocument();
+  });
 });
