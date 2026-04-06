@@ -304,18 +304,16 @@ describe('listCampaigns', () => {
       sort: vi.fn().mockResolvedValue([campaign]),
     } as never);
     vi.mocked(Player.find).mockReturnValue({
-      lean: vi
-        .fn()
-        .mockResolvedValue([
-          {
-            _id: 'p-1',
-            campaignId: 'camp-1',
-            userId: 'dbuser-2',
-            characterName: 'Aragorn',
-            characterClass: 'Ranger',
-            avatar: null,
-          },
-        ]),
+      lean: vi.fn().mockResolvedValue([
+        {
+          _id: 'p-1',
+          campaignId: 'camp-1',
+          userId: 'dbuser-2',
+          characterName: 'Aragorn',
+          characterClass: 'Ranger',
+          avatar: null,
+        },
+      ]),
     } as never);
 
     const result = await _listCampaigns();
@@ -395,18 +393,16 @@ describe('getCampaign', () => {
     const campaign = makeCampaign();
     vi.mocked(Campaign.findById).mockResolvedValue(campaign);
     vi.mocked(Player.find).mockReturnValue({
-      lean: vi
-        .fn()
-        .mockResolvedValue([
-          {
-            _id: 'p-1',
-            campaignId: 'camp-1',
-            userId: 'dbuser-2',
-            characterName: 'Gandalf',
-            characterClass: 'Wizard',
-            avatar: null,
-          },
-        ]),
+      lean: vi.fn().mockResolvedValue([
+        {
+          _id: 'p-1',
+          campaignId: 'camp-1',
+          userId: 'dbuser-2',
+          characterName: 'Gandalf',
+          characterClass: 'Wizard',
+          avatar: null,
+        },
+      ]),
     } as never);
 
     const result = await _getCampaign({ data: { id: 'camp-1' } });
@@ -441,7 +437,7 @@ describe('getCampaign', () => {
 
     expect(Session.find).toHaveBeenCalledWith(
       { campaignId: 'camp-1' },
-      '_id name number startDate endDate status'
+      '_id name number startDate endDate status summary'
     );
     expect(result.sessions).toHaveLength(1);
     expect(result.sessions[0]!.name).toBe('Session 0');
