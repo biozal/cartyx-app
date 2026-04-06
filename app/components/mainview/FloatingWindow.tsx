@@ -34,6 +34,8 @@ export interface FloatingWindowProps {
   onStateChange?: (state: FloatingWindowState) => void;
   onLayoutChange?: (layout: { position: FloatingWindowPosition; size: FloatingWindowSize }) => void;
   className?: string;
+  titleIcon?: ReactNode;
+  titleSuffix?: ReactNode;
 }
 
 const DEFAULT_POSITION: FloatingWindowPosition = { x: 100, y: 100 };
@@ -88,6 +90,8 @@ export function FloatingWindow({
   onStateChange,
   onLayoutChange,
   className = '',
+  titleIcon,
+  titleSuffix,
 }: FloatingWindowProps) {
   const [position, setPosition] = useState<FloatingWindowPosition>(initialPosition);
   const [size, setSize] = useState<FloatingWindowSize>(initialSize);
@@ -332,8 +336,13 @@ export function FloatingWindow({
         ].join(' ')}
         onMouseDown={handleTitleBarMouseDown}
       >
-        <div id={titleId} className="truncate font-sans font-semibold text-xs text-slate-300">
-          {title}
+        <div
+          id={titleId}
+          className="flex items-center gap-1.5 min-w-0 font-sans font-semibold text-xs text-slate-300"
+        >
+          {titleIcon && <span className="shrink-0 flex items-center">{titleIcon}</span>}
+          <span className="truncate">{title}</span>
+          {titleSuffix && <span className="shrink-0 flex items-center">{titleSuffix}</span>}
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
