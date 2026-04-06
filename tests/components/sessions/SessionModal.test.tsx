@@ -158,6 +158,7 @@ describe('SessionModal', () => {
         name: 'The Beginning',
         startDate: '2026-01-15',
         endDate: '2026-01-16',
+        catchUp: '',
       });
     });
     expect(props.onClose).toHaveBeenCalled();
