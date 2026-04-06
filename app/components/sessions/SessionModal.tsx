@@ -110,7 +110,7 @@ export function SessionModal({ isOpen, onClose, onSubmit, isLoading, session }: 
     // role="presentation": backdrop click-to-close is a convenience; Escape key handler closes the dialog
     <div
       role="presentation"
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-2 sm:p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 sm:p-6 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -120,7 +120,7 @@ export function SessionModal({ isOpen, onClose, onSubmit, isLoading, session }: 
         role="dialog"
         aria-modal="true"
         aria-labelledby="session-modal-title"
-        className="w-full max-w-2xl bg-[#0D1117] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+        className="w-[90vw] max-w-[90vw] max-h-[90vh] bg-[#0D1117] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
       >
         {/* Header */}
         <header className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/[0.07] shrink-0">
