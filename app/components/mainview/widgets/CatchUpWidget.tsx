@@ -10,10 +10,9 @@ export function CatchUpWidget({
   catchUp,
 }: {
   className?: string;
-  catchUp: string | null;
+  /** `undefined` = campaign still loading; `null` = loaded but no content; `string` = content */
+  catchUp: string | null | undefined;
 }) {
-  const markdownContent = catchUp ?? '';
-
   const customHeader = (
     <h2 className="flex items-center gap-3 font-sans text-3xl font-bold tracking-tight text-primary">
       <FontAwesomeIcon icon={faBookOpen} className="text-xl" />
@@ -32,12 +31,14 @@ export function CatchUpWidget({
       </div>
 
       <div data-testid="catchup-scroll" className="max-h-[400px] overflow-y-auto">
-        {markdownContent ? (
+        {catchUp === undefined ? (
+          <p className="font-sans font-semibold text-xs text-slate-500">Loading catch-up...</p>
+        ) : catchUp ? (
           <div
             data-testid="catchup-markdown"
             className={`w-full ${MARKDOWN_PROSE_CLASSES} text-xs`}
           >
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdownContent}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{catchUp}</ReactMarkdown>
           </div>
         ) : (
           <p className="font-sans font-semibold text-xs text-slate-500">

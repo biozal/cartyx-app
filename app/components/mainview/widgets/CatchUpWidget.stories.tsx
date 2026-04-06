@@ -45,6 +45,12 @@ export const Empty: Story = {
   },
 };
 
+export const Loading: Story = {
+  args: {
+    catchUp: undefined,
+  },
+};
+
 export const InDashboardGrid: Story = {
   render: () => (
     <div className="min-h-screen bg-[#080A12]">

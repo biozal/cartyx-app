@@ -38,3 +38,7 @@ coverage/
 .aider*
 .superpowers/
 .claude/settings.json
+
+# AI-generated planning docs
+docs/superpowers/
+issues/

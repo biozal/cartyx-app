@@ -218,23 +218,27 @@ export const getCampaign = createServerFn({ method: 'GET' })
 
       const isOwner = !!userId && c.gameMasterId != null && String(c.gameMasterId) === userId;
 
-      // Load players and sessions in parallel; GM also gets gmscreen docs
+      // Load players and sessions in parallel; GM also gets gmscreen docs.
+      // The active session's summary is fetched separately to avoid including
+      // potentially large catch-up markdown in every session row.
       const queries: [
         ReturnType<typeof Player.find>,
         ReturnType<typeof Session.find>,
         ReturnType<typeof GMScreen.find> | null,
+        ReturnType<typeof Session.findOne>,
       ] = [
         Player.find(
           { campaignId: c._id },
           '_id campaignId userId characterName characterClass avatar'
         ).lean(),
-        Session.find({ campaignId: c._id }, '_id name number startDate endDate status summary')
+        Session.find({ campaignId: c._id }, '_id name number startDate endDate status')
           .sort({ number: 1 })
           .lean(),
         isOwner ? GMScreen.find({ campaignId: c._id }, '_id name').lean() : null,
+        Session.findOne({ campaignId: c._id, status: 'active' }, '_id summary').lean(),
       ];
 
-      const [playerDocs, sessionDocs, gmScreenDocs] = await Promise.all(queries);
+      const [playerDocs, sessionDocs, gmScreenDocs, activeSessionDoc] = await Promise.all(queries);
 
       const partyMembers = (
         playerDocs as Array<{
@@ -252,6 +256,10 @@ export const getCampaign = createServerFn({ method: 'GET' })
         userId: String(p.userId),
       }));
 
+      const activeDoc = activeSessionDoc as { _id: unknown; summary?: string } | null;
+      const activeId = activeDoc ? String(activeDoc._id) : null;
+      const activeCatchUp = activeDoc?.summary ?? null;
+
       const sessions = (
         sessionDocs as Array<{
           _id: unknown;
@@ -260,7 +268,6 @@ export const getCampaign = createServerFn({ method: 'GET' })
           startDate: unknown;
           endDate: unknown;
           status: unknown;
-          summary: unknown;
         }>
       ).map((s) => ({
         id: String(s._id),
@@ -269,7 +276,7 @@ export const getCampaign = createServerFn({ method: 'GET' })
         startDate: (s.startDate as Date).toISOString(),
         endDate: s.endDate ? (s.endDate as Date).toISOString() : null,
         status: ((s.status as string) ?? 'not_started') as 'not_started' | 'active' | 'completed',
-        catchUp: (s.summary as string | undefined) ?? null,
+        catchUp: String(s._id) === activeId ? activeCatchUp : null,
       }));
 
       const gmScreens = gmScreenDocs

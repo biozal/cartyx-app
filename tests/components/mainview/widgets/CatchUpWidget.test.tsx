@@ -61,6 +61,13 @@ describe('CatchUpWidget', () => {
     );
   });
 
+  it('renders a loading message when catchUp is undefined', () => {
+    render(<CatchUpWidget catchUp={undefined} />);
+    expect(screen.getByText('Loading catch-up...')).toBeInTheDocument();
+    expect(screen.queryByTestId('catchup-markdown')).not.toBeInTheDocument();
+    expect(screen.queryByText('No catch-up content available')).not.toBeInTheDocument();
+  });
+
   it('renders FontAwesome icons and not literal Material icon names', () => {
     const { container } = render(<CatchUpWidget catchUp={mockCatchUp} />);
 

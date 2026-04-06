@@ -183,7 +183,10 @@ beforeEach(() => {
     sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
   } as never);
   vi.mocked(Session.create).mockResolvedValue([] as never);
-  vi.mocked(Session.findOne).mockReturnValue({ session: vi.fn().mockReturnValue(null) } as never);
+  vi.mocked(Session.findOne).mockReturnValue({
+    session: vi.fn().mockReturnValue(null),
+    lean: vi.fn().mockResolvedValue(null),
+  } as never);
   vi.mocked(Session.updateOne).mockResolvedValue({ modifiedCount: 1 } as never);
   vi.mocked(GMScreen.find).mockReturnValue({ lean: vi.fn().mockResolvedValue([]) } as never);
   vi.mocked(GMScreen.create).mockResolvedValue([] as never);
@@ -437,7 +440,7 @@ describe('getCampaign', () => {
 
     expect(Session.find).toHaveBeenCalledWith(
       { campaignId: 'camp-1' },
-      '_id name number startDate endDate status summary'
+      '_id name number startDate endDate status'
     );
     expect(result.sessions).toHaveLength(1);
     expect(result.sessions[0]!.name).toBe('Session 0');
