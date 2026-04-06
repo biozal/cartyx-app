@@ -96,6 +96,7 @@ export function useUpdateSession() {
       name?: string;
       startDate?: string;
       endDate?: string;
+      summary?: string;
     }) => updateSessionFn({ data: input }),
     onSuccess: (_data, { campaignId }) => {
       queryClient.invalidateQueries({ queryKey: ['sessions', 'list', campaignId], exact: false });
@@ -112,6 +113,7 @@ export function useUpdateSession() {
     name?: string;
     startDate?: string;
     endDate?: string;
+    summary?: string;
   }) => {
     try {
       return await mutation.mutateAsync(input);

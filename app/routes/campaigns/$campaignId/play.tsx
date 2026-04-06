@@ -64,7 +64,7 @@ function PlayPage() {
             hidden={effectiveTab !== 'dashboard'}
           >
             <DashboardView>
-              <CatchUpWidget />
+              <CatchUpWidget catchUp={activeSession?.catchUp ?? null} />
               <PartyMembersWidget />
               <KeyAlliesWidget />
               <SessionsListWidget campaignId={campaignId} className="col-span-full" />

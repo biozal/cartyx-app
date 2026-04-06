@@ -228,7 +228,7 @@ export const getCampaign = createServerFn({ method: 'GET' })
           { campaignId: c._id },
           '_id campaignId userId characterName characterClass avatar'
         ).lean(),
-        Session.find({ campaignId: c._id }, '_id name number startDate endDate status')
+        Session.find({ campaignId: c._id }, '_id name number startDate endDate status summary')
           .sort({ number: 1 })
           .lean(),
         isOwner ? GMScreen.find({ campaignId: c._id }, '_id name').lean() : null,
@@ -260,6 +260,7 @@ export const getCampaign = createServerFn({ method: 'GET' })
           startDate: unknown;
           endDate: unknown;
           status: unknown;
+          summary: unknown;
         }>
       ).map((s) => ({
         id: String(s._id),
@@ -268,6 +269,7 @@ export const getCampaign = createServerFn({ method: 'GET' })
         startDate: (s.startDate as Date).toISOString(),
         endDate: s.endDate ? (s.endDate as Date).toISOString() : null,
         status: ((s.status as string) ?? 'not_started') as 'not_started' | 'active' | 'completed',
+        catchUp: (s.summary as string | undefined) ?? null,
       }));
 
       const gmScreens = gmScreenDocs
@@ -418,6 +420,21 @@ export const createCampaign = createServerFn({ method: 'POST' })
                   startDate: now,
                   endDate: null,
                   status: 'active',
+                  summary: `## Welcome to Your Campaign!
+
+This is the **Catch Up** section. Your players will see this on their Dashboard to stay up to date on the story.
+
+**Update this after each session** with a summary of what happened so everyone is caught up before the next game.
+
+---
+
+### Getting started
+
+- **Create a new session:** Go to the Sessions page and click "New Session"
+- **Update catch-up info:** Click on any session to edit it and fill in the Catch Up field
+- **Session notes:** Use the session editor to keep notes during and after each session
+
+*Replace this text with your Session 0 recap once you're ready!*`,
                 },
               ],
               { session: mongoSession }
