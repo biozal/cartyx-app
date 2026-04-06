@@ -43,9 +43,9 @@ export function RaceViewModal({ isOpen, onClose, raceId, campaignId }: RaceViewM
         <header className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/[0.07] shrink-0">
           <h2
             id="race-view-modal-title"
-            className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest"
+            className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest truncate"
           >
-            Race
+            {race?.title ?? 'Race'}
           </h2>
           <button
             type="button"

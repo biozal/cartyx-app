@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { Globe, Lock, X } from 'lucide-react';
 import { RuleWindow } from './RuleWindow';
 import { useRule } from '~/hooks/useRules';
 
@@ -41,16 +41,24 @@ export function RuleViewModal({ isOpen, onClose, ruleId, campaignId }: RuleViewM
         className="w-full max-w-lg max-h-[90vh] bg-[#0D1117] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
       >
         <header className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/[0.07] shrink-0">
-          <h2
-            id="rule-view-modal-title"
-            className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest"
-          >
-            Rule
-          </h2>
+          <div className="flex items-center gap-2 min-w-0">
+            {rule &&
+              (rule.isPublic ? (
+                <Globe className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+              ) : (
+                <Lock className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+              ))}
+            <h2
+              id="rule-view-modal-title"
+              className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest truncate"
+            >
+              {rule?.title ?? 'Rule'}
+            </h2>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-500 hover:text-white transition-colors"
+            className="text-slate-500 hover:text-white transition-colors shrink-0"
             aria-label="Close modal"
           >
             <X className="h-5 w-5" />
