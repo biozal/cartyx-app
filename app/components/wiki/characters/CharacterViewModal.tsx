@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { ExternalLink, Globe, Lock, X } from 'lucide-react';
 import { CharacterWindow } from './CharacterWindow';
 import { useCharacter } from '~/hooks/useCharacters';
 
@@ -46,16 +46,38 @@ export function CharacterViewModal({
         className="w-full max-w-lg max-h-[90vh] bg-[#0D1117] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
       >
         <header className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/[0.07] shrink-0">
-          <h2
-            id="character-view-modal-title"
-            className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest"
-          >
-            Character
-          </h2>
+          <div className="flex items-center gap-2 min-w-0">
+            {character &&
+              (character.isPublic ? (
+                <Globe className="h-3.5 w-3.5 text-emerald-400 shrink-0" aria-hidden="true" />
+              ) : (
+                <Lock className="h-3.5 w-3.5 text-amber-400 shrink-0" aria-hidden="true" />
+              ))}
+            <h2
+              id="character-view-modal-title"
+              className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest truncate"
+            >
+              {character ? `${character.firstName} ${character.lastName}`.trim() : 'Character'}
+              {character && (
+                <span className="sr-only">{character.isPublic ? ' (Public)' : ' (Private)'}</span>
+              )}
+            </h2>
+            {character?.link && (
+              <a
+                href={character.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0"
+                aria-label="External link"
+              >
+                <ExternalLink className="h-3.5 w-3.5 text-slate-500 hover:text-blue-400 transition-colors" />
+              </a>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-500 hover:text-white transition-colors"
+            className="text-slate-500 hover:text-white transition-colors shrink-0"
             aria-label="Close modal"
           >
             <X className="h-5 w-5" />

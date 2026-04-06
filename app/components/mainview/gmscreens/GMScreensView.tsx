@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo, type DragEvent } from 'react';
-import { Plus, Layers, Loader2, AlertTriangle } from 'lucide-react';
+import { Plus, Layers, Loader2, AlertTriangle, Globe, Lock, ExternalLink } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useGMScreenList, useGMScreenDetail, useGMScreenMutations } from '~/hooks/useGMScreens';
@@ -429,12 +429,51 @@ export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
           );
         }
 
+        let titleIcon: React.ReactNode;
+        let titleSuffix: React.ReactNode;
+        const iconKey = `${doc?.isPublic ?? 'none'}:${doc?.link ?? ''}`;
+
+        if (w.collection === 'rule' || w.collection === 'character') {
+          if (doc?.isPublic === true) {
+            titleIcon = (
+              <span aria-label="Public">
+                <Globe className="h-3 w-3 text-emerald-400" aria-hidden="true" />
+              </span>
+            );
+          } else if (doc?.isPublic === false) {
+            titleIcon = (
+              <span aria-label="Private">
+                <Lock className="h-3 w-3 text-amber-400" aria-hidden="true" />
+              </span>
+            );
+          }
+        }
+
+        if (w.collection === 'character' && doc?.link) {
+          titleSuffix = (
+            <a
+              href={doc.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center"
+              aria-label="External link"
+            >
+              <ExternalLink className="h-3 w-3 text-slate-500 hover:text-blue-400 transition-colors" />
+            </a>
+          );
+        }
+
         const existing = prevById.get(w.id);
         if (existing) {
           // Preserve local layout, update title/content from server
           return {
             ...existing,
             title,
+            titleIcon,
+            titleSuffix,
+            iconKey,
             contentKey: markdownContent,
             className: flashWindowId === existing.id ? 'animate-flash-border' : '',
             content: windowContent,
@@ -445,6 +484,9 @@ export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
         return {
           id: w.id,
           title,
+          titleIcon,
+          titleSuffix,
+          iconKey,
           contentKey: markdownContent,
           position: w.x != null && w.y != null ? { x: w.x, y: w.y } : undefined,
           size:
@@ -464,6 +506,7 @@ export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
             p.id === merged[i]!.id &&
             p.title === merged[i]!.title &&
             p.contentKey === merged[i]!.contentKey &&
+            p.iconKey === merged[i]!.iconKey &&
             p.className === merged[i]!.className
         ) &&
         serverIds.size === prev.length

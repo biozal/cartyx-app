@@ -120,7 +120,9 @@ interface CollectionFetcher {
   fetch(
     ids: string[],
     campaignId: string
-  ): Promise<Array<{ _id: unknown; title?: string; content?: string }>>;
+  ): Promise<
+    Array<{ _id: unknown; title?: string; content?: string; isPublic?: boolean; link?: string }>
+  >;
 }
 
 const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
@@ -139,18 +141,32 @@ const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
   },
   character: {
     async fetch(ids: string[], campaignId: string) {
-      return Character.find({ _id: { $in: ids }, campaignId }, '_id firstName lastName notes')
+      return Character.find(
+        { _id: { $in: ids }, campaignId },
+        '_id firstName lastName notes isPublic link'
+      )
         .lean()
         .then((docs) =>
           docs.map((d) => {
-            const ch = d as { _id: unknown; firstName?: string; lastName?: string; notes?: string };
+            const ch = d as {
+              _id: unknown;
+              firstName?: string;
+              lastName?: string;
+              notes?: string;
+              isPublic?: boolean;
+              link?: string;
+            };
             return {
               _id: ch._id,
               title: `${ch.firstName ?? ''} ${ch.lastName ?? ''}`.trim(),
               content: ch.notes,
+              isPublic: ch.isPublic,
+              link: ch.link,
             };
           })
-        ) as Promise<Array<{ _id: unknown; title?: string; content?: string }>>;
+        ) as Promise<
+        Array<{ _id: unknown; title?: string; content?: string; isPublic?: boolean; link?: string }>
+      >;
     },
   },
   race: {
@@ -168,15 +184,18 @@ const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
   },
   rule: {
     async fetch(ids: string[], campaignId: string) {
-      return Rule.find({ _id: { $in: ids }, campaignId }, '_id title content')
+      return Rule.find({ _id: { $in: ids }, campaignId }, '_id title content isPublic')
         .lean()
         .then((docs) =>
           docs.map((d) => ({
             _id: d._id,
             title: (d as { title?: string }).title,
             content: (d as { content?: string }).content,
+            isPublic: (d as { isPublic?: boolean }).isPublic,
           }))
-        ) as Promise<Array<{ _id: unknown; title?: string; content?: string }>>;
+        ) as Promise<
+        Array<{ _id: unknown; title?: string; content?: string; isPublic?: boolean; link?: string }>
+      >;
     },
   },
 };
@@ -216,6 +235,8 @@ async function hydrateRefs(
           collection: collectionName,
           title: doc.title ?? '',
           content: doc.content ?? '',
+          ...(doc.isPublic !== undefined && { isPublic: doc.isPublic }),
+          ...(doc.link && { link: doc.link }),
         };
       }
     })

@@ -642,6 +642,24 @@ describe('NoteModal', () => {
     expect(screen.queryByText('Delete this note?')).not.toBeInTheDocument();
   });
 
+  // ── Header visibility icon ───────────────────────────────
+
+  describe('header visibility icon', () => {
+    it('shows a Lock icon by default when creating a note', () => {
+      renderModal();
+      const matches = screen.getAllByLabelText('Private');
+      expect(matches.some((el) => el.tagName.toLowerCase() === 'svg')).toBe(true);
+    });
+
+    it('shows a Globe icon after the user toggles to Public', async () => {
+      const user = userEvent.setup();
+      renderModal();
+      await user.click(screen.getByText('Public'));
+      const matches = screen.getAllByLabelText('Public');
+      expect(matches.some((el) => el.tagName.toLowerCase() === 'svg')).toBe(true);
+    });
+  });
+
   // ── Error handling ──────────────────────────────────────
 
   it('shows error when save fails', async () => {

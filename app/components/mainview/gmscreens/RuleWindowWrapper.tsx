@@ -1,4 +1,3 @@
-import { Pencil } from 'lucide-react';
 import { RuleWindow } from '~/components/wiki/rules/RuleWindow';
 import { RuleModal } from '~/components/wiki/rules/RuleModal';
 import { useRule } from '~/hooks/useRules';
@@ -44,19 +43,5 @@ export function RuleWindowWrapper({
     );
   }
 
-  return (
-    <div className="relative h-full">
-      {isGM && (
-        <button
-          type="button"
-          onClick={onEdit}
-          className="absolute top-2 right-2 z-10 p-1.5 rounded bg-white/[0.05] hover:bg-white/[0.1] text-slate-400 hover:text-white transition-colors"
-          aria-label="Edit rule"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
-      )}
-      <RuleWindow rule={rule} />
-    </div>
-  );
+  return <RuleWindow rule={rule} isGM={isGM} onEdit={onEdit} />;
 }

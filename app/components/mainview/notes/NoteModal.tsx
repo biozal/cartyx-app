@@ -174,12 +174,19 @@ export function NoteModal({
         className="w-full h-full max-w-[90vw] max-h-[90vh] sm:max-w-[90vw] sm:max-h-[90vh] bg-[#0D1117] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
       >
         <header className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/[0.07] shrink-0">
-          <h2
-            id="note-modal-title"
-            className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest"
-          >
-            {noteId ? 'Edit Note' : 'Create Note'}
-          </h2>
+          <div className="flex items-center gap-2">
+            {isPublic ? (
+              <Globe className="h-3.5 w-3.5 text-emerald-400 shrink-0" aria-label="Public" />
+            ) : (
+              <Lock className="h-3.5 w-3.5 text-amber-400 shrink-0" aria-label="Private" />
+            )}
+            <h2
+              id="note-modal-title"
+              className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest"
+            >
+              {noteId ? 'Edit Note' : 'Create Note'}
+            </h2>
+          </div>
           <button
             type="button"
             onClick={onClose}

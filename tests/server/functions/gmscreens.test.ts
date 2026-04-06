@@ -77,6 +77,8 @@ import { User } from '~/server/db/models/User';
 import { Campaign } from '~/server/db/models/Campaign';
 import { GMScreen } from '~/server/db/models/GMScreen';
 import { Note } from '~/server/db/models/Note';
+import { Character } from '~/server/db/models/Character';
+import { Rule } from '~/server/db/models/Rule';
 import {
   listGMScreens,
   createGMScreen,
@@ -1021,6 +1023,100 @@ describe('getGMScreen', () => {
     await expect(
       _getGMScreen({ data: { id: 'nonexistent', campaignId: 'camp-1' } })
     ).rejects.toThrow('Screen not found');
+  });
+
+  it('includes isPublic and link in hydrated character and isPublic in hydrated rule', async () => {
+    const screenDoc = {
+      _id: 'screen-x',
+      campaignId: 'camp-1',
+      name: 'Test',
+      tabOrder: 0,
+      createdBy: 'dbuser-1',
+      createdAt: new Date('2026-04-01'),
+      updatedAt: new Date('2026-04-01'),
+      windows: [
+        {
+          _id: 'win-c',
+          collection: 'character',
+          documentId: 'char-1',
+          state: 'open',
+          x: 0,
+          y: 0,
+          width: 300,
+          height: 400,
+          zIndex: 1,
+        },
+        {
+          _id: 'win-r',
+          collection: 'rule',
+          documentId: 'rule-1',
+          state: 'open',
+          x: 320,
+          y: 0,
+          width: 300,
+          height: 400,
+          zIndex: 2,
+        },
+      ],
+      stacks: [],
+    };
+
+    vi.mocked(GMScreen.findOne).mockReturnValue({
+      lean: vi.fn().mockResolvedValue(screenDoc),
+    } as never);
+
+    vi.mocked(Character.find).mockReturnValue({
+      lean: vi.fn().mockResolvedValue([
+        {
+          _id: 'char-1',
+          firstName: 'Thorin',
+          lastName: 'Grudgebearer',
+          notes: 'A dwarf warrior.',
+          isPublic: true,
+          link: 'https://example.com/thorin',
+        },
+      ]),
+    } as never);
+
+    vi.mocked(Rule.find).mockReturnValue({
+      lean: vi.fn().mockResolvedValue([
+        {
+          _id: 'rule-1',
+          title: 'Difficulty',
+          content: 'Setting a DC',
+          isPublic: false,
+        },
+      ]),
+    } as never);
+
+    const result = await _getGMScreen({ data: { id: 'screen-x', campaignId: 'camp-1' } });
+
+    expect(result.hydrated['character:char-1']).toEqual({
+      id: 'char-1',
+      collection: 'character',
+      title: 'Thorin Grudgebearer',
+      content: 'A dwarf warrior.',
+      isPublic: true,
+      link: 'https://example.com/thorin',
+    });
+
+    expect(result.hydrated['rule:rule-1']).toEqual({
+      id: 'rule-1',
+      collection: 'rule',
+      title: 'Difficulty',
+      content: 'Setting a DC',
+      isPublic: false,
+    });
+
+    expect(Character.find).toHaveBeenCalledWith(
+      { _id: { $in: ['char-1'] }, campaignId: 'camp-1' },
+      '_id firstName lastName notes isPublic link'
+    );
+
+    expect(Rule.find).toHaveBeenCalledWith(
+      { _id: { $in: ['rule-1'] }, campaignId: 'camp-1' },
+      '_id title content isPublic'
+    );
   });
 });
 
