@@ -46,7 +46,7 @@ export const listSessions = createServerFn({ method: 'GET' })
 
       const sessions = await Session.find(
         filter,
-        '_id name number startDate endDate status createdAt updatedAt'
+        '_id name number startDate endDate status summary createdAt updatedAt'
       )
         .sort({ startDate: -1 })
         .lean();
@@ -59,6 +59,7 @@ export const listSessions = createServerFn({ method: 'GET' })
           startDate: Date;
           endDate: Date | null;
           status: string;
+          summary?: string | null;
         }>
       ).map((s) => ({
         id: String(s._id),
@@ -67,6 +68,7 @@ export const listSessions = createServerFn({ method: 'GET' })
         startDate: s.startDate.toISOString(),
         endDate: s.endDate ? s.endDate.toISOString() : null,
         status: (s.status ?? 'not_started') as 'not_started' | 'active' | 'completed',
+        catchUp: s.summary ?? null,
       }));
     } catch (e) {
       serverCaptureException(e, undefined, {
