@@ -58,6 +58,9 @@ export function CharacterViewModal({
               className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest truncate"
             >
               {character ? `${character.firstName} ${character.lastName}`.trim() : 'Character'}
+              {character && (
+                <span className="sr-only">{character.isPublic ? ' (Public)' : ' (Private)'}</span>
+              )}
             </h2>
             {character?.link && (
               <a

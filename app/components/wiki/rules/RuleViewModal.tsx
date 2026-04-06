@@ -53,6 +53,9 @@ export function RuleViewModal({ isOpen, onClose, ruleId, campaignId }: RuleViewM
               className="font-sans font-bold text-sm text-blue-400 uppercase tracking-widest truncate"
             >
               {rule?.title ?? 'Rule'}
+              {rule && (
+                <span className="sr-only">{rule.isPublic ? ' (Public)' : ' (Private)'}</span>
+              )}
             </h2>
           </div>
           <button
