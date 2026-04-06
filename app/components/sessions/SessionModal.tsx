@@ -110,7 +110,7 @@ export function SessionModal({ isOpen, onClose, onSubmit, isLoading, session }: 
     // role="presentation": backdrop click-to-close is a convenience; Escape key handler closes the dialog
     <div
       role="presentation"
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 sm:p-6 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-2 sm:p-4 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
