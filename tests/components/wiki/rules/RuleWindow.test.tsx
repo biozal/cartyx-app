@@ -49,7 +49,8 @@ describe('RuleWindow', () => {
   });
 
   it('hides the meta row when there are no tags and no edit button', () => {
-    render(<RuleWindow rule={{ ...baseRule, tags: [] }} />);
+    const { container } = render(<RuleWindow rule={{ ...baseRule, tags: [] }} />);
     expect(screen.queryByRole('button', { name: 'Edit rule' })).not.toBeInTheDocument();
+    expect(container.querySelector('.border-b')).not.toBeInTheDocument();
   });
 });
