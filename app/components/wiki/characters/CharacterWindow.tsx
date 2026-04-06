@@ -96,7 +96,7 @@ export function CharacterWindow({ character, onEdit }: CharacterWindowProps) {
   const showMeta = character.tags.length > 0 || (character.canEdit && !!onEdit);
 
   return (
-    <div className="flex flex-col gap-3 p-4 overflow-y-auto h-full">
+    <div className="flex flex-col gap-3 p-4">
       {/* Portrait */}
       <div className="flex justify-center">
         <div
