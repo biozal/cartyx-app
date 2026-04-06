@@ -125,7 +125,7 @@ describe('listSessions', () => {
 
     expect(Session.find).toHaveBeenCalledWith(
       { campaignId: 'camp-1', status: { $ne: 'completed' } },
-      '_id name number startDate endDate status createdAt updatedAt'
+      '_id name number startDate endDate status summary createdAt updatedAt'
     );
     expect(mockSort).toHaveBeenCalledWith({ startDate: -1 });
     expect(result).toEqual([
@@ -136,6 +136,7 @@ describe('listSessions', () => {
         startDate: baseSessions[0].startDate.toISOString(),
         endDate: null,
         status: 'active',
+        catchUp: null,
       },
     ]);
   });
@@ -148,7 +149,7 @@ describe('listSessions', () => {
 
     expect(Session.find).toHaveBeenCalledWith(
       { campaignId: 'camp-1' },
-      '_id name number startDate endDate status createdAt updatedAt'
+      '_id name number startDate endDate status summary createdAt updatedAt'
     );
     expect(result).toHaveLength(2);
   });
