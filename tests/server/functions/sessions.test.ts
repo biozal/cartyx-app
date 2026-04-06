@@ -154,6 +154,28 @@ describe('listSessions', () => {
     expect(result).toHaveLength(2);
   });
 
+  it('maps summary field to catchUp when present', async () => {
+    const sessionsWithSummary = [
+      {
+        ...baseSessions[0],
+        summary: 'The party defeated the dragon and claimed the treasure.',
+      },
+    ];
+    const mockSort = vi
+      .fn()
+      .mockReturnValue({ lean: vi.fn().mockResolvedValue(sessionsWithSummary) });
+    vi.mocked(Session.find).mockReturnValue({ sort: mockSort } as never);
+
+    const result = await _listSessions({ data: { campaignId: 'camp-1' } });
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 's1',
+        catchUp: 'The party defeated the dragon and claimed the treasure.',
+      }),
+    ]);
+  });
+
   it('throws when user is not the GM of the campaign', async () => {
     vi.mocked(Campaign.findById).mockResolvedValue({
       ...mockCampaign,
