@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ExternalLink, ChevronDown, Globe, Lock } from 'lucide-react';
+import { ChevronDown, Pencil } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { CharacterData, PictureCrop } from '~/types/character';
@@ -17,6 +17,7 @@ function getCropStyle(crop: PictureCrop): React.CSSProperties {
 
 interface CharacterWindowProps {
   character: CharacterData;
+  onEdit?: () => void;
 }
 
 const GRADIENT_PAIRS = [
@@ -80,7 +81,7 @@ function Accordion({
   );
 }
 
-export function CharacterWindow({ character }: CharacterWindowProps) {
+export function CharacterWindow({ character, onEdit }: CharacterWindowProps) {
   const fullName = `${character.firstName} ${character.lastName}`.trim();
   const initials = getInitials(character.firstName, character.lastName);
   const gradientIndex = hashName(fullName) % GRADIENT_PAIRS.length;
@@ -92,8 +93,10 @@ export function CharacterWindow({ character }: CharacterWindowProps) {
   if (character.age != null) stats.push({ label: 'Age', value: String(character.age) });
   if (character.location) stats.push({ label: 'Location', value: character.location });
 
+  const showMeta = character.tags.length > 0 || (character.canEdit && !!onEdit);
+
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-3 p-4 overflow-y-auto h-full">
       {/* Portrait */}
       <div className="flex justify-center">
         <div
@@ -117,49 +120,9 @@ export function CharacterWindow({ character }: CharacterWindowProps) {
         </div>
       </div>
 
-      {/* Name + link */}
-      <div className="flex items-center justify-center gap-2">
-        <h2 className="text-sm font-bold text-slate-200 text-center">{fullName}</h2>
-        {character.link && (
-          <a
-            href={character.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0"
-            aria-label="External link"
-          >
-            <ExternalLink className="h-3.5 w-3.5 text-slate-500 hover:text-blue-400 transition-colors" />
-          </a>
-        )}
-      </div>
-
-      {/* Visibility badge */}
-      <div className="flex justify-center">
-        {character.isPublic ? (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-semibold">
-            <Globe className="h-3 w-3" />
-            Public
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-semibold">
-            <Lock className="h-3 w-3" />
-            Private
-          </span>
-        )}
-      </div>
-
-      {/* Stats grid */}
-      {stats.length > 0 && (
-        <div className="grid grid-cols-2 gap-2">
-          {stats.map((s) => (
-            <StatBlock key={s.label} label={s.label} value={s.value} />
-          ))}
-        </div>
-      )}
-
-      {/* Tags */}
-      {character.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1">
+      {/* Tags + edit button below portrait */}
+      {showMeta && (
+        <div className="flex items-center justify-center gap-1.5 flex-wrap">
           {character.tags.map((tag) => (
             <span
               key={tag}
@@ -167,6 +130,25 @@ export function CharacterWindow({ character }: CharacterWindowProps) {
             >
               #{tag}
             </span>
+          ))}
+          {character.canEdit && onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="p-1 rounded bg-white/[0.05] hover:bg-white/[0.1] text-slate-400 hover:text-white transition-colors"
+              aria-label="Edit character"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Stats grid */}
+      {stats.length > 0 && (
+        <div className="grid grid-cols-2 gap-2">
+          {stats.map((s) => (
+            <StatBlock key={s.label} label={s.label} value={s.value} />
           ))}
         </div>
       )}
