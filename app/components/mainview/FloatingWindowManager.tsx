@@ -13,6 +13,8 @@ export interface ManagedWindow {
   content: ReactNode;
   /** Opaque key that changes when content changes — used by staleness checks */
   contentKey?: string;
+  /** Opaque key that changes when title bar icons change — used by staleness checks */
+  iconKey?: string;
   titleIcon?: ReactNode;
   titleSuffix?: ReactNode;
   position?: FloatingWindowPosition;

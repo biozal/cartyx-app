@@ -431,6 +431,7 @@ export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
 
         let titleIcon: React.ReactNode;
         let titleSuffix: React.ReactNode;
+        const iconKey = `${doc?.isPublic ?? 'none'}:${doc?.link ?? ''}`;
 
         if (w.collection === 'rule' || w.collection === 'character') {
           if (doc?.isPublic === true) {
@@ -464,6 +465,7 @@ export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
             title,
             titleIcon,
             titleSuffix,
+            iconKey,
             contentKey: markdownContent,
             className: flashWindowId === existing.id ? 'animate-flash-border' : '',
             content: windowContent,
@@ -476,6 +478,7 @@ export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
           title,
           titleIcon,
           titleSuffix,
+          iconKey,
           contentKey: markdownContent,
           position: w.x != null && w.y != null ? { x: w.x, y: w.y } : undefined,
           size:
@@ -495,6 +498,7 @@ export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
             p.id === merged[i]!.id &&
             p.title === merged[i]!.title &&
             p.contentKey === merged[i]!.contentKey &&
+            p.iconKey === merged[i]!.iconKey &&
             p.className === merged[i]!.className
         ) &&
         serverIds.size === prev.length
