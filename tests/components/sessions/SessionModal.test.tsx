@@ -14,6 +14,7 @@ const mockSession: SessionData = {
   startDate: '2026-01-15',
   endDate: '2026-01-16',
   status: 'active' as const,
+  catchUp: null,
 };
 
 const defaultProps = {

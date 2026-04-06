@@ -37,6 +37,7 @@ const mockSessions = [
     startDate: '2026-03-21T00:00:00.000Z',
     endDate: null,
     status: 'active' as const,
+    catchUp: null,
   },
   {
     id: 's2',
@@ -45,6 +46,7 @@ const mockSessions = [
     startDate: '2026-03-14T00:00:00.000Z',
     endDate: null,
     status: 'not_started' as const,
+    catchUp: null,
   },
 ];
 
@@ -90,6 +92,7 @@ describe('SessionsListWidget', () => {
       startDate: '2026-01-01T00:00:00.000Z',
       endDate: null,
       status: (i === 0 ? 'active' : 'not_started') as 'not_started' | 'active' | 'completed',
+      catchUp: null,
     }));
     render(<SessionsListWidget sessions={manySessions} />);
     expect(screen.getByText('Session Name 1')).toBeInTheDocument();

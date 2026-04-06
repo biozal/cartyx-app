@@ -1,7 +1,7 @@
-import type { CampaignData } from '~/types/campaign'
-import { resolveMockData } from '~/services/mocks/utils'
+import type { CampaignData } from '~/types/campaign';
+import { resolveMockData } from '~/services/mocks/utils';
 
-type Session = CampaignData['sessions'][number]
+type Session = CampaignData['sessions'][number];
 
 export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
   Object.freeze({
@@ -11,6 +11,7 @@ export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
     startDate: '2026-03-21T00:00:00.000Z',
     endDate: null,
     status: 'active' as const,
+    catchUp: null,
   }),
   Object.freeze({
     id: 'session-13',
@@ -19,6 +20,7 @@ export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
     startDate: '2026-03-14T00:00:00.000Z',
     endDate: null,
     status: 'not_started' as const,
+    catchUp: null,
   }),
   Object.freeze({
     id: 'session-12',
@@ -27,6 +29,7 @@ export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
     startDate: '2026-03-07T00:00:00.000Z',
     endDate: null,
     status: 'not_started' as const,
+    catchUp: null,
   }),
   Object.freeze({
     id: 'session-11',
@@ -35,6 +38,7 @@ export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
     startDate: '2026-02-28T00:00:00.000Z',
     endDate: null,
     status: 'not_started' as const,
+    catchUp: null,
   }),
   Object.freeze({
     id: 'session-10',
@@ -43,6 +47,7 @@ export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
     startDate: '2026-02-21T00:00:00.000Z',
     endDate: null,
     status: 'not_started' as const,
+    catchUp: null,
   }),
   Object.freeze({
     id: 'session-9',
@@ -51,6 +56,7 @@ export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
     startDate: '2026-02-14T00:00:00.000Z',
     endDate: null,
     status: 'not_started' as const,
+    catchUp: null,
   }),
   Object.freeze({
     id: 'session-8',
@@ -59,29 +65,31 @@ export const mockSessions: ReadonlyArray<Readonly<Session>> = Object.freeze([
     startDate: '2026-02-07T00:00:00.000Z',
     endDate: null,
     status: 'not_started' as const,
+    catchUp: null,
   }),
   Object.freeze({
     id: 'session-7',
     number: 7,
-    name: 'The Cartographer\'s Debt',
+    name: "The Cartographer's Debt",
     startDate: '2026-01-31T00:00:00.000Z',
     endDate: null,
     status: 'not_started' as const,
+    catchUp: null,
   }),
-])
+]);
 
 export interface SessionsService {
-  getSessions: () => Promise<Session[]>
+  getSessions: () => Promise<Session[]>;
 }
 
 export const mockSessionsService: SessionsService = {
   async getSessions() {
-    return resolveMockData(mockSessions.map((session) => ({ ...session })))
+    return resolveMockData(mockSessions.map((session) => ({ ...session })));
   },
-}
+};
 
 export async function getSessions(): Promise<Session[]> {
-  return mockSessionsService.getSessions()
+  return mockSessionsService.getSessions();
 }
 
-export type { Session }
+export type { Session };

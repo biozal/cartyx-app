@@ -102,6 +102,7 @@ const mockSessions = [
     startDate: '2026-01-01T00:00:00.000Z',
     endDate: null,
     status: 'not_started' as const,
+    catchUp: null,
   },
   {
     id: 'session-2',
@@ -110,6 +111,7 @@ const mockSessions = [
     startDate: '2026-01-08T00:00:00.000Z',
     endDate: null,
     status: 'active' as const,
+    catchUp: null,
   },
 ];
 

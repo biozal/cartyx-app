@@ -43,7 +43,7 @@ interface SessionData {
   startDate: string;
   endDate: string | null;
   status: 'not_started' | 'active' | 'completed';
-  catchUp?: string | null;
+  catchUp: string | null;
 }
 
 export function SessionsPage() {
