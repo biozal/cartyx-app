@@ -135,7 +135,7 @@ export function CharacterWindow({ character, onEdit }: CharacterWindowProps) {
             <button
               type="button"
               onClick={onEdit}
-              className="p-1 rounded bg-white/[0.05] hover:bg-white/[0.1] text-slate-400 hover:text-white transition-colors"
+              className="shrink-0 p-1 rounded bg-white/[0.05] hover:bg-white/[0.1] text-slate-400 hover:text-white transition-colors"
               aria-label="Edit character"
             >
               <Pencil className="h-3.5 w-3.5" />

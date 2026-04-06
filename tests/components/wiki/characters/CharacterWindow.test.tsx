@@ -64,4 +64,15 @@ describe('CharacterWindow', () => {
     expect(screen.getByText('Dwarf')).toBeInTheDocument();
     expect(screen.getByText('208')).toBeInTheDocument();
   });
+
+  it('hides the meta row entirely when there are no tags and canEdit is false', () => {
+    render(
+      <CharacterWindow
+        character={{ ...baseCharacter, tags: [], canEdit: false }}
+        onEdit={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole('button', { name: 'Edit character' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/#/)).not.toBeInTheDocument();
+  });
 });

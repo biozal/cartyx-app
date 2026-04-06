@@ -1,4 +1,3 @@
-import React from 'react';
 import { CharacterWindow } from '~/components/wiki/characters/CharacterWindow';
 import { CharacterModal } from '~/components/wiki/characters/CharacterModal';
 import { useCharacter } from '~/hooks/useCharacters';
