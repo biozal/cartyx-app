@@ -100,13 +100,11 @@ export function ChatPanel({
   const isAtBottom = useRef(true);
   const tabsId = useId();
 
-  const filteredMessages = messages.filter((m) => m.channel === activeChannel);
-
   useEffect(() => {
     if (isAtBottom.current && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [filteredMessages]);
+  }, [messages, activeChannel]);
 
   function handleScroll() {
     if (!scrollRef.current) return;
@@ -223,29 +221,36 @@ export function ChatPanel({
         </div>
       )}
 
-      {/* Message feed */}
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        id={`${tabsId}-${activeChannel}-panel`}
-        role="tabpanel"
-        aria-labelledby={`${tabsId}-${activeChannel}-tab`}
-        className="flex-1 overflow-y-auto p-3"
-      >
-        {filteredMessages.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center h-full">
-            <span className="font-sans text-xs text-slate-500">No messages yet</span>
-          </div>
-        ) : (
-          filteredMessages.map((msg) =>
-            msg.type === 'chat' ? (
-              <ChatMessageBubble key={msg.id} message={msg} />
+      {/* Message feed — one tabpanel per channel for correct ARIA */}
+      {CHANNELS.map((channel) => {
+        const channelMessages = messages.filter((m) => m.channel === channel.id);
+        return (
+          <div
+            key={channel.id}
+            ref={channel.id === activeChannel ? scrollRef : undefined}
+            onScroll={channel.id === activeChannel ? handleScroll : undefined}
+            id={`${tabsId}-${channel.id}-panel`}
+            role="tabpanel"
+            aria-labelledby={`${tabsId}-${channel.id}-tab`}
+            hidden={activeChannel !== channel.id}
+            className="flex-1 overflow-y-auto p-3"
+          >
+            {channelMessages.length === 0 ? (
+              <div className="flex flex-1 items-center justify-center h-full">
+                <span className="font-sans text-xs text-slate-500">No messages yet</span>
+              </div>
             ) : (
-              <SpellCard key={msg.id} message={msg} />
-            )
-          )
-        )}
-      </div>
+              channelMessages.map((msg) =>
+                msg.type === 'chat' ? (
+                  <ChatMessageBubble key={msg.id} message={msg} />
+                ) : (
+                  <SpellCard key={msg.id} message={msg} />
+                )
+              )
+            )}
+          </div>
+        );
+      })}
 
       {/* Message input */}
       <div className="border-t border-white/[0.07] p-3">

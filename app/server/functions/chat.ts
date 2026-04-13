@@ -4,6 +4,7 @@ import { connectDB, isDBConnected } from '../db/connection';
 import { Message } from '../db/models/Message';
 import { serverCaptureException } from '../utils/posthog';
 import { listMessagesSchema, saveMessageSchema } from '~/types/schemas/chat';
+import { requireSessionAccess } from './sessionAccess';
 
 export const listMessages = createServerFn({ method: 'GET' })
   .inputValidator(listMessagesSchema)
@@ -14,6 +15,7 @@ export const listMessages = createServerFn({ method: 'GET' })
 
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
+      await requireSessionAccess(data.sessionId, user.id);
 
       const filter: Record<string, unknown> = { sessionId: data.sessionId };
       if (data.beforeSeq !== undefined) {
@@ -75,6 +77,8 @@ export const saveMessage = createServerFn({ method: 'POST' })
 
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
+      const { campaignId } = await requireSessionAccess(data.sessionId, user.id);
+      if (data.campaignId !== campaignId) throw new Error('Session does not belong to campaign');
 
       await Message.updateOne(
         { id: data.id },

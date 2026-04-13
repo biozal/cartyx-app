@@ -4,6 +4,7 @@ import { connectDB, isDBConnected } from '../db/connection';
 import { DiceRoll } from '../db/models/DiceRoll';
 import { serverCaptureException } from '../utils/posthog';
 import { listDiceRollsSchema, saveDiceRollSchema } from '~/types/schemas/diceRolls';
+import { requireSessionAccess } from './sessionAccess';
 
 export const listDiceRolls = createServerFn({ method: 'GET' })
   .inputValidator(listDiceRollsSchema)
@@ -14,6 +15,7 @@ export const listDiceRolls = createServerFn({ method: 'GET' })
 
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
+      await requireSessionAccess(data.sessionId, user.id);
 
       const filter: Record<string, unknown> = { sessionId: data.sessionId };
       if (data.beforeSeq !== undefined) {
@@ -76,6 +78,8 @@ export const saveDiceRoll = createServerFn({ method: 'POST' })
 
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
+      const { campaignId } = await requireSessionAccess(data.sessionId, user.id);
+      if (data.campaignId !== campaignId) throw new Error('Session does not belong to campaign');
 
       await DiceRoll.updateOne(
         { id: data.id },

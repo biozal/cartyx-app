@@ -120,9 +120,17 @@ export default class SessionRoom implements Party.Server {
     const validTypes = ['CHAT', 'DICE', 'SPELL_CARD'];
     if (!validTypes.includes(msg.type)) return;
 
-    // NOTE: Full sender identity validation (msg.authorId === connection user)
-    // requires PartyKit connection state features to propagate the user ID
-    // from onBeforeConnect headers to the connection object.
+    // Validate sessionId matches this room
+    if ('sessionId' in msg && msg.sessionId !== this.room.id) return;
+
+    // Per-type shape validation
+    if (msg.type === 'CHAT' && typeof (msg as any).text !== 'string') return;
+    if (msg.type === 'DICE' && !Array.isArray((msg as any).attackRolls)) return;
+    if (msg.type === 'SPELL_CARD' && typeof (msg as any).title !== 'string') return;
+
+    // TODO: Validate sender identity (msg.authorId === connection user) once
+    // PartyKit exposes a stable way to propagate user IDs set in onBeforeConnect
+    // request headers into the onMessage connection object.
 
     this.seq++;
     msg.seq = this.seq;

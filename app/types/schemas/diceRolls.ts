@@ -8,7 +8,7 @@ export const listDiceRollsSchema = z.object({
 
 export const saveDiceRollSchema = z.object({
   id: z.string().min(1),
-  seq: z.number().int(),
+  seq: z.number().int().positive(),
   sessionId: z.string().min(1),
   campaignId: z.string().min(1),
   channel: z.enum(['general', 'gm']),

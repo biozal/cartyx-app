@@ -17,6 +17,9 @@ vi.mock('~/server/db/connection', () => ({
 vi.mock('~/server/db/models/User', () => ({
   User: { findOne: vi.fn() },
 }));
+vi.mock('~/server/db/models/Session', () => ({
+  Session: { findById: vi.fn() },
+}));
 vi.mock('~/server/db/models/Campaign', () => ({
   Campaign: { findById: vi.fn() },
 }));
@@ -33,6 +36,7 @@ vi.mock('~/server/utils/posthog', () => ({
 
 import { getSession } from '~/server/session';
 import { User } from '~/server/db/models/User';
+import { Session as DbSession } from '~/server/db/models/Session';
 import { Campaign } from '~/server/db/models/Campaign';
 import { Message } from '~/server/db/models/Message';
 import { listMessages, saveMessage } from '~/server/functions/chat';
@@ -49,6 +53,7 @@ const mockSession = {
   tokenIssuedAt: 0,
 };
 const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
+const mockDbSession = { campaignId: 'camp-1' };
 const mockCampaign = {
   _id: 'camp-1',
   gameMasterId: 'dbuser-1',
@@ -59,6 +64,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
   vi.mocked(User.findOne).mockResolvedValue(mockDbUser);
+  vi.mocked(DbSession.findById).mockReturnValue({
+    select: vi.fn().mockReturnValue({
+      lean: vi.fn().mockResolvedValue(mockDbSession),
+    }),
+  } as never);
   vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign);
 });
 
