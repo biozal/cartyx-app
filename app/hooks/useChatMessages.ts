@@ -52,6 +52,7 @@ export function useChatMessages(sessionId: string, campaignId: string, isActiveS
   const { data: mongoMessages } = useQuery({
     queryKey: queryKeys.chat.list(sessionId),
     queryFn: () => listMessagesFn({ data: { sessionId } }),
+    enabled: !!sessionId,
   });
 
   const [liveMessages, setLiveMessages] = useState<ChatMessage[]>([]);
@@ -68,7 +69,12 @@ export function useChatMessages(sessionId: string, campaignId: string, isActiveS
       console.debug(`[PartyKit] HISTORY received chatCount=${chatMessages.length}`);
       setLiveMessages(chatMessages);
     } else if (msgType === 'CHAT' || msgType === 'SPELL_CARD') {
-      setLiveMessages((prev) => [...prev, parsed as unknown as ChatMessage]);
+      const chatMsg = parsed as unknown as ChatMessage;
+      const normalizedType = msgType === 'CHAT' ? 'chat' : 'spell-card';
+      setLiveMessages((prev) => [
+        ...prev,
+        { ...chatMsg, type: normalizedType as ChatMessage['type'] },
+      ]);
     }
   }, []);
 

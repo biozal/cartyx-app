@@ -95,7 +95,14 @@ export default class SessionRoom implements Party.Server {
   }
 
   async onMessage(raw: string, _sender: Party.Connection) {
-    const msg = JSON.parse(raw) as RoomMessage;
+    let msg: RoomMessage;
+    try {
+      msg = JSON.parse(raw) as RoomMessage;
+    } catch {
+      return; // Ignore malformed messages
+    }
+
+    if (!msg.type || !msg.id) return; // Validate required fields
 
     this.seq++;
     msg.seq = this.seq;

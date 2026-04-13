@@ -59,6 +59,7 @@ export function useDiceRolls(sessionId: string, campaignId: string, isActiveSess
   const { data: mongoRolls } = useQuery({
     queryKey: queryKeys.diceRolls.list(sessionId),
     queryFn: () => listDiceRollsFn({ data: { sessionId } }),
+    enabled: !!sessionId,
   });
 
   const [liveRolls, setLiveRolls] = useState<DiceRollMessage[]>([]);

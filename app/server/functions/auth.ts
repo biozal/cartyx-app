@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start';
-import { getSession, getSessionToken, clearSession } from '../session';
+import { getSession, clearSession } from '../session';
 import { revokeToken } from '../utils/oauth';
 import { connectDB, isDBConnected } from '../db/connection';
 import { User } from '../db/models/User';
@@ -64,6 +64,8 @@ export const logoutFn = createServerFn({ method: 'POST' }).handler(async () => {
 });
 
 export const getPartyToken = createServerFn({ method: 'GET' }).handler(async () => {
-  const token = await getSessionToken();
-  return token ?? '';
+  const user = await getSession();
+  if (!user) return '';
+  const { createPartyToken } = await import('../session');
+  return createPartyToken(user.id);
 });

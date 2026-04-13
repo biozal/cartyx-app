@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('~/utils/posthog-client', () => ({
   captureException: vi.fn(),
@@ -11,6 +11,10 @@ import type { RetryContext } from '~/utils/retryMutation';
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 const ctx: RetryContext = {

@@ -89,7 +89,7 @@ function DiceRollCard({ roll }: { roll: DiceRollMessage }) {
   });
 
   return (
-    <div className="rounded-lg bg-[#252542] border-l-3 border-purple-500 p-3 mb-2">
+    <div className="rounded-lg bg-[#252542] border-l-4 border-purple-500 p-3 mb-2">
       <div className="flex items-baseline justify-between mb-1">
         <span className="font-sans text-xs font-semibold text-purple-300">{roll.character}</span>
         <span className="font-sans text-[10px] text-slate-600">{time}</span>

@@ -170,10 +170,13 @@ describe('saveDiceRoll', () => {
     expect(DiceRoll.updateOne).toHaveBeenCalledWith(
       { id: 'uuid-1' },
       {
-        $setOnInsert: expect.objectContaining({
+        $set: expect.objectContaining({
           id: 'uuid-1',
           character: 'Thorn',
           title: 'Longsword Attack',
+        }),
+        $setOnInsert: expect.objectContaining({
+          createdAt: expect.any(Date),
         }),
       },
       { upsert: true }

@@ -1,33 +1,15 @@
 import { createServerFn } from '@tanstack/react-start';
-import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
-import { User } from '../db/models/User';
-import { Campaign } from '../db/models/Campaign';
 import { Message } from '../db/models/Message';
 import { serverCaptureException } from '../utils/posthog';
 import { listMessagesSchema, saveMessageSchema } from '~/types/schemas/chat';
-
-async function requireCampaignMember(campaignId: string) {
-  const user = await getSession();
-  if (!user) throw new Error('Not authenticated');
-
-  await connectDB();
-  if (!isDBConnected()) throw new Error('Database not available');
-
-  const dbUser = await User.findOne({ providerId: user.id });
-  if (!dbUser) throw new Error('User not found');
-
-  const campaign = await Campaign.findById(campaignId);
-  if (!campaign) throw new Error('Campaign not found');
-
-  return { user, dbUser, campaign };
-}
 
 export const listMessages = createServerFn({ method: 'GET' })
   .inputValidator(listMessagesSchema)
   .handler(async ({ data }) => {
     try {
-      await requireCampaignMember(data.sessionId);
+      await connectDB();
+      if (!isDBConnected()) throw new Error('Database not available');
 
       const filter: Record<string, unknown> = { sessionId: data.sessionId };
       if (data.beforeSeq !== undefined) {
@@ -89,7 +71,10 @@ export const saveMessage = createServerFn({ method: 'POST' })
 
       await Message.updateOne(
         { id: data.id },
-        { $setOnInsert: { ...data, createdAt: new Date() } },
+        {
+          $set: { ...data },
+          $setOnInsert: { createdAt: new Date() },
+        },
         { upsert: true }
       );
 

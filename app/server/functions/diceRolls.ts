@@ -72,7 +72,10 @@ export const saveDiceRoll = createServerFn({ method: 'POST' })
 
       await DiceRoll.updateOne(
         { id: data.id },
-        { $setOnInsert: { ...data, createdAt: new Date() } },
+        {
+          $set: { ...data },
+          $setOnInsert: { createdAt: new Date() },
+        },
         { upsert: true }
       );
 

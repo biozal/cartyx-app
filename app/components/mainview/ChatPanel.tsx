@@ -29,7 +29,7 @@ function SpellCard({ message }: { message: ChatMessage }) {
         </span>
         <span className="font-sans text-[10px] text-slate-600">{time}</span>
       </div>
-      <div className="rounded-lg bg-[#252542] border-l-3 border-orange-500 p-3">
+      <div className="rounded-lg bg-[#252542] border-l-4 border-orange-500 p-3">
         <div className="font-sans text-sm font-bold text-yellow-300 mb-1">{data.title}</div>
         <div className="font-sans text-[11px] text-slate-400 mb-2">{data.source}</div>
         {Object.keys(data.properties).length > 0 && (
@@ -227,6 +227,7 @@ export function ChatPanel({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
+        id={`${tabsId}-${activeChannel}-panel`}
         role="tabpanel"
         aria-labelledby={`${tabsId}-${activeChannel}-tab`}
         className="flex-1 overflow-y-auto p-3"

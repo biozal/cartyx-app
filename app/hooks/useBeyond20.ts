@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { captureEvent } from '~/utils/posthog-client';
 
 interface Beyond20Roll {

@@ -159,10 +159,13 @@ describe('saveMessage', () => {
     expect(Message.updateOne).toHaveBeenCalledWith(
       { id: 'uuid-1' },
       {
-        $setOnInsert: expect.objectContaining({
+        $set: expect.objectContaining({
           id: 'uuid-1',
           seq: 1,
           text: 'Hello',
+        }),
+        $setOnInsert: expect.objectContaining({
+          createdAt: expect.any(Date),
         }),
       },
       { upsert: true }

@@ -84,3 +84,12 @@ export async function getSessionToken(): Promise<string | null> {
 export async function clearSession(): Promise<void> {
   deleteCookie(COOKIE_NAME, { path: '/' });
 }
+
+export async function createPartyToken(userId: string): Promise<string> {
+  const token = await new SignJWT({ sub: userId })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('1h')
+    .sign(getSecret());
+  return token;
+}
