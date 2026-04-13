@@ -137,7 +137,7 @@ describe('saveMessage', () => {
       acknowledged: true,
       modifiedCount: 0,
       upsertedCount: 1,
-      upsertedId: 'm1',
+      upsertedId: null,
       matchedCount: 0,
     });
 

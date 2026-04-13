@@ -144,7 +144,7 @@ describe('saveDiceRoll', () => {
       acknowledged: true,
       modifiedCount: 0,
       upsertedCount: 1,
-      upsertedId: 'r1',
+      upsertedId: null,
       matchedCount: 0,
     });
 

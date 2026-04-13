@@ -65,18 +65,17 @@ export function useDiceRolls(sessionId: string, campaignId: string, isActiveSess
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const handlePartyMessage = useCallback((msg: unknown) => {
-    const parsed = msg as {
-      type: string;
-      messages?: DiceRollMessage[];
-    } & DiceRollMessage;
-    if (parsed.type === 'HISTORY') {
-      const diceMessages = (parsed.messages ?? []).filter(
-        (m: { type: string }) => m.type === 'DICE'
-      ) as DiceRollMessage[];
+    const parsed = msg as Record<string, unknown>;
+    const msgType = parsed.type as string;
+    if (msgType === 'HISTORY') {
+      const allMessages = (parsed.messages ?? []) as Array<Record<string, unknown>>;
+      const diceMessages = allMessages.filter(
+        (m) => m.type === 'DICE'
+      ) as unknown as DiceRollMessage[];
       console.debug(`[PartyKit] HISTORY received diceCount=${diceMessages.length}`);
       setLiveRolls(diceMessages);
-    } else if (parsed.type === 'DICE') {
-      setLiveRolls((prev) => [...prev, parsed]);
+    } else if (msgType === 'DICE') {
+      setLiveRolls((prev) => [...prev, parsed as unknown as DiceRollMessage]);
     }
   }, []);
 

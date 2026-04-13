@@ -58,15 +58,17 @@ export function useChatMessages(sessionId: string, campaignId: string, isActiveS
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const handlePartyMessage = useCallback((msg: unknown) => {
-    const parsed = msg as { type: string; messages?: ChatMessage[] } & ChatMessage;
-    if (parsed.type === 'HISTORY') {
-      const chatMessages = (parsed.messages ?? []).filter(
-        (m: { type: string }) => m.type === 'CHAT' || m.type === 'SPELL_CARD'
-      ) as ChatMessage[];
+    const parsed = msg as Record<string, unknown>;
+    const msgType = parsed.type as string;
+    if (msgType === 'HISTORY') {
+      const allMessages = (parsed.messages ?? []) as Array<Record<string, unknown>>;
+      const chatMessages = allMessages.filter(
+        (m) => m.type === 'CHAT' || m.type === 'SPELL_CARD'
+      ) as unknown as ChatMessage[];
       console.debug(`[PartyKit] HISTORY received chatCount=${chatMessages.length}`);
       setLiveMessages(chatMessages);
-    } else if (parsed.type === 'CHAT' || parsed.type === 'SPELL_CARD') {
-      setLiveMessages((prev) => [...prev, parsed]);
+    } else if (msgType === 'CHAT' || msgType === 'SPELL_CARD') {
+      setLiveMessages((prev) => [...prev, parsed as unknown as ChatMessage]);
     }
   }, []);
 
