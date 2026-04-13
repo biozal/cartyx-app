@@ -5,11 +5,12 @@ import { NotesPanel } from './NotesPanel';
 import { SettingsPanel } from './SettingsPanel';
 import { WikiPanel } from '~/components/wiki/WikiPanel';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMessage, faBook, faNoteSticky, faGear } from '@fortawesome/pro-solid-svg-icons';
+import { faMessage, faBook, faNoteSticky, faGear, faDice } from '@fortawesome/pro-solid-svg-icons';
+import { DicePanel } from './DicePanel';
 import { ChevronRight } from 'lucide-react';
 import { useOptionalFeatureFlag } from '~/utils/featureFlags';
 
-export type InspectorTab = 'chat' | 'wiki' | 'notes' | 'settings';
+export type InspectorTab = 'chat' | 'dice' | 'wiki' | 'notes' | 'settings';
 
 export interface InspectorSidebarProps {
   defaultTab?: InspectorTab;
@@ -18,6 +19,7 @@ export interface InspectorSidebarProps {
 
 const ALL_TABS: { id: InspectorTab; icon: IconDefinition; label: string }[] = [
   { id: 'chat', icon: faMessage, label: 'Chat' },
+  { id: 'dice', icon: faDice, label: 'Dice' },
   { id: 'wiki', icon: faBook, label: 'Wiki' },
   { id: 'notes', icon: faNoteSticky, label: 'Notes' },
   { id: 'settings', icon: faGear, label: 'Settings' },
@@ -33,11 +35,13 @@ function panelId(id: InspectorTab) {
 
 export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: InspectorSidebarProps) {
   const chatFlagName = import.meta.env.VITE_PUBLIC_FF_CHAT ?? '';
+  const diceFlagName = import.meta.env.VITE_PUBLIC_FF_DICE ?? '';
   const wikiFlagName = import.meta.env.VITE_PUBLIC_FF_WIKI ?? '';
   const notesFlagName = import.meta.env.VITE_PUBLIC_FF_NOTES ?? '';
   const settingsFlagName = import.meta.env.VITE_PUBLIC_FF_SETTINGS ?? '';
 
   const chatFlag = useOptionalFeatureFlag(chatFlagName);
+  const diceFlag = useOptionalFeatureFlag(diceFlagName);
   const wikiFlag = useOptionalFeatureFlag(wikiFlagName);
   const notesFlag = useOptionalFeatureFlag(notesFlagName);
   const settingsFlag = useOptionalFeatureFlag(settingsFlagName);
@@ -46,16 +50,27 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
     () =>
       ALL_TABS.filter((tab) => {
         if (tab.id === 'chat') return chatFlag.isEnabled;
+        if (tab.id === 'dice') return diceFlag.isEnabled;
         if (tab.id === 'wiki') return wikiFlag.isEnabled;
         if (tab.id === 'notes') return notesFlag.isEnabled;
         if (tab.id === 'settings') return settingsFlag.isEnabled;
         return true;
       }),
-    [chatFlag.isEnabled, wikiFlag.isEnabled, notesFlag.isEnabled, settingsFlag.isEnabled]
+    [
+      chatFlag.isEnabled,
+      diceFlag.isEnabled,
+      wikiFlag.isEnabled,
+      notesFlag.isEnabled,
+      settingsFlag.isEnabled,
+    ]
   );
 
   const isLoading =
-    chatFlag.isLoading || wikiFlag.isLoading || notesFlag.isLoading || settingsFlag.isLoading;
+    chatFlag.isLoading ||
+    diceFlag.isLoading ||
+    wikiFlag.isLoading ||
+    notesFlag.isLoading ||
+    settingsFlag.isLoading;
 
   const initialTab = tabs.some((t) => t.id === defaultTab) ? defaultTab : (tabs[0]?.id ?? 'chat');
   const [activeTab, setActiveTab] = useState<InspectorTab>(initialTab);
@@ -183,7 +198,23 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
               className="flex flex-1 w-full"
             >
               {tab.id === 'chat' ? (
-                <ChatPanel />
+                <ChatPanel
+                  messages={[]}
+                  onSendMessage={() => {}}
+                  sessions={[]}
+                  activeSessionId=""
+                  onSessionChange={() => {}}
+                  saveError={null}
+                  onDismissError={() => {}}
+                />
+              ) : tab.id === 'dice' ? (
+                <DicePanel
+                  rolls={[]}
+                  isConnected={false}
+                  sessions={[]}
+                  activeSessionId=""
+                  onSessionChange={() => {}}
+                />
               ) : tab.id === 'wiki' ? (
                 <WikiPanel />
               ) : tab.id === 'notes' ? (
