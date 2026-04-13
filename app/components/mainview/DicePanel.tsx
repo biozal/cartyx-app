@@ -148,6 +148,8 @@ export interface DicePanelProps {
   sessions: Array<{ id: string; name: string; number: number }>;
   activeSessionId: string;
   onSessionChange: (sessionId: string) => void;
+  saveError: string | null;
+  onDismissError: () => void;
 }
 
 export function DicePanel({
@@ -156,6 +158,8 @@ export function DicePanel({
   sessions,
   activeSessionId,
   onSessionChange,
+  saveError,
+  onDismissError,
 }: DicePanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottom = useRef(true);
@@ -202,6 +206,20 @@ export function DicePanel({
           {isConnected ? 'Beyond 20 connected' : 'Beyond 20 not detected'}
         </span>
       </div>
+
+      {/* Save error banner */}
+      {saveError && (
+        <div className="flex items-center justify-between bg-red-900/30 px-3 py-2 border-b border-red-800/30">
+          <span className="font-sans text-[11px] text-red-300">{saveError}</span>
+          <button
+            type="button"
+            onClick={onDismissError}
+            className="font-sans text-[10px] text-red-400 hover:text-red-200"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Roll feed */}
       {rolls.length === 0 && !isConnected ? (

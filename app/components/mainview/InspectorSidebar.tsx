@@ -14,6 +14,12 @@ import { useBeyond20 } from '~/hooks/useBeyond20';
 import { useChatMessages } from '~/hooks/useChatMessages';
 import { useDiceRolls } from '~/hooks/useDiceRolls';
 import { useAuth } from '~/hooks/useAuth';
+import { createServerFn } from '@tanstack/react-start';
+
+const getPartyTokenFn = createServerFn({ method: 'GET' }).handler(async () => {
+  const { getPartyToken } = await import('~/server/functions/auth');
+  return getPartyToken();
+});
 
 export type InspectorTab = 'chat' | 'dice' | 'wiki' | 'notes' | 'settings';
 
@@ -131,7 +137,8 @@ export function InspectorSidebar({
     rolls,
     sendDiceRoll,
     handlePartyMessage: handleDicePartyMessage,
-    saveError: _diceSaveError,
+    saveError: diceSaveError,
+    setSaveError: setDiceSaveError,
   } = useDiceRolls(viewingSessionId, effectiveCampaignId, isViewingActive);
 
   // Combined PartyKit message handler
@@ -145,8 +152,10 @@ export function InspectorSidebar({
 
   const socket = usePartySession(
     isViewingActive && activeSessionId ? activeSessionId : null,
-    // TODO: replace with real JWT token from auth once token storage is defined
-    async () => '',
+    async () => {
+      const token = await getPartyTokenFn();
+      return token ?? '';
+    },
     handlePartyMessage
   );
 
@@ -285,6 +294,8 @@ export function InspectorSidebar({
                   sessions={sessionList}
                   activeSessionId={viewingSessionId}
                   onSessionChange={setViewingSessionId}
+                  saveError={diceSaveError}
+                  onDismissError={() => setDiceSaveError(null)}
                 />
               ) : tab.id === 'wiki' ? (
                 <WikiPanel />
