@@ -55,7 +55,11 @@ function PlayPage() {
         onTabChange={handleTabChange}
       />
       <div className="flex-1 overflow-hidden">
-        <MainView showToolbar={effectiveTab === 'tabletop'}>
+        <MainView
+          showToolbar={effectiveTab === 'tabletop'}
+          campaignId={campaignId}
+          sessions={campaign?.sessions}
+        >
           <div
             className="h-full overflow-y-auto"
             role="tabpanel"

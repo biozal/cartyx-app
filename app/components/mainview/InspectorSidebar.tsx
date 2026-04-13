@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { ChatPanel } from './ChatPanel';
 import { NotesPanel } from './NotesPanel';
@@ -9,12 +9,19 @@ import { faMessage, faBook, faNoteSticky, faGear, faDice } from '@fortawesome/pr
 import { DicePanel } from './DicePanel';
 import { ChevronRight } from 'lucide-react';
 import { useOptionalFeatureFlag } from '~/utils/featureFlags';
+import { usePartySession } from '~/hooks/usePartySession';
+import { useBeyond20 } from '~/hooks/useBeyond20';
+import { useChatMessages } from '~/hooks/useChatMessages';
+import { useDiceRolls } from '~/hooks/useDiceRolls';
+import { useAuth } from '~/hooks/useAuth';
 
 export type InspectorTab = 'chat' | 'dice' | 'wiki' | 'notes' | 'settings';
 
 export interface InspectorSidebarProps {
   defaultTab?: InspectorTab;
   onMobileClose?: () => void;
+  campaignId?: string;
+  sessions?: Array<{ id: string; name: string; number: number; status: string }>;
 }
 
 const ALL_TABS: { id: InspectorTab; icon: IconDefinition; label: string }[] = [
@@ -33,7 +40,12 @@ function panelId(id: InspectorTab) {
   return `inspector-panel-${id}`;
 }
 
-export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: InspectorSidebarProps) {
+export function InspectorSidebar({
+  defaultTab = 'chat',
+  onMobileClose,
+  campaignId,
+  sessions,
+}: InspectorSidebarProps) {
   const chatFlagName = import.meta.env.VITE_PUBLIC_FF_CHAT ?? '';
   const diceFlagName = import.meta.env.VITE_PUBLIC_FF_DICE ?? '';
   const wikiFlagName = import.meta.env.VITE_PUBLIC_FF_WIKI ?? '';
@@ -91,6 +103,63 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
       setActiveTab(defaultTab);
     }
   }, [tabs, activeTab, defaultTab]);
+
+  // Real-time wiring — only active when campaignId is provided
+  const { user } = useAuth();
+  const activeSession = (sessions ?? []).find((s) => s.status === 'active');
+  const activeSessionId = activeSession?.id ?? '';
+  const [viewingSessionId, setViewingSessionId] = useState(activeSessionId);
+
+  // Update viewing session when active session changes
+  useEffect(() => {
+    if (activeSessionId) setViewingSessionId(activeSessionId);
+  }, [activeSessionId]);
+
+  const isViewingActive = viewingSessionId === activeSessionId;
+  const effectiveCampaignId = campaignId ?? '';
+
+  const {
+    messages,
+    sendMessage,
+    sendSpellCard,
+    handlePartyMessage: handleChatPartyMessage,
+    saveError: chatSaveError,
+    setSaveError: setChatSaveError,
+  } = useChatMessages(viewingSessionId, effectiveCampaignId, isViewingActive);
+
+  const {
+    rolls,
+    sendDiceRoll,
+    handlePartyMessage: handleDicePartyMessage,
+    saveError: _diceSaveError,
+  } = useDiceRolls(viewingSessionId, effectiveCampaignId, isViewingActive);
+
+  // Combined PartyKit message handler
+  const handlePartyMessage = useCallback(
+    (msg: unknown) => {
+      handleChatPartyMessage(msg);
+      handleDicePartyMessage(msg);
+    },
+    [handleChatPartyMessage, handleDicePartyMessage]
+  );
+
+  const socket = usePartySession(
+    isViewingActive && activeSessionId ? activeSessionId : null,
+    // TODO: replace with real JWT token from auth once token storage is defined
+    async () => '',
+    handlePartyMessage
+  );
+
+  const { isConnected } = useBeyond20(
+    (roll) => sendDiceRoll(roll, user?.id ?? '', socket),
+    (card) => sendSpellCard(card, user?.id ?? '', user?.name ?? '', socket)
+  );
+
+  const sessionList = (sessions ?? []).map((s) => ({
+    id: s.id,
+    name: s.name,
+    number: s.number,
+  }));
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (tabs.length === 0) return;
@@ -199,21 +268,23 @@ export function InspectorSidebar({ defaultTab = 'chat', onMobileClose }: Inspect
             >
               {tab.id === 'chat' ? (
                 <ChatPanel
-                  messages={[]}
-                  onSendMessage={() => {}}
-                  sessions={[]}
-                  activeSessionId=""
-                  onSessionChange={() => {}}
-                  saveError={null}
-                  onDismissError={() => {}}
+                  messages={messages}
+                  onSendMessage={(text, channel) =>
+                    sendMessage(text, channel, user?.id ?? '', user?.name ?? '', socket)
+                  }
+                  sessions={sessionList}
+                  activeSessionId={viewingSessionId}
+                  onSessionChange={setViewingSessionId}
+                  saveError={chatSaveError}
+                  onDismissError={() => setChatSaveError(null)}
                 />
               ) : tab.id === 'dice' ? (
                 <DicePanel
-                  rolls={[]}
-                  isConnected={false}
-                  sessions={[]}
-                  activeSessionId=""
-                  onSessionChange={() => {}}
+                  rolls={rolls}
+                  isConnected={isConnected}
+                  sessions={sessionList}
+                  activeSessionId={viewingSessionId}
+                  onSessionChange={setViewingSessionId}
                 />
               ) : tab.id === 'wiki' ? (
                 <WikiPanel />
