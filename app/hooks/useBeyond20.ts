@@ -69,6 +69,10 @@ function mapWhisperToChannel(whisper: number): 'general' | 'gm' {
   return whisper === 1 || whisper === 3 ? 'gm' : 'general';
 }
 
+// NOTE: 'miss' is retained in the type union for future use. Beyond 20 does not
+// provide a separate miss flag — hit/miss determination requires AC comparison
+// which the extension doesn't have access to. Currently this always returns 'hit'
+// as the default (non-crit, non-crit-fail) case.
 function classifyAttackRoll(
   roll: Beyond20Roll['attack_rolls'][number]
 ): 'hit' | 'crit' | 'miss' | 'crit-fail' {

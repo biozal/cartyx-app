@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const listMessagesSchema = z.object({
   sessionId: z.string().min(1),
-  limit: z.number().int().positive().optional(),
+  limit: z.number().int().positive().max(500).optional(),
   beforeSeq: z.number().int().positive().optional(),
 });
 

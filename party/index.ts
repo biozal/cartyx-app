@@ -64,26 +64,38 @@ export default class SessionRoom implements Party.Server {
   constructor(readonly room: Party.Room) {}
 
   async onStart() {
-    const storedHistory = await this.room.storage.get<RoomMessage[]>('history');
+    const stored = await this.room.storage.get<RoomMessage[] | number>(['history', 'seq']);
+    const storedHistory = stored.get('history') as RoomMessage[] | undefined;
     if (storedHistory) this.history = storedHistory;
 
-    const storedSeq = await this.room.storage.get<number>('seq');
+    const storedSeq = stored.get('seq') as number | undefined;
     if (storedSeq !== undefined) this.seq = storedSeq;
   }
 
   static async onBeforeConnect(request: Party.Request, lobby: Party.Lobby) {
     const token = new URL(request.url).searchParams.get('token');
-
     if (!token) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+
+    const sessionSecret = lobby.env.SESSION_SECRET;
+    if (typeof sessionSecret !== 'string' || sessionSecret.trim() === '') {
       return new Response('Unauthorized', { status: 401 });
     }
 
     try {
       const { jwtVerify } = await import('jose');
-      const secret = new TextEncoder().encode(lobby.env.SESSION_SECRET as string);
-      const { payload } = await jwtVerify(token, secret);
+      const secret = new TextEncoder().encode(sessionSecret);
+      const { payload } = await jwtVerify(token, secret, {
+        algorithms: ['HS256'],
+      });
 
-      request.headers.set('X-User-ID', payload.sub ?? '');
+      const userId = typeof payload.sub === 'string' ? payload.sub.trim() : '';
+      if (!userId) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+
+      request.headers.set('X-User-ID', userId);
       return request;
     } catch {
       return new Response('Unauthorized', { status: 401 });
@@ -104,13 +116,20 @@ export default class SessionRoom implements Party.Server {
 
     if (!msg.type || !msg.id) return; // Validate required fields
 
+    // Strict type validation — only allow known message types
+    const validTypes = ['CHAT', 'DICE', 'SPELL_CARD'];
+    if (!validTypes.includes(msg.type)) return;
+
+    // NOTE: Full sender identity validation (msg.authorId === connection user)
+    // requires PartyKit connection state features to propagate the user ID
+    // from onBeforeConnect headers to the connection object.
+
     this.seq++;
     msg.seq = this.seq;
 
     this.history = [...this.history, msg].slice(-HISTORY_LIMIT);
 
-    await this.room.storage.put('history', this.history);
-    await this.room.storage.put('seq', this.seq);
+    await this.room.storage.put({ history: this.history, seq: this.seq });
 
     this.room.broadcast(JSON.stringify(msg));
   }

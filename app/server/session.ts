@@ -69,18 +69,6 @@ export async function setSession(user: SessionUser, rememberMe = false): Promise
   });
 }
 
-export async function getSessionToken(): Promise<string | null> {
-  try {
-    const token = getCookie(COOKIE_NAME);
-    if (!token) return null;
-    // Verify the token is still valid before returning it
-    await jwtVerify(token, getSecret(), { algorithms: ['HS256'] });
-    return token;
-  } catch {
-    return null;
-  }
-}
-
 export async function clearSession(): Promise<void> {
   deleteCookie(COOKIE_NAME, { path: '/' });
 }

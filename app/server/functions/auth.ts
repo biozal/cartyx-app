@@ -63,9 +63,9 @@ export const logoutFn = createServerFn({ method: 'POST' }).handler(async () => {
   }
 });
 
-export const getPartyToken = createServerFn({ method: 'GET' }).handler(async () => {
+export async function getPartyToken(): Promise<string> {
   const user = await getSession();
   if (!user) return '';
   const { createPartyToken } = await import('../session');
   return createPartyToken(user.id);
-});
+}

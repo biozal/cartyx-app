@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start';
+import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
 import { Message } from '../db/models/Message';
 import { serverCaptureException } from '../utils/posthog';
@@ -8,6 +9,9 @@ export const listMessages = createServerFn({ method: 'GET' })
   .inputValidator(listMessagesSchema)
   .handler(async ({ data }) => {
     try {
+      const user = await getSession();
+      if (!user) throw new Error('Not authenticated');
+
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
 
@@ -66,6 +70,9 @@ export const saveMessage = createServerFn({ method: 'POST' })
   .inputValidator(saveMessageSchema)
   .handler(async ({ data }) => {
     try {
+      const user = await getSession();
+      if (!user) throw new Error('Not authenticated');
+
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
 

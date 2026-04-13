@@ -2,13 +2,15 @@ import React, { useEffect, useRef } from 'react';
 import { Dice5, ExternalLink } from 'lucide-react';
 import type { DiceRollMessage } from '~/hooks/useDiceRolls';
 
-const DAMAGE_FLAG_LABELS: Record<number, string> = {
-  2: 'Versatile',
-  4: 'Additional',
-  8: 'Healing',
-  16: 'Critical',
-  32: 'Conditional',
-};
+function getDamageLabels(flags: number): string[] {
+  const labels: string[] = [];
+  if (flags & 2) labels.push('Versatile');
+  if (flags & 4) labels.push('Additional');
+  if (flags & 8) labels.push('Healing');
+  if (flags & 16) labels.push('Critical');
+  if (flags & 32) labels.push('Conditional');
+  return labels;
+}
 
 function RollBreakdown({
   attackRolls,
@@ -62,7 +64,8 @@ function RollBreakdown({
       ))}
 
       {damageRolls.map((roll, i) => {
-        const flagLabel = roll.flags > 1 ? DAMAGE_FLAG_LABELS[roll.flags] : null;
+        const flagLabels = roll.flags > 1 ? getDamageLabels(roll.flags) : [];
+        const flagLabel = flagLabels.length > 0 ? flagLabels.join(', ') : null;
         return (
           <div key={i} className="flex items-baseline gap-2">
             <span className="rounded bg-[#0D1117] px-2 py-1 font-mono text-sm font-bold text-orange-300">

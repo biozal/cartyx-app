@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start';
+import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
 import { DiceRoll } from '../db/models/DiceRoll';
 import { serverCaptureException } from '../utils/posthog';
@@ -8,6 +9,9 @@ export const listDiceRolls = createServerFn({ method: 'GET' })
   .inputValidator(listDiceRollsSchema)
   .handler(async ({ data }) => {
     try {
+      const user = await getSession();
+      if (!user) throw new Error('Not authenticated');
+
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
 
@@ -67,6 +71,9 @@ export const saveDiceRoll = createServerFn({ method: 'POST' })
   .inputValidator(saveDiceRollSchema)
   .handler(async ({ data }) => {
     try {
+      const user = await getSession();
+      if (!user) throw new Error('Not authenticated');
+
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
 

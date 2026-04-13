@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { createServerFn } from '@tanstack/react-start';
 import { queryKeys } from '~/utils/queryKeys';
 import { withRetry } from '~/utils/retryMutation';
@@ -45,7 +45,7 @@ function mergeMessages(fromMongo: ChatMessage[], fromParty: ChatMessage[]): Chat
   for (const m of fromParty) {
     if (!seen.has(m.id)) seen.set(m.id, m);
   }
-  return [...seen.values()].sort((a, b) => a.seq - b.seq);
+  return [...seen.values()].sort((a, b) => a.seq - b.seq || a.timestamp - b.timestamp);
 }
 
 export function useChatMessages(sessionId: string, campaignId: string, isActiveSession: boolean) {
@@ -57,24 +57,41 @@ export function useChatMessages(sessionId: string, campaignId: string, isActiveS
 
   const [liveMessages, setLiveMessages] = useState<ChatMessage[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const pendingSaves = useRef(new Set<string>());
 
   const handlePartyMessage = useCallback((msg: unknown) => {
     const parsed = msg as Record<string, unknown>;
     const msgType = parsed.type as string;
     if (msgType === 'HISTORY') {
       const allMessages = (parsed.messages ?? []) as Array<Record<string, unknown>>;
-      const chatMessages = allMessages.filter(
-        (m) => m.type === 'CHAT' || m.type === 'SPELL_CARD'
-      ) as unknown as ChatMessage[];
+      const chatMessages = allMessages
+        .filter((m) => m.type === 'CHAT' || m.type === 'SPELL_CARD')
+        .map((m) => ({
+          ...(m as unknown as ChatMessage),
+          type: (m.type === 'CHAT' ? 'chat' : 'spell-card') as ChatMessage['type'],
+        }));
       console.debug(`[PartyKit] HISTORY received chatCount=${chatMessages.length}`);
       setLiveMessages(chatMessages);
     } else if (msgType === 'CHAT' || msgType === 'SPELL_CARD') {
       const chatMsg = parsed as unknown as ChatMessage;
       const normalizedType = msgType === 'CHAT' ? 'chat' : 'spell-card';
-      setLiveMessages((prev) => [
-        ...prev,
-        { ...chatMsg, type: normalizedType as ChatMessage['type'] },
-      ]);
+      const normalized = { ...chatMsg, type: normalizedType as ChatMessage['type'] };
+      setLiveMessages((prev) => [...prev, normalized]);
+
+      // Persist if this is a message we sent (pending save)
+      if (pendingSaves.current.has(normalized.id)) {
+        pendingSaves.current.delete(normalized.id);
+        void withRetry(
+          () => saveMessageFn({ data: normalized }),
+          {
+            sessionId: normalized.sessionId,
+            campaignId: normalized.campaignId,
+            messageType: msgType as 'CHAT' | 'SPELL_CARD',
+            messageId: normalized.id,
+          },
+          () => setSaveError("Some messages couldn't be saved to session history.")
+        );
+      }
     }
   }, []);
 
@@ -100,19 +117,9 @@ export function useChatMessages(sessionId: string, campaignId: string, isActiveS
       };
 
       const wsMessage = { ...message, type: 'CHAT' as const };
+      pendingSaves.current.add(message.id);
       socket?.send(JSON.stringify(wsMessage));
       console.debug(`[PartyKit] Message sent type=CHAT id=${message.id}`);
-
-      withRetry(
-        () => saveMessageFn({ data: message }),
-        {
-          sessionId,
-          campaignId,
-          messageType: 'CHAT',
-          messageId: message.id,
-        },
-        () => setSaveError("Some messages couldn't be saved to session history.")
-      );
     },
     [sessionId, campaignId]
   );
@@ -152,19 +159,9 @@ export function useChatMessages(sessionId: string, campaignId: string, isActiveS
         description: card.description,
         properties: card.properties,
       };
+      pendingSaves.current.add(message.id);
       socket?.send(JSON.stringify(wsMessage));
       console.debug(`[PartyKit] Message sent type=SPELL_CARD id=${message.id}`);
-
-      withRetry(
-        () => saveMessageFn({ data: message }),
-        {
-          sessionId,
-          campaignId,
-          messageType: 'SPELL_CARD',
-          messageId: message.id,
-        },
-        () => setSaveError("Some messages couldn't be saved to session history.")
-      );
     },
     [sessionId, campaignId]
   );

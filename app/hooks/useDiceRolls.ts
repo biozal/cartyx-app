@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { createServerFn } from '@tanstack/react-start';
 import { queryKeys } from '~/utils/queryKeys';
 import { withRetry } from '~/utils/retryMutation';
@@ -52,7 +52,7 @@ function mergeRolls(fromMongo: DiceRollMessage[], fromParty: DiceRollMessage[]):
   for (const m of fromParty) {
     if (!seen.has(m.id)) seen.set(m.id, m);
   }
-  return [...seen.values()].sort((a, b) => a.seq - b.seq);
+  return [...seen.values()].sort((a, b) => a.seq - b.seq || a.timestamp - b.timestamp);
 }
 
 export function useDiceRolls(sessionId: string, campaignId: string, isActiveSession: boolean) {
@@ -64,6 +64,7 @@ export function useDiceRolls(sessionId: string, campaignId: string, isActiveSess
 
   const [liveRolls, setLiveRolls] = useState<DiceRollMessage[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const pendingSaves = useRef(new Set<string>());
 
   const handlePartyMessage = useCallback((msg: unknown) => {
     const parsed = msg as Record<string, unknown>;
@@ -76,7 +77,23 @@ export function useDiceRolls(sessionId: string, campaignId: string, isActiveSess
       console.debug(`[PartyKit] HISTORY received diceCount=${diceMessages.length}`);
       setLiveRolls(diceMessages);
     } else if (msgType === 'DICE') {
-      setLiveRolls((prev) => [...prev, parsed as unknown as DiceRollMessage]);
+      const diceMsg = parsed as unknown as DiceRollMessage;
+      setLiveRolls((prev) => [...prev, diceMsg]);
+
+      // Persist if this is a roll we sent (pending save)
+      if (pendingSaves.current.has(diceMsg.id)) {
+        pendingSaves.current.delete(diceMsg.id);
+        void withRetry(
+          () => saveDiceRollFn({ data: diceMsg }),
+          {
+            sessionId: diceMsg.sessionId,
+            campaignId: diceMsg.campaignId,
+            messageType: 'DICE',
+            messageId: diceMsg.id,
+          },
+          () => setSaveError("Some dice rolls couldn't be saved to session history.")
+        );
+      }
     }
   }, []);
 
@@ -100,19 +117,9 @@ export function useDiceRolls(sessionId: string, campaignId: string, isActiveSess
       };
 
       const wsMessage = { ...message, type: 'DICE' as const };
+      pendingSaves.current.add(message.id);
       socket?.send(JSON.stringify(wsMessage));
       console.debug(`[PartyKit] Message sent type=DICE id=${message.id}`);
-
-      withRetry(
-        () => saveDiceRollFn({ data: message }),
-        {
-          sessionId,
-          campaignId,
-          messageType: 'DICE',
-          messageId: message.id,
-        },
-        () => setSaveError("Some dice rolls couldn't be saved to session history.")
-      );
     },
     [sessionId, campaignId]
   );
