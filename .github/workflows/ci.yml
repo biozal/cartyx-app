@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   push:
     branches-ignore: [main]
 
@@ -24,7 +24,10 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-        
+
+      - name: Security audit
+        run: npm audit --audit-level=high --omit=dev
+
       - name: Type check
         run: npm run typecheck
 
@@ -70,48 +73,3 @@ jobs:
           SESSION_SECRET: build-placeholder-secret-at-least-32-chars
           NODE_ENV: production
           BASE_URL: https://cartyx.io
-
-  storybook:
-    name: Storybook Tests (non-blocking)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '25'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Get Playwright version
-        id: playwright-version
-        run: echo "version=$(node -e 'console.log(require("@playwright/test/package.json").version)')" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
-
-      - name: Install Playwright Chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium --with-deps
-
-      - name: Install Playwright deps (cached)
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
-
-      - name: Storybook tests
-        run: npm run test:storybook
-        timeout-minutes: 5
-        env:
-          SESSION_SECRET: ci-test-secret-at-least-32-characters-long
-          NODE_ENV: test

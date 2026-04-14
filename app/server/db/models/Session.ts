@@ -7,6 +7,7 @@ const sessionSchema = new mongoose.Schema({
   number: { type: Number, required: true },
   startDate: { type: Date, required: true },
   endDate: { type: Date },
+  status: { type: String, enum: ['not_started', 'active', 'completed'], default: 'not_started' },
   summary: { type: String },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
@@ -16,6 +17,13 @@ const sessionSchema = new mongoose.Schema({
 if (typeof (sessionSchema as { index?: unknown }).index === 'function') {
   sessionSchema.index({ campaignId: 1, number: -1 })
   sessionSchema.index({ campaignId: 1, startDate: -1 })
+  sessionSchema.index(
+    { campaignId: 1, status: 1 },
+    {
+      unique: true,
+      partialFilterExpression: { status: 'active' },
+    }
+  )
 }
 
 export const Session =

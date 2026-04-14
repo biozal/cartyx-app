@@ -36,3 +36,12 @@ app.config.timestamp_*.js
 storybook-static/
 coverage/
 .aider*
+.superpowers/
+.claude/settings.json
+
+# AI-generated planning docs
+docs/superpowers/
+issues/
+
+# PartyKit
+.partykit/

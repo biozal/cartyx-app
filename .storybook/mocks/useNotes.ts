@@ -1,5 +1,5 @@
 // Mock useNotes hooks for Storybook
-import type { NoteData, NoteListItem } from '~/server/functions/notes'
+import type { NoteData, NoteListItem } from '~/types/note'
 
 interface ListNotesFilters {
   sessionId?: string
@@ -34,6 +34,14 @@ export function useCreateNote() {
 export function useUpdateNote() {
   return {
     update: async (_input: unknown) => ({ id: 'note-1' }),
+    isLoading: false,
+    error: null,
+  }
+}
+
+export function useDeleteNote() {
+  return {
+    remove: async (_input: unknown) => ({ success: true }),
     isLoading: false,
     error: null,
   }

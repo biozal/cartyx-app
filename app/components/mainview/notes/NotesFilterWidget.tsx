@@ -1,6 +1,7 @@
 import React from 'react'
 import { Plus, Search } from 'lucide-react'
-import { Session } from '~/services/mocks/sessionsService'
+import type { CampaignData } from '~/types/campaign'
+import { TagAutocompleteInput } from '~/components/shared/TagAutocompleteInput'
 
 interface NotesFilterWidgetProps {
   search: string
@@ -9,8 +10,11 @@ interface NotesFilterWidgetProps {
   onSessionChange: (value: string) => void
   visibility: 'all' | 'public' | 'private'
   onVisibilityChange: (value: 'all' | 'public' | 'private') => void
-  sessions: Session[]
+  sessions: CampaignData['sessions']
   onCreateClick: () => void
+  campaignId: string
+  filterTags: string[]
+  onFilterTagsChange: (tags: string[]) => void
 }
 
 export function NotesFilterWidget({
@@ -22,6 +26,9 @@ export function NotesFilterWidget({
   onVisibilityChange,
   sessions,
   onCreateClick,
+  campaignId,
+  filterTags,
+  onFilterTagsChange,
 }: NotesFilterWidgetProps) {
   return (
     <div className="flex flex-col gap-3 p-3 border-b border-white/[0.07] bg-[#0D1117]">
@@ -47,6 +54,13 @@ export function NotesFilterWidget({
         </button>
       </div>
 
+      <TagAutocompleteInput
+        campaignId={campaignId}
+        selectedTags={filterTags}
+        onTagsChange={onFilterTagsChange}
+        placeholder="Filter by tags..."
+      />
+
       <div className="flex gap-2">
         <div className="flex-1">
           <label htmlFor="session-filter" className="sr-only">Filter by session</label>
@@ -57,6 +71,7 @@ export function NotesFilterWidget({
             className="w-full bg-[#080A12] border border-white/[0.07] rounded px-2 py-1.5 font-sans font-semibold text-[11px] text-slate-300 outline-none focus:border-blue-500/50 transition-colors"
           >
             <option value="">All Sessions</option>
+            <option value="__none__">No Session</option>
             {sessions.map((session) => (
               <option key={session.id} value={session.id}>
                 Session {session.number}: {session.name}

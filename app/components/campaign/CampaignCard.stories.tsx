@@ -31,6 +31,7 @@ const baseCampaign: CampaignData = {
   nextSession: { day: 'Friday', time: '19:00' },
   sessions: [],
   isOwner: true,
+  isGM: true,
   isMember: true,
   scheduleText: 'Weekly · Friday · at 7:00 PM · CST',
 }

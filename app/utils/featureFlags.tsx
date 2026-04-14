@@ -4,7 +4,7 @@ import {
   useFeatureFlagVariantKey,
 } from '@posthog/react'
 import type { JsonType } from 'posthog-js'
-import type { ReactNode } from 'react'
+import { type ReactNode, useState, useEffect } from 'react'
 
 export interface FeatureFlagState<TPayload = JsonType> {
   isEnabled: boolean
@@ -42,11 +42,22 @@ export function useOptionalFeatureFlagEnabled(flag: string): boolean {
   return Boolean(flag) && (enabled ?? false)
 }
 
+const FLAG_LOADING_TIMEOUT_MS = 3000
+
 export function useOptionalFeatureFlag(flag: string): { isEnabled: boolean; isLoading: boolean } {
   const enabled = usePostHogFeatureFlagEnabled(flag || '__ff_disabled__')
+  const [timedOut, setTimedOut] = useState(false)
+
+  useEffect(() => {
+    setTimedOut(false)
+    if (!flag || enabled !== undefined) return
+    const timer = setTimeout(() => setTimedOut(true), FLAG_LOADING_TIMEOUT_MS)
+    return () => clearTimeout(timer)
+  }, [flag, enabled])
+
   return {
     isEnabled: Boolean(flag) && (enabled ?? false),
-    isLoading: Boolean(flag) && enabled === undefined,
+    isLoading: Boolean(flag) && enabled === undefined && !timedOut,
   }
 }
 

@@ -61,7 +61,7 @@ export function parseMaxPlayers(value: string | number | undefined): number {
  * fallback mechanism. In the normal production flow, images upload directly from
  * the browser to R2 via presigned URLs (see app/server/functions/uploads.ts).
  */
-export const MAX_IMAGE_BASE64_LENGTH = 4 * 1024 * 1024
+export { MAX_IMAGE_BASE64_LENGTH } from '~/types/schemas/campaigns'
 
 /**
  * Normalize a single tag for persistence:

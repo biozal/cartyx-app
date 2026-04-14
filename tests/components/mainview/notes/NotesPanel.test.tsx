@@ -3,19 +3,22 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { NotesPanel } from '~/components/mainview/notes/NotesPanel'
-import { useNotes, useNote, useCreateNote, useUpdateNote } from '~/hooks/useNotes'
-import { getSessions } from '~/services/mocks/sessionsService'
+import { useNotes, useNote, useCreateNote, useUpdateNote, useDeleteNote } from '~/hooks/useNotes'
+import { useCampaign } from '~/hooks/useCampaigns'
 
-// Mock the hooks and services
+// Mock the hooks
 vi.mock('~/hooks/useNotes')
-vi.mock('~/services/mocks/sessionsService')
+vi.mock('~/hooks/useCampaigns')
+vi.mock('~/hooks/useTags', () => ({
+  useTags: () => ({ tags: [], isLoading: false, error: null }),
+}))
 vi.mock('@tanstack/react-router', () => ({
   useParams: () => ({ campaignId: 'campaign-123' }),
 }))
 
 const mockSessions = [
-  { id: 'session-1', number: 1, name: 'First Session', date: '2026-01-01' },
-  { id: 'session-2', number: 2, name: 'Second Session', date: '2026-01-08' },
+  { id: 'session-1', number: 1, name: 'First Session', startDate: '2026-01-01T00:00:00.000Z', endDate: null },
+  { id: 'session-2', number: 2, name: 'Second Session', startDate: '2026-01-08T00:00:00.000Z', endDate: null },
 ]
 
 const mockNotes = [
@@ -35,7 +38,11 @@ const mockNotes = [
 describe('NotesPanel', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    ;(getSessions as any).mockResolvedValue(mockSessions)
+    ;(useCampaign as any).mockReturnValue({
+      campaign: { sessions: mockSessions },
+      isLoading: false,
+      error: null,
+    })
     ;(useNotes as any).mockReturnValue({
       notes: mockNotes,
       isLoading: false,
@@ -56,6 +63,11 @@ describe('NotesPanel', () => {
       isLoading: false,
       error: null,
     })
+    ;(useDeleteNote as any).mockReturnValue({
+      remove: vi.fn(),
+      isLoading: false,
+      error: null,
+    })
   })
 
   it('renders filters and notes list', async () => {
@@ -63,7 +75,7 @@ describe('NotesPanel', () => {
 
     expect(screen.getByPlaceholderText('Search notes...')).toBeInTheDocument()
     expect(screen.getByLabelText('Create new note')).toBeInTheDocument()
-    
+
     await waitFor(() => {
       expect(screen.getByText('Note 1')).toBeInTheDocument()
       expect(screen.getByText('Session 1')).toBeInTheDocument()

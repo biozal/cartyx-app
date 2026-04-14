@@ -1,80 +1,113 @@
-import React from 'react'
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import { SessionsListWidget } from '~/components/mainview/widgets/SessionsListWidget'
-import { getSessions } from '~/services/mocks/sessionsService'
+import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { SessionsListWidget } from '~/components/mainview/widgets/SessionsListWidget';
+
+// Mock useCampaign to provide session data when no prop is passed
+vi.mock('~/hooks/useCampaigns', () => ({
+  useCampaign: () => ({
+    campaign: {
+      sessions: [
+        {
+          id: 's1',
+          number: 14,
+          name: 'Ashes at Emberfall',
+          startDate: '2026-03-21T00:00:00.000Z',
+          endDate: null,
+        },
+        {
+          id: 's2',
+          number: 13,
+          name: 'The Bell Beneath',
+          startDate: '2026-03-14T00:00:00.000Z',
+          endDate: null,
+        },
+      ],
+    },
+    isLoading: false,
+    error: null,
+  }),
+}));
 
 const mockSessions = [
-  { id: 's1', number: 14, name: 'Ashes at Emberfall', summary: 'The party sealed the kiln gate.', date: '2026-03-21' },
-  { id: 's2', number: 13, name: 'The Bell Beneath', summary: 'A buried sanctum opened.', date: '2026-03-14' },
-]
+  {
+    id: 's1',
+    number: 14,
+    name: 'Ashes at Emberfall',
+    startDate: '2026-03-21T00:00:00.000Z',
+    endDate: null,
+    status: 'active' as const,
+    catchUp: null,
+  },
+  {
+    id: 's2',
+    number: 13,
+    name: 'The Bell Beneath',
+    startDate: '2026-03-14T00:00:00.000Z',
+    endDate: null,
+    status: 'not_started' as const,
+    catchUp: null,
+  },
+];
 
 describe('SessionsListWidget', () => {
   it('renders the widget title', () => {
-    render(<SessionsListWidget sessions={mockSessions} />)
-    expect(screen.getByText('Sessions')).toBeInTheDocument()
-  })
+    render(<SessionsListWidget sessions={mockSessions} />);
+    expect(screen.getByText('Sessions')).toBeInTheDocument();
+  });
 
   it('renders all session names', () => {
-    render(<SessionsListWidget sessions={mockSessions} />)
-    expect(screen.getByText('Ashes at Emberfall')).toBeInTheDocument()
-    expect(screen.getByText('The Bell Beneath')).toBeInTheDocument()
-  })
+    render(<SessionsListWidget sessions={mockSessions} />);
+    expect(screen.getByText('Ashes at Emberfall')).toBeInTheDocument();
+    expect(screen.getByText('The Bell Beneath')).toBeInTheDocument();
+  });
 
   it('renders session numbers in "Session N" format', () => {
-    render(<SessionsListWidget sessions={mockSessions} />)
-    expect(screen.getByText('Session 14')).toBeInTheDocument()
-    expect(screen.getByText('Session 13')).toBeInTheDocument()
-  })
+    render(<SessionsListWidget sessions={mockSessions} />);
+    expect(screen.getByText('Session 14')).toBeInTheDocument();
+    expect(screen.getByText('Session 13')).toBeInTheDocument();
+  });
 
-  it('renders session dates', () => {
-    render(<SessionsListWidget sessions={mockSessions} />)
-    expect(screen.getByText('2026-03-21')).toBeInTheDocument()
-    expect(screen.getByText('2026-03-14')).toBeInTheDocument()
-  })
+  it('renders session start dates formatted as locale date strings', () => {
+    render(<SessionsListWidget sessions={mockSessions} />);
+    expect(
+      screen.getByText(new Date('2026-03-21T00:00:00.000Z').toLocaleDateString())
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(new Date('2026-03-14T00:00:00.000Z').toLocaleDateString())
+    ).toBeInTheDocument();
+  });
 
   it('renders sessions in a card grid', () => {
-    render(<SessionsListWidget sessions={mockSessions} />)
-    const grid = screen.getByTestId('sessions-grid')
-    expect(grid).toBeInTheDocument()
-  })
+    render(<SessionsListWidget sessions={mockSessions} />);
+    const grid = screen.getByTestId('sessions-grid');
+    expect(grid).toBeInTheDocument();
+  });
 
   it('renders at most 5 sessions even when more are provided', () => {
     const manySessions = Array.from({ length: 8 }, (_, i) => ({
       id: `s${i}`,
       number: i + 1,
       name: `Session Name ${i + 1}`,
-      summary: 'Summary.',
-      date: '2026-01-01',
-    }))
-    render(<SessionsListWidget sessions={manySessions} />)
-    // First 5 should render
-    expect(screen.getByText('Session Name 1')).toBeInTheDocument()
-    expect(screen.getByText('Session Name 5')).toBeInTheDocument()
-    // 6th and beyond should NOT render
-    expect(screen.queryByText('Session Name 6')).not.toBeInTheDocument()
-    expect(screen.queryByText('Session Name 8')).not.toBeInTheDocument()
-  })
+      startDate: '2026-01-01T00:00:00.000Z',
+      endDate: null,
+      status: (i === 0 ? 'active' : 'not_started') as 'not_started' | 'active' | 'completed',
+      catchUp: null,
+    }));
+    render(<SessionsListWidget sessions={manySessions} />);
+    expect(screen.getByText('Session Name 1')).toBeInTheDocument();
+    expect(screen.getByText('Session Name 5')).toBeInTheDocument();
+    expect(screen.queryByText('Session Name 6')).not.toBeInTheDocument();
+    expect(screen.queryByText('Session Name 8')).not.toBeInTheDocument();
+  });
 
   it('shows empty state when sessions is empty', () => {
-    render(<SessionsListWidget sessions={[]} />)
-    expect(screen.getByText('No sessions recorded')).toBeInTheDocument()
-  })
+    render(<SessionsListWidget sessions={[]} />);
+    expect(screen.getByText('No sessions recorded')).toBeInTheDocument();
+  });
 
-  it('uses service data when sessions prop is omitted', async () => {
-    render(<SessionsListWidget />)
-    expect(await screen.findByText('Ashes at Emberfall')).toBeInTheDocument()
-  })
-
-  it('mock service returns a defensive copy (new array and new objects)', async () => {
-    const a = await getSessions()
-    const b = await getSessions()
-    // Array reference is different
-    expect(a).not.toBe(b)
-    // Object references inside are also different (deep copy)
-    expect(a[0]).not.toBe(b[0])
-    // Mutating a copy does not affect subsequent calls
-    a[0].name = 'MUTATED'
-    expect((await getSessions())[0].name).not.toBe('MUTATED')
-  })
-})
+  it('uses campaign data when sessions prop is omitted', () => {
+    render(<SessionsListWidget />);
+    expect(screen.getByText('Ashes at Emberfall')).toBeInTheDocument();
+  });
+});

@@ -1,0 +1,16 @@
+pre-commit:
+  parallel: false
+  commands:
+    lint:
+      glob: '*.{ts,tsx,js,jsx,mjs}'
+      run: npx eslint --fix {staged_files} && git add {staged_files}
+    format:
+      glob: '*.{ts,tsx,js,jsx,mjs,json,css,md,yml,yaml}'
+      run: npx prettier --write {staged_files} && git add {staged_files}
+
+pre-push:
+  commands:
+    typecheck:
+      run: npx tsc --noEmit
+    unit-tests:
+      run: npx vitest run --project unit

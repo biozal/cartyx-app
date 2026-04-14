@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useId, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
-import { ChevronRight, ChevronDown, Maximize2, X } from 'lucide-react'
+import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { ChevronRight, ChevronDown, Maximize2, X } from 'lucide-react';
 
 /** Shared styles used by both Widget and WidgetSlot */
 export const WIDGET_STYLES = {
@@ -8,15 +8,15 @@ export const WIDGET_STYLES = {
   header: 'flex items-center justify-between mb-6',
   title: 'font-sans font-semibold text-[11px] text-primary uppercase tracking-widest',
   content: 'min-h-[200px]',
-} as const
+} as const;
 
 export interface WidgetProps {
-  title: string
+  title: string;
   /** Optional custom header content. When provided, replaces the default title text. */
-  headerContent?: ReactNode
-  children: ReactNode
-  className?: string
-  defaultMinimized?: boolean
+  headerContent?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  defaultMinimized?: boolean;
 }
 
 export function Widget({
@@ -26,31 +26,31 @@ export function Widget({
   className = '',
   defaultMinimized = false,
 }: WidgetProps) {
-  const [isMinimized, setIsMinimized] = useState(defaultMinimized)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const titleId = useId()
+  const [isMinimized, setIsMinimized] = useState(defaultMinimized);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const titleId = useId();
 
   const toggleMinimized = useCallback(() => {
-    setIsMinimized((current) => !current)
-  }, [])
+    setIsMinimized((current) => !current);
+  }, []);
 
   const openFullscreen = useCallback(() => {
-    setIsFullscreen(true)
-  }, [])
+    setIsFullscreen(true);
+  }, []);
 
   const closeFullscreen = useCallback(() => {
-    setIsFullscreen(false)
-  }, [])
+    setIsFullscreen(false);
+  }, []);
 
   // Close fullscreen on Escape
   useEffect(() => {
-    if (!isFullscreen) return
+    if (!isFullscreen) return;
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') closeFullscreen()
+      if (e.key === 'Escape') closeFullscreen();
     }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isFullscreen, closeFullscreen])
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen, closeFullscreen]);
 
   return (
     <>
@@ -98,8 +98,8 @@ export function Widget({
             <button
               type="button"
               onClick={(e) => {
-                e.stopPropagation()
-                openFullscreen()
+                e.stopPropagation();
+                openFullscreen();
               }}
               onDoubleClick={(e) => e.stopPropagation()}
               className="text-slate-500 transition-colors hover:text-white"
@@ -112,24 +112,28 @@ export function Widget({
 
         {/* Hide in-card content when fullscreen to avoid duplicate mount */}
         {!isMinimized && !isFullscreen ? (
-          <div className={WIDGET_STYLES.content}>
-            {children}
-          </div>
+          <div className={WIDGET_STYLES.content}>{children}</div>
         ) : null}
       </section>
 
       {isFullscreen
         ? createPortal(
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- backdrop click-to-dismiss and Escape-to-close are standard modal dialog patterns
             <div
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
               onClick={(e) => {
-                if (e.target === e.currentTarget) closeFullscreen()
+                if (e.target === e.currentTarget) closeFullscreen();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') closeFullscreen();
               }}
               role="dialog"
               aria-modal="true"
               aria-labelledby={titleId}
             >
-              <div className={`max-h-[90vh] w-full max-w-4xl overflow-auto ${WIDGET_STYLES.section}`}>
+              <div
+                className={`max-h-[90vh] w-full max-w-4xl overflow-auto ${WIDGET_STYLES.section}`}
+              >
                 <header className={WIDGET_STYLES.header}>
                   <h2 className={WIDGET_STYLES.title}>{title}</h2>
 
@@ -143,14 +147,12 @@ export function Widget({
                   </button>
                 </header>
 
-                <div className={WIDGET_STYLES.content}>
-                  {children}
-                </div>
+                <div className={WIDGET_STYLES.content}>{children}</div>
               </div>
             </div>,
             document.body
           )
         : null}
     </>
-  )
+  );
 }
