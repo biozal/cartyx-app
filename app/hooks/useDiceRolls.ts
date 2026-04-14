@@ -99,6 +99,8 @@ export function useDiceRolls(sessionId: string, campaignId: string, isActiveSess
 
   const sendDiceRoll = useCallback(
     (roll: ParsedDiceRoll, userId: string, socket: { send: (data: string) => void } | null) => {
+      if (!socket) return;
+
       const message: DiceRollMessage = {
         id: crypto.randomUUID(),
         seq: 0,
@@ -118,7 +120,7 @@ export function useDiceRolls(sessionId: string, campaignId: string, isActiveSess
 
       const wsMessage = { ...message, type: 'DICE' as const };
       pendingSaves.current.add(message.id);
-      socket?.send(JSON.stringify(wsMessage));
+      socket.send(JSON.stringify(wsMessage));
       console.debug(`[PartyKit] Message sent type=DICE id=${message.id}`);
     },
     [sessionId, campaignId]

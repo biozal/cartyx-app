@@ -60,6 +60,7 @@ export default class SessionRoom implements Party.Server {
 
   private history: RoomMessage[] = [];
   private seq: number = 0;
+  private connectionUsers: Map<string, string> = new Map();
 
   constructor(readonly room: Party.Room) {}
 
@@ -102,11 +103,21 @@ export default class SessionRoom implements Party.Server {
     }
   }
 
-  async onConnect(connection: Party.Connection) {
+  async onConnect(connection: Party.Connection, ctx: Party.ConnectionContext) {
+    // Store authenticated user ID from the request headers set in onBeforeConnect
+    const userId = ctx.request.headers.get('X-User-ID') ?? '';
+    if (userId) {
+      this.connectionUsers.set(connection.id, userId);
+    }
+
     connection.send(JSON.stringify({ type: 'HISTORY', messages: this.history }));
   }
 
-  async onMessage(raw: string, _sender: Party.Connection) {
+  async onClose(connection: Party.Connection) {
+    this.connectionUsers.delete(connection.id);
+  }
+
+  async onMessage(raw: string, sender: Party.Connection) {
     let msg: RoomMessage;
     try {
       msg = JSON.parse(raw) as RoomMessage;
@@ -128,9 +139,13 @@ export default class SessionRoom implements Party.Server {
     if (msg.type === 'DICE' && !Array.isArray((msg as any).attackRolls)) return;
     if (msg.type === 'SPELL_CARD' && typeof (msg as any).title !== 'string') return;
 
-    // TODO: Validate sender identity (msg.authorId === connection user) once
-    // PartyKit exposes a stable way to propagate user IDs set in onBeforeConnect
-    // request headers into the onMessage connection object.
+    // Enforce sender identity — override authorId with authenticated user
+    const authenticatedUserId = this.connectionUsers.get(sender.id);
+    if (!authenticatedUserId) return; // reject if no auth record
+
+    if ('authorId' in msg) {
+      (msg as ChatMessage).authorId = authenticatedUserId;
+    }
 
     this.seq++;
     msg.seq = this.seq;

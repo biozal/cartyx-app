@@ -103,6 +103,8 @@ export function useChatMessages(sessionId: string, campaignId: string, isActiveS
       userName: string,
       socket: { send: (data: string) => void } | null
     ) => {
+      if (!socket) return;
+
       const message: ChatMessage = {
         id: crypto.randomUUID(),
         seq: 0,
@@ -118,7 +120,7 @@ export function useChatMessages(sessionId: string, campaignId: string, isActiveS
 
       const wsMessage = { ...message, type: 'CHAT' as const };
       pendingSaves.current.add(message.id);
-      socket?.send(JSON.stringify(wsMessage));
+      socket.send(JSON.stringify(wsMessage));
       console.debug(`[PartyKit] Message sent type=CHAT id=${message.id}`);
     },
     [sessionId, campaignId]
@@ -131,6 +133,8 @@ export function useChatMessages(sessionId: string, campaignId: string, isActiveS
       userName: string,
       socket: { send: (data: string) => void } | null
     ) => {
+      if (!socket) return;
+
       const message: ChatMessage = {
         id: crypto.randomUUID(),
         seq: 0,
@@ -160,7 +164,7 @@ export function useChatMessages(sessionId: string, campaignId: string, isActiveS
         properties: card.properties,
       };
       pendingSaves.current.add(message.id);
-      socket?.send(JSON.stringify(wsMessage));
+      socket.send(JSON.stringify(wsMessage));
       console.debug(`[PartyKit] Message sent type=SPELL_CARD id=${message.id}`);
     },
     [sessionId, campaignId]

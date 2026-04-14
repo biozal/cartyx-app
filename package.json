@@ -103,6 +103,7 @@
     "tsx": "^4.21.0",
     "typescript": "^5.8.2",
     "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "^3.0.8"
+    "vitest": "^3.0.8",
+    "y-partyserver": "^2.1.4"
   }
 }
