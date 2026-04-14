@@ -42,3 +42,6 @@ coverage/
 # AI-generated planning docs
 docs/superpowers/
 issues/
+
+# PartyKit
+.partykit/

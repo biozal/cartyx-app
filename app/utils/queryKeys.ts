@@ -75,4 +75,12 @@ export const queryKeys = {
       ['races', 'list', campaignId, search ?? '', tags ?? []] as const,
     detail: (id: string, campaignId?: string) => ['races', 'detail', campaignId ?? '', id] as const,
   },
+  chat: {
+    all: ['chat'] as const,
+    list: (sessionId: string) => ['chat', 'list', sessionId] as const,
+  },
+  diceRolls: {
+    all: ['diceRolls'] as const,
+    list: (sessionId: string) => ['diceRolls', 'list', sessionId] as const,
+  },
 };

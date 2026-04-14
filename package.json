@@ -24,6 +24,7 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "build-storybook:full": "node scripts/build-storybook-with-iframe.mjs",
+    "party:dev": "npx partykit dev",
     "db:verify": "tsx scripts/mongo-admin.ts verify",
     "db:sync": "tsx scripts/mongo-admin.ts sync"
   },
@@ -49,6 +50,7 @@
     "lucide-react": "^1.6.0",
     "mongoose": "^9.3.3",
     "nitro": "^3.0.260311-beta",
+    "partysocket": "^1.1.16",
     "posthog-js": "^1.363.3",
     "posthog-node": "^5.28.5",
     "react": "^19.0.0",
@@ -94,6 +96,7 @@
     "globals": "^17.4.0",
     "happy-dom": "^20.8.9",
     "lefthook": "^2.1.4",
+    "partykit": "^0.0.115",
     "playwright": "^1.58.2",
     "prettier": "^3.5.3",
     "storybook": "^10.3.3",
@@ -101,6 +104,7 @@
     "tsx": "^4.21.0",
     "typescript": "^5.8.2",
     "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "^3.0.8"
+    "vitest": "^3.0.8",
+    "y-partyserver": "^2.1.4"
   }
 }

@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start';
+import { z } from 'zod';
 import { getSession, clearSession } from '../session';
 import { revokeToken } from '../utils/oauth';
 import { connectDB, isDBConnected } from '../db/connection';
@@ -62,3 +63,19 @@ export const logoutFn = createServerFn({ method: 'POST' }).handler(async () => {
     return { success: false };
   }
 });
+
+export const getPartyToken = createServerFn({ method: 'GET' })
+  .inputValidator(z.object({ sessionId: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    const user = await getSession();
+    if (!user) return '';
+
+    await connectDB();
+    if (!isDBConnected()) return '';
+
+    const { requireSessionAccess } = await import('./sessionAccess');
+    const { isGM } = await requireSessionAccess(data.sessionId, user.id);
+
+    const { createPartyToken } = await import('../session');
+    return createPartyToken(user.id, data.sessionId, isGM ? 'gm' : 'player');
+  });
