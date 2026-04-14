@@ -34,6 +34,8 @@ export async function withRetry<T>(
           campaignId: context.campaignId,
           messageType: context.messageType,
           messageId: context.messageId,
+          errorMessage: err instanceof Error ? err.message : String(err),
+          errorName: err instanceof Error ? err.name : undefined,
         });
 
         onExhausted?.(context, err);

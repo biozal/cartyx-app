@@ -43,12 +43,16 @@ export interface ParsedDiceRoll {
     roll: number;
     type: 'hit' | 'crit' | 'miss' | 'crit-fail';
     total: number;
+    formula: string;
+    discarded: boolean;
+    dice: number[];
   }>;
   damageRolls: Array<{
     damageType: string;
     dice: number[];
     total: number;
     flags: number;
+    formula: string;
   }>;
   totalDamages: Record<string, number>;
   rollInfo: Array<[string, string]>;
@@ -82,20 +86,49 @@ function classifyAttackRoll(
 }
 
 function parseDiceRoll(raw: Beyond20Roll): ParsedDiceRoll {
-  const attackRolls = raw.attack_rolls
-    .filter((r) => !r.discarded)
-    .map((r) => ({
+  // Include all rolls (even discarded) so players see both advantage/disadvantage rolls
+  const attackRolls = raw.attack_rolls.map((r) => {
+    // Extract individual dice values from parts[].rolls[].roll (e.g., both d20s for advantage)
+    let dice: number[] = [];
+    if (r.parts && Array.isArray(r.parts)) {
+      for (const part of r.parts as Array<{ rolls?: Array<{ roll: number }> }>) {
+        if (part.rolls) {
+          dice = dice.concat(part.rolls.map((pr) => pr.roll));
+        }
+      }
+    }
+    return {
       roll: r.total,
       type: classifyAttackRoll(r),
       total: r.total,
-    }));
+      formula: r.formula ?? '',
+      discarded: r.discarded ?? false,
+      dice,
+    };
+  });
 
-  const damageRolls = raw.damage_rolls.map(([damageType, roll, flags]) => ({
-    damageType,
-    dice: roll.dice ? roll.dice.map((d) => d.value) : [],
-    total: roll.total,
-    flags: flags ?? 1,
-  }));
+  const damageRolls = raw.damage_rolls.map(([damageType, roll, flags]) => {
+    // Beyond20 stores individual dice in parts[].rolls[].roll
+    let dice: number[] = [];
+    if (roll.parts && Array.isArray(roll.parts)) {
+      for (const part of roll.parts as Array<{ rolls?: Array<{ roll: number }> }>) {
+        if (part.rolls) {
+          dice = dice.concat(part.rolls.map((r) => r.roll));
+        }
+      }
+    }
+    // Fallback to roll.dice if parts isn't available
+    if (dice.length === 0 && roll.dice) {
+      dice = roll.dice.map((d) => d.value);
+    }
+    return {
+      damageType,
+      dice,
+      total: roll.total,
+      flags: flags ?? 1,
+      formula: roll.formula ?? '',
+    };
+  });
 
   const totalDamages: Record<string, number> = {};
   for (const [key, val] of Object.entries(raw.total_damages)) {
@@ -156,6 +189,9 @@ export function useBeyond20(
     }
 
     function handleRenderedRoll(evt: Event) {
+      // Mark as connected on first roll if we missed the Loaded event (race condition)
+      setIsConnected(true);
+
       const detail = (evt as CustomEvent).detail;
       const raw: Beyond20Roll = Array.isArray(detail) ? detail[0] : detail;
 

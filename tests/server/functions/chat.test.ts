@@ -141,7 +141,105 @@ describe('listMessages', () => {
   });
 });
 
+describe('listMessages — GM channel filtering', () => {
+  it('filters out gm channel messages for non-GM users', async () => {
+    const playerCampaign = {
+      _id: 'camp-1',
+      gameMasterId: 'other-user',
+      members: [{ userId: 'dbuser-1', role: 'player' }],
+    };
+    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign);
+
+    const mockSort = vi.fn().mockReturnValue({
+      limit: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([]),
+      }),
+    });
+    vi.mocked(Message.find).mockReturnValue({ sort: mockSort } as never);
+
+    await _listMessages({ data: { sessionId: 'sess-1' } });
+
+    // Non-GM should have channel:'general' filter applied
+    expect(Message.find).toHaveBeenCalledWith(expect.objectContaining({ channel: 'general' }));
+  });
+
+  it('allows GM to see all channels', async () => {
+    const mockSort = vi.fn().mockReturnValue({
+      limit: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([]),
+      }),
+    });
+    vi.mocked(Message.find).mockReturnValue({ sort: mockSort } as never);
+
+    await _listMessages({ data: { sessionId: 'sess-1' } });
+
+    // GM should NOT have channel filter
+    expect(Message.find).toHaveBeenCalledWith({ sessionId: 'sess-1' });
+  });
+});
+
 describe('saveMessage', () => {
+  it('rejects non-GM writing to gm channel', async () => {
+    const playerCampaign = {
+      _id: 'camp-1',
+      gameMasterId: 'other-user',
+      members: [{ userId: 'dbuser-1', role: 'player' }],
+    };
+    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign);
+
+    await expect(
+      _saveMessage({
+        data: {
+          id: 'uuid-1',
+          seq: 1,
+          sessionId: 'sess-1',
+          campaignId: 'camp-1',
+          channel: 'gm',
+          type: 'chat',
+          authorId: 'session-user-1',
+          authorName: 'Test User',
+          text: 'secret',
+          timestamp: 1000,
+        },
+      })
+    ).rejects.toThrow('Forbidden: GM channel requires GM role');
+  });
+
+  it('overrides client-provided authorId with authenticated user id', async () => {
+    vi.mocked(Message.updateOne).mockResolvedValue({
+      acknowledged: true,
+      modifiedCount: 0,
+      upsertedCount: 1,
+      upsertedId: null,
+      matchedCount: 0,
+    });
+
+    await _saveMessage({
+      data: {
+        id: 'uuid-1',
+        seq: 1,
+        sessionId: 'sess-1',
+        campaignId: 'camp-1',
+        channel: 'general',
+        type: 'chat',
+        authorId: 'spoofed-user',
+        authorName: 'Test User',
+        text: 'Hello',
+        timestamp: 1000,
+      },
+    });
+
+    expect(Message.updateOne).toHaveBeenCalledWith(
+      { id: 'uuid-1', sessionId: 'sess-1' },
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          authorId: 'session-user-1', // should be the authenticated user's id, not the spoofed one
+        }),
+      }),
+      { upsert: true }
+    );
+  });
+
   it('upserts message by id', async () => {
     vi.mocked(Message.updateOne).mockResolvedValue({
       acknowledged: true,
@@ -167,12 +265,13 @@ describe('saveMessage', () => {
     });
 
     expect(Message.updateOne).toHaveBeenCalledWith(
-      { id: 'uuid-1' },
+      { id: 'uuid-1', sessionId: 'sess-1' },
       {
         $set: expect.objectContaining({
           id: 'uuid-1',
           seq: 1,
           text: 'Hello',
+          authorId: 'session-user-1',
         }),
         $setOnInsert: expect.objectContaining({
           createdAt: expect.any(Date),

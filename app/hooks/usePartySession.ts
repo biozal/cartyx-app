@@ -24,21 +24,21 @@ export function usePartySession(
     host: PARTYKIT_HOST,
     room: sessionId ?? '__disabled__',
     party: 'main',
-    query: async () => ({
-      token: await getToken(),
-    }),
+    query: sessionId ? async () => ({ token: await getToken() }) : () => ({ token: '' }),
     onOpen() {
       console.info(`[PartyKit] Connected to room sessionId=${sessionId}`);
     },
     onClose(event) {
-      if (event.code !== 1000) {
+      // Suppress warnings for disabled socket (no session) and normal closures
+      if (sessionId && event.code !== 1000) {
         console.warn(
           `[PartyKit] Disconnected sessionId=${sessionId} code=${event.code} reason=${event.reason}`
         );
       }
     },
     onMessage: stableOnMessage,
-    startClosed: sessionId === null,
+    startClosed: !sessionId,
+    maxRetries: sessionId ? undefined : 0,
   });
 
   return socket;

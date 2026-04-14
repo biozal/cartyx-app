@@ -33,12 +33,16 @@ export interface DiceRollMessage {
     roll: number;
     type: 'hit' | 'crit' | 'miss' | 'crit-fail';
     total: number;
+    formula: string;
+    discarded: boolean;
+    dice: number[];
   }>;
   damageRolls: Array<{
     damageType: string;
     dice: number[];
     total: number;
     flags: number;
+    formula: string;
   }>;
   totalDamages: Record<string, number>;
   rollInfo: Array<[string, string]>;
@@ -98,7 +102,7 @@ export function useDiceRolls(sessionId: string, campaignId: string, isActiveSess
   }, []);
 
   const sendDiceRoll = useCallback(
-    (roll: ParsedDiceRoll, userId: string, socket: { send: (data: string) => void } | null) => {
+    (roll: ParsedDiceRoll, socket: { send: (data: string) => void } | null) => {
       if (!socket) return;
 
       const message: DiceRollMessage = {

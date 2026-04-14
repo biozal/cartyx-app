@@ -24,6 +24,7 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "build-storybook:full": "node scripts/build-storybook-with-iframe.mjs",
+    "party:dev": "npx partykit dev",
     "db:verify": "tsx scripts/mongo-admin.ts verify",
     "db:sync": "tsx scripts/mongo-admin.ts sync"
   },

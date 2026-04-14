@@ -73,8 +73,15 @@ export async function clearSession(): Promise<void> {
   deleteCookie(COOKIE_NAME, { path: '/' });
 }
 
-export async function createPartyToken(userId: string): Promise<string> {
-  const token = await new SignJWT({ sub: userId })
+export async function createPartyToken(
+  userId: string,
+  sessionId?: string,
+  role?: string
+): Promise<string> {
+  const claims: Record<string, unknown> = { sub: userId };
+  if (sessionId) claims.sessionId = sessionId;
+  if (role) claims.role = role;
+  const token = await new SignJWT(claims)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('1h')

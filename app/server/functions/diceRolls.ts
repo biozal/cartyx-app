@@ -15,9 +15,12 @@ export const listDiceRolls = createServerFn({ method: 'GET' })
 
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
-      await requireSessionAccess(data.sessionId, user.id);
+      const { isGM } = await requireSessionAccess(data.sessionId, user.id);
 
       const filter: Record<string, unknown> = { sessionId: data.sessionId };
+      if (!isGM) {
+        filter.channel = 'general';
+      }
       if (data.beforeSeq !== undefined) {
         filter.seq = { $lt: data.beforeSeq };
       }
@@ -26,40 +29,28 @@ export const listDiceRolls = createServerFn({ method: 'GET' })
 
       const rolls = await DiceRoll.find(filter).sort({ seq: 1 }).limit(limit).lean();
 
-      return (
-        rolls as Array<{
-          _id: unknown;
-          id: string;
-          seq: number;
-          sessionId: unknown;
-          campaignId: unknown;
-          channel: string;
-          character: string;
-          title: string;
-          rollType: string;
-          attackRolls: Array<{ roll: number; type: string; total: number }>;
-          damageRolls: Array<{ damageType: string; dice: number[]; total: number; flags: number }>;
-          totalDamages: Record<string, number>;
-          rollInfo: Array<[string, string]>;
-          description: string;
-          timestamp: number;
-        }>
-      ).map((r) => ({
-        id: r.id,
-        seq: r.seq,
-        sessionId: String(r.sessionId),
-        campaignId: String(r.campaignId),
-        channel: r.channel as 'general' | 'gm',
-        character: r.character,
-        title: r.title,
-        rollType: r.rollType,
-        attackRolls: r.attackRolls,
-        damageRolls: r.damageRolls,
-        totalDamages: r.totalDamages,
-        rollInfo: r.rollInfo,
-        description: r.description,
-        timestamp: r.timestamp,
-      }));
+      // Serialize to plain JSON to strip MongoDB ObjectId instances
+      // (seroval cannot serialize ObjectId objects)
+      return JSON.parse(
+        JSON.stringify(
+          (rolls as Array<Record<string, unknown>>).map((r) => ({
+            id: r.id,
+            seq: r.seq,
+            sessionId: String(r.sessionId),
+            campaignId: String(r.campaignId),
+            channel: r.channel as 'general' | 'gm',
+            character: r.character,
+            title: r.title,
+            rollType: r.rollType,
+            attackRolls: r.attackRolls,
+            damageRolls: r.damageRolls,
+            totalDamages: r.totalDamages,
+            rollInfo: r.rollInfo,
+            description: r.description ?? '',
+            timestamp: r.timestamp,
+          }))
+        )
+      );
     } catch (e) {
       serverCaptureException(e, undefined, {
         action: 'listDiceRolls',
@@ -78,11 +69,12 @@ export const saveDiceRoll = createServerFn({ method: 'POST' })
 
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
-      const { campaignId } = await requireSessionAccess(data.sessionId, user.id);
+      const { campaignId, isGM } = await requireSessionAccess(data.sessionId, user.id);
       if (data.campaignId !== campaignId) throw new Error('Session does not belong to campaign');
+      if (data.channel === 'gm' && !isGM) throw new Error('Forbidden: GM channel requires GM role');
 
       await DiceRoll.updateOne(
-        { id: data.id },
+        { id: data.id, sessionId: data.sessionId },
         {
           $set: { ...data },
           $setOnInsert: { createdAt: new Date() },

@@ -22,23 +22,33 @@ const diceRollSchema = new mongoose.Schema({
   title: { type: String, required: true },
   rollType: { type: String, required: true },
   attackRolls: [
-    {
-      roll: { type: Number, required: true },
-      type: {
-        type: String,
-        enum: ['hit', 'crit', 'miss', 'crit-fail'],
-        required: true,
+    new mongoose.Schema(
+      {
+        roll: { type: Number, required: true },
+        type: {
+          type: String,
+          enum: ['hit', 'crit', 'miss', 'crit-fail'],
+          required: true,
+        },
+        total: { type: Number, required: true },
+        formula: { type: String, default: '' },
+        discarded: { type: Boolean, default: false },
+        dice: { type: [Number], default: [] },
       },
-      total: { type: Number, required: true },
-    },
+      { _id: false }
+    ),
   ],
   damageRolls: [
-    {
-      damageType: { type: String, required: true },
-      dice: { type: [Number], required: true },
-      total: { type: Number, required: true },
-      flags: { type: Number, default: 1 },
-    },
+    new mongoose.Schema(
+      {
+        damageType: { type: String, required: true },
+        dice: { type: [Number], required: true },
+        total: { type: Number, required: true },
+        flags: { type: Number, default: 1 },
+        formula: { type: String, default: '' },
+      },
+      { _id: false }
+    ),
   ],
   totalDamages: { type: mongoose.Schema.Types.Mixed, default: {} },
   rollInfo: { type: [[String]], default: [] },

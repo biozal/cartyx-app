@@ -15,11 +15,14 @@ import { useChatMessages } from '~/hooks/useChatMessages';
 import { useDiceRolls } from '~/hooks/useDiceRolls';
 import { useAuth } from '~/hooks/useAuth';
 import { createServerFn } from '@tanstack/react-start';
+import { z } from 'zod';
 
-const getPartyTokenFn = createServerFn({ method: 'GET' }).handler(async () => {
-  const { getPartyToken } = await import('~/server/functions/auth');
-  return getPartyToken();
-});
+const getPartyTokenFn = createServerFn({ method: 'GET' })
+  .inputValidator(z.object({ sessionId: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    const { getPartyToken } = await import('~/server/functions/auth');
+    return getPartyToken({ data });
+  });
 
 export type InspectorTab = 'chat' | 'dice' | 'wiki' | 'notes' | 'settings';
 
@@ -153,14 +156,15 @@ export function InspectorSidebar({
   const socket = usePartySession(
     isViewingActive && activeSessionId ? activeSessionId : null,
     async () => {
-      const token = await getPartyTokenFn();
+      if (!activeSessionId) return '';
+      const token = await getPartyTokenFn({ data: { sessionId: activeSessionId } });
       return token ?? '';
     },
     handlePartyMessage
   );
 
   const { isConnected } = useBeyond20(
-    (roll) => sendDiceRoll(roll, user?.id ?? '', socket),
+    (roll) => sendDiceRoll(roll, socket),
     (card) => sendSpellCard(card, user?.id ?? '', user?.name ?? '', socket)
   );
 
@@ -273,7 +277,7 @@ export function InspectorSidebar({
               role="tabpanel"
               aria-labelledby={tabId(tab.id)}
               hidden={!isActive}
-              className="flex flex-1 w-full"
+              className="flex flex-1 min-h-0 w-full"
             >
               {tab.id === 'chat' ? (
                 <ChatPanel

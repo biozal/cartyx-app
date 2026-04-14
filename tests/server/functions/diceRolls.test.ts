@@ -148,7 +148,72 @@ describe('listDiceRolls', () => {
   });
 });
 
+describe('listDiceRolls — GM channel filtering', () => {
+  it('filters out gm channel rolls for non-GM users', async () => {
+    const playerCampaign = {
+      _id: 'camp-1',
+      gameMasterId: 'other-user',
+      members: [{ userId: 'dbuser-1', role: 'player' }],
+    };
+    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign);
+
+    const mockSort = vi.fn().mockReturnValue({
+      limit: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([]),
+      }),
+    });
+    vi.mocked(DiceRoll.find).mockReturnValue({ sort: mockSort } as never);
+
+    await _listDiceRolls({ data: { sessionId: 'sess-1' } });
+
+    expect(DiceRoll.find).toHaveBeenCalledWith(expect.objectContaining({ channel: 'general' }));
+  });
+
+  it('allows GM to see all channels', async () => {
+    const mockSort = vi.fn().mockReturnValue({
+      limit: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([]),
+      }),
+    });
+    vi.mocked(DiceRoll.find).mockReturnValue({ sort: mockSort } as never);
+
+    await _listDiceRolls({ data: { sessionId: 'sess-1' } });
+
+    expect(DiceRoll.find).toHaveBeenCalledWith({ sessionId: 'sess-1' });
+  });
+});
+
 describe('saveDiceRoll', () => {
+  it('rejects non-GM writing to gm channel', async () => {
+    const playerCampaign = {
+      _id: 'camp-1',
+      gameMasterId: 'other-user',
+      members: [{ userId: 'dbuser-1', role: 'player' }],
+    };
+    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign);
+
+    await expect(
+      _saveDiceRoll({
+        data: {
+          id: 'uuid-1',
+          seq: 1,
+          sessionId: 'sess-1',
+          campaignId: 'camp-1',
+          channel: 'gm',
+          character: 'Thorn',
+          title: 'Sneak Attack',
+          rollType: 'attack',
+          attackRolls: [{ roll: 14, type: 'hit', total: 18 }],
+          damageRolls: [{ damageType: 'slashing', dice: [4, 5], total: 11, flags: 1 }],
+          totalDamages: { slashing: 11 },
+          rollInfo: [],
+          description: '',
+          timestamp: 1000,
+        },
+      })
+    ).rejects.toThrow('Forbidden: GM channel requires GM role');
+  });
+
   it('upserts dice roll by id', async () => {
     vi.mocked(DiceRoll.updateOne).mockResolvedValue({
       acknowledged: true,
@@ -178,7 +243,7 @@ describe('saveDiceRoll', () => {
     });
 
     expect(DiceRoll.updateOne).toHaveBeenCalledWith(
-      { id: 'uuid-1' },
+      { id: 'uuid-1', sessionId: 'sess-1' },
       {
         $set: expect.objectContaining({
           id: 'uuid-1',

@@ -25,12 +25,20 @@ type DiceMessage = {
   character: string;
   title: string;
   rollType: string;
-  attackRolls: Array<{ roll: number; type: string; total: number }>;
+  attackRolls: Array<{
+    roll: number;
+    type: string;
+    total: number;
+    formula: string;
+    discarded: boolean;
+    dice: number[];
+  }>;
   damageRolls: Array<{
     damageType: string;
     dice: number[];
     total: number;
     flags: number;
+    formula: string;
   }>;
   totalDamages: Record<string, number>;
   rollInfo: Array<[string, string]>;
@@ -55,22 +63,23 @@ type SpellCardMessage = {
 
 type RoomMessage = ChatMessage | DiceMessage | SpellCardMessage;
 
+type ConnectionAuth = { userId: string; role: string };
+
 export default class SessionRoom implements Party.Server {
   options: Party.ServerOptions = { hibernate: true };
 
   private history: RoomMessage[] = [];
   private seq: number = 0;
-  private connectionUsers: Map<string, string> = new Map();
 
   constructor(readonly room: Party.Room) {}
 
   async onStart() {
-    const stored = await this.room.storage.get<RoomMessage[] | number>(['history', 'seq']);
-    const storedHistory = stored.get('history') as RoomMessage[] | undefined;
-    if (storedHistory) this.history = storedHistory;
-
-    const storedSeq = stored.get('seq') as number | undefined;
+    const storedSeq = await this.room.storage.get<number>('seq');
     if (storedSeq !== undefined) this.seq = storedSeq;
+
+    // Load individual message keys (msg:<seq>)
+    const msgEntries = await this.room.storage.list<RoomMessage>({ prefix: 'msg:' });
+    this.history = [...msgEntries.values()].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
   }
 
   static async onBeforeConnect(request: Party.Request, lobby: Party.Lobby) {
@@ -96,25 +105,35 @@ export default class SessionRoom implements Party.Server {
         return new Response('Unauthorized', { status: 401 });
       }
 
+      // Verify the token was issued for this specific room/session
+      const tokenSessionId = typeof payload.sessionId === 'string' ? payload.sessionId : '';
+      const roomId = new URL(request.url).pathname.split('/').pop() ?? '';
+      if (tokenSessionId && roomId && tokenSessionId !== roomId) {
+        return new Response('Forbidden', { status: 403 });
+      }
+
+      const role = typeof payload.role === 'string' ? payload.role : 'player';
       request.headers.set('X-User-ID', userId);
+      request.headers.set('X-User-Role', role);
       return request;
     } catch {
       return new Response('Unauthorized', { status: 401 });
     }
   }
 
-  async onConnect(connection: Party.Connection, ctx: Party.ConnectionContext) {
-    // Store authenticated user ID from the request headers set in onBeforeConnect
+  async onConnect(connection: Party.Connection<ConnectionAuth>, ctx: Party.ConnectionContext) {
+    // Store authenticated user ID and role on the connection (survives hibernation)
     const userId = ctx.request.headers.get('X-User-ID') ?? '';
+    const role = ctx.request.headers.get('X-User-Role') ?? 'player';
     if (userId) {
-      this.connectionUsers.set(connection.id, userId);
+      connection.setState({ userId, role });
     }
 
-    connection.send(JSON.stringify({ type: 'HISTORY', messages: this.history }));
-  }
+    // Filter GM messages from history for non-GM connections
+    const visibleHistory =
+      role === 'gm' ? this.history : this.history.filter((m) => m.channel !== 'gm');
 
-  async onClose(connection: Party.Connection) {
-    this.connectionUsers.delete(connection.id);
+    connection.send(JSON.stringify({ type: 'HISTORY', messages: visibleHistory }));
   }
 
   async onMessage(raw: string, sender: Party.Connection) {
@@ -140,20 +159,40 @@ export default class SessionRoom implements Party.Server {
     if (msg.type === 'SPELL_CARD' && typeof (msg as any).title !== 'string') return;
 
     // Enforce sender identity — override authorId with authenticated user
-    const authenticatedUserId = this.connectionUsers.get(sender.id);
-    if (!authenticatedUserId) return; // reject if no auth record
+    const connectionInfo = (sender as Party.Connection<ConnectionAuth>).state;
+    if (!connectionInfo?.userId) return; // reject if no auth record
+
+    // Only GMs can send on the gm channel
+    if (msg.channel === 'gm' && connectionInfo.role !== 'gm') return;
 
     if ('authorId' in msg) {
-      (msg as ChatMessage).authorId = authenticatedUserId;
+      (msg as ChatMessage).authorId = connectionInfo.userId;
     }
 
     this.seq++;
     msg.seq = this.seq;
 
-    this.history = [...this.history, msg].slice(-HISTORY_LIMIT);
+    this.history = [...this.history, msg];
 
-    await this.room.storage.put({ history: this.history, seq: this.seq });
+    // Trim oldest messages beyond limit and remove their storage keys
+    if (this.history.length > HISTORY_LIMIT) {
+      const evicted = this.history.splice(0, this.history.length - HISTORY_LIMIT);
+      const keysToDelete = evicted.map((m) => `msg:${m.seq}`);
+      await this.room.storage.delete(keysToDelete);
+    }
 
-    this.room.broadcast(JSON.stringify(msg));
+    await this.room.storage.put({ [`msg:${this.seq}`]: msg, seq: this.seq });
+
+    // Filter GM channel messages — only send to GM connections
+    if (msg.channel === 'gm') {
+      const payload = JSON.stringify(msg);
+      for (const conn of this.room.getConnections<ConnectionAuth>()) {
+        if (conn.state?.role === 'gm') {
+          conn.send(payload);
+        }
+      }
+    } else {
+      this.room.broadcast(JSON.stringify(msg));
+    }
   }
 }

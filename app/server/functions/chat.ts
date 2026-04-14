@@ -15,9 +15,12 @@ export const listMessages = createServerFn({ method: 'GET' })
 
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
-      await requireSessionAccess(data.sessionId, user.id);
+      const { isGM } = await requireSessionAccess(data.sessionId, user.id);
 
       const filter: Record<string, unknown> = { sessionId: data.sessionId };
+      if (!isGM) {
+        filter.channel = 'general';
+      }
       if (data.beforeSeq !== undefined) {
         filter.seq = { $lt: data.beforeSeq };
       }
@@ -77,13 +80,17 @@ export const saveMessage = createServerFn({ method: 'POST' })
 
       await connectDB();
       if (!isDBConnected()) throw new Error('Database not available');
-      const { campaignId } = await requireSessionAccess(data.sessionId, user.id);
+      const { campaignId, isGM } = await requireSessionAccess(data.sessionId, user.id);
       if (data.campaignId !== campaignId) throw new Error('Session does not belong to campaign');
+      if (data.channel === 'gm' && !isGM) throw new Error('Forbidden: GM channel requires GM role');
+
+      // Enforce server-side author identity — override client-provided authorId
+      const saveData = { ...data, authorId: user.id };
 
       await Message.updateOne(
-        { id: data.id },
+        { id: data.id, sessionId: data.sessionId },
         {
-          $set: { ...data },
+          $set: saveData,
           $setOnInsert: { createdAt: new Date() },
         },
         { upsert: true }

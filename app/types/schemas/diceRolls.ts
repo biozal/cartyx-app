@@ -20,6 +20,9 @@ export const saveDiceRollSchema = z.object({
       roll: z.number(),
       type: z.enum(['hit', 'crit', 'miss', 'crit-fail']),
       total: z.number(),
+      formula: z.string().optional().default(''),
+      discarded: z.boolean().optional().default(false),
+      dice: z.array(z.number()).optional().default([]),
     })
   ),
   damageRolls: z.array(
@@ -28,6 +31,7 @@ export const saveDiceRollSchema = z.object({
       dice: z.array(z.number()),
       total: z.number(),
       flags: z.number().optional().default(1),
+      formula: z.string().optional().default(''),
     })
   ),
   totalDamages: z.record(z.number()),

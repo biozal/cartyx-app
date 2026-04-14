@@ -36,47 +36,79 @@ function RollBreakdown({
         </div>
       )}
 
-      {attackRolls.map((roll, i) => (
-        <div key={i} className="flex items-baseline gap-2">
-          <span
-            className="rounded bg-[#0D1117] px-2 py-1 font-mono text-sm font-bold"
-            style={{
-              color:
-                roll.type === 'crit'
-                  ? '#ffd740'
-                  : roll.type === 'crit-fail'
-                    ? '#ef5350'
-                    : roll.type === 'miss'
-                      ? '#ef5350'
-                      : '#69f0ae',
-            }}
-          >
-            {roll.total}
-          </span>
-          <span className="font-sans text-[11px] text-slate-500">To Hit</span>
-          {roll.type === 'crit' && (
-            <span className="font-sans text-[10px] font-bold text-yellow-400">CRIT!</span>
-          )}
-          {roll.type === 'crit-fail' && (
-            <span className="font-sans text-[10px] font-bold text-red-400">NAT 1</span>
-          )}
-        </div>
-      ))}
+      {attackRolls.map((roll, i) => {
+        const dice = roll.dice ?? [];
+        const diceSum = dice.reduce((a, b) => a + b, 0);
+        const bonus = dice.length > 0 ? roll.total - diceSum : 0;
+        const formula = roll.formula ?? '';
+        const isDiscarded = roll.discarded ?? false;
+        return (
+          <div key={i} className="space-y-0.5">
+            <div
+              className={`flex items-baseline gap-2 flex-wrap ${isDiscarded ? 'opacity-40' : ''}`}
+            >
+              <span
+                className={`rounded bg-[#0D1117] px-2 py-1 font-mono text-sm font-bold ${isDiscarded ? 'line-through' : ''}`}
+                style={{
+                  color: isDiscarded
+                    ? '#64748b'
+                    : roll.type === 'crit'
+                      ? '#ffd740'
+                      : roll.type === 'crit-fail'
+                        ? '#ef5350'
+                        : roll.type === 'miss'
+                          ? '#ef5350'
+                          : '#69f0ae',
+                }}
+              >
+                {roll.total}
+              </span>
+              <span className="font-sans text-[11px] text-slate-500">
+                To Hit{isDiscarded ? ' (dropped)' : ''}
+              </span>
+              {formula && <span className="font-mono text-[11px] text-slate-400">{formula}</span>}
+              {!isDiscarded && roll.type === 'crit' && (
+                <span className="font-sans text-[10px] font-bold text-yellow-400">CRIT!</span>
+              )}
+              {!isDiscarded && roll.type === 'crit-fail' && (
+                <span className="font-sans text-[10px] font-bold text-red-400">NAT 1</span>
+              )}
+            </div>
+            {dice.length > 0 && !isDiscarded && (
+              <div className="pl-2 font-mono text-[10px] text-slate-500">
+                ({dice[0]}){bonus !== 0 && ` ${bonus > 0 ? '+' : '-'} ${Math.abs(bonus)}`} ={' '}
+                {roll.total}
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       {damageRolls.map((roll, i) => {
         const flagLabels = roll.flags > 1 ? getDamageLabels(roll.flags) : [];
         const flagLabel = flagLabels.length > 0 ? flagLabels.join(', ') : null;
+        const dice = roll.dice ?? [];
+        const diceSum = dice.reduce((a, b) => a + b, 0);
+        const bonus = dice.length > 0 ? roll.total - diceSum : 0;
         return (
-          <div key={i} className="flex items-baseline gap-2">
-            <span className="rounded bg-[#0D1117] px-2 py-1 font-mono text-sm font-bold text-orange-300">
-              {roll.total}
-            </span>
-            <span className="font-sans text-[11px] text-slate-500">
-              {roll.damageType}
-              {flagLabel && ` (${flagLabel})`}
-            </span>
-            {roll.dice.length > 0 && (
-              <span className="font-mono text-[10px] text-slate-600">[{roll.dice.join(', ')}]</span>
+          <div key={i} className="space-y-0.5">
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <span className="rounded bg-[#0D1117] px-2 py-1 font-mono text-sm font-bold text-orange-300">
+                {roll.total}
+              </span>
+              <span className="font-sans text-[11px] text-slate-500">
+                {roll.damageType}
+                {flagLabel && ` (${flagLabel})`}
+              </span>
+              {roll.formula && (
+                <span className="font-mono text-[11px] text-slate-400">{roll.formula}</span>
+              )}
+            </div>
+            {dice.length > 0 && (
+              <div className="pl-2 font-mono text-[10px] text-slate-500">
+                ({dice.join(' + ')}){bonus !== 0 && ` ${bonus > 0 ? '+' : '-'} ${Math.abs(bonus)}`}{' '}
+                = {roll.total}
+              </div>
             )}
           </div>
         );
@@ -86,15 +118,36 @@ function RollBreakdown({
 }
 
 function DiceRollCard({ roll }: { roll: DiceRollMessage }) {
-  const time = new Date(roll.timestamp).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const d = new Date(roll.timestamp);
+  const time = `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+
+  // Detect advantage/disadvantage from attack rolls
+  const hasDiscard = roll.attackRolls.length === 2 && roll.attackRolls.some((r) => r.discarded);
+  let rollMode: 'normal' | 'advantage' | 'disadvantage' = 'normal';
+  if (hasDiscard) {
+    const kept = roll.attackRolls.find((r) => !r.discarded);
+    const dropped = roll.attackRolls.find((r) => r.discarded);
+    if (kept && dropped) {
+      rollMode = kept.total >= dropped.total ? 'advantage' : 'disadvantage';
+    }
+  }
 
   return (
     <div className="rounded-lg bg-[#252542] border-l-4 border-purple-500 p-3 mb-2">
       <div className="flex items-baseline justify-between mb-1">
-        <span className="font-sans text-xs font-semibold text-purple-300">{roll.character}</span>
+        <div className="flex items-baseline gap-2">
+          <span className="font-sans text-xs font-semibold text-purple-300">{roll.character}</span>
+          {rollMode === 'advantage' && (
+            <span className="rounded bg-green-900/40 px-1.5 py-0.5 font-sans text-[9px] font-bold uppercase tracking-wider text-green-400">
+              ADV
+            </span>
+          )}
+          {rollMode === 'disadvantage' && (
+            <span className="rounded bg-red-900/40 px-1.5 py-0.5 font-sans text-[9px] font-bold uppercase tracking-wider text-red-400">
+              DIS
+            </span>
+          )}
+        </div>
         <span className="font-sans text-[10px] text-slate-600">{time}</span>
       </div>
       <div className="font-sans text-xs text-slate-300 mb-1">{roll.title}</div>
@@ -103,6 +156,19 @@ function DiceRollCard({ roll }: { roll: DiceRollMessage }) {
         damageRolls={roll.damageRolls}
         rollInfo={roll.rollInfo}
       />
+      {Object.keys(roll.totalDamages).length > 0 && (
+        <div className="mt-2 pt-2 border-t border-white/[0.05] flex items-baseline gap-2 flex-wrap">
+          <span className="font-sans text-[10px] text-slate-500 uppercase tracking-wider">
+            Total:
+          </span>
+          {Object.entries(roll.totalDamages).map(([type, total]) => (
+            <span key={type} className="font-mono text-xs font-bold text-orange-200">
+              {total}{' '}
+              <span className="font-sans text-[10px] font-normal text-slate-500">{type}</span>
+            </span>
+          ))}
+        </div>
+      )}
       {roll.description && (
         <details className="mt-2">
           <summary className="cursor-pointer font-sans text-[11px] text-slate-500">
@@ -180,7 +246,7 @@ export function DicePanel({
   }
 
   return (
-    <div className="flex h-full flex-col bg-[#080A12] w-full">
+    <div className="flex h-full min-h-0 flex-col bg-[#080A12] w-full">
       {/* Session selector */}
       <div className="border-b border-white/[0.07] p-3">
         <label htmlFor="dice-session-selector" className="sr-only">
@@ -206,7 +272,7 @@ export function DicePanel({
           className={`h-1.5 w-1.5 rounded-full ${isConnected ? 'bg-green-400' : 'bg-slate-600'}`}
         />
         <span className="font-sans text-[10px] text-slate-500">
-          {isConnected ? 'Beyond 20 connected' : 'Beyond 20 not detected'}
+          {isConnected ? 'Beyond 20 connected' : 'Waiting for Beyond 20...'}
         </span>
       </div>
 
