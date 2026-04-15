@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { Link } from '@tanstack/react-router';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGear } from '@fortawesome/pro-solid-svg-icons';
+import { Bell } from 'lucide-react';
 import { UserMenu } from '~/components/shared/UserMenu';
 import { TABS, handleTabsKeyDown } from './TabNavigation';
 import type { TabId } from './TabNavigation';
@@ -110,7 +111,7 @@ export function CampaignHeader({
           aria-label="Notifications"
           className="text-slate-400 hover:text-slate-200 transition-colors text-base"
         >
-          🔔
+          <Bell className="h-4 w-4" />
         </button>
 
         <UserMenu contextualAction={{ label: 'Close Campaign', to: '/campaigns' }} />

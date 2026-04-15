@@ -1,21 +1,22 @@
-import React, { type ButtonHTMLAttributes, type AnchorHTMLAttributes, forwardRef } from 'react'
-import { Link, type LinkProps } from '@tanstack/react-router'
+import React, { type ButtonHTMLAttributes, type AnchorHTMLAttributes, forwardRef } from 'react';
+import { Link, type LinkProps } from '@tanstack/react-router';
 
-type Variant = 'primary' | 'secondary' | 'warning' | 'ghost' | 'danger'
-type Size = 'sm' | 'md' | 'lg'
+type Variant = 'primary' | 'secondary' | 'warning' | 'ghost' | 'danger';
+type Size = 'sm' | 'md' | 'lg';
 
 interface BaseProps {
-  variant?: Variant
-  size?: Size
-  icon?: string
-  fullWidth?: boolean
+  variant?: Variant;
+  size?: Size;
+  icon?: React.ReactNode;
+  fullWidth?: boolean;
 }
 
-type ButtonProps = BaseProps & ButtonHTMLAttributes<HTMLButtonElement> & { as?: 'button' }
-type AnchorProps = BaseProps & AnchorHTMLAttributes<HTMLAnchorElement> & { as: 'a' }
-type RouterLinkProps = BaseProps & Omit<LinkProps, 'className'> & { as: 'link'; className?: string }
+type ButtonProps = BaseProps & ButtonHTMLAttributes<HTMLButtonElement> & { as?: 'button' };
+type AnchorProps = BaseProps & AnchorHTMLAttributes<HTMLAnchorElement> & { as: 'a' };
+type RouterLinkProps = BaseProps &
+  Omit<LinkProps, 'className'> & { as: 'link'; className?: string };
 
-export type PixelButtonProps = ButtonProps | AnchorProps | RouterLinkProps
+export type PixelButtonProps = ButtonProps | AnchorProps | RouterLinkProps;
 
 const variantStyles: Record<Variant, string> = {
   primary: [
@@ -60,16 +61,16 @@ const variantStyles: Record<Variant, string> = {
     'hover:border-red-400/60 hover:text-red-300 hover:bg-red-500/[0.06]',
     'active:bg-red-500/[0.1]',
   ].join(' '),
-}
+};
 
 const sizeStyles: Record<Size, string> = {
   sm: 'px-3.5 py-2 text-[10px] gap-1.5',
   md: 'px-5 py-2.5 text-[11px] gap-2',
   lg: 'px-6 py-3.5 text-[13px] gap-2.5',
-}
+};
 
 function buildClassName(props: BaseProps & { className?: string }) {
-  const { variant = 'primary', size = 'md', fullWidth, className = '' } = props
+  const { variant = 'primary', size = 'md', fullWidth, className = '' } = props;
   return [
     'inline-flex items-center justify-center',
     'font-sans font-semibold leading-none',
@@ -84,23 +85,26 @@ function buildClassName(props: BaseProps & { className?: string }) {
     fullWidth ? 'w-full' : '',
     // Custom classes
     className,
-  ].filter(Boolean).join(' ')
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 export const PixelButton = forwardRef<HTMLButtonElement | HTMLAnchorElement, PixelButtonProps>(
   function PixelButton(props, ref) {
-    const { variant, size, icon, fullWidth, ...rest } = props
+    const { variant, size, icon, fullWidth, ...rest } = props;
 
     const content = (
       <>
         {icon && <span className="inline-block">{icon}</span>}
         {props.children}
       </>
-    )
+    );
 
     if (props.as === 'link') {
-      const { as: _as, className, children: _children, ...linkProps } = rest as RouterLinkProps
-      void _as; void _children
+      const { as: _as, className, children: _children, ...linkProps } = rest as RouterLinkProps;
+      void _as;
+      void _children;
       return (
         <Link
           {...(linkProps as Omit<LinkProps, 'className'>)}
@@ -108,12 +112,13 @@ export const PixelButton = forwardRef<HTMLButtonElement | HTMLAnchorElement, Pix
         >
           {content}
         </Link>
-      )
+      );
     }
 
     if (props.as === 'a') {
-      const { as: _as, className, children: _children, ...anchorProps } = rest as AnchorProps
-      void _as; void _children
+      const { as: _as, className, children: _children, ...anchorProps } = rest as AnchorProps;
+      void _as;
+      void _children;
       return (
         <a
           {...anchorProps}
@@ -122,11 +127,12 @@ export const PixelButton = forwardRef<HTMLButtonElement | HTMLAnchorElement, Pix
         >
           {content}
         </a>
-      )
+      );
     }
 
-    const { as: _as, className, children: _children, ...buttonProps } = rest as ButtonProps
-    void _as; void _children
+    const { as: _as, className, children: _children, ...buttonProps } = rest as ButtonProps;
+    void _as;
+    void _children;
     return (
       <button
         {...buttonProps}
@@ -135,6 +141,6 @@ export const PixelButton = forwardRef<HTMLButtonElement | HTMLAnchorElement, Pix
       >
         {content}
       </button>
-    )
+    );
   }
-)
+);

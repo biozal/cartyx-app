@@ -1,9 +1,10 @@
-import React from 'react'
+import React from 'react';
+import { User } from 'lucide-react';
 
 interface PartyMemberChipProps {
-  characterName: string
-  characterClass: string
-  avatar: string | null
+  characterName: string;
+  characterClass: string;
+  avatar: string | null;
 }
 
 export function PartyMemberChip({ characterName, characterClass, avatar }: PartyMemberChipProps) {
@@ -13,13 +14,15 @@ export function PartyMemberChip({ characterName, characterClass, avatar }: Party
         {avatar ? (
           <img src={avatar} alt={characterName} className="w-full h-full object-cover" />
         ) : (
-          <span className="text-lg">🧙</span>
+          <User className="h-5 w-5 text-slate-500" />
         )}
       </div>
       <div className="min-w-0">
-        <div className="text-[10px] font-sans font-semibold text-slate-200 truncate leading-relaxed">{characterName}</div>
+        <div className="text-[10px] font-sans font-semibold text-slate-200 truncate leading-relaxed">
+          {characterName}
+        </div>
         <div className="text-xs text-slate-500 truncate">{characterClass}</div>
       </div>
     </div>
-  )
+  );
 }
