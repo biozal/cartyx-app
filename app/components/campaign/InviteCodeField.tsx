@@ -1,8 +1,9 @@
-import React from 'react'
-import { showToast } from '~/components/Toast'
+import React from 'react';
+import { showToast } from '~/components/Toast';
+import { Copy } from 'lucide-react';
 
 interface InviteCodeFieldProps {
-  code: string
+  code: string;
 }
 
 export function InviteCodeField({ code }: InviteCodeFieldProps) {
@@ -10,16 +11,18 @@ export function InviteCodeField({ code }: InviteCodeFieldProps) {
     if (navigator.clipboard?.writeText) {
       navigator.clipboard
         .writeText(code)
-        .then(() => showToast(`✓ Invite code copied: ${code}`))
-        .catch(() => showToast(`Code: ${code}`))
+        .then(() => showToast(`Invite code copied: ${code}`))
+        .catch(() => showToast(`Code: ${code}`));
     } else {
-      showToast(`Code: ${code}`)
+      showToast(`Code: ${code}`);
     }
   }
 
   return (
     <div>
-      <div className="text-[10px] font-sans font-semibold text-slate-500 tracking-wide mb-2">INVITE CODE</div>
+      <div className="text-[10px] font-sans font-semibold text-slate-500 tracking-wide mb-2">
+        INVITE CODE
+      </div>
       <div className="flex items-center gap-2">
         <input
           type="text"
@@ -33,9 +36,9 @@ export function InviteCodeField({ code }: InviteCodeFieldProps) {
           className="px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-slate-400 text-sm hover:text-white hover:bg-white/[0.08] transition-colors"
           aria-label="Copy invite code"
         >
-          📋
+          <Copy className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>
-  )
+  );
 }
