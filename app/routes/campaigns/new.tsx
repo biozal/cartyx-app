@@ -5,6 +5,7 @@ import { getMe } from '~/server/functions/auth';
 import { useCreateCampaign } from '~/hooks/useCampaigns';
 import { Topbar } from '~/components/Topbar';
 import { PixelButton } from '~/components/PixelButton';
+import { ImagePlus, Swords } from 'lucide-react';
 import { captureEvent } from '~/utils/posthog-client';
 import { FormInput } from '~/components/FormInput';
 import { FormTextarea } from '~/components/FormTextarea';
@@ -201,7 +202,7 @@ export function NewCampaignPage() {
                         />
                       ) : (
                         <>
-                          <div className="text-3xl mb-2">🖼</div>
+                          <ImagePlus className="h-8 w-8 text-slate-500 mb-2" />
                           <div className="text-sm text-slate-500">
                             Click to upload a banner image
                           </div>
@@ -460,7 +461,7 @@ export function NewCampaignPage() {
               <PixelButton
                 variant="primary"
                 size="sm"
-                icon="⚔"
+                icon={<Swords className="h-3.5 w-3.5" />}
                 onClick={handleSubmit}
                 disabled={isLoading}
                 type="button"

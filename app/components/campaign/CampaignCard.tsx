@@ -1,17 +1,18 @@
-import React from 'react'
-import { CampaignHeroBanner } from './CampaignHeroBanner'
-import { CampaignDescription } from './CampaignDescription'
-import { NextSessionBadge } from './NextSessionBadge'
-import { PartyMemberList } from './PartyMemberList'
-import { InviteCodeField } from './InviteCodeField'
-import { ExternalLinkList } from './ExternalLinkList'
-import { PixelButton } from '~/components/PixelButton'
-import type { CampaignData } from '~/types/campaign'
+import React from 'react';
+import { CampaignHeroBanner } from './CampaignHeroBanner';
+import { CampaignDescription } from './CampaignDescription';
+import { NextSessionBadge } from './NextSessionBadge';
+import { PartyMemberList } from './PartyMemberList';
+import { InviteCodeField } from './InviteCodeField';
+import { ExternalLinkList } from './ExternalLinkList';
+import { PixelButton } from '~/components/PixelButton';
+import { Pencil } from 'lucide-react';
+import type { CampaignData } from '~/types/campaign';
 
-export type { CampaignData }
+export type { CampaignData };
 
 interface CampaignCardProps {
-  campaign: CampaignData
+  campaign: CampaignData;
 }
 
 export function CampaignCard({ campaign }: CampaignCardProps) {
@@ -27,14 +28,8 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
         {/* Left column: description, next session, party */}
         <div className="flex-1 flex flex-col gap-6 min-w-0">
           <CampaignDescription description={campaign.description} />
-          <NextSessionBadge
-            nextSession={campaign.nextSession}
-            schedule={campaign.schedule}
-          />
-          <PartyMemberList
-            members={campaign.partyMembers}
-            maxPlayers={campaign.maxPlayers}
-          />
+          <NextSessionBadge nextSession={campaign.nextSession} schedule={campaign.schedule} />
+          <PartyMemberList members={campaign.partyMembers} maxPlayers={campaign.maxPlayers} />
         </div>
 
         {/* Right column: invite code, links, actions */}
@@ -61,7 +56,7 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
                 as="link"
                 variant="warning"
                 size="md"
-                icon="✏️"
+                icon={<Pencil className="h-3.5 w-3.5" />}
                 to="/campaigns/$campaignId/edit"
                 params={{ campaignId: campaign.id }}
                 fullWidth
@@ -73,5 +68,5 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
         </div>
       </div>
     </div>
-  )
+  );
 }

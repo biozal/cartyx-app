@@ -8,6 +8,7 @@ import { queryKeys } from '~/utils/queryKeys';
 import { useUpdateCampaign } from '~/hooks/useCampaigns';
 import { Topbar } from '~/components/Topbar';
 import { PixelButton } from '~/components/PixelButton';
+import { ImagePlus } from 'lucide-react';
 import { TIMEZONES } from '~/constants/timezones';
 import { FormInput } from '~/components/FormInput';
 import { FormTextarea } from '~/components/FormTextarea';
@@ -162,7 +163,7 @@ function EditCampaignPage() {
               />
             ) : (
               <>
-                <div className="text-3xl mb-2">🖼️</div>
+                <ImagePlus className="h-8 w-8 text-slate-500 mb-2" />
                 <div className="text-sm text-slate-500">
                   Drop an image here or <span className="text-blue-400">browse</span>
                 </div>

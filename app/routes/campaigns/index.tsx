@@ -9,6 +9,7 @@ import { Toast } from '~/components/Toast';
 import { PixelButton } from '~/components/PixelButton';
 import { useJoinCampaign } from '~/hooks/useCampaigns';
 import { CampaignCard } from '~/components/campaign/CampaignCard';
+import { KeyRound, Swords } from 'lucide-react';
 
 export const Route = createFileRoute('/campaigns/')({
   beforeLoad: async () => {
@@ -75,14 +76,20 @@ function CampaignsListPage() {
               <PixelButton
                 variant="primary"
                 size="md"
-                icon="🗝️"
+                icon={<KeyRound className="h-3.5 w-3.5" />}
                 onClick={() => setShowJoinForm(true)}
               >
                 Join Campaign
               </PixelButton>
             )}
             {isGm && (
-              <PixelButton as="link" variant="primary" size="md" icon="⚔️" to="/campaigns/new">
+              <PixelButton
+                as="link"
+                variant="primary"
+                size="md"
+                icon={<Swords className="h-3.5 w-3.5" />}
+                to="/campaigns/new"
+              >
                 Create Campaign
               </PixelButton>
             )}
@@ -115,14 +122,20 @@ function CampaignsListPage() {
                 : 'Ask your GM for an invite code to join a campaign.'}
             </p>
             {isGm ? (
-              <PixelButton as="link" variant="primary" size="lg" icon="⚔️" to="/campaigns/new">
+              <PixelButton
+                as="link"
+                variant="primary"
+                size="lg"
+                icon={<Swords className="h-3.5 w-3.5" />}
+                to="/campaigns/new"
+              >
                 Create Campaign
               </PixelButton>
             ) : (
               <PixelButton
                 variant="primary"
                 size="lg"
-                icon="🗝️"
+                icon={<KeyRound className="h-3.5 w-3.5" />}
                 onClick={() => setShowJoinForm(true)}
               >
                 Join Campaign
