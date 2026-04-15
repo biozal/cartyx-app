@@ -31,9 +31,11 @@ jobs:
         run: npx partykit deploy --name cartyx-party-dev
         env:
           PARTYKIT_TOKEN: ${{ secrets.PARTYKIT_TOKEN }}
+          PARTYKIT_LOGIN: ${{ secrets.PARTYKIT_LOGIN }}
 
       - name: Deploy to production
         if: github.ref == 'refs/heads/main'
         run: npx partykit deploy --name cartyx-party
         env:
           PARTYKIT_TOKEN: ${{ secrets.PARTYKIT_TOKEN }}
+          PARTYKIT_LOGIN: ${{ secrets.PARTYKIT_LOGIN }}
