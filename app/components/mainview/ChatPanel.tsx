@@ -13,10 +13,8 @@ function SpellCard({ message }: { message: ChatMessage }) {
   const data = message.beyond20Data;
   if (!data) return null;
 
-  const time = new Date(message.timestamp).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const d = new Date(message.timestamp);
+  const time = `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
 
   return (
     <div className="mb-3">
@@ -56,10 +54,8 @@ function SpellCard({ message }: { message: ChatMessage }) {
 }
 
 function ChatMessageBubble({ message }: { message: ChatMessage }) {
-  const time = new Date(message.timestamp).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const d = new Date(message.timestamp);
+  const time = `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
 
   return (
     <div className="mb-3">
@@ -152,7 +148,7 @@ export function ChatPanel({
   }
 
   return (
-    <div className="flex h-full flex-col bg-[#080A12] w-full">
+    <div className="flex h-full min-h-0 flex-col bg-[#080A12] w-full">
       {/* Session selector */}
       <div className="border-b border-white/[0.07] p-3">
         <label htmlFor="chat-session-selector" className="sr-only">

@@ -1,4 +1,5 @@
 import type * as Party from 'partykit/server';
+import { jwtVerify } from 'jose';
 
 const HISTORY_LIMIT = 50;
 
@@ -94,7 +95,6 @@ export default class SessionRoom implements Party.Server {
     }
 
     try {
-      const { jwtVerify } = await import('jose');
       const secret = new TextEncoder().encode(sessionSecret);
       const { payload } = await jwtVerify(token, secret, {
         algorithms: ['HS256'],

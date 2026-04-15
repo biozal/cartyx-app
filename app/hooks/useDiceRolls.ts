@@ -56,7 +56,7 @@ function mergeRolls(fromMongo: DiceRollMessage[], fromParty: DiceRollMessage[]):
   for (const m of fromParty) {
     if (!seen.has(m.id)) seen.set(m.id, m);
   }
-  return [...seen.values()].sort((a, b) => a.seq - b.seq || a.timestamp - b.timestamp);
+  return [...seen.values()].sort((a, b) => a.timestamp - b.timestamp || a.seq - b.seq);
 }
 
 export function useDiceRolls(sessionId: string, campaignId: string, isActiveSession: boolean) {
