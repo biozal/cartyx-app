@@ -99,7 +99,7 @@
     "partykit": "^0.0.115",
     "playwright": "^1.58.2",
     "prettier": "^3.5.3",
-    "storybook": "^10.3.3",
+    "storybook": "^10.3.5",
     "tailwindcss": "^4.2.2",
     "tsx": "^4.21.0",
     "typescript": "^5.8.2",
