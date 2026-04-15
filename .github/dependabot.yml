@@ -1,26 +1,28 @@
 version: 2
 updates:
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'npm'
+    directory: '/'
+    target-branch: 'dev'
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: 'weekly'
+      day: 'monday'
     open-pull-requests-limit: 10
     labels:
-      - "dependencies"
+      - 'dependencies'
     commit-message:
-      prefix: "chore(deps)"
+      prefix: 'chore(deps)'
     ignore:
       # Only accept patch and minor updates for major version packages
-      - dependency-name: "mongoose"
-        update-types: ["version-update:semver-major"]
+      - dependency-name: 'mongoose'
+        update-types: ['version-update:semver-major']
 
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    target-branch: 'dev'
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: 'weekly'
+      day: 'monday'
     labels:
-      - "dependencies"
+      - 'dependencies'
     commit-message:
-      prefix: "chore(actions)"
+      prefix: 'chore(actions)'
