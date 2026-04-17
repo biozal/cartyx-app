@@ -6,7 +6,7 @@ const mockCapture = vi.fn();
 const mockShutdown = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('posthog-node', () => ({
-  PostHog: vi.fn(function () {
+  PostHog: vi.fn(function (this: Record<string, unknown>) {
     this.capture = mockCapture;
     this.shutdown = mockShutdown;
   }),
