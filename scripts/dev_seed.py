@@ -26,8 +26,12 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from pymongo import MongoClient
+from pymongo.errors import ConfigurationError
 
 load_dotenv()
+
+# Repo root anchored to this script's location (scripts/ is one level down)
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # ---------------------------------------------------------------------------
 # Safety
@@ -70,7 +74,7 @@ def generate_campaign_svg(title: str, colors: dict[str, str]) -> str:
 
 
 def save_image(svg_content: str, filename: str) -> str:
-    uploads_dir = Path.cwd() / "public" / "uploads" / "campaigns"
+    uploads_dir = REPO_ROOT / "public" / "uploads" / "campaigns"
     uploads_dir.mkdir(parents=True, exist_ok=True)
     (uploads_dir / filename).write_text(svg_content, encoding="utf-8")
     return f"/uploads/campaigns/{filename}"
@@ -207,7 +211,18 @@ CAMPAIGNS = [
 def main() -> None:
     uri = require_mongo_uri()
     client: MongoClient = MongoClient(uri)
-    db = client.get_default_database()
+    db_name = os.environ.get("MONGODB_DB")
+    if db_name:
+        db = client[db_name]
+    else:
+        try:
+            db = client.get_default_database()
+        except ConfigurationError:
+            sys.exit(
+                "MONGODB_URI does not include a database name and MONGODB_DB is not set.\n"
+                "Either add a database name to the URI (e.g. mongodb+srv://…/cartyx) "
+                "or set MONGODB_DB=cartyx in your .env file."
+            )
 
     # Find the GM user
     user = db.users.find_one({"role": "gm"})

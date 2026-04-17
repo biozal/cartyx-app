@@ -566,7 +566,9 @@ Every PR automatically runs two required jobs plus one non-blocking job:
 1. **Lint & Test** — type check, lint, unit tests (with coverage)
 2. **Build** — production build verification
 
-**Non-blocking (runs in parallel, failures do not block merge):** 3. **Storybook Tests** — interaction tests via Vitest + Playwright
+**Non-blocking (runs in parallel, failures do not block merge):**
+
+3. **Storybook Tests** — interaction tests via Vitest + Playwright
 
 Storybook tests run as a separate non-blocking job because core component
 behavior is already covered by unit tests and app-level Playwright/E2E tests.
