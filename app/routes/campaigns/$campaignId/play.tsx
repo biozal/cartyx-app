@@ -13,6 +13,7 @@ import { CampaignTimelineWidget } from '~/components/mainview/widgets/CampaignTi
 import { KeyAlliesWidget } from '~/components/mainview/widgets/KeyAlliesWidget';
 import { PartyMembersWidget } from '~/components/mainview/widgets/PartyMembersWidget';
 import { SessionsListWidget } from '~/components/mainview/widgets/SessionsListWidget';
+import { ActivePlayerProvider } from '~/providers/ActivePlayerProvider';
 
 export const playSearchSchema = z.object({
   tab: z.enum(['dashboard', 'tabletop', 'gmscreens']).catch('dashboard'),
@@ -45,60 +46,62 @@ function PlayPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#080A12]">
-      <CampaignHeader
-        campaignId={campaignId}
-        isOwner={campaign?.isOwner}
-        isGM={campaign?.isGM}
-        activeSessionName={activeSession?.name}
-        activeTab={effectiveTab}
-        onTabChange={handleTabChange}
-      />
-      <div className="flex-1 overflow-hidden">
-        <MainView
-          showToolbar={effectiveTab === 'tabletop'}
+    <ActivePlayerProvider campaignId={campaignId}>
+      <div className="flex flex-col h-screen bg-[#080A12]">
+        <CampaignHeader
           campaignId={campaignId}
-          sessions={campaign?.sessions}
-        >
-          <div
-            className="h-full overflow-y-auto"
-            role="tabpanel"
-            id="tab-panel-dashboard"
-            aria-labelledby="tab-dashboard"
-            hidden={effectiveTab !== 'dashboard'}
+          isOwner={campaign?.isOwner}
+          isGM={campaign?.isGM}
+          activeSessionName={activeSession?.name}
+          activeTab={effectiveTab}
+          onTabChange={handleTabChange}
+        />
+        <div className="flex-1 overflow-hidden">
+          <MainView
+            showToolbar={effectiveTab === 'tabletop'}
+            campaignId={campaignId}
+            sessions={campaign?.sessions}
           >
-            <DashboardView>
-              <CatchUpWidget
-                catchUp={isCampaignLoading ? undefined : (activeSession?.catchUp ?? null)}
-              />
-              <PartyMembersWidget />
-              <KeyAlliesWidget />
-              <SessionsListWidget campaignId={campaignId} className="col-span-full" />
-              <CampaignTimelineWidget className="xl:col-span-2" />
-            </DashboardView>
-          </div>
-          <div
-            className="flex items-center justify-center h-full text-slate-400 font-sans font-semibold text-xs"
-            role="tabpanel"
-            id="tab-panel-tabletop"
-            aria-labelledby="tab-tabletop"
-            hidden={effectiveTab !== 'tabletop'}
-          >
-            <TabletopView />
-          </div>
-          {campaign?.isGM && (
             <div
-              className="h-full"
+              className="h-full overflow-y-auto"
               role="tabpanel"
-              id="tab-panel-gmscreens"
-              aria-labelledby="tab-gmscreens"
-              hidden={effectiveTab !== 'gmscreens'}
+              id="tab-panel-dashboard"
+              aria-labelledby="tab-dashboard"
+              hidden={effectiveTab !== 'dashboard'}
             >
-              <GMScreensView campaignId={campaignId} isGM={campaign?.isGM} />
+              <DashboardView>
+                <CatchUpWidget
+                  catchUp={isCampaignLoading ? undefined : (activeSession?.catchUp ?? null)}
+                />
+                <PartyMembersWidget />
+                <KeyAlliesWidget />
+                <SessionsListWidget campaignId={campaignId} className="col-span-full" />
+                <CampaignTimelineWidget className="xl:col-span-2" />
+              </DashboardView>
             </div>
-          )}
-        </MainView>
+            <div
+              className="flex items-center justify-center h-full text-slate-400 font-sans font-semibold text-xs"
+              role="tabpanel"
+              id="tab-panel-tabletop"
+              aria-labelledby="tab-tabletop"
+              hidden={effectiveTab !== 'tabletop'}
+            >
+              <TabletopView />
+            </div>
+            {campaign?.isGM && (
+              <div
+                className="h-full"
+                role="tabpanel"
+                id="tab-panel-gmscreens"
+                aria-labelledby="tab-gmscreens"
+                hidden={effectiveTab !== 'gmscreens'}
+              >
+                <GMScreensView campaignId={campaignId} isGM={campaign?.isGM} />
+              </div>
+            )}
+          </MainView>
+        </div>
       </div>
-    </div>
+    </ActivePlayerProvider>
   );
 }
