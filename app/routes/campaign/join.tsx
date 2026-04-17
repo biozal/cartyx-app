@@ -6,6 +6,7 @@ import { JoinWizard } from '~/components/join-wizard/JoinWizard';
 export const joinSearchSchema = z.object({
   code: z.string().optional(),
   step: z.coerce.number().min(1).max(5).catch(1),
+  campaignId: z.string().optional(),
 });
 
 export const Route = createFileRoute('/campaign/join')({

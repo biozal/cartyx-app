@@ -327,6 +327,19 @@ export const deleteCharacter = createServerFn({ method: 'POST' })
         });
       }
 
+      // Clean up character-to-character relationships referencing this character
+      await Character.updateMany(
+        { campaignId: data.campaignId, 'relationships.characterId': data.id },
+        { $pull: { relationships: { characterId: data.id } } }
+      );
+
+      // Clean up player-to-character relationships referencing this character
+      const { Player } = await import('../db/models/Player');
+      await Player.updateMany(
+        { campaignId: data.campaignId, 'relationships.characterId': data.id },
+        { $pull: { relationships: { characterId: data.id } } }
+      );
+
       serverCaptureEvent(sessionUserId, 'character_deleted', {
         campaign_id: data.campaignId,
         character_id: data.id,
