@@ -64,7 +64,13 @@
     "zod": "^3.24.1"
   },
   "overrides": {
-    "h3-v2": "npm:h3@2.0.1-rc.19"
+    "h3-v2": "npm:h3@2.0.1-rc.19",
+    "partykit": {
+      "miniflare": {
+        "undici": "^6.24.0"
+      },
+      "esbuild": "^0.25.0"
+    }
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^5.1.1",
