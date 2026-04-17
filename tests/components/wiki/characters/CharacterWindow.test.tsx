@@ -26,6 +26,8 @@ const baseCharacter: CharacterData = {
   sessions: [],
   createdAt: '2026-01-01',
   updatedAt: '2026-01-01',
+  status: { value: 'alive', changedAt: null, changedBy: null },
+  relationships: [],
 };
 
 describe('CharacterWindow', () => {

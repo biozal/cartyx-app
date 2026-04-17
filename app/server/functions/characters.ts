@@ -38,6 +38,8 @@ function serializeCharacter(c: {
   sessions?: unknown[];
   createdAt?: Date;
   updatedAt?: Date;
+  status?: { value?: string; changedAt?: Date | null; changedBy?: unknown };
+  relationships?: Array<{ characterId: unknown; descriptor?: string; isPublic?: boolean }>;
 }): Omit<CharacterData, 'canEdit'> {
   return {
     id: String(c._id),
@@ -67,6 +69,18 @@ function serializeCharacter(c: {
     sessions: (c.sessions ?? []).map((s) => String(s)),
     createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : '',
     updatedAt: c.updatedAt instanceof Date ? c.updatedAt.toISOString() : '',
+    status: {
+      value: (c.status?.value as 'alive' | 'deceased') ?? 'alive',
+      changedAt: c.status?.changedAt ? new Date(c.status.changedAt as Date).toISOString() : null,
+      changedBy: c.status?.changedBy ? String(c.status.changedBy) : null,
+    },
+    relationships: (c.relationships ?? []).map(
+      (r: { characterId: unknown; descriptor?: string; isPublic?: boolean }) => ({
+        characterId: String(r.characterId),
+        descriptor: r.descriptor ?? '',
+        isPublic: r.isPublic ?? false,
+      })
+    ),
   };
 }
 
@@ -89,6 +103,7 @@ function serializeCharacterListItem(c: {
   sessions?: unknown[];
   createdAt?: Date;
   updatedAt?: Date;
+  status?: { value?: string; changedAt?: Date | null; changedBy?: unknown };
 }): Omit<CharacterListItem, 'canEdit'> {
   return {
     id: String(c._id),
@@ -116,6 +131,11 @@ function serializeCharacterListItem(c: {
     sessions: (c.sessions ?? []).map((s) => String(s)),
     createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : '',
     updatedAt: c.updatedAt instanceof Date ? c.updatedAt.toISOString() : '',
+    status: {
+      value: (c.status?.value as 'alive' | 'deceased') ?? 'alive',
+      changedAt: c.status?.changedAt ? new Date(c.status.changedAt as Date).toISOString() : null,
+      changedBy: c.status?.changedBy ? String(c.status.changedBy) : null,
+    },
   };
 }
 
@@ -413,6 +433,7 @@ export const listCharacters = createServerFn({ method: 'GET' })
           sessions?: unknown[];
           createdAt?: Date;
           updatedAt?: Date;
+          status?: { value?: string; changedAt?: Date | null; changedBy?: unknown };
         }>
       ).map((doc) => ({
         ...serializeCharacterListItem(doc),

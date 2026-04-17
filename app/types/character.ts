@@ -1,3 +1,15 @@
+export interface CharacterStatus {
+  value: 'alive' | 'deceased';
+  changedAt: string | null;
+  changedBy: string | null;
+}
+
+export interface CharacterRelationship {
+  characterId: string;
+  descriptor: string;
+  isPublic: boolean;
+}
+
 export interface PictureCrop {
   x: number;
   y: number;
@@ -26,6 +38,8 @@ export interface CharacterData {
   sessions: string[];
   createdAt: string;
   updatedAt: string;
+  status: CharacterStatus;
+  relationships: CharacterRelationship[];
   canEdit: boolean;
 }
 
@@ -48,5 +62,6 @@ export interface CharacterListItem {
   sessions: string[];
   createdAt: string;
   updatedAt: string;
+  status: CharacterStatus;
   canEdit: boolean;
 }
