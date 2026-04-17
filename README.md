@@ -26,21 +26,21 @@ npm run dev            # http://localhost:3000
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Framework** | [TanStack Start](https://tanstack.com/start) (full-stack React) |
-| **UI** | React 19 + [Tailwind CSS v4](https://tailwindcss.com) |
-| **Routing** | [TanStack Router](https://tanstack.com/router) (file-based, type-safe) |
-| **Auth** | Custom OAuth (Google, GitHub, Apple) via [JOSE](https://github.com/panva/jose) JWT |
-| **Database** | MongoDB Atlas ([Mongoose](https://mongoosejs.com)) |
-| **Image Storage** | [Cloudflare R2](https://developers.cloudflare.com/r2/) (S3-compatible) |
-| **Dates** | [Day.js](https://day.js.org) with timezone + relative time plugins |
-| **Analytics** | [PostHog](https://posthog.com) (React SDK + Node SDK) |
-| **Build** | [Vite](https://vitejs.dev) + [Nitro](https://nitro.build/) |
-| **Testing** | [Vitest](https://vitest.dev) + [React Testing Library](https://testing-library.com) |
-| **Linting** | ESLint (flat config) + Prettier |
-| **Hosting** | [Vercel](https://vercel.com) (serverless) |
-| **CDN** | [Cloudflare](https://cloudflare.com) (DNS + R2 CDN) |
+| Layer             | Technology                                                                          |
+| ----------------- | ----------------------------------------------------------------------------------- |
+| **Framework**     | [TanStack Start](https://tanstack.com/start) (full-stack React)                     |
+| **UI**            | React 19 + [Tailwind CSS v4](https://tailwindcss.com)                               |
+| **Routing**       | [TanStack Router](https://tanstack.com/router) (file-based, type-safe)              |
+| **Auth**          | Custom OAuth (Google, GitHub, Apple) via [JOSE](https://github.com/panva/jose) JWT  |
+| **Database**      | MongoDB Atlas ([Mongoose](https://mongoosejs.com))                                  |
+| **Image Storage** | [Cloudflare R2](https://developers.cloudflare.com/r2/) (S3-compatible)              |
+| **Dates**         | [Day.js](https://day.js.org) with timezone + relative time plugins                  |
+| **Analytics**     | [PostHog](https://posthog.com) (React SDK + Node SDK)                               |
+| **Build**         | [Vite](https://vitejs.dev) + [Nitro](https://nitro.build/)                          |
+| **Testing**       | [Vitest](https://vitest.dev) + [React Testing Library](https://testing-library.com) |
+| **Linting**       | ESLint (flat config) + Prettier                                                     |
+| **Hosting**       | [Vercel](https://vercel.com) (serverless)                                           |
+| **CDN**           | [Cloudflare](https://cloudflare.com) (DNS + R2 CDN)                                 |
 
 ## Project Structure
 
@@ -79,20 +79,41 @@ npm run test:watch     # TDD watch mode
 npm run test:coverage  # Coverage report
 ```
 
+### Dev Data Scripts
+
+Standalone Python scripts for seeding and clearing test data in MongoDB. These are
+intentionally separate from the app's TypeScript codebase — simple, dependency-free
+(just pymongo), and easy to modify.
+
+```bash
+# One-time setup
+python3 -m venv scripts/.venv
+scripts/.venv/bin/pip install -r scripts/requirements.txt
+
+# Seed 3 test campaigns with sessions, characters, and placeholder images
+npm run dev:seed
+
+# Wipe all campaign data (interactive confirmation)
+npm run dev:clear
+npm run dev:clear -- --force   # skip confirmation
+```
+
+Both scripts require `MONGODB_URI` to be set and refuse to run against production databases.
+
 ## Feature Flags
 
 Client-side feature flags are available through [`app/utils/featureFlags.tsx`](app/utils/featureFlags.tsx), which wraps PostHog's React hooks with a small app-level API:
 
 ```tsx
-import { FeatureFlagGate, useFeatureFlag } from '~/utils/featureFlags'
+import { FeatureFlagGate, useFeatureFlag } from '~/utils/featureFlags';
 
 function ExperimentalPanel() {
-  const { isEnabled, isLoading, payload } = useFeatureFlag('experimental-panel')
+  const { isEnabled, isLoading, payload } = useFeatureFlag('experimental-panel');
 
-  if (isLoading) return null
-  if (!isEnabled) return null
+  if (isLoading) return null;
+  if (!isEnabled) return null;
 
-  return <section>{JSON.stringify(payload)}</section>
+  return <section>{JSON.stringify(payload)}</section>;
 }
 
 function Page() {
@@ -100,7 +121,7 @@ function Page() {
     <FeatureFlagGate flag="experimental-panel" fallback={null}>
       <ExperimentalPanel />
     </FeatureFlagGate>
-  )
+  );
 }
 ```
 
@@ -114,12 +135,12 @@ For contributor setup, story-writing patterns, interaction tests, and Storybook-
 
 ## Environments
 
-| Environment | URL | Branch | Database |
-|---|---|---|---|
-| **Production** | `app.cartyx.io` | `main` | MongoDB Atlas (prod) |
-| **Staging** | `dev.cartyx.io` | `dev` | MongoDB Atlas (dev) |
-| **PR Preview** | `*.vercel.app` | any PR branch | MongoDB Atlas (dev) |
-| **Local** | `localhost:3000` | any | Local or Atlas dev |
+| Environment    | URL              | Branch        | Database             |
+| -------------- | ---------------- | ------------- | -------------------- |
+| **Production** | `app.cartyx.io`  | `main`        | MongoDB Atlas (prod) |
+| **Staging**    | `dev.cartyx.io`  | `dev`         | MongoDB Atlas (dev)  |
+| **PR Preview** | `*.vercel.app`   | any PR branch | MongoDB Atlas (dev)  |
+| **Local**      | `localhost:3000` | any           | Local or Atlas dev   |
 
 ## Branching Strategy
 
@@ -136,6 +157,7 @@ feature/my-feature → PR against dev → preview URL → merge to dev (staging)
 ## Deployment
 
 See [docs/deployment.md](docs/deployment.md) for complete setup instructions including:
+
 - Vercel project configuration
 - MongoDB Atlas setup
 - OAuth provider setup (Google, GitHub, Apple)
