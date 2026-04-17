@@ -16,6 +16,24 @@ updates:
       - dependency-name: 'mongoose'
         update-types: ['version-update:semver-major']
 
+      # --- Vite 8 boundary: these versions require Vite 8 / Rolldown ---
+      # Vite 8 switches from Rollup to Rolldown and breaks our React Compiler
+      # babel plugin setup in vite.config.ts. Hold at Vite 7 until React
+      # Compiler has native Rolldown/Oxc support.
+      - dependency-name: 'vite'
+        versions: ['>=8.0.0']
+      # plugin-react 5.2+ requires Vite 8; 6.x removes Babel entirely,
+      # which breaks babel-plugin-react-compiler integration.
+      - dependency-name: '@vitejs/plugin-react'
+        versions: ['>=5.2.0']
+      # vitest 5+ will likely require Vite 8 (vitest 4.x supports Vite 7)
+      - dependency-name: 'vitest'
+        versions: ['>=5.0.0']
+      - dependency-name: '@vitest/coverage-v8'
+        versions: ['>=5.0.0']
+      - dependency-name: '@vitest/browser-playwright'
+        versions: ['>=5.0.0']
+
   - package-ecosystem: 'github-actions'
     directory: '/'
     target-branch: 'dev'
