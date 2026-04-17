@@ -664,7 +664,15 @@ export const completeJoinWizard = createServerFn({ method: 'POST' })
         }
       );
 
-      // 3. Create Player document
+      // 3. Guard against duplicate player (race condition / double-submit)
+      const existingPlayer = await Player.findOne({
+        campaignId: data.campaignId,
+        createdBy: userId,
+        'status.value': 'alive',
+      });
+      if (existingPlayer) throw new Error('Player already exists for this campaign');
+
+      // 4. Create Player document
       const playerDoc = await Player.create({
         campaignId: data.campaignId,
         createdBy: userId,

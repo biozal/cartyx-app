@@ -7,11 +7,15 @@ import { CharacterWindow } from '~/components/wiki/characters/CharacterWindow';
 import type { CharacterData } from '~/types/character';
 
 function Wrapper({ children }: { children: ReactNode }) {
-  const [queryClient] = React.useState(() => new QueryClient({ defaultOptions: { queries: { retry: false } } }));
+  const [queryClient] = React.useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  );
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
 
-const customRender: typeof render = (ui, options) => render(ui, { wrapper: Wrapper, ...options });
+function customRender(ui: React.ReactNode, options?: Parameters<typeof render>[1]) {
+  return render(ui, { wrapper: Wrapper, ...options });
+}
 
 const baseCharacter: CharacterData = {
   id: 'char-1',

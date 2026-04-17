@@ -496,7 +496,13 @@ export const getCharacter = createServerFn({ method: 'GET' })
         serialized.gmNotes = '';
       }
 
-      const canEdit = String(doc.createdBy) === userId || member.isGM;
+      // Strip private relationships for non-creator/non-GM
+      const isCreator = String(doc.createdBy) === userId;
+      if (!isCreator && !member.isGM) {
+        serialized.relationships = serialized.relationships.filter((r) => r.isPublic);
+      }
+
+      const canEdit = isCreator || member.isGM;
       return { ...serialized, canEdit };
     } catch (e) {
       serverCaptureException(e, sessionUserId, { action: 'getCharacter', characterId: data.id });
