@@ -6,6 +6,13 @@ import type { PlayerData } from '~/types/player';
 import type { PictureCrop } from '~/types/character';
 import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
 import { TabBar } from '~/components/shared/TabBar';
+import { RelationshipList } from '~/components/shared/RelationshipList';
+import { RelationshipModal } from '~/components/shared/RelationshipModal';
+import {
+  useAddPlayerRelationship,
+  useUpdatePlayerRelationship,
+  useRemovePlayerRelationship,
+} from '~/hooks/usePlayers';
 
 function getCropStyle(crop: PictureCrop): React.CSSProperties {
   const centerX = (crop.x + crop.width / 2) * 100;
@@ -66,6 +73,15 @@ function FieldCell({ label, value }: { label: string; value: string }) {
 
 export function PlayerWindow({ player, onEdit }: PlayerWindowProps) {
   const [activeTab, setActiveTab] = useState('general');
+  const [relationshipModal, setRelationshipModal] = useState<{
+    open: boolean;
+    mode: 'add' | 'edit';
+    editCharacterId?: string;
+  }>({ open: false, mode: 'add' });
+
+  const { addRelationship } = useAddPlayerRelationship();
+  const { updateRelationship } = useUpdatePlayerRelationship();
+  const { removeRelationship } = useRemovePlayerRelationship();
 
   const fullName = `${player.firstName} ${player.lastName}`.trim();
   const initials = getInitials(player.firstName, player.lastName);
@@ -227,7 +243,60 @@ export function PlayerWindow({ player, onEdit }: PlayerWindowProps) {
         )}
 
         {activeTab === 'relationships' && (
-          <p className="text-xs text-slate-500">No relationships yet.</p>
+          <>
+            <RelationshipList
+              relationships={player.relationships}
+              campaignId={player.campaignId}
+              canManage={player.canEdit}
+              onAdd={() => setRelationshipModal({ open: true, mode: 'add' })}
+              onEdit={(charId) =>
+                setRelationshipModal({ open: true, mode: 'edit', editCharacterId: charId })
+              }
+              onRemove={(charId) => {
+                removeRelationship({
+                  playerId: player.id,
+                  campaignId: player.campaignId,
+                  characterId: charId,
+                });
+              }}
+            />
+            {relationshipModal.open && (
+              <RelationshipModal
+                campaignId={player.campaignId}
+                mode={relationshipModal.mode}
+                showReciprocal={false}
+                existingRelationship={
+                  relationshipModal.mode === 'edit' && relationshipModal.editCharacterId
+                    ? player.relationships.find(
+                        (r) => r.characterId === relationshipModal.editCharacterId
+                      )
+                    : undefined
+                }
+                excludeCharacterIds={player.relationships.map((r) => r.characterId)}
+                onSave={(data) => {
+                  if (relationshipModal.mode === 'add') {
+                    addRelationship({
+                      playerId: player.id,
+                      campaignId: player.campaignId,
+                      characterId: data.characterId,
+                      descriptor: data.descriptor,
+                      isPublic: data.isPublic,
+                    });
+                  } else {
+                    updateRelationship({
+                      playerId: player.id,
+                      campaignId: player.campaignId,
+                      characterId: data.characterId,
+                      descriptor: data.descriptor,
+                      isPublic: data.isPublic,
+                    });
+                  }
+                  setRelationshipModal({ open: false, mode: 'add' });
+                }}
+                onClose={() => setRelationshipModal({ open: false, mode: 'add' })}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

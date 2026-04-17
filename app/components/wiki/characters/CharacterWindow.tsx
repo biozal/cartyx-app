@@ -5,6 +5,13 @@ import remarkGfm from 'remark-gfm';
 import type { CharacterData, PictureCrop } from '~/types/character';
 import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
 import { TabBar } from '~/components/shared/TabBar';
+import { RelationshipList } from '~/components/shared/RelationshipList';
+import { RelationshipModal } from '~/components/shared/RelationshipModal';
+import {
+  useAddCharacterRelationship,
+  useUpdateCharacterRelationship,
+  useRemoveCharacterRelationship,
+} from '~/hooks/useCharacters';
 
 function getCropStyle(crop: PictureCrop): React.CSSProperties {
   const centerX = (crop.x + crop.width / 2) * 100;
@@ -56,6 +63,15 @@ function StatBlock({ label, value }: { label: string; value: string }) {
 
 export function CharacterWindow({ character, onEdit }: CharacterWindowProps) {
   const [activeTab, setActiveTab] = useState('general');
+  const [relationshipModal, setRelationshipModal] = useState<{
+    open: boolean;
+    mode: 'add' | 'edit';
+    editCharacterId?: string;
+  }>({ open: false, mode: 'add' });
+
+  const { addRelationship } = useAddCharacterRelationship();
+  const { updateRelationship } = useUpdateCharacterRelationship();
+  const { removeRelationship } = useRemoveCharacterRelationship();
 
   const fullName = `${character.firstName} ${character.lastName}`.trim();
   const initials = getInitials(character.firstName, character.lastName);
@@ -188,7 +204,65 @@ export function CharacterWindow({ character, onEdit }: CharacterWindowProps) {
         )}
 
         {activeTab === 'relationships' && (
-          <p className="text-xs text-slate-500">No relationships yet.</p>
+          <>
+            <RelationshipList
+              relationships={character.relationships}
+              campaignId={character.campaignId}
+              canManage={character.canEdit}
+              onAdd={() => setRelationshipModal({ open: true, mode: 'add' })}
+              onEdit={(charId) =>
+                setRelationshipModal({ open: true, mode: 'edit', editCharacterId: charId })
+              }
+              onRemove={(charId) => {
+                removeRelationship({
+                  characterId: character.id,
+                  campaignId: character.campaignId,
+                  targetCharacterId: charId,
+                });
+              }}
+            />
+            {relationshipModal.open && (
+              <RelationshipModal
+                campaignId={character.campaignId}
+                mode={relationshipModal.mode}
+                showReciprocal
+                existingRelationship={
+                  relationshipModal.mode === 'edit' && relationshipModal.editCharacterId
+                    ? character.relationships.find(
+                        (r) => r.characterId === relationshipModal.editCharacterId
+                      )
+                    : undefined
+                }
+                excludeCharacterIds={[
+                  character.id,
+                  ...character.relationships.map((r) => r.characterId),
+                ]}
+                onSave={(data) => {
+                  if (relationshipModal.mode === 'add') {
+                    addRelationship({
+                      characterId: character.id,
+                      campaignId: character.campaignId,
+                      targetCharacterId: data.characterId,
+                      descriptor: data.descriptor,
+                      reciprocalDescriptor: data.reciprocalDescriptor ?? '',
+                      isPublic: data.isPublic,
+                    });
+                  } else {
+                    updateRelationship({
+                      characterId: character.id,
+                      campaignId: character.campaignId,
+                      targetCharacterId: data.characterId,
+                      descriptor: data.descriptor,
+                      reciprocalDescriptor: data.reciprocalDescriptor,
+                      isPublic: data.isPublic,
+                    });
+                  }
+                  setRelationshipModal({ open: false, mode: 'add' });
+                }}
+                onClose={() => setRelationshipModal({ open: false, mode: 'add' })}
+              />
+            )}
+          </>
         )}
       </div>
     </div>
