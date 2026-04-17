@@ -77,4 +77,54 @@ describe('CharacterWindow', () => {
     expect(screen.queryByRole('button', { name: 'Edit character' })).not.toBeInTheDocument();
     expect(screen.queryByText(/#/)).not.toBeInTheDocument();
   });
+
+  describe('tabs', () => {
+    it('renders General tab content by default with notes', () => {
+      render(<CharacterWindow character={baseCharacter} />);
+      expect(screen.getByText('A steadfast warrior.')).toBeInTheDocument();
+    });
+
+    it('shows GM Notes tab when canEdit is true', () => {
+      render(<CharacterWindow character={baseCharacter} />);
+      expect(screen.getByText('GM Notes')).toBeInTheDocument();
+    });
+
+    it('hides GM Notes tab when canEdit is false', () => {
+      render(<CharacterWindow character={{ ...baseCharacter, canEdit: false }} />);
+      expect(screen.queryByText('GM Notes')).not.toBeInTheDocument();
+    });
+
+    it('switches to GM Notes tab on click', async () => {
+      const user = userEvent.setup();
+      render(
+        <CharacterWindow character={{ ...baseCharacter, gmNotes: 'Secret villain plans.' }} />
+      );
+      await user.click(screen.getByText('GM Notes'));
+      expect(screen.getByText('Secret villain plans.')).toBeInTheDocument();
+    });
+
+    it('switches to Relationships tab showing placeholder', async () => {
+      const user = userEvent.setup();
+      render(<CharacterWindow character={baseCharacter} />);
+      await user.click(screen.getByText('Relationships'));
+      expect(screen.getByText('No relationships yet.')).toBeInTheDocument();
+    });
+
+    it('shows Deceased label when status is deceased', () => {
+      render(
+        <CharacterWindow
+          character={{
+            ...baseCharacter,
+            status: { value: 'deceased', changedAt: '2026-03-01', changedBy: 'user-1' },
+          }}
+        />
+      );
+      expect(screen.getByText('Deceased')).toBeInTheDocument();
+    });
+
+    it('does not show Deceased label when status is alive', () => {
+      render(<CharacterWindow character={baseCharacter} />);
+      expect(screen.queryByText('Deceased')).not.toBeInTheDocument();
+    });
+  });
 });

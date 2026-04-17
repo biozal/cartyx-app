@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { ChevronDown, Pencil } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { CharacterData, PictureCrop } from '~/types/character';
 import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
+import { TabBar } from '~/components/shared/TabBar';
 
 function getCropStyle(crop: PictureCrop): React.CSSProperties {
   const centerX = (crop.x + crop.width / 2) * 100;
@@ -53,35 +54,9 @@ function StatBlock({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Accordion({
-  title,
-  defaultOpen = false,
-  children,
-}: {
-  title: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-
-  return (
-    <div className="border border-white/[0.06] rounded-md overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/[0.03] transition-colors"
-      >
-        {title}
-        <ChevronDown
-          className={`h-3.5 w-3.5 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
-      {open && <div className="px-3 pb-3">{children}</div>}
-    </div>
-  );
-}
-
 export function CharacterWindow({ character, onEdit }: CharacterWindowProps) {
+  const [activeTab, setActiveTab] = useState('general');
+
   const fullName = `${character.firstName} ${character.lastName}`.trim();
   const initials = getInitials(character.firstName, character.lastName);
   const gradientIndex = hashName(fullName) % GRADIENT_PAIRS.length;
@@ -94,82 +69,128 @@ export function CharacterWindow({ character, onEdit }: CharacterWindowProps) {
   if (character.location) stats.push({ label: 'Location', value: character.location });
 
   const showMeta = character.tags.length > 0 || (character.canEdit && !!onEdit);
+  const isDeceased = character.status?.value === 'deceased';
+
+  const tabs = [
+    { id: 'general', label: 'General' },
+    { id: 'gmnotes', label: 'GM Notes', hidden: !character.canEdit },
+    { id: 'relationships', label: 'Relationships' },
+  ];
 
   return (
-    <div className="flex flex-col gap-3 p-4">
-      {/* Portrait */}
-      <div className="flex justify-center">
-        <div
-          className="w-24 h-24 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
-          style={
-            character.picture
-              ? undefined
-              : { background: `linear-gradient(135deg, ${gradFrom}, ${gradTo})` }
-          }
-        >
-          {character.picture ? (
-            <img
-              src={character.picture}
-              alt={fullName}
-              className="w-full h-full object-cover"
-              style={character.pictureCrop ? getCropStyle(character.pictureCrop) : undefined}
-            />
-          ) : (
-            <span className="text-2xl text-white font-semibold">{initials}</span>
-          )}
+    <div className="flex flex-col">
+      {/* Header area */}
+      <div className="flex flex-col gap-3 p-4">
+        {/* Portrait */}
+        <div className="flex justify-center">
+          <div
+            className="w-24 h-24 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
+            style={
+              character.picture
+                ? undefined
+                : { background: `linear-gradient(135deg, ${gradFrom}, ${gradTo})` }
+            }
+          >
+            {character.picture ? (
+              <img
+                src={character.picture}
+                alt={fullName}
+                className="w-full h-full object-cover"
+                style={character.pictureCrop ? getCropStyle(character.pictureCrop) : undefined}
+              />
+            ) : (
+              <span className="text-2xl text-white font-semibold">{initials}</span>
+            )}
+          </div>
         </div>
+
+        {/* Tags + edit button below portrait */}
+        {showMeta && (
+          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+            {character.tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-sans font-bold text-[9px] tracking-tight"
+              >
+                #{tag}
+              </span>
+            ))}
+            {character.canEdit && onEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="shrink-0 p-1 rounded bg-white/[0.05] hover:bg-white/[0.1] text-slate-400 hover:text-white transition-colors"
+                aria-label="Edit character"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Stats grid + deceased indicator */}
+        {(stats.length > 0 || isDeceased) && (
+          <div className="flex flex-col gap-2">
+            {isDeceased && (
+              <div className="flex justify-center">
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-red-400 border border-red-500/20">
+                  Deceased
+                </span>
+              </div>
+            )}
+            {stats.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {stats.map((s) => (
+                  <StatBlock key={s.label} label={s.label} value={s.value} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Tags + edit button below portrait */}
-      {showMeta && (
-        <div className="flex items-center justify-center gap-1.5 flex-wrap">
-          {character.tags.map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-sans font-bold text-[9px] tracking-tight"
-            >
-              #{tag}
-            </span>
-          ))}
-          {character.canEdit && onEdit && (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="shrink-0 p-1 rounded bg-white/[0.05] hover:bg-white/[0.1] text-slate-400 hover:text-white transition-colors"
-              aria-label="Edit character"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-      )}
+      {/* Tab bar */}
+      <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* Stats grid */}
-      {stats.length > 0 && (
-        <div className="grid grid-cols-2 gap-2">
-          {stats.map((s) => (
-            <StatBlock key={s.label} label={s.label} value={s.value} />
-          ))}
-        </div>
-      )}
-
-      {/* Details accordion */}
-      {character.notes && (
-        <Accordion title="Details" defaultOpen>
-          <div className={MARKDOWN_PROSE_CLASSES}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{character.notes}</ReactMarkdown>
+      {/* Tab content */}
+      <div className="p-4">
+        {activeTab === 'general' && (
+          <div>
+            {character.notes ? (
+              <div className={MARKDOWN_PROSE_CLASSES}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{character.notes}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">No details yet.</p>
+            )}
+            {character.sessions && character.sessions.length > 0 && (
+              <div className="mt-4">
+                <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Sessions</p>
+                <p className="text-xs text-slate-400">
+                  Appeared in {character.sessions.length} session
+                  {character.sessions.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            )}
           </div>
-        </Accordion>
-      )}
+        )}
 
-      {/* GM Notes accordion */}
-      {character.gmNotes && (
-        <Accordion title="GM Notes">
-          <div className={MARKDOWN_PROSE_CLASSES}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{character.gmNotes}</ReactMarkdown>
+        {activeTab === 'gmnotes' && (
+          <div>
+            {character.gmNotes ? (
+              <div className={MARKDOWN_PROSE_CLASSES}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{character.gmNotes}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">No GM notes yet.</p>
+            )}
           </div>
-        </Accordion>
-      )}
+        )}
+
+        {activeTab === 'relationships' && (
+          <p className="text-xs text-slate-500">No relationships yet.</p>
+        )}
+      </div>
     </div>
   );
 }
