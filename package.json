@@ -27,8 +27,8 @@
     "party:dev": "npx partykit dev",
     "db:verify": "tsx scripts/mongo-admin.ts verify",
     "db:sync": "tsx scripts/mongo-admin.ts sync",
-    "dev:clear": "tsx scripts/dev-clear.ts",
-    "dev:seed": "tsx scripts/dev-seed.ts"
+    "dev:clear": "scripts/.venv/bin/python scripts/dev_clear.py",
+    "dev:seed": "scripts/.venv/bin/python scripts/dev_seed.py"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1014.0",

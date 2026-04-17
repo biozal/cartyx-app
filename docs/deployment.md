@@ -82,7 +82,7 @@ Since Vercel uses dynamic IPs, you need to allow access from anywhere:
 3. Click **Allow Access from Anywhere** (adds `0.0.0.0/0`)
 4. Click **Confirm**
 
-> **Note:** Your database is still protected by username/password auth. This just means any IP can *attempt* to connect — they still need valid credentials.
+> **Note:** Your database is still protected by username/password auth. This just means any IP can _attempt_ to connect — they still need valid credentials.
 
 Do this for **both** prod and dev clusters.
 
@@ -156,6 +156,7 @@ Apple Sign-In requires an Apple Developer account ($99/year) and is more complex
 For Vercel deployment, the Apple private key needs to be stored as an environment variable (base64-encoded) rather than a file path. This requires a code change to read from env var instead of filesystem — see the codebase for current implementation.
 
 Required env vars:
+
 - `APPLE_CLIENT_ID` — the Services ID (e.g., `io.cartyx.signin`)
 - `APPLE_TEAM_ID` — your Apple Developer Team ID
 - `APPLE_KEY_ID` — the key ID from the key you created
@@ -186,6 +187,7 @@ Cloudflare handles DNS, CDN, and image storage (R2).
 ### Set Up R2 Custom Domains
 
 For each bucket:
+
 1. Go to the bucket → **Settings** → **Custom Domains**
 2. Add domain:
    - Production bucket: `cdn.cartyx.io`
@@ -199,6 +201,7 @@ Direct browser uploads require CORS to allow PUT requests from your app domain.
 For each bucket, go to **R2 bucket → Settings → CORS Policy → Add CORS policy** and add:
 
 **Production bucket (`cartyx-production`):**
+
 ```json
 [
   {
@@ -212,6 +215,7 @@ For each bucket, go to **R2 bucket → Settings → CORS Policy → Add CORS pol
 ```
 
 **Dev bucket (`cartyx-dev`):**
+
 ```json
 [
   {
@@ -253,6 +257,7 @@ For each bucket, go to **R2 bucket → Settings → CORS Policy → Add CORS pol
 Go to **Settings** → **Environment Variables**.
 
 Vercel lets you set different values per environment. Use the checkboxes:
+
 - **Production** — only `main` branch
 - **Preview** — all other branches and PRs
 
@@ -268,6 +273,7 @@ Go to **Settings** → **Domains**:
 ### Configure Git
 
 Go to **Settings** → **Git**:
+
 - **Production Branch:** `main`
 - Leave "Ignored Build Step" empty — Vercel should build all branches
 
@@ -287,49 +293,49 @@ git push origin dev
 
 ### All Environments
 
-| Variable | Description | Example |
-|---|---|---|
-| `SESSION_SECRET` | JWT signing secret (min 32 chars) | `openssl rand -hex 32` |
-| `R2_ACCOUNT_ID` | Cloudflare account ID | `66cc5f108c...` |
-| `R2_ACCESS_KEY_ID` | R2 API token access key | from R2 API token creation |
-| `R2_SECRET_ACCESS_KEY` | R2 API token secret | from R2 API token creation |
+| Variable               | Description                       | Example                    |
+| ---------------------- | --------------------------------- | -------------------------- |
+| `SESSION_SECRET`       | JWT signing secret (min 32 chars) | `openssl rand -hex 32`     |
+| `R2_ACCOUNT_ID`        | Cloudflare account ID             | `66cc5f108c...`            |
+| `R2_ACCESS_KEY_ID`     | R2 API token access key           | from R2 API token creation |
+| `R2_SECRET_ACCESS_KEY` | R2 API token secret               | from R2 API token creation |
 
 ### Production Only
 
-| Variable | Value |
-|---|---|
-| `MONGODB_URI` | `mongodb+srv://...` (prod cluster) |
-| `BASE_URL` | `https://app.cartyx.io` |
-| `GOOGLE_CLIENT_ID` | prod Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | prod Google OAuth client secret |
-| `GITHUB_CLIENT_ID` | prod GitHub OAuth app client ID |
+| Variable               | Value                               |
+| ---------------------- | ----------------------------------- |
+| `MONGODB_URI`          | `mongodb+srv://...` (prod cluster)  |
+| `BASE_URL`             | `https://app.cartyx.io`             |
+| `GOOGLE_CLIENT_ID`     | prod Google OAuth client ID         |
+| `GOOGLE_CLIENT_SECRET` | prod Google OAuth client secret     |
+| `GITHUB_CLIENT_ID`     | prod GitHub OAuth app client ID     |
 | `GITHUB_CLIENT_SECRET` | prod GitHub OAuth app client secret |
-| `R2_BUCKET` | `cartyx-production` |
-| `CDN_URL` | `https://cdn.cartyx.io` |
-| `POSTHOG_KEY` | prod PostHog project API key |
+| `R2_BUCKET`            | `cartyx-production`                 |
+| `CDN_URL`              | `https://cdn.cartyx.io`             |
+| `POSTHOG_KEY`          | prod PostHog project API key        |
 
 ### Preview / Dev Only
 
-| Variable | Value |
-|---|---|
-| `MONGODB_URI` | `mongodb+srv://...` (dev cluster) |
-| `BASE_URL` | `https://dev.cartyx.io` |
-| `GOOGLE_CLIENT_ID` | dev Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | dev Google OAuth client secret |
-| `GITHUB_CLIENT_ID` | dev GitHub OAuth app client ID |
-| `GITHUB_CLIENT_SECRET` | dev GitHub OAuth app client secret |
-| `R2_BUCKET` | `cartyx-dev` |
-| `CDN_URL` | `https://cdn-dev.cartyx.io` |
-| `POSTHOG_KEY` | dev PostHog project API key (or same as prod) |
+| Variable               | Value                                         |
+| ---------------------- | --------------------------------------------- |
+| `MONGODB_URI`          | `mongodb+srv://...` (dev cluster)             |
+| `BASE_URL`             | `https://dev.cartyx.io`                       |
+| `GOOGLE_CLIENT_ID`     | dev Google OAuth client ID                    |
+| `GOOGLE_CLIENT_SECRET` | dev Google OAuth client secret                |
+| `GITHUB_CLIENT_ID`     | dev GitHub OAuth app client ID                |
+| `GITHUB_CLIENT_SECRET` | dev GitHub OAuth app client secret            |
+| `R2_BUCKET`            | `cartyx-dev`                                  |
+| `CDN_URL`              | `https://cdn-dev.cartyx.io`                   |
+| `POSTHOG_KEY`          | dev PostHog project API key (or same as prod) |
 
 ### PostHog Analytics and Feature Flags (Optional)
 
-| Variable | Description |
-|---|---|
-| `VITE_PUBLIC_POSTHOG_KEY` | Client-side PostHog project key |
+| Variable                   | Description                                       |
+| -------------------------- | ------------------------------------------------- |
+| `VITE_PUBLIC_POSTHOG_KEY`  | Client-side PostHog project key                   |
 | `VITE_PUBLIC_POSTHOG_HOST` | PostHog host (default: `https://app.posthog.com`) |
-| `POSTHOG_KEY` | Server-side PostHog project key |
-| `POSTHOG_HOST` | Server-side PostHog host |
+| `POSTHOG_KEY`              | Server-side PostHog project key                   |
+| `POSTHOG_HOST`             | Server-side PostHog host                          |
 
 Client-side feature flags use the same `VITE_PUBLIC_POSTHOG_*` variables as analytics. When a user signs in or out, the app refreshes their PostHog identity so person-targeted flags update without a redeploy.
 
@@ -337,10 +343,10 @@ Client-side feature flags use the same `VITE_PUBLIC_POSTHOG_*` variables as anal
 
 These are only needed in your local `.env` file:
 
-| Variable | Value |
-|---|---|
-| `PORT` | `3001` (or any open port) |
-| `NODE_ENV` | `development` |
+| Variable                 | Value                                    |
+| ------------------------ | ---------------------------------------- |
+| `PORT`                   | `3001` (or any open port)                |
+| `NODE_ENV`               | `development`                            |
 | `APPLE_PRIVATE_KEY_PATH` | `keys/apple.p8` (if using Apple Sign-In) |
 
 > **Note:** When `CDN_URL` is not set (local dev), image uploads fall back to the local filesystem (`public/uploads/`). No R2 credentials needed for local development.
@@ -364,9 +370,21 @@ npm run dev
 # Opens at http://localhost:3000
 ```
 
+### Python Scripts Setup
+
+The dev data scripts (seed/clear) are Python-based and need a one-time venv setup:
+
+```bash
+python3 -m venv scripts/.venv
+scripts/.venv/bin/pip install -r scripts/requirements.txt
+```
+
+After setup, `npm run dev:seed` and `npm run dev:clear` work normally.
+
 ### Local without OAuth
 
 If you just want to explore the UI without setting up OAuth:
+
 - The app will show login buttons as "not configured" for providers without env vars
 - You can still view unauthenticated pages
 
@@ -426,23 +444,23 @@ Both commands require `MONGODB_URI` to be set.
 
 ### When to use each command
 
-| Scenario | Command |
-|---|---|
-| **Pre-deploy CI gate** | `npm run db:verify` — fails the pipeline if indexes are missing |
-| **New environment setup** | `npm run db:sync` — creates all collections and indexes from scratch |
+| Scenario                             | Command                                                               |
+| ------------------------------------ | --------------------------------------------------------------------- |
+| **Pre-deploy CI gate**               | `npm run db:verify` — fails the pipeline if indexes are missing       |
+| **New environment setup**            | `npm run db:sync` — creates all collections and indexes from scratch  |
 | **After adding a new index in code** | `npm run db:verify` to confirm drift, then `npm run db:sync` to apply |
-| **Routine health check** | `npm run db:verify` — safe to run at any time, never mutates the DB |
+| **Routine health check**             | `npm run db:verify` — safe to run at any time, never mutates the DB   |
 
 ### Runtime bootstrap policy
 
 On every first database access, the app runs a lightweight bootstrap pass. The
 behaviour is **environment-aware** — each environment gets a different policy:
 
-| Environment | Detection | Collections | Indexes | Critical check | Failure mode |
-|-------------|-----------|-------------|---------|----------------|--------------|
-| **production** | `VERCEL_ENV=production` or `NODE_ENV=production` | ensure | — | yes | **abort startup** |
-| **staging** | `VERCEL_ENV=preview` (dev branch + PR previews) | ensure | — | yes | warn only |
-| **development** | local dev (`NODE_ENV != production`, no Vercel) | ensure | sync | — | — |
+| Environment     | Detection                                        | Collections | Indexes | Critical check | Failure mode      |
+| --------------- | ------------------------------------------------ | ----------- | ------- | -------------- | ----------------- |
+| **production**  | `VERCEL_ENV=production` or `NODE_ENV=production` | ensure      | —       | yes            | **abort startup** |
+| **staging**     | `VERCEL_ENV=preview` (dev branch + PR previews)  | ensure      | —       | yes            | warn only         |
+| **development** | local dev (`NODE_ENV != production`, no Vercel)  | ensure      | sync    | —              | —                 |
 
 **Production** — the lightweight path ensures collections exist, then verifies
 that all critical indexes (uniqueness constraints, auth lookups) are present.
@@ -508,12 +526,12 @@ are missing, blocking the deploy.
 The runtime bootstrap emits structured log events and PostHog analytics events
 at each phase so operators can monitor startup health:
 
-| Event | When | Key fields |
-|---|---|---|
-| `db.bootstrap.start` | Bootstrap begins | `bootstrap_env`, `sync_indexes`, `verify_critical`, `timeout_ms` |
-| `db.bootstrap.success` | Bootstrap completes without error | `bootstrap_env`, `action`, `duration_ms`; when action=`verify`: `models_checked`, `indexes_ok`; when action=`verify` with optional drift: `optional_drift`, `missing_indexes`, `option_mismatches` |
-| `db.bootstrap.warning` | Staging detects critical drift but continues | `bootstrap_env`, `action`, `duration_ms`, `missing_indexes`, `option_mismatches`, `critical_drift`, `details` |
-| `db.bootstrap.failure` | Fatal error or production critical drift | `bootstrap_env`, `action`, `duration_ms`; on critical drift: `missing_indexes`, `option_mismatches`, `critical_drift`, `details`; on unexpected error: `error` |
+| Event                  | When                                         | Key fields                                                                                                                                                                                         |
+| ---------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `db.bootstrap.start`   | Bootstrap begins                             | `bootstrap_env`, `sync_indexes`, `verify_critical`, `timeout_ms`                                                                                                                                   |
+| `db.bootstrap.success` | Bootstrap completes without error            | `bootstrap_env`, `action`, `duration_ms`; when action=`verify`: `models_checked`, `indexes_ok`; when action=`verify` with optional drift: `optional_drift`, `missing_indexes`, `option_mismatches` |
+| `db.bootstrap.warning` | Staging detects critical drift but continues | `bootstrap_env`, `action`, `duration_ms`, `missing_indexes`, `option_mismatches`, `critical_drift`, `details`                                                                                      |
+| `db.bootstrap.failure` | Fatal error or production critical drift     | `bootstrap_env`, `action`, `duration_ms`; on critical drift: `missing_indexes`, `option_mismatches`, `critical_drift`, `details`; on unexpected error: `error`                                     |
 
 Console logs follow a structured `key=value` format for easy parsing:
 
@@ -544,11 +562,11 @@ are the single source of truth.
 Every PR automatically runs two required jobs plus one non-blocking job:
 
 **Required (must pass to merge):**
+
 1. **Lint & Test** — type check, lint, unit tests (with coverage)
 2. **Build** — production build verification
 
-**Non-blocking (runs in parallel, failures do not block merge):**
-3. **Storybook Tests** — interaction tests via Vitest + Playwright
+**Non-blocking (runs in parallel, failures do not block merge):** 3. **Storybook Tests** — interaction tests via Vitest + Playwright
 
 Storybook tests run as a separate non-blocking job because core component
 behavior is already covered by unit tests and app-level Playwright/E2E tests.
@@ -561,11 +579,11 @@ delivery on flaky or low-signal failures.
 
 Vercel deploys are triggered automatically on every push:
 
-| Push to | Deploys to | URL |
-|---|---|---|
-| Any PR branch | Preview | `*.vercel.app` (auto-generated) |
-| `dev` | Preview | `dev.cartyx.io` |
-| `main` | Production | `app.cartyx.io` |
+| Push to       | Deploys to | URL                             |
+| ------------- | ---------- | ------------------------------- |
+| Any PR branch | Preview    | `*.vercel.app` (auto-generated) |
+| `dev`         | Preview    | `dev.cartyx.io`                 |
+| `main`        | Production | `app.cartyx.io`                 |
 
 ### Deployment Flow
 
@@ -584,12 +602,12 @@ Vercel deploys are triggered automatically on every push:
 
 All DNS is managed in Cloudflare. Required records:
 
-| Type | Name | Target | Proxy |
-|---|---|---|---|
-| CNAME | `app` | `cname.vercel-dns.com` | **OFF** (DNS only / grey cloud) |
-| CNAME | `dev` | `cname.vercel-dns.com` | **OFF** (DNS only / grey cloud) |
-| CNAME | `cdn` | *(auto-created by R2 custom domain)* | **ON** (proxied / orange cloud) |
-| CNAME | `cdn-dev` | *(auto-created by R2 custom domain)* | **ON** (proxied / orange cloud) |
+| Type  | Name      | Target                               | Proxy                           |
+| ----- | --------- | ------------------------------------ | ------------------------------- |
+| CNAME | `app`     | `cname.vercel-dns.com`               | **OFF** (DNS only / grey cloud) |
+| CNAME | `dev`     | `cname.vercel-dns.com`               | **OFF** (DNS only / grey cloud) |
+| CNAME | `cdn`     | _(auto-created by R2 custom domain)_ | **ON** (proxied / orange cloud) |
+| CNAME | `cdn-dev` | _(auto-created by R2 custom domain)_ | **ON** (proxied / orange cloud) |
 
 > **Important:** Vercel domains must have Cloudflare proxy **OFF** (grey cloud). Vercel manages its own SSL and will fail with Cloudflare's proxy enabled. R2 custom domains need the proxy **ON**.
 

@@ -10,6 +10,17 @@ cp .env.example .env   # fill in your credentials
 npm run dev            # http://localhost:3000
 ```
 
+### Python Scripts Setup
+
+Dev data scripts (seed/clear) use Python with pymongo. Set up the venv once:
+
+```bash
+python3 -m venv scripts/.venv
+scripts/.venv/bin/pip install -r scripts/requirements.txt
+```
+
+Then `npm run dev:seed` and `npm run dev:clear` work via npm.
+
 ## Code Quality Standards
 
 This project enforces consistent style via TypeScript, ESLint, and Prettier.
@@ -30,6 +41,7 @@ npm run lint:fix    # auto-fix issues
 ```
 
 Rules (see `eslint.config.js`):
+
 - React hooks rules enforced
 - TypeScript-specific rules via `@typescript-eslint`
 - Unused variables are warnings (prefix with `_` to suppress)
