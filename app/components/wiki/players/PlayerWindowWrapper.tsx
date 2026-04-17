@@ -1,18 +1,18 @@
 import { Loader2 } from 'lucide-react';
 import { usePlayer } from '~/hooks/usePlayers';
 import { PlayerWindow } from './PlayerWindow';
+import { PlayerModal } from './PlayerModal';
 
 export function EditPlayerModalWrapper({
-  campaignId: _campaignId,
-  playerId: _playerId,
-  onClose: _onClose,
+  campaignId,
+  playerId,
+  onClose,
 }: {
   campaignId: string;
   playerId: string;
   onClose: () => void;
 }) {
-  // Placeholder for now - will be connected to PlayerModal in Task 13
-  return null;
+  return <PlayerModal campaignId={campaignId} playerId={playerId} onClose={onClose} />;
 }
 
 export function PlayerWindowWrapper({
