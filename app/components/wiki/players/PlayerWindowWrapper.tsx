@@ -3,9 +3,9 @@ import { usePlayer } from '~/hooks/usePlayers';
 import { PlayerWindow } from './PlayerWindow';
 
 export function EditPlayerModalWrapper({
-  campaignId,
-  playerId,
-  onClose,
+  campaignId: _campaignId,
+  playerId: _playerId,
+  onClose: _onClose,
 }: {
   campaignId: string;
   playerId: string;
