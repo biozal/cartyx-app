@@ -2,9 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { INDEX_GOVERNANCE, getSeverity, normalizeIndexKey } from '~/server/db/governance';
 
 describe('INDEX_GOVERNANCE registry', () => {
-  it('contains entries for all six models', () => {
+  it('contains entries for all models', () => {
     expect(Object.keys(INDEX_GOVERNANCE)).toEqual(
-      expect.arrayContaining(['User', 'Campaign', 'Session', 'Player', 'GMScreen', 'Note'])
+      expect.arrayContaining([
+        'User',
+        'Campaign',
+        'Session',
+        'Player',
+        'GMScreen',
+        'Note',
+        'Character',
+      ])
     );
   });
 

@@ -31,6 +31,10 @@ export function StepPlayerInfo({
   const [fieldErrors, setFieldErrors] = useState<{
     firstName?: string;
     lastName?: string;
+    race?: string;
+    characterClass?: string;
+    age?: string;
+    color?: string;
     link?: string;
   }>({});
 
@@ -41,9 +45,21 @@ export function StepPlayerInfo({
   }, []);
 
   function validate(): boolean {
-    const errors: { firstName?: string; lastName?: string; link?: string } = {};
+    const errors: {
+      firstName?: string;
+      lastName?: string;
+      race?: string;
+      characterClass?: string;
+      age?: string;
+      color?: string;
+      link?: string;
+    } = {};
     if (!player.firstName.trim()) errors.firstName = 'First name is required';
     if (!player.lastName.trim()) errors.lastName = 'Last name is required';
+    if (!player.race.trim()) errors.race = 'Race is required';
+    if (!player.characterClass.trim()) errors.characterClass = 'Class is required';
+    if (!player.age || player.age <= 0) errors.age = 'Age must be a positive number';
+    if (player.color && !/^#[0-9a-fA-F]{6}$/.test(player.color)) errors.color = 'Invalid color';
     if (player.link.trim() && !/^https?:\/\/.+/.test(player.link.trim())) {
       errors.link = 'Must be a valid HTTP or HTTPS URL';
     }
@@ -109,6 +125,8 @@ export function StepPlayerInfo({
               label="Race"
               value={player.race}
               onChange={(e) => onUpdate({ race: e.target.value })}
+              error={fieldErrors.race}
+              required
               placeholder="e.g. Half-Elf"
               list={raceDatalistId}
             />
@@ -122,6 +140,8 @@ export function StepPlayerInfo({
             label="Class"
             value={player.characterClass}
             onChange={(e) => onUpdate({ characterClass: e.target.value })}
+            error={fieldErrors.characterClass}
+            required
             placeholder="e.g. Ranger / Druid"
           />
           <FormInput
@@ -131,6 +151,8 @@ export function StepPlayerInfo({
             onChange={(e) =>
               onUpdate({ age: e.target.value ? parseInt(e.target.value, 10) : null })
             }
+            error={fieldErrors.age}
+            required
             placeholder="Age"
           />
         </div>

@@ -450,6 +450,11 @@ export const addPlayerRelationship = createServerFn({ method: 'POST' })
       if (String(target.campaignId) !== data.campaignId)
         throw new Error('Character not in same campaign');
 
+      const existing = player.relationships?.find(
+        (r: { characterId: unknown }) => String(r.characterId) === data.characterId
+      );
+      if (existing) throw new Error('Relationship already exists');
+
       await Player.updateOne(
         { _id: data.playerId },
         {
@@ -460,6 +465,7 @@ export const addPlayerRelationship = createServerFn({ method: 'POST' })
               isPublic: data.isPublic,
             },
           },
+          $set: { updatedAt: new Date() },
         }
       );
 
@@ -502,6 +508,7 @@ export const updatePlayerRelationship = createServerFn({ method: 'POST' })
       if (data.isPublic !== undefined) updateSet['relationships.$.isPublic'] = data.isPublic;
 
       if (Object.keys(updateSet).length > 0) {
+        updateSet.updatedAt = new Date();
         await Player.updateOne(
           { _id: data.playerId, 'relationships.characterId': data.characterId },
           { $set: updateSet }
@@ -540,7 +547,10 @@ export const removePlayerRelationship = createServerFn({ method: 'POST' })
 
       await Player.updateOne(
         { _id: data.playerId },
-        { $pull: { relationships: { characterId: data.characterId } } }
+        {
+          $pull: { relationships: { characterId: data.characterId } },
+          $set: { updatedAt: new Date() },
+        }
       );
 
       return { success: true };

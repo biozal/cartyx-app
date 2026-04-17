@@ -438,7 +438,7 @@ export function PlayerModal({ campaignId, playerId, onClose }: PlayerModalProps)
                   <span>
                     Backstory{' '}
                     <span className="text-amber-500 text-[10px] font-normal">
-                      (visible to campaign members)
+                      (Only you and the Game Master can see your backstory)
                     </span>
                   </span>
                 }

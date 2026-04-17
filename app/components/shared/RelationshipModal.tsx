@@ -82,6 +82,7 @@ export function RelationshipModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCharacterId || !descriptor.trim()) return;
+    if (showReciprocal && !reciprocalDescriptor.trim()) return;
     onSave({
       characterId: selectedCharacterId,
       descriptor: descriptor.trim(),
@@ -90,7 +91,10 @@ export function RelationshipModal({
     });
   };
 
-  const isValid = !!selectedCharacterId && !!descriptor.trim();
+  const isValid =
+    !!selectedCharacterId &&
+    !!descriptor.trim() &&
+    (!showReciprocal || !!reciprocalDescriptor.trim());
 
   return createPortal(
     <div
@@ -226,7 +230,7 @@ export function RelationshipModal({
                 className="w-full px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-xs text-slate-200 placeholder:text-slate-600 focus:border-blue-500/50 focus:outline-none transition-colors"
               />
               <p className="text-[10px] text-slate-600 mt-1">
-                Optional: describes the reverse side of the relationship.
+                Required: describes the reverse side of the relationship.
               </p>
             </div>
           )}

@@ -51,7 +51,7 @@ function PlayPageContent() {
 
   const activeSession = campaign?.sessions.find((s) => s.status === 'active');
 
-  const needsNewPlayer = !isPlayerLoading && !activePlayer && !campaign?.isGM;
+  const needsNewPlayer = !isCampaignLoading && !isPlayerLoading && !activePlayer && !campaign?.isGM;
 
   // Coerce non-GMs away from the GM-only tab
   const effectiveTab =

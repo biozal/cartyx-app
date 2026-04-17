@@ -76,7 +76,7 @@ function defaultPlayer(): WizardPlayerState {
     pictureCrop: null,
     description: '',
     backstory: '',
-    color: '',
+    color: '#3498db',
     eyeColor: '',
     hairColor: '',
     weight: null,
@@ -143,7 +143,7 @@ const STEPS = ['INVITE', 'PLAYER', 'BACKSTORY', 'CHARACTERS', 'REVIEW'];
 // ---------------------------------------------------------------------------
 
 export function JoinWizard() {
-  const { step, code } = Route.useSearch();
+  const { step, code, campaignId: searchCampaignId } = Route.useSearch();
   const navigate = useNavigate();
 
   const [wizardState, setWizardState] = useState<WizardState>(defaultState);
@@ -167,7 +167,17 @@ export function JoinWizard() {
         }
       }
     }
-  }, []);
+
+    // If campaignId is provided in search params (re-entry flow), use it
+    if (searchCampaignId) {
+      setWizardState((prev) => {
+        if (!prev.campaignId) {
+          return { ...prev, campaignId: searchCampaignId };
+        }
+        return prev;
+      });
+    }
+  }, [searchCampaignId]);
 
   // Persist to localStorage whenever state changes
   useEffect(() => {

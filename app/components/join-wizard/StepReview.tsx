@@ -30,7 +30,7 @@ export function StepReview({ wizardState, onBack }: StepReviewProps) {
         lastName: player.lastName.trim(),
         race: player.race.trim(),
         characterClass: player.characterClass.trim(),
-        age: player.age ?? 0,
+        age: player.age ?? 1,
         gender: player.gender.trim(),
         location: player.location.trim(),
         link: player.link.trim(),

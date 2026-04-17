@@ -570,10 +570,18 @@ export const addCharacterRelationship = createServerFn({ method: 'POST' })
       if (String(source.campaignId) !== data.campaignId) throw new Error('Forbidden');
       if (String(source.createdBy) !== userId && !member.isGM) throw new Error('Forbidden');
 
+      if (data.characterId === data.targetCharacterId)
+        throw new Error('Cannot create relationship with self');
+
       const target = await Character.findById(data.targetCharacterId);
       if (!target) throw new Error('Target character not found');
       if (String(target.campaignId) !== data.campaignId)
         throw new Error('Target character not in same campaign');
+
+      const existing = source.relationships?.find(
+        (r: { characterId: unknown }) => String(r.characterId) === data.targetCharacterId
+      );
+      if (existing) throw new Error('Relationship already exists');
 
       await Character.updateOne(
         { _id: data.characterId },

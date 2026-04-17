@@ -3,6 +3,7 @@ import { useParams } from '@tanstack/react-router';
 import { UserCircle, Loader2 } from 'lucide-react';
 import { WikiCategoryHeader } from '~/components/wiki/shared/WikiCategoryHeader';
 import { PlayerCard } from './PlayerCard';
+import { PlayerModal } from './PlayerModal';
 import { usePlayers } from '~/hooks/usePlayers';
 
 interface PlayersPanelProps {
@@ -12,11 +13,12 @@ interface PlayersPanelProps {
 export function PlayersPanel({ onBack }: PlayersPanelProps) {
   const { campaignId } = useParams({ from: '/campaigns/$campaignId/play' });
   const [search, setSearch] = useState('');
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
 
   const { players, isLoading, error } = usePlayers(campaignId, search || undefined);
 
   const handlePlayerClick = (playerId: string) => {
-    console.log('Open player window:', playerId);
+    setSelectedPlayerId(playerId);
   };
 
   return (
@@ -61,6 +63,13 @@ export function PlayersPanel({ onBack }: PlayersPanelProps) {
             ))}
           </div>
         </div>
+      )}
+      {selectedPlayerId && (
+        <PlayerModal
+          campaignId={campaignId}
+          playerId={selectedPlayerId}
+          onClose={() => setSelectedPlayerId(null)}
+        />
       )}
     </div>
   );

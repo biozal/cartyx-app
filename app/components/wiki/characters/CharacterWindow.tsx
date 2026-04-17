@@ -244,7 +244,7 @@ export function CharacterWindow({ character, onEdit }: CharacterWindowProps) {
                       campaignId: character.campaignId,
                       targetCharacterId: data.characterId,
                       descriptor: data.descriptor,
-                      reciprocalDescriptor: data.reciprocalDescriptor ?? '',
+                      reciprocalDescriptor: data.reciprocalDescriptor!,
                       isPublic: data.isPublic,
                     });
                   } else {
