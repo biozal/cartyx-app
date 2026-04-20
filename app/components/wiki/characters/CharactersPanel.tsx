@@ -69,7 +69,7 @@ export function CharactersPanel({ onBack }: CharactersPanelProps) {
         visibility={visibility}
         onVisibilityChange={setVisibility}
         sessions={sessions}
-        onCreateClick={campaign?.isGM ? handleCreateClick : undefined}
+        onCreateClick={handleCreateClick}
         campaignId={campaignId}
         filterTags={filterTags}
         onFilterTagsChange={setFilterTags}

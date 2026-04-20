@@ -9,6 +9,10 @@ import {
   createCharacterSchema,
   updateCharacterSchema,
   deleteCharacterSchema,
+  updateCharacterStatusSchema,
+  addCharacterRelationshipSchema,
+  updateCharacterRelationshipSchema,
+  removeCharacterRelationshipSchema,
 } from '~/types/schemas/characters';
 
 // ---------------------------------------------------------------------------
@@ -49,6 +53,34 @@ const deleteCharacterFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const { deleteCharacter } = await import('~/server/functions/characters');
     return deleteCharacter({ data });
+  });
+
+const updateCharacterStatusFn = createServerFn({ method: 'POST' })
+  .inputValidator(updateCharacterStatusSchema)
+  .handler(async ({ data }) => {
+    const { updateCharacterStatus } = await import('~/server/functions/characters');
+    return updateCharacterStatus({ data });
+  });
+
+const addCharacterRelationshipFn = createServerFn({ method: 'POST' })
+  .inputValidator(addCharacterRelationshipSchema)
+  .handler(async ({ data }) => {
+    const { addCharacterRelationship } = await import('~/server/functions/characters');
+    return addCharacterRelationship({ data });
+  });
+
+const updateCharacterRelationshipFn = createServerFn({ method: 'POST' })
+  .inputValidator(updateCharacterRelationshipSchema)
+  .handler(async ({ data }) => {
+    const { updateCharacterRelationship } = await import('~/server/functions/characters');
+    return updateCharacterRelationship({ data });
+  });
+
+const removeCharacterRelationshipFn = createServerFn({ method: 'POST' })
+  .inputValidator(removeCharacterRelationshipSchema)
+  .handler(async ({ data }) => {
+    const { removeCharacterRelationship } = await import('~/server/functions/characters');
+    return removeCharacterRelationship({ data });
   });
 
 // ---------------------------------------------------------------------------
@@ -260,6 +292,226 @@ export function useDeleteCharacter() {
 
   return {
     remove,
+    isLoading: mutation.isPending,
+    error:
+      mutation.error instanceof Error
+        ? mutation.error.message
+        : mutation.error
+          ? String(mutation.error)
+          : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// useUpdateCharacterStatus
+// ---------------------------------------------------------------------------
+
+interface UpdateCharacterStatusInput {
+  id: string;
+  campaignId: string;
+  value: 'alive' | 'deceased';
+}
+
+export function useUpdateCharacterStatus() {
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: async (input: UpdateCharacterStatusInput) =>
+      updateCharacterStatusFn({ data: input }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ['characters', 'list', variables.campaignId],
+        exact: false,
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.characters.detail(variables.id, variables.campaignId),
+      });
+    },
+    onError: (e, variables) => {
+      captureException(e, { action: 'updateCharacterStatus', characterId: variables.id });
+    },
+  });
+
+  const updateStatus = async (input: UpdateCharacterStatusInput) => {
+    try {
+      return await mutation.mutateAsync(input);
+    } catch {
+      return null;
+    }
+  };
+
+  return {
+    updateStatus,
+    isLoading: mutation.isPending,
+    error:
+      mutation.error instanceof Error
+        ? mutation.error.message
+        : mutation.error
+          ? String(mutation.error)
+          : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// useAddCharacterRelationship
+// ---------------------------------------------------------------------------
+
+interface AddCharacterRelationshipInput {
+  characterId: string;
+  campaignId: string;
+  targetCharacterId: string;
+  descriptor: string;
+  reciprocalDescriptor: string;
+  isPublic?: boolean;
+}
+
+export function useAddCharacterRelationship() {
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: async (input: AddCharacterRelationshipInput) =>
+      addCharacterRelationshipFn({ data: input }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ['characters', 'list', variables.campaignId],
+        exact: false,
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.characters.detail(variables.characterId, variables.campaignId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.characters.detail(variables.targetCharacterId, variables.campaignId),
+      });
+    },
+    onError: (e, variables) => {
+      captureException(e, {
+        action: 'addCharacterRelationship',
+        characterId: variables.characterId,
+      });
+    },
+  });
+
+  const addRelationship = async (input: AddCharacterRelationshipInput) => {
+    try {
+      return await mutation.mutateAsync(input);
+    } catch {
+      return null;
+    }
+  };
+
+  return {
+    addRelationship,
+    isLoading: mutation.isPending,
+    error:
+      mutation.error instanceof Error
+        ? mutation.error.message
+        : mutation.error
+          ? String(mutation.error)
+          : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// useUpdateCharacterRelationship
+// ---------------------------------------------------------------------------
+
+interface UpdateCharacterRelationshipInput {
+  characterId: string;
+  campaignId: string;
+  targetCharacterId: string;
+  descriptor?: string;
+  reciprocalDescriptor?: string;
+  isPublic?: boolean;
+}
+
+export function useUpdateCharacterRelationship() {
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: async (input: UpdateCharacterRelationshipInput) =>
+      updateCharacterRelationshipFn({ data: input }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ['characters', 'list', variables.campaignId],
+        exact: false,
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.characters.detail(variables.characterId, variables.campaignId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.characters.detail(variables.targetCharacterId, variables.campaignId),
+      });
+    },
+    onError: (e, variables) => {
+      captureException(e, {
+        action: 'updateCharacterRelationship',
+        characterId: variables.characterId,
+      });
+    },
+  });
+
+  const updateRelationship = async (input: UpdateCharacterRelationshipInput) => {
+    try {
+      return await mutation.mutateAsync(input);
+    } catch {
+      return null;
+    }
+  };
+
+  return {
+    updateRelationship,
+    isLoading: mutation.isPending,
+    error:
+      mutation.error instanceof Error
+        ? mutation.error.message
+        : mutation.error
+          ? String(mutation.error)
+          : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// useRemoveCharacterRelationship
+// ---------------------------------------------------------------------------
+
+interface RemoveCharacterRelationshipInput {
+  characterId: string;
+  campaignId: string;
+  targetCharacterId: string;
+}
+
+export function useRemoveCharacterRelationship() {
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: async (input: RemoveCharacterRelationshipInput) =>
+      removeCharacterRelationshipFn({ data: input }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ['characters', 'list', variables.campaignId],
+        exact: false,
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.characters.detail(variables.characterId, variables.campaignId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.characters.detail(variables.targetCharacterId, variables.campaignId),
+      });
+    },
+    onError: (e, variables) => {
+      captureException(e, {
+        action: 'removeCharacterRelationship',
+        characterId: variables.characterId,
+      });
+    },
+  });
+
+  const removeRelationship = async (input: RemoveCharacterRelationshipInput) => {
+    try {
+      return await mutation.mutateAsync(input);
+    } catch {
+      return null;
+    }
+  };
+
+  return {
+    removeRelationship,
     isLoading: mutation.isPending,
     error:
       mutation.error instanceof Error

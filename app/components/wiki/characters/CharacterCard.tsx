@@ -46,6 +46,7 @@ export function CharacterCard({ character, onClick }: CharacterCardProps) {
   const initials = getInitials(character.firstName, character.lastName);
   const gradientIndex = hashName(fullName) % GRADIENT_PAIRS.length;
   const [gradFrom, gradTo] = GRADIENT_PAIRS[gradientIndex]!;
+  const isDeceased = character.status?.value === 'deceased';
 
   const infoSegments: string[] = [];
   if (character.race) infoSegments.push(character.race);
@@ -79,7 +80,7 @@ export function CharacterCard({ character, onClick }: CharacterCardProps) {
           onClick(character);
         }
       }}
-      className="flex items-start gap-3 px-4 py-3 border-b border-white/[0.05] hover:bg-white/[0.03] transition-colors group cursor-grab active:cursor-grabbing"
+      className={`flex items-start gap-3 px-4 py-3 border-b border-white/[0.05] hover:bg-white/[0.03] transition-colors group cursor-grab active:cursor-grabbing${isDeceased ? ' opacity-60' : ''}`}
     >
       {/* Avatar */}
       <div
@@ -124,6 +125,9 @@ export function CharacterCard({ character, onClick }: CharacterCardProps) {
             >
               <ExternalLink className="h-3 w-3 text-slate-500 hover:text-blue-400 transition-colors" />
             </a>
+          )}
+          {isDeceased && (
+            <span className="ml-auto text-[10px] text-red-400 shrink-0">Deceased</span>
           )}
         </div>
 

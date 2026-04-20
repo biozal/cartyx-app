@@ -572,6 +572,7 @@ export const updateCampaign = createServerFn({ method: 'POST' })
     }
   });
 
+/** @deprecated Use completeJoinWizard in players.ts instead. Kept for backwards compatibility. */
 export const joinCampaign = createServerFn({ method: 'POST' })
   .inputValidator(joinCampaignSchema)
   .handler(async ({ data }) => {

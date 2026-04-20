@@ -59,6 +59,14 @@ export const queryKeys = {
     detail: (id: string, campaignId?: string) =>
       ['characters', 'detail', campaignId ?? '', id] as const,
   },
+  players: {
+    all: ['players'] as const,
+    list: (campaignId: string, search?: string) =>
+      ['players', 'list', campaignId, search ?? ''] as const,
+    detail: (id: string, campaignId?: string) =>
+      ['players', 'detail', campaignId ?? '', id] as const,
+    active: (campaignId: string) => ['players', 'active', campaignId] as const,
+  },
   rules: {
     all: ['rules'] as const,
     list: (campaignId: string, search?: string, visibility?: string, tags?: string[]) =>

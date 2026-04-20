@@ -27,13 +27,13 @@
  */
 
 /** Severity level for an index declaration. */
-export type IndexSeverity = 'critical' | 'optional'
+export type IndexSeverity = 'critical' | 'optional';
 
 export interface GovernanceEntry {
   /** Index key pattern — must match the schema declaration exactly. */
-  key: Record<string, unknown>
+  key: Record<string, unknown>;
   /** Operational importance classification. */
-  severity: IndexSeverity
+  severity: IndexSeverity;
 }
 
 /**
@@ -58,12 +58,25 @@ export const INDEX_GOVERNANCE: Record<string, GovernanceEntry[]> = {
     { key: { campaignId: 1, startDate: -1 }, severity: 'optional' },
   ],
   Player: [
-    { key: { campaignId: 1, userId: 1 }, severity: 'critical' },
     { key: { campaignId: 1 }, severity: 'optional' },
+    { key: { campaignId: 1, updatedAt: -1 }, severity: 'optional' },
+    { key: { createdBy: 1 }, severity: 'optional' },
+    { key: { 'status.value': 1 }, severity: 'optional' },
+    { key: { _fts: 'text', _ftsx: 1 }, severity: 'optional' },
   ],
   GMScreen: [
     { key: { campaignId: 1, tabOrder: 1 }, severity: 'critical' },
     { key: { campaignId: 1, name: 1 }, severity: 'critical' },
+  ],
+  Character: [
+    { key: { campaignId: 1 }, severity: 'optional' },
+    { key: { campaignId: 1, updatedAt: -1 }, severity: 'optional' },
+    { key: { sessionId: 1 }, severity: 'optional' },
+    { key: { sessions: 1 }, severity: 'optional' },
+    { key: { createdBy: 1 }, severity: 'optional' },
+    { key: { tags: 1 }, severity: 'optional' },
+    { key: { isPublic: 1 }, severity: 'optional' },
+    { key: { _fts: 'text', _ftsx: 1 }, severity: 'optional' },
   ],
   Note: [
     { key: { sessionId: 1 }, severity: 'optional' },
@@ -74,7 +87,7 @@ export const INDEX_GOVERNANCE: Record<string, GovernanceEntry[]> = {
     { key: { isPublic: 1 }, severity: 'optional' },
     { key: { _fts: 'text', _ftsx: 1 }, severity: 'optional' },
   ],
-}
+};
 
 /**
  * Normalise a text index key to the canonical form that MongoDB reports
@@ -84,17 +97,17 @@ export const INDEX_GOVERNANCE: Record<string, GovernanceEntry[]> = {
  * both forms to the canonical DB shape so comparisons are stable.
  */
 export function normalizeIndexKey(key: Record<string, unknown>): Record<string, unknown> {
-  const hasText = Object.values(key).some((v) => v === 'text')
-  if (!hasText) return key
+  const hasText = Object.values(key).some((v) => v === 'text');
+  if (!hasText) return key;
   // Preserve non-text prefix fields (e.g. campaignId in a compound text index)
   // and collapse text fields to MongoDB's canonical { _fts: 'text', _ftsx: 1 }.
-  const prefix: Record<string, unknown> = {}
+  const prefix: Record<string, unknown> = {};
   for (const [field, dir] of Object.entries(key)) {
     if (dir !== 'text' && field !== '_fts' && field !== '_ftsx') {
-      prefix[field] = dir
+      prefix[field] = dir;
     }
   }
-  return { ...prefix, _fts: 'text', _ftsx: 1 }
+  return { ...prefix, _fts: 'text', _ftsx: 1 };
 }
 
 /**
@@ -103,10 +116,10 @@ export function normalizeIndexKey(key: Record<string, unknown>): Record<string, 
  * schema-declared keys and DB-reported keys produce identical signatures.
  */
 export function keySignature(key: Record<string, unknown>): string {
-  const normalized = normalizeIndexKey(key)
+  const normalized = normalizeIndexKey(key);
   return Object.entries(normalized)
     .map(([field, dir]) => `${field}:${typeof dir === 'string' ? dir : Number(dir)}`)
-    .join(',')
+    .join(',');
 }
 
 /**
@@ -116,11 +129,11 @@ export function keySignature(key: Record<string, unknown>): string {
  */
 export function getSeverity(
   modelName: string,
-  key: Record<string, unknown>,
+  key: Record<string, unknown>
 ): IndexSeverity | undefined {
-  const entries = INDEX_GOVERNANCE[modelName]
-  if (!entries) return undefined
-  const sig = keySignature(key)
-  const entry = entries.find((e) => keySignature(e.key) === sig)
-  return entry?.severity
+  const entries = INDEX_GOVERNANCE[modelName];
+  if (!entries) return undefined;
+  const sig = keySignature(key);
+  const entry = entries.find((e) => keySignature(e.key) === sig);
+  return entry?.severity;
 }

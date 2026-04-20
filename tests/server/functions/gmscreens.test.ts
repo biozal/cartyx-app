@@ -1870,6 +1870,7 @@ describe('SUPPORTED_COLLECTIONS', () => {
     expect(SUPPORTED_COLLECTIONS).toContain('note');
     expect(SUPPORTED_COLLECTIONS).toContain('character');
     expect(SUPPORTED_COLLECTIONS).toContain('rule');
+    expect(SUPPORTED_COLLECTIONS).toContain('player');
     expect(SUPPORTED_COLLECTIONS.length).toBeGreaterThan(0);
   });
 });

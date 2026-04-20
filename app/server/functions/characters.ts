@@ -15,6 +15,10 @@ import {
   deleteCharacterSchema,
   listCharactersSchema,
   getCharacterSchema,
+  updateCharacterStatusSchema,
+  addCharacterRelationshipSchema,
+  updateCharacterRelationshipSchema,
+  removeCharacterRelationshipSchema,
 } from '~/types/schemas/characters';
 
 function serializeCharacter(c: {
@@ -38,6 +42,8 @@ function serializeCharacter(c: {
   sessions?: unknown[];
   createdAt?: Date;
   updatedAt?: Date;
+  status?: { value?: string; changedAt?: Date | null; changedBy?: unknown };
+  relationships?: Array<{ characterId: unknown; descriptor?: string; isPublic?: boolean }>;
 }): Omit<CharacterData, 'canEdit'> {
   return {
     id: String(c._id),
@@ -67,6 +73,18 @@ function serializeCharacter(c: {
     sessions: (c.sessions ?? []).map((s) => String(s)),
     createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : '',
     updatedAt: c.updatedAt instanceof Date ? c.updatedAt.toISOString() : '',
+    status: {
+      value: (c.status?.value as 'alive' | 'deceased') ?? 'alive',
+      changedAt: c.status?.changedAt ? new Date(c.status.changedAt as Date).toISOString() : null,
+      changedBy: c.status?.changedBy ? String(c.status.changedBy) : null,
+    },
+    relationships: (c.relationships ?? []).map(
+      (r: { characterId: unknown; descriptor?: string; isPublic?: boolean }) => ({
+        characterId: String(r.characterId),
+        descriptor: r.descriptor ?? '',
+        isPublic: r.isPublic ?? false,
+      })
+    ),
   };
 }
 
@@ -89,6 +107,7 @@ function serializeCharacterListItem(c: {
   sessions?: unknown[];
   createdAt?: Date;
   updatedAt?: Date;
+  status?: { value?: string; changedAt?: Date | null; changedBy?: unknown };
 }): Omit<CharacterListItem, 'canEdit'> {
   return {
     id: String(c._id),
@@ -116,6 +135,11 @@ function serializeCharacterListItem(c: {
     sessions: (c.sessions ?? []).map((s) => String(s)),
     createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : '',
     updatedAt: c.updatedAt instanceof Date ? c.updatedAt.toISOString() : '',
+    status: {
+      value: (c.status?.value as 'alive' | 'deceased') ?? 'alive',
+      changedAt: c.status?.changedAt ? new Date(c.status.changedAt as Date).toISOString() : null,
+      changedBy: c.status?.changedBy ? String(c.status.changedBy) : null,
+    },
   };
 }
 
@@ -303,6 +327,19 @@ export const deleteCharacter = createServerFn({ method: 'POST' })
         });
       }
 
+      // Clean up character-to-character relationships referencing this character
+      await Character.updateMany(
+        { campaignId: data.campaignId, 'relationships.characterId': data.id },
+        { $pull: { relationships: { characterId: data.id } } }
+      );
+
+      // Clean up player-to-character relationships referencing this character
+      const { Player } = await import('../db/models/Player');
+      await Player.updateMany(
+        { campaignId: data.campaignId, 'relationships.characterId': data.id },
+        { $pull: { relationships: { characterId: data.id } } }
+      );
+
       serverCaptureEvent(sessionUserId, 'character_deleted', {
         campaign_id: data.campaignId,
         character_id: data.id,
@@ -413,6 +450,7 @@ export const listCharacters = createServerFn({ method: 'GET' })
           sessions?: unknown[];
           createdAt?: Date;
           updatedAt?: Date;
+          status?: { value?: string; changedAt?: Date | null; changedBy?: unknown };
         }>
       ).map((doc) => ({
         ...serializeCharacterListItem(doc),
@@ -458,10 +496,226 @@ export const getCharacter = createServerFn({ method: 'GET' })
         serialized.gmNotes = '';
       }
 
-      const canEdit = String(doc.createdBy) === userId || member.isGM;
+      // Strip private relationships for non-creator/non-GM
+      const isCreator = String(doc.createdBy) === userId;
+      if (!isCreator && !member.isGM) {
+        serialized.relationships = serialized.relationships.filter((r) => r.isPublic);
+      }
+
+      const canEdit = isCreator || member.isGM;
       return { ...serialized, canEdit };
     } catch (e) {
       serverCaptureException(e, sessionUserId, { action: 'getCharacter', characterId: data.id });
+      throw e;
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// updateCharacterStatus
+// ---------------------------------------------------------------------------
+
+export { updateCharacterStatusSchema };
+
+export const updateCharacterStatus = createServerFn({ method: 'POST' })
+  .inputValidator(updateCharacterStatusSchema)
+  .handler(async ({ data }) => {
+    let sessionUserId: string | undefined;
+    try {
+      const member = await requireCampaignMember(data.campaignId);
+      sessionUserId = member.sessionUserId;
+      const userId = member.userId;
+
+      const character = await Character.findById(data.id);
+      if (!character) throw new Error('Character not found');
+      if (String(character.campaignId) !== data.campaignId) throw new Error('Forbidden');
+      if (String(character.createdBy) !== userId && !member.isGM) throw new Error('Forbidden');
+
+      character.status = { value: data.value, changedAt: new Date(), changedBy: userId };
+      character.updatedAt = new Date();
+      await character.save();
+
+      serverCaptureEvent(sessionUserId, 'character_status_updated', {
+        campaign_id: data.campaignId,
+        character_id: data.id,
+        status: data.value,
+      });
+
+      return { success: true, character: { ...serializeCharacter(character), canEdit: true } };
+    } catch (e) {
+      serverCaptureException(e, sessionUserId, {
+        action: 'updateCharacterStatus',
+        characterId: data.id,
+      });
+      throw e;
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// addCharacterRelationship
+// ---------------------------------------------------------------------------
+
+export { addCharacterRelationshipSchema };
+
+export const addCharacterRelationship = createServerFn({ method: 'POST' })
+  .inputValidator(addCharacterRelationshipSchema)
+  .handler(async ({ data }) => {
+    let sessionUserId: string | undefined;
+    try {
+      const member = await requireCampaignMember(data.campaignId);
+      sessionUserId = member.sessionUserId;
+      const userId = member.userId;
+
+      const source = await Character.findById(data.characterId);
+      if (!source) throw new Error('Character not found');
+      if (String(source.campaignId) !== data.campaignId) throw new Error('Forbidden');
+      if (String(source.createdBy) !== userId && !member.isGM) throw new Error('Forbidden');
+
+      if (data.characterId === data.targetCharacterId)
+        throw new Error('Cannot create relationship with self');
+
+      const target = await Character.findById(data.targetCharacterId);
+      if (!target) throw new Error('Target character not found');
+      if (String(target.campaignId) !== data.campaignId)
+        throw new Error('Target character not in same campaign');
+
+      const existing = source.relationships?.find(
+        (r: { characterId: unknown }) => String(r.characterId) === data.targetCharacterId
+      );
+      if (existing) throw new Error('Relationship already exists');
+
+      await Character.updateOne(
+        { _id: data.characterId },
+        {
+          $push: {
+            relationships: {
+              characterId: data.targetCharacterId,
+              descriptor: data.descriptor,
+              isPublic: data.isPublic,
+            },
+          },
+        }
+      );
+
+      await Character.updateOne(
+        { _id: data.targetCharacterId },
+        {
+          $push: {
+            relationships: {
+              characterId: data.characterId,
+              descriptor: data.reciprocalDescriptor,
+              isPublic: data.isPublic,
+            },
+          },
+        }
+      );
+
+      serverCaptureEvent(sessionUserId, 'character_relationship_added', {
+        campaign_id: data.campaignId,
+        source_character_id: data.characterId,
+        target_character_id: data.targetCharacterId,
+      });
+
+      return { success: true };
+    } catch (e) {
+      serverCaptureException(e, sessionUserId, {
+        action: 'addCharacterRelationship',
+        characterId: data.characterId,
+      });
+      throw e;
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// updateCharacterRelationship
+// ---------------------------------------------------------------------------
+
+export { updateCharacterRelationshipSchema };
+
+export const updateCharacterRelationship = createServerFn({ method: 'POST' })
+  .inputValidator(updateCharacterRelationshipSchema)
+  .handler(async ({ data }) => {
+    let sessionUserId: string | undefined;
+    try {
+      const member = await requireCampaignMember(data.campaignId);
+      sessionUserId = member.sessionUserId;
+      const userId = member.userId;
+
+      const source = await Character.findById(data.characterId);
+      if (!source) throw new Error('Character not found');
+      if (String(source.campaignId) !== data.campaignId) throw new Error('Forbidden');
+      if (String(source.createdBy) !== userId && !member.isGM) throw new Error('Forbidden');
+
+      // Build source-side update
+      const sourceSet: Record<string, unknown> = {};
+      if (data.descriptor !== undefined) sourceSet['relationships.$.descriptor'] = data.descriptor;
+      if (data.isPublic !== undefined) sourceSet['relationships.$.isPublic'] = data.isPublic;
+
+      if (Object.keys(sourceSet).length > 0) {
+        await Character.updateOne(
+          { _id: data.characterId, 'relationships.characterId': data.targetCharacterId },
+          { $set: sourceSet }
+        );
+      }
+
+      // Build reciprocal-side update
+      const reciprocalSet: Record<string, unknown> = {};
+      if (data.reciprocalDescriptor !== undefined)
+        reciprocalSet['relationships.$.descriptor'] = data.reciprocalDescriptor;
+      if (data.isPublic !== undefined) reciprocalSet['relationships.$.isPublic'] = data.isPublic;
+
+      if (Object.keys(reciprocalSet).length > 0) {
+        await Character.updateOne(
+          { _id: data.targetCharacterId, 'relationships.characterId': data.characterId },
+          { $set: reciprocalSet }
+        );
+      }
+
+      return { success: true };
+    } catch (e) {
+      serverCaptureException(e, sessionUserId, {
+        action: 'updateCharacterRelationship',
+        characterId: data.characterId,
+      });
+      throw e;
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// removeCharacterRelationship
+// ---------------------------------------------------------------------------
+
+export { removeCharacterRelationshipSchema };
+
+export const removeCharacterRelationship = createServerFn({ method: 'POST' })
+  .inputValidator(removeCharacterRelationshipSchema)
+  .handler(async ({ data }) => {
+    let sessionUserId: string | undefined;
+    try {
+      const member = await requireCampaignMember(data.campaignId);
+      sessionUserId = member.sessionUserId;
+      const userId = member.userId;
+
+      const source = await Character.findById(data.characterId);
+      if (!source) throw new Error('Character not found');
+      if (String(source.campaignId) !== data.campaignId) throw new Error('Forbidden');
+      if (String(source.createdBy) !== userId && !member.isGM) throw new Error('Forbidden');
+
+      await Character.updateOne(
+        { _id: data.characterId },
+        { $pull: { relationships: { characterId: data.targetCharacterId } } }
+      );
+
+      await Character.updateOne(
+        { _id: data.targetCharacterId },
+        { $pull: { relationships: { characterId: data.characterId } } }
+      );
+
+      return { success: true };
+    } catch (e) {
+      serverCaptureException(e, sessionUserId, {
+        action: 'removeCharacterRelationship',
+        characterId: data.characterId,
+      });
       throw e;
     }
   });

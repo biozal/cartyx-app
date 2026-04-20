@@ -5,7 +5,13 @@ import { WINDOW_STATES } from '~/types/gmscreen';
  * Collection names that can be opened as windows or referenced in stacks.
  * Must stay in sync with COLLECTION_REGISTRY in the server implementation.
  */
-export const SUPPORTED_COLLECTIONS: [string, ...string[]] = ['note', 'character', 'race', 'rule'];
+export const SUPPORTED_COLLECTIONS: [string, ...string[]] = [
+  'note',
+  'character',
+  'race',
+  'rule',
+  'player',
+];
 
 // ---------------------------------------------------------------------------
 // Screen CRUD

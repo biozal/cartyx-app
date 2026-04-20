@@ -198,6 +198,34 @@ const COLLECTION_REGISTRY: Record<string, CollectionFetcher> = {
       >;
     },
   },
+  player: {
+    async fetch(ids: string[], campaignId: string) {
+      const { Player } = await import('../db/models/Player');
+      return Player.find(
+        { _id: { $in: ids }, campaignId },
+        '_id firstName lastName description color'
+      )
+        .lean()
+        .then(
+          (
+            docs: Array<{
+              _id: unknown;
+              firstName?: string;
+              lastName?: string;
+              description?: string;
+              color?: string;
+            }>
+          ) =>
+            docs.map((d) => ({
+              _id: d._id,
+              title: `${d.firstName ?? ''} ${d.lastName ?? ''}`.trim(),
+              content: d.description ?? '',
+              isPublic: true,
+              color: d.color ?? '#3498db',
+            }))
+        );
+    },
+  },
 };
 
 /**
