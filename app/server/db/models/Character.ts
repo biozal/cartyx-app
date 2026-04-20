@@ -11,6 +11,24 @@ const pictureCropSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const relationshipSchema = new mongoose.Schema(
+  {
+    characterId: { type: mongoose.Schema.Types.ObjectId, ref: 'Character', required: true },
+    descriptor: { type: String, required: true },
+    isPublic: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
+const statusSchema = new mongoose.Schema(
+  {
+    value: { type: String, enum: ['alive', 'deceased'], default: 'alive' },
+    changedAt: { type: Date, default: null },
+    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  },
+  { _id: false }
+);
+
 const characterSchema = new mongoose.Schema({
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
@@ -31,6 +49,8 @@ const characterSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
+  status: { type: statusSchema, default: () => ({ value: 'alive' }) },
+  relationships: { type: [relationshipSchema], default: [] },
 });
 
 characterSchema.pre('save', function () {

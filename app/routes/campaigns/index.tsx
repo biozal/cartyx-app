@@ -7,7 +7,6 @@ import { queryKeys } from '~/utils/queryKeys';
 import { Topbar } from '~/components/Topbar';
 import { Toast } from '~/components/Toast';
 import { PixelButton } from '~/components/PixelButton';
-import { useJoinCampaign } from '~/hooks/useCampaigns';
 import { CampaignCard } from '~/components/campaign/CampaignCard';
 import { KeyRound, Swords } from 'lucide-react';
 
@@ -34,7 +33,6 @@ function CampaignsListPage() {
   const navigate = useNavigate();
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [joinCode, setJoinCode] = useState('');
-  const { join, isLoading: isJoining, error: joinError } = useJoinCampaign();
 
   const closeJoinForm = useCallback(() => {
     setShowJoinForm(false);
@@ -53,14 +51,10 @@ function CampaignsListPage() {
 
   async function handleJoin(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const result = await join(joinCode.trim());
-    if (result) {
-      navigate({
-        to: '/campaigns/$campaignId/play',
-        params: { campaignId: result.campaignId },
-        search: { tab: 'dashboard' },
-      });
-    }
+    navigate({
+      to: '/campaign/join',
+      search: { code: joinCode.trim(), step: 1 },
+    });
   }
 
   return (
@@ -174,22 +168,15 @@ function CampaignsListPage() {
                 onChange={(e) => setJoinCode(e.target.value)}
                 placeholder="Enter invite code (e.g. ABCD-EFGH)"
                 className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.1] text-white text-sm placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
-                disabled={isJoining}
                 // eslint-disable-next-line jsx-a11y/no-autofocus -- autoFocus is intentional: this is the primary input inside a modal dialog, and focusing it on open is the expected accessible UX pattern
                 autoFocus
                 aria-label="Invite code"
               />
-              {joinError && (
-                <p className="text-red-400 text-xs" role="alert">
-                  {joinError}
-                </p>
-              )}
               <div className="flex gap-3">
                 <PixelButton
                   variant="secondary"
                   size="md"
                   onClick={closeJoinForm}
-                  disabled={isJoining}
                   className="flex-1"
                   type="button"
                 >
@@ -199,10 +186,10 @@ function CampaignsListPage() {
                   variant="primary"
                   size="md"
                   type="submit"
-                  disabled={isJoining || !joinCode.trim()}
+                  disabled={!joinCode.trim()}
                   className="flex-1"
                 >
-                  {isJoining ? 'Joining...' : 'Join Campaign'}
+                  Join Campaign
                 </PixelButton>
               </div>
             </form>

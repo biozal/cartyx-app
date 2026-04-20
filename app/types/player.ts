@@ -1,23 +1,18 @@
-export interface CharacterStatus {
+import type { PictureCrop } from './character';
+
+export interface PlayerStatus {
   value: 'alive' | 'deceased';
   changedAt: string | null;
   changedBy: string | null;
 }
 
-export interface CharacterRelationship {
+export interface PlayerRelationship {
   characterId: string;
   descriptor: string;
   isPublic: boolean;
 }
 
-export interface PictureCrop {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-export interface CharacterData {
+export interface PlayerData {
   id: string;
   campaignId: string;
   createdBy: string;
@@ -25,25 +20,30 @@ export interface CharacterData {
   lastName: string;
   race: string;
   characterClass: string;
-  age: number | null;
+  age: number;
+  gender: string;
   location: string;
   link: string;
   picture: string;
   pictureCrop: PictureCrop | null;
-  notes: string;
+  description: string;
+  backstory: string;
   gmNotes: string;
-  tags: string[];
-  isPublic: boolean;
-  sessionId?: string;
-  sessions: string[];
+  color: string;
+  eyeColor: string;
+  hairColor: string;
+  weight: number | null;
+  height: string;
+  size: string;
+  appearance: string;
+  status: PlayerStatus;
+  relationships: PlayerRelationship[];
   createdAt: string;
   updatedAt: string;
-  status: CharacterStatus;
-  relationships: CharacterRelationship[];
   canEdit: boolean;
 }
 
-export interface CharacterListItem {
+export interface PlayerListItem {
   id: string;
   campaignId: string;
   createdBy: string;
@@ -51,17 +51,9 @@ export interface CharacterListItem {
   lastName: string;
   race: string;
   characterClass: string;
-  age: number | null;
-  location: string;
-  link: string;
+  color: string;
   picture: string;
   pictureCrop: PictureCrop | null;
-  tags: string[];
-  isPublic: boolean;
-  sessionId?: string;
-  sessions: string[];
-  createdAt: string;
-  updatedAt: string;
-  status: CharacterStatus;
+  status: PlayerStatus;
   canEdit: boolean;
 }

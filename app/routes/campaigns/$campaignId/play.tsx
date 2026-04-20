@@ -1,7 +1,9 @@
 import { z } from 'zod';
-import { createFileRoute, redirect } from '@tanstack/react-router';
+import { createFileRoute, redirect, Link } from '@tanstack/react-router';
+import { Plus } from 'lucide-react';
 import { getMe } from '~/server/functions/auth';
 import { useCampaign } from '~/hooks/useCampaigns';
+import { useActivePlayerContext } from '~/providers/ActivePlayerProvider';
 import { CampaignHeader } from '~/components/mainview/CampaignHeader';
 import { DashboardView } from '~/components/mainview/DashboardView';
 import { MainView } from '~/components/mainview/MainView';
@@ -13,6 +15,7 @@ import { CampaignTimelineWidget } from '~/components/mainview/widgets/CampaignTi
 import { KeyAlliesWidget } from '~/components/mainview/widgets/KeyAlliesWidget';
 import { PartyMembersWidget } from '~/components/mainview/widgets/PartyMembersWidget';
 import { SessionsListWidget } from '~/components/mainview/widgets/SessionsListWidget';
+import { ActivePlayerProvider } from '~/providers/ActivePlayerProvider';
 
 export const playSearchSchema = z.object({
   tab: z.enum(['dashboard', 'tabletop', 'gmscreens']).catch('dashboard'),
@@ -29,12 +32,26 @@ export const Route = createFileRoute('/campaigns/$campaignId/play')({
 });
 
 function PlayPage() {
+  const { campaignId } = Route.useParams();
+
+  return (
+    <ActivePlayerProvider campaignId={campaignId}>
+      <PlayPageContent />
+    </ActivePlayerProvider>
+  );
+}
+
+function PlayPageContent() {
   const { tab: activeTab } = Route.useSearch();
   const { campaignId } = Route.useParams();
   const navigate = Route.useNavigate();
   const { campaign, isLoading: isCampaignLoading } = useCampaign(campaignId);
 
+  const { activePlayer, isLoading: isPlayerLoading } = useActivePlayerContext();
+
   const activeSession = campaign?.sessions.find((s) => s.status === 'active');
+
+  const needsNewPlayer = !isCampaignLoading && !isPlayerLoading && !activePlayer && !campaign?.isGM;
 
   // Coerce non-GMs away from the GM-only tab
   const effectiveTab =
@@ -60,6 +77,26 @@ function PlayPage() {
           campaignId={campaignId}
           sessions={campaign?.sessions}
         >
+          {needsNewPlayer && (
+            <div className="mx-4 mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-3">
+              <div className="flex-1">
+                <p className="text-sm text-amber-200 font-medium">
+                  Your player character needs to be created
+                </p>
+                <p className="text-xs text-amber-200/60 mt-1">
+                  Create a player character to fully participate in this campaign.
+                </p>
+              </div>
+              <Link
+                to="/campaign/join"
+                search={{ step: 2, campaignId }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-200 text-xs font-medium hover:bg-amber-500/30 transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Create Character
+              </Link>
+            </div>
+          )}
           <div
             className="h-full overflow-y-auto"
             role="tabpanel"
