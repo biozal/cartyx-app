@@ -91,4 +91,16 @@ export const queryKeys = {
     all: ['diceRolls'] as const,
     list: (sessionId: string) => ['diceRolls', 'list', sessionId] as const,
   },
+  tabletop: {
+    all: ['tabletop'] as const,
+    list: (campaignId: string) => ['tabletop', 'list', campaignId] as const,
+    detail: (campaignId: string, screenId: string) =>
+      ['tabletop', 'detail', campaignId, screenId] as const,
+    playerState: (campaignId: string) => ['tabletop', 'playerState', campaignId] as const,
+  },
+  sessionEvents: {
+    all: ['sessionEvents'] as const,
+    list: (campaignId: string, sessionId: string) =>
+      ['sessionEvents', 'list', campaignId, sessionId] as const,
+  },
 };
