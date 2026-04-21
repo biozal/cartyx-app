@@ -121,7 +121,12 @@ function PlayPageContent() {
             aria-labelledby="tab-tabletop"
             hidden={effectiveTab !== 'tabletop'}
           >
-            <TabletopView />
+            <TabletopView
+              campaignId={campaignId}
+              isGM={campaign?.isGM ?? false}
+              getToken={async () => ''}
+              sessionId={activeSession?.id ?? null}
+            />
           </div>
           {campaign?.isGM && (
             <div
