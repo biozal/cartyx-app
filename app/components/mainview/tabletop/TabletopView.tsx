@@ -20,6 +20,7 @@ import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
 import { CharacterWindowWrapper } from '~/components/mainview/gmscreens/CharacterWindowWrapper';
 import { RaceWindowWrapper } from '~/components/wiki/races/RaceWindowWrapper';
 import { RuleWindowWrapper } from '~/components/mainview/gmscreens/RuleWindowWrapper';
+import { PlayerWindowWrapper } from '~/components/wiki/players/PlayerWindowWrapper';
 import type { TabletopMessage } from '~/types/tabletop';
 import type { PingData } from './PingOverlay';
 
@@ -272,6 +273,16 @@ export function TabletopView({
               ruleId={w.documentId}
               campaignId={campaignId}
               isGM={isGM}
+              onEdit={() => {
+                /* editing not wired in tabletop Phase 1 */
+              }}
+            />
+          );
+        } else if (w.collection === 'player') {
+          windowContent = (
+            <PlayerWindowWrapper
+              playerId={w.documentId}
+              campaignId={campaignId}
               onEdit={() => {
                 /* editing not wired in tabletop Phase 1 */
               }}
