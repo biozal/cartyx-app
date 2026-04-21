@@ -1,3 +1,4 @@
+import type React from 'react';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   useTabletopScreenList,
@@ -14,6 +15,20 @@ import {
 } from '~/components/mainview/FloatingWindowManager';
 import type { TabletopMessage } from '~/types/tabletop';
 import type { PingData } from './PingOverlay';
+
+// ---------------------------------------------------------------------------
+// Dialog state (mirrors GMScreenDialogs pattern)
+// ---------------------------------------------------------------------------
+
+type DialogState =
+  | { type: 'none' }
+  | { type: 'create-tab' }
+  | { type: 'rename-tab'; screenId: string; currentName: string }
+  | { type: 'delete-tab'; screenId: string; screenName: string };
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 interface TabletopViewProps {
   campaignId: string;
@@ -35,7 +50,10 @@ export function TabletopView({
   const [activeScreenId, setActiveScreenId] = useState<string | null>(null);
   const [badgeScreenIds, setBadgeScreenIds] = useState<Set<string>>(new Set());
   const [_pings, setPings] = useState<PingData[]>([]);
-  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const [dialog, setDialog] = useState<DialogState>({ type: 'none' });
+
+  // Ref guard to prevent double auto-creation of default screen
+  const autoCreatedRef = useRef(false);
 
   // Initialize active screen from player state or first screen
   useEffect(() => {
@@ -46,6 +64,28 @@ export function TabletopView({
       setActiveScreenId(screens[0].id);
     }
   }, [screens, playerState, activeScreenId]);
+
+  // Auto-create default "Tabletop" screen when list is empty and user is GM
+  useEffect(() => {
+    if (isLoading) return;
+    if (!isGM) return;
+    if (screens.length > 0) return;
+    if (autoCreatedRef.current) return;
+
+    autoCreatedRef.current = true;
+    mutations.createScreen
+      .mutateAsync('Tabletop')
+      .then((result) => {
+        if (result?.success) {
+          setActiveScreenId(result.screen.id);
+          mutations.invalidateList();
+        }
+      })
+      .catch(() => {
+        // Reset guard so user can retry
+        autoCreatedRef.current = false;
+      });
+  }, [isLoading, isGM, screens.length, mutations]);
 
   // Fetch detail for active screen
   const { screen: activeScreen } = useTabletopScreenDetail(campaignId, activeScreenId);
@@ -116,7 +156,7 @@ export function TabletopView({
     updateState.mutate({ activeScreenId: screenId });
   };
 
-  // Handle create screen
+  // Handle create screen (via dialog)
   const handleCreateScreen = async (name: string) => {
     const result = await mutations.createScreen.mutateAsync(name);
     if (result.success) {
@@ -124,6 +164,29 @@ export function TabletopView({
       setActiveScreenId(result.screen.id);
       send({ type: 'tab:create', screen: result.screen });
     }
+    setDialog({ type: 'none' });
+  };
+
+  // Handle rename screen (via dialog)
+  const handleRenameScreen = async (name: string) => {
+    if (dialog.type !== 'rename-tab') return;
+    await mutations.renameScreen.mutateAsync({ id: dialog.screenId, name });
+    send({ type: 'tab:rename', screenId: dialog.screenId, name });
+    setDialog({ type: 'none' });
+  };
+
+  // Handle delete screen (via dialog)
+  const handleDeleteScreen = async () => {
+    if (dialog.type !== 'delete-tab') return;
+    const deletingId = dialog.screenId;
+    const idx = screens.findIndex((s) => s.id === deletingId);
+    const nextScreen = screens[idx + 1] ?? screens[idx - 1] ?? null;
+    setActiveScreenId(nextScreen?.id ?? null);
+
+    await mutations.deleteScreen.mutateAsync(deletingId);
+    mutations.invalidateList();
+    send({ type: 'tab:delete', screenId: deletingId });
+    setDialog({ type: 'none' });
   };
 
   // Handle focus all
@@ -169,17 +232,172 @@ export function TabletopView({
       <TabletopTabBar
         screens={screens}
         activeScreenId={activeScreenId}
-        onScreenChange={handleScreenChange}
-        onCreateScreen={handleCreateScreen}
+        onSelectScreen={handleScreenChange}
+        onCreateScreen={() => setDialog({ type: 'create-tab' })}
+        onRenameScreen={(id) => {
+          const s = screens.find((s) => s.id === id);
+          if (s) setDialog({ type: 'rename-tab', screenId: id, currentName: s.name });
+        }}
+        onDeleteScreen={(id) => {
+          const s = screens.find((s) => s.id === id);
+          if (s) setDialog({ type: 'delete-tab', screenId: id, screenName: s.name });
+        }}
         onFocusAll={handleFocusAll}
         isGM={isGM}
         badgeScreenIds={badgeScreenIds}
       />
 
-      <div ref={canvasContainerRef} className="relative flex-1 overflow-hidden">
-        <TabletopCanvas screen={activeScreen} containerRef={canvasContainerRef} />
+      <div className="relative flex-1 overflow-hidden">
+        <TabletopCanvas screen={activeScreen} />
 
         <FloatingWindowManager windows={managedWindows} onWindowsChange={handleWindowsChange} />
+      </div>
+
+      {/* Dialogs */}
+      {dialog.type === 'create-tab' && (
+        <TabletopDialog
+          title="New Tab"
+          placeholder="Tab name"
+          defaultValue=""
+          confirmLabel="Create"
+          onConfirm={handleCreateScreen}
+          onDismiss={() => setDialog({ type: 'none' })}
+        />
+      )}
+      {dialog.type === 'rename-tab' && (
+        <TabletopDialog
+          title="Rename Tab"
+          placeholder="Tab name"
+          defaultValue={dialog.currentName}
+          confirmLabel="Rename"
+          onConfirm={handleRenameScreen}
+          onDismiss={() => setDialog({ type: 'none' })}
+        />
+      )}
+      {dialog.type === 'delete-tab' && (
+        <TabletopConfirmDialog
+          title="Delete Tab"
+          message={`Are you sure you want to delete "${dialog.screenName}"? This cannot be undone.`}
+          confirmLabel="Delete"
+          danger
+          onConfirm={handleDeleteScreen}
+          onDismiss={() => setDialog({ type: 'none' })}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Simple inline dialogs
+// ---------------------------------------------------------------------------
+
+interface TabletopDialogProps {
+  title: string;
+  placeholder: string;
+  defaultValue: string;
+  confirmLabel: string;
+  onConfirm: (value: string) => void;
+  onDismiss: () => void;
+}
+
+function TabletopDialog({
+  title,
+  placeholder,
+  defaultValue,
+  confirmLabel,
+  onConfirm,
+  onDismiss,
+}: TabletopDialogProps) {
+  const [value, setValue] = useState(defaultValue);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = value.trim();
+    if (trimmed) onConfirm(trimmed);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
+      <div className="w-80 rounded-lg border border-white/[0.07] bg-[#0D1117] p-4 shadow-xl">
+        <h2 className="font-sans text-sm font-semibold text-slate-200 mb-3">{title}</h2>
+        <form onSubmit={handleSubmit}>
+          <input
+            ref={inputRef}
+            type="text"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={placeholder}
+            className="w-full rounded border border-white/10 bg-[#161B22] px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+          />
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onDismiss}
+              className="rounded px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!value.trim()}
+              className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {confirmLabel}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+interface TabletopConfirmDialogProps {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  danger?: boolean;
+  onConfirm: () => void;
+  onDismiss: () => void;
+}
+
+function TabletopConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  danger = false,
+  onConfirm,
+  onDismiss,
+}: TabletopConfirmDialogProps) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
+      <div className="w-80 rounded-lg border border-white/[0.07] bg-[#0D1117] p-4 shadow-xl">
+        <h2 className="font-sans text-sm font-semibold text-slate-200 mb-2">{title}</h2>
+        <p className="font-sans text-xs text-slate-400 mb-4">{message}</p>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="rounded px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={`rounded px-3 py-1.5 text-xs font-semibold text-white transition-colors ${
+              danger ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'
+            }`}
+          >
+            {confirmLabel}
+          </button>
+        </div>
       </div>
     </div>
   );
