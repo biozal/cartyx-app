@@ -17,10 +17,19 @@ import {
 } from '~/components/mainview/FloatingWindowManager';
 import type { FloatingWindowState } from '~/components/mainview/FloatingWindow';
 import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
-import { CharacterWindowWrapper } from '~/components/mainview/gmscreens/CharacterWindowWrapper';
-import { RaceWindowWrapper } from '~/components/wiki/races/RaceWindowWrapper';
-import { RuleWindowWrapper } from '~/components/mainview/gmscreens/RuleWindowWrapper';
-import { PlayerWindowWrapper } from '~/components/wiki/players/PlayerWindowWrapper';
+import {
+  CharacterWindowWrapper,
+  EditCharacterModalWrapper,
+} from '~/components/mainview/gmscreens/CharacterWindowWrapper';
+import { RaceWindowWrapper, EditRaceModalWrapper } from '~/components/wiki/races/RaceWindowWrapper';
+import {
+  RuleWindowWrapper,
+  EditRuleModalWrapper,
+} from '~/components/mainview/gmscreens/RuleWindowWrapper';
+import {
+  PlayerWindowWrapper,
+  EditPlayerModalWrapper,
+} from '~/components/wiki/players/PlayerWindowWrapper';
 import type { TabletopMessage } from '~/types/tabletop';
 import type { PingData } from './PingOverlay';
 
@@ -71,6 +80,10 @@ export function TabletopView({
   const [badgeScreenIds, setBadgeScreenIds] = useState<Set<string>>(new Set());
   const [_pings, setPings] = useState<PingData[]>([]);
   const [dialog, setDialog] = useState<DialogState>({ type: 'none' });
+  const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
+  const [editingRaceId, setEditingRaceId] = useState<string | null>(null);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [localWindows, setLocalWindows] = useState<ManagedWindow[]>([]);
   const localScreenIdRef = useRef<string | null>(null);
@@ -252,9 +265,7 @@ export function TabletopView({
             <CharacterWindowWrapper
               characterId={w.documentId}
               campaignId={campaignId}
-              onEdit={() => {
-                /* editing not wired in tabletop Phase 1 */
-              }}
+              onEdit={() => setEditingCharacterId(w.documentId)}
             />
           );
         } else if (w.collection === 'race') {
@@ -262,9 +273,7 @@ export function TabletopView({
             <RaceWindowWrapper
               raceId={w.documentId}
               campaignId={campaignId}
-              onEdit={() => {
-                /* editing not wired in tabletop Phase 1 */
-              }}
+              onEdit={() => setEditingRaceId(w.documentId)}
             />
           );
         } else if (w.collection === 'rule') {
@@ -273,9 +282,7 @@ export function TabletopView({
               ruleId={w.documentId}
               campaignId={campaignId}
               isGM={isGM}
-              onEdit={() => {
-                /* editing not wired in tabletop Phase 1 */
-              }}
+              onEdit={() => setEditingRuleId(w.documentId)}
             />
           );
         } else if (w.collection === 'player') {
@@ -283,9 +290,7 @@ export function TabletopView({
             <PlayerWindowWrapper
               playerId={w.documentId}
               campaignId={campaignId}
-              onEdit={() => {
-                /* editing not wired in tabletop Phase 1 */
-              }}
+              onEdit={() => setEditingPlayerId(w.documentId)}
             />
           );
         } else {
@@ -536,6 +541,36 @@ export function TabletopView({
           danger
           onConfirm={handleDeleteScreen}
           onDismiss={() => setDialog({ type: 'none' })}
+        />
+      )}
+
+      {/* Editing modals */}
+      {editingCharacterId !== null && (
+        <EditCharacterModalWrapper
+          campaignId={campaignId}
+          characterId={editingCharacterId}
+          onClose={() => setEditingCharacterId(null)}
+        />
+      )}
+      {editingRaceId !== null && (
+        <EditRaceModalWrapper
+          campaignId={campaignId}
+          raceId={editingRaceId}
+          onClose={() => setEditingRaceId(null)}
+        />
+      )}
+      {editingRuleId !== null && (
+        <EditRuleModalWrapper
+          campaignId={campaignId}
+          ruleId={editingRuleId}
+          onClose={() => setEditingRuleId(null)}
+        />
+      )}
+      {editingPlayerId !== null && (
+        <EditPlayerModalWrapper
+          campaignId={campaignId}
+          playerId={editingPlayerId}
+          onClose={() => setEditingPlayerId(null)}
         />
       )}
     </div>

@@ -13,7 +13,10 @@ import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
 import { CharacterWindowWrapper, EditCharacterModalWrapper } from './CharacterWindowWrapper';
 import { RaceWindowWrapper, EditRaceModalWrapper } from '~/components/wiki/races/RaceWindowWrapper';
 import { RuleWindowWrapper, EditRuleModalWrapper } from './RuleWindowWrapper';
-import { PlayerWindowWrapper } from '~/components/wiki/players/PlayerWindowWrapper';
+import {
+  PlayerWindowWrapper,
+  EditPlayerModalWrapper,
+} from '~/components/wiki/players/PlayerWindowWrapper';
 import { GMScreenDialogs, type DialogState } from './GMScreenDialogs';
 import { ScreenBar } from './ScreenBar';
 import { StackCard } from './StackCard';
@@ -46,6 +49,7 @@ export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
   const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
   const [editingRaceId, setEditingRaceId] = useState<string | null>(null);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [flashWindowId, setFlashWindowId] = useState<string | null>(null);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -425,9 +429,7 @@ export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
             <PlayerWindowWrapper
               playerId={w.documentId}
               campaignId={campaignId}
-              onEdit={() => {
-                /* player editing handled via PlayerModal */
-              }}
+              onEdit={() => setEditingPlayerId(w.documentId)}
             />
           );
         } else {
@@ -705,6 +707,13 @@ export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
           campaignId={campaignId}
           ruleId={editingRuleId}
           onClose={() => setEditingRuleId(null)}
+        />
+      )}
+      {editingPlayerId !== null && (
+        <EditPlayerModalWrapper
+          campaignId={campaignId}
+          playerId={editingPlayerId}
+          onClose={() => setEditingPlayerId(null)}
         />
       )}
     </div>
