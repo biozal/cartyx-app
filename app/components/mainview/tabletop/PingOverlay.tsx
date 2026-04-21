@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { Layer, Circle, Text, Group } from 'react-konva';
 
 export interface PingData {
