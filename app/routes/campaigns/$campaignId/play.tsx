@@ -138,7 +138,7 @@ function PlayPageContent() {
             </DashboardView>
           </div>
           <div
-            className="flex items-center justify-center h-full text-slate-400 font-sans font-semibold text-xs"
+            className="h-full"
             role="tabpanel"
             id="tab-panel-tabletop"
             aria-labelledby="tab-tabletop"
