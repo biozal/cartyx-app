@@ -164,11 +164,11 @@ export function useTabletopMutations(campaignId: string) {
   const updateSettingsMutation = useMutation({
     mutationFn: (params: {
       id: string;
-      gridStyle?: string;
+      gridStyle?: 'dark' | 'parchment' | 'hex' | 'whiteboard';
       gridSize?: number;
       gridVisible?: boolean;
       gridScale?: number;
-      mode?: string;
+      mode?: 'grid' | 'map' | 'battlemap';
     }) => {
       const { id, ...fields } = params;
       return updateSettingsFn({ data: { id, campaignId, ...fields } });
