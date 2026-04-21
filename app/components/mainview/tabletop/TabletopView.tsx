@@ -22,14 +22,19 @@ interface TabletopViewProps {
   sessionId: string | null;
 }
 
-export function TabletopView({ campaignId, isGM, getToken, sessionId }: TabletopViewProps) {
+export function TabletopView({
+  campaignId,
+  isGM,
+  getToken,
+  sessionId: _sessionId,
+}: TabletopViewProps) {
   const { screens, isLoading } = useTabletopScreenList(campaignId);
   const mutations = useTabletopMutations(campaignId);
   const { playerState, updateState } = useTabletopPlayerState(campaignId);
 
   const [activeScreenId, setActiveScreenId] = useState<string | null>(null);
   const [badgeScreenIds, setBadgeScreenIds] = useState<Set<string>>(new Set());
-  const [pings, setPings] = useState<PingData[]>([]);
+  const [_pings, setPings] = useState<PingData[]>([]);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   // Initialize active screen from player state or first screen
@@ -45,8 +50,8 @@ export function TabletopView({ campaignId, isGM, getToken, sessionId }: Tabletop
   // Fetch detail for active screen
   const { screen: activeScreen } = useTabletopScreenDetail(campaignId, activeScreenId);
 
-  // Handle ping expired
-  const handlePingExpired = useCallback((id: string) => {
+  // Handle ping expired (used when PingOverlay is wired in)
+  const _handlePingExpired = useCallback((id: string) => {
     setPings((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
