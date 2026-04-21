@@ -16,6 +16,14 @@ updates:
       - dependency-name: 'mongoose'
         update-types: ['version-update:semver-major']
 
+      # --- FontAwesome 7 boundary ---
+      # FontAwesome 7 is a major architectural rewrite that breaks
+      # compatibility with @fortawesome/react-fontawesome v3 and our
+      # pro-solid-svg-icons vendor bundle. Hold at v6 until the full
+      # FontAwesome 7 ecosystem (react-fontawesome, icon packages) is stable.
+      - dependency-name: '@fortawesome/fontawesome-svg-core'
+        versions: ['>=7.0.0']
+
       # --- Vite 8 boundary: these versions require Vite 8 / Rolldown ---
       # Vite 8 switches from Rollup to Rolldown and breaks our React Compiler
       # babel plugin setup in vite.config.ts. Hold at Vite 7 until React
