@@ -13,6 +13,7 @@ import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
 import { CharacterWindowWrapper, EditCharacterModalWrapper } from './CharacterWindowWrapper';
 import { RaceWindowWrapper, EditRaceModalWrapper } from '~/components/wiki/races/RaceWindowWrapper';
 import { RuleWindowWrapper, EditRuleModalWrapper } from './RuleWindowWrapper';
+import { PlayerWindowWrapper } from '~/components/wiki/players/PlayerWindowWrapper';
 import { GMScreenDialogs, type DialogState } from './GMScreenDialogs';
 import { ScreenBar } from './ScreenBar';
 import { StackCard } from './StackCard';
@@ -417,6 +418,16 @@ export function GMScreensView({ campaignId, isGM = true }: GMScreensViewProps) {
               campaignId={campaignId}
               isGM={isGM}
               onEdit={() => setEditingRuleId(w.documentId)}
+            />
+          );
+        } else if (w.collection === 'player') {
+          windowContent = (
+            <PlayerWindowWrapper
+              playerId={w.documentId}
+              campaignId={campaignId}
+              onEdit={() => {
+                /* player editing handled via PlayerModal */
+              }}
             />
           );
         } else {
