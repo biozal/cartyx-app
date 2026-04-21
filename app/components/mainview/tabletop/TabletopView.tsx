@@ -1,5 +1,7 @@
-import type React from 'react';
-import { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, type DragEvent } from 'react';
+import { Globe, Lock, ExternalLink } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   useTabletopScreenList,
   useTabletopScreenDetail,
@@ -13,6 +15,11 @@ import {
   FloatingWindowManager,
   type ManagedWindow,
 } from '~/components/mainview/FloatingWindowManager';
+import type { FloatingWindowState } from '~/components/mainview/FloatingWindow';
+import { MARKDOWN_PROSE_CLASSES } from '~/utils/markdownProseClasses';
+import { CharacterWindowWrapper } from '~/components/mainview/gmscreens/CharacterWindowWrapper';
+import { RaceWindowWrapper } from '~/components/wiki/races/RaceWindowWrapper';
+import { RuleWindowWrapper } from '~/components/mainview/gmscreens/RuleWindowWrapper';
 import type { TabletopMessage } from '~/types/tabletop';
 import type { PingData } from './PingOverlay';
 
@@ -25,6 +32,18 @@ type DialogState =
   | { type: 'create-tab' }
   | { type: 'rename-tab'; screenId: string; currentName: string }
   | { type: 'delete-tab'; screenId: string; screenName: string };
+
+/** Map FloatingWindow states to backend WindowState values (used when server persistence is added). */
+function _toWindowState(state: FloatingWindowState): 'open' | 'minimized' {
+  if (state === 'minimized') return 'minimized';
+  return 'open';
+}
+
+/** Map backend WindowState to FloatingWindow states. */
+function toFloatingState(state: string): FloatingWindowState {
+  if (state === 'minimized') return 'minimized';
+  return 'normal';
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -51,6 +70,10 @@ export function TabletopView({
   const [badgeScreenIds, setBadgeScreenIds] = useState<Set<string>>(new Set());
   const [_pings, setPings] = useState<PingData[]>([]);
   const [dialog, setDialog] = useState<DialogState>({ type: 'none' });
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [localWindows, setLocalWindows] = useState<ManagedWindow[]>([]);
+  const localScreenIdRef = useRef<string | null>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
 
   // Ref guard to prevent double auto-creation of default screen
   const autoCreatedRef = useRef(false);
@@ -65,7 +88,7 @@ export function TabletopView({
     }
   }, [screens, playerState, activeScreenId]);
 
-  // Auto-create default "Tabletop" screen when list is empty and user is GM
+  // Auto-create default screen when list is empty and user is GM
   useEffect(() => {
     if (isLoading) return;
     if (!isGM) return;
@@ -74,7 +97,7 @@ export function TabletopView({
 
     autoCreatedRef.current = true;
     mutations.createScreen
-      .mutateAsync('Tabletop')
+      .mutateAsync('Default')
       .then((result) => {
         if (result?.success) {
           setActiveScreenId(result.screen.id);
@@ -196,28 +219,238 @@ export function TabletopView({
     }
   };
 
-  // Build floating windows from active screen
-  const managedWindows: ManagedWindow[] = (activeScreen?.windows ?? []).map((w) => {
-    const hydrated = activeScreen?.hydrated[`${w.collection}:${w.documentId}`];
-    return {
-      id: w.id,
-      title: hydrated?.title ?? 'Loading...',
-      content: (
-        <div className="p-3 text-sm text-slate-300 whitespace-pre-wrap">
-          {hydrated?.content ?? ''}
-        </div>
-      ),
-      position: w.x != null && w.y != null ? { x: w.x, y: w.y } : undefined,
-      size: w.width != null && w.height != null ? { width: w.width, height: w.height } : undefined,
-      state: w.state === 'minimized' ? ('minimized' as const) : ('normal' as const),
-      zIndex: w.zIndex,
-    };
-  });
+  // --- Local window state (optimistic) ---
+  // Initialized from server, updated optimistically on user interaction,
+  // re-synced when server data changes (e.g. after openWindow/closeWindow invalidation).
+  useEffect(() => {
+    if (!activeScreen) {
+      setLocalWindows([]);
+      localScreenIdRef.current = null;
+      return;
+    }
 
-  const handleWindowsChange = (_windows: ManagedWindow[]) => {
-    // In Phase 1, window layout changes can be persisted later
-    // For now, the FloatingWindowManager handles local state
-  };
+    // Full reset when switching screens
+    const isScreenSwitch = localScreenIdRef.current !== activeScreenId;
+    localScreenIdRef.current = activeScreenId;
+
+    setLocalWindows((prev) => {
+      const prevById = isScreenSwitch
+        ? new Map<string, ManagedWindow>()
+        : new Map(prev.map((w) => [w.id, w]));
+
+      const merged = activeScreen.windows.map((w) => {
+        const key = `${w.collection}:${w.documentId}`;
+        const doc = activeScreen.hydrated[key];
+        const title = doc?.title || key;
+        const markdownContent = doc?.content || '';
+
+        let windowContent: React.ReactNode;
+
+        if (w.collection === 'character') {
+          windowContent = (
+            <CharacterWindowWrapper
+              characterId={w.documentId}
+              campaignId={campaignId}
+              onEdit={() => {
+                /* editing not wired in tabletop Phase 1 */
+              }}
+            />
+          );
+        } else if (w.collection === 'race') {
+          windowContent = (
+            <RaceWindowWrapper
+              raceId={w.documentId}
+              campaignId={campaignId}
+              onEdit={() => {
+                /* editing not wired in tabletop Phase 1 */
+              }}
+            />
+          );
+        } else if (w.collection === 'rule') {
+          windowContent = (
+            <RuleWindowWrapper
+              ruleId={w.documentId}
+              campaignId={campaignId}
+              isGM={isGM}
+              onEdit={() => {
+                /* editing not wired in tabletop Phase 1 */
+              }}
+            />
+          );
+        } else {
+          windowContent = (
+            <div className="p-4 overflow-auto h-full">
+              <div className={MARKDOWN_PROSE_CLASSES}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdownContent}</ReactMarkdown>
+              </div>
+            </div>
+          );
+        }
+
+        let titleIcon: React.ReactNode;
+        let titleSuffix: React.ReactNode;
+        const iconKey = `${doc?.isPublic ?? 'none'}:${doc?.link ?? ''}`;
+
+        if (w.collection === 'rule' || w.collection === 'character') {
+          if (doc?.isPublic === true) {
+            titleIcon = (
+              <span aria-label="Public">
+                <Globe className="h-3 w-3 text-emerald-400" aria-hidden="true" />
+              </span>
+            );
+          } else if (doc?.isPublic === false) {
+            titleIcon = (
+              <span aria-label="Private">
+                <Lock className="h-3 w-3 text-amber-400" aria-hidden="true" />
+              </span>
+            );
+          }
+        }
+
+        if (w.collection === 'character' && doc?.link) {
+          titleSuffix = (
+            <a
+              href={doc.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center"
+              aria-label="External link"
+            >
+              <ExternalLink className="h-3 w-3 text-slate-500 hover:text-blue-400 transition-colors" />
+            </a>
+          );
+        }
+
+        const existing = prevById.get(w.id);
+        if (existing) {
+          // Preserve local layout, update title/content from server
+          return {
+            ...existing,
+            title,
+            titleIcon,
+            titleSuffix,
+            iconKey,
+            contentKey: markdownContent,
+            content: windowContent,
+          };
+        }
+
+        // New window from server — use server layout
+        return {
+          id: w.id,
+          title,
+          titleIcon,
+          titleSuffix,
+          iconKey,
+          contentKey: markdownContent,
+          position: w.x != null && w.y != null ? { x: w.x, y: w.y } : undefined,
+          size:
+            w.width != null && w.height != null ? { width: w.width, height: w.height } : undefined,
+          state: toFloatingState(w.state),
+          zIndex: w.zIndex,
+          content: windowContent,
+        };
+      });
+
+      // Only update if the window set or titles changed (avoid unnecessary renders)
+      if (
+        prev.length === merged.length &&
+        prev.every(
+          (p, i) =>
+            p.id === merged[i]!.id &&
+            p.title === merged[i]!.title &&
+            p.contentKey === merged[i]!.contentKey &&
+            p.iconKey === merged[i]!.iconKey
+        )
+      ) {
+        return prev;
+      }
+
+      return merged;
+    });
+  }, [activeScreen, activeScreenId, campaignId, isGM]);
+
+  // --- Window change handler (local state + close mutation) ---
+  const handleWindowsChange = useCallback(
+    (nextWindows: ManagedWindow[]) => {
+      // Optimistically update local state immediately (handles minimize/restore/move/resize)
+      setLocalWindows(nextWindows);
+
+      if (!activeScreenId || !activeScreen) return;
+
+      // Handle closes — fire close mutation for removed windows
+      const nextIds = new Set(nextWindows.map((w) => w.id));
+      for (const w of activeScreen.windows) {
+        if (!nextIds.has(w.id)) {
+          mutations.closeWindow.mutate({ screenId: activeScreenId, windowId: w.id });
+        }
+      }
+    },
+    [activeScreenId, activeScreen, mutations]
+  );
+
+  // --- Drag-and-drop handlers ---
+  const handleDragOver = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      if (!activeScreenId) return;
+      if (!e.dataTransfer.types.includes('application/x-cartyx-document')) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      setIsDragOver(true);
+    },
+    [activeScreenId]
+  );
+
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    // Only clear when leaving the container, not when entering a child
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setIsDragOver(false);
+
+      if (!activeScreenId || !activeScreen) return;
+
+      const raw = e.dataTransfer.getData('application/x-cartyx-document');
+      if (!raw) return;
+
+      let payload: { collection: string; documentId: string; title: string };
+      try {
+        payload = JSON.parse(raw);
+      } catch {
+        return;
+      }
+
+      // Check for duplicate — don't open a second window for the same document
+      const existing = activeScreen.windows.find(
+        (w) => w.collection === payload.collection && w.documentId === payload.documentId
+      );
+
+      if (existing) {
+        // Already open — no flash/focus needed in Phase 1
+        return;
+      }
+
+      // Calculate drop position relative to the workspace container
+      const rect = workspaceRef.current?.getBoundingClientRect();
+      const x = rect ? e.clientX - rect.left : 100;
+      const y = rect ? e.clientY - rect.top : 100;
+
+      mutations.openWindow.mutate({
+        screenId: activeScreenId,
+        collection: payload.collection,
+        documentId: payload.documentId,
+        x,
+        y,
+      });
+    },
+    [activeScreenId, activeScreen, mutations]
+  );
 
   if (isLoading) {
     return (
@@ -247,10 +480,20 @@ export function TabletopView({
         badgeScreenIds={badgeScreenIds}
       />
 
-      <div className="relative flex-1 overflow-hidden">
+      <div
+        ref={workspaceRef}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={[
+          'relative flex-1 overflow-hidden',
+          'transition-shadow duration-200',
+          isDragOver ? 'ring-2 ring-inset ring-blue-500/40 bg-blue-500/[0.03]' : '',
+        ].join(' ')}
+      >
         <TabletopCanvas screen={activeScreen} />
 
-        <FloatingWindowManager windows={managedWindows} onWindowsChange={handleWindowsChange} />
+        <FloatingWindowManager windows={localWindows} onWindowsChange={handleWindowsChange} />
       </div>
 
       {/* Dialogs */}
