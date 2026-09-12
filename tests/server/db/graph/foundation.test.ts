@@ -43,36 +43,45 @@ describe('graph connection boundary', () => {
     }
   });
 
-  it('bounds a stalled TLS handshake and closes its socket without submitting a write', async () => {
-    const sockets = new Set<Socket>();
-    const server = createServer((socket) => {
-      sockets.add(socket);
-      socket.on('close', () => sockets.delete(socket));
-      socket.resume();
-    });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    try {
-      const address = server.address();
-      if (!address || typeof address === 'string') throw new Error('Expected TCP address');
-      const config = {
-        ...readGraphConfig(env),
-        url: `wss://127.0.0.1:${address.port}/gremlin`,
-        timeoutMs: 150,
-      };
-      const started = Date.now();
-      await expect(
-        createGraphClient(config).execute(
-          findIdentity(graphIdentity('User', entityId, { type: 'global' }))
-        )
-      ).rejects.toThrow(/Graph request (timeout|failed)/);
-      expect(Date.now() - started).toBeLessThan(1500);
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      expect(sockets.size).toBe(0);
-    } finally {
-      for (const socket of sockets) socket.destroy();
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+  it.each(['timeout', 'abort'] as const)(
+    'closes a stalled TLS handshake on %s without submitting a write',
+    async (mode) => {
+      const sockets = new Set<Socket>();
+      const server = createServer((socket) => {
+        sockets.add(socket);
+        socket.on('close', () => sockets.delete(socket));
+        socket.resume();
+      });
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      try {
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('Expected TCP address');
+        const config = {
+          ...readGraphConfig(env),
+          url: `wss://127.0.0.1:${address.port}/gremlin`,
+          timeoutMs: mode === 'timeout' ? 150 : 1000,
+        };
+        const controller = new AbortController();
+        const cancel = mode === 'abort' ? setTimeout(() => controller.abort(), 50) : undefined;
+        const started = Date.now();
+        await expect(
+          createGraphClient(config).execute(
+            findIdentity(graphIdentity('User', entityId, { type: 'global' })),
+            controller.signal
+          )
+        ).rejects.toThrow(
+          mode === 'abort' ? /Graph request aborted/ : /Graph request (timeout|failed)/
+        );
+        clearTimeout(cancel);
+        expect(Date.now() - started).toBeLessThan(1500);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        expect(sockets.size).toBe(0);
+      } finally {
+        for (const socket of sockets) socket.destroy();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
     }
-  });
+  );
 });
 
 describe('application graph identities', () => {
