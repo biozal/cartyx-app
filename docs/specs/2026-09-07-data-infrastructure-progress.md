@@ -197,3 +197,11 @@ Infrastructure implementation and fixes are recorded in PRs
 [#11](https://github.com/biozal/cartyx-infrastructure/pull/11), and
 [#12](https://github.com/biozal/cartyx-infrastructure/pull/12), and
 [#13](https://github.com/biozal/cartyx-infrastructure/pull/13).
+
+## September 12: first application graph foundation slice
+
+The operator-only schema/client work is recorded in
+[the graph foundation runbook](2026-09-12-graph-foundation.md). Schema 0001 and real
+Gremlin contracts have been exercised in local Docker and Kubernetes dev. All
+application subsystems remain on MongoDB; runtime access separation, CQL state,
+search, and domain migration contracts are still required before cutovers.

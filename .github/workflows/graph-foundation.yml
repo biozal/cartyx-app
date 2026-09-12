@@ -1,0 +1,52 @@
+name: Graph foundation
+on:
+  pull_request:
+    branches: [dev, main, data-local-integration]
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  graph:
+    name: Graph foundation (real Cassandra and JanusGraph)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CARTYX_INFRASTRUCTURE_DIR: ${{ github.workspace }}/.local/graph-infrastructure
+      GREMLIN_URL: wss://localhost:18182/gremlin
+      GREMLIN_USERNAME: cartyx_admin
+      GREMLIN_PASSWORD_FILE: ${{ github.workspace }}/.local/graph-infrastructure/.local/data/local/gremlin-password
+      GREMLIN_CA_FILE: ${{ github.workspace }}/.local/graph-infrastructure/.local/data/local/tls.crt
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: biozal/cartyx-infrastructure
+          ref: 662977641ac0cb80c6c328c26baf2e12a33b3c67
+          path: .local/graph-infrastructure
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '25'
+          cache: npm
+      - run: npm ci
+      - name: Start pinned TLS databases
+        run: npm run db:up
+      - name: Verify refuses a missing schema, then install explicitly
+        run: |
+          if npm run graph:schema -- verify; then
+            echo 'An empty graph must fail schema verification'
+            exit 1
+          fi
+          npm run graph:schema -- apply
+          npm run graph:test
+      - name: Verify schema survives server replacement
+        run: |
+          docker compose -p cartyx-local -f "$CARTYX_INFRASTRUCTURE_DIR/deploy/local/data.compose.yaml" restart janusgraph
+          docker compose -p cartyx-local -f "$CARTYX_INFRASTRUCTURE_DIR/deploy/local/data.compose.yaml" up -d --wait --wait-timeout 600 janusgraph
+          npm run graph:schema -- verify
+          npm run graph:test
+      - name: Container status
+        if: failure()
+        run: docker ps -a --format '{{.Names}} {{.Status}}'

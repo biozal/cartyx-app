@@ -45,7 +45,9 @@
     "db:status": "node scripts/dev-data.mjs status",
     "db:smoke": "node scripts/dev-data.mjs smoke",
     "db:tools": "node scripts/dev-data.mjs tools",
-    "db:chart-test": "node scripts/dev-data.mjs chart-test"
+    "db:chart-test": "node scripts/dev-data.mjs chart-test",
+    "graph:schema": "tsx scripts/graph/cli.ts",
+    "graph:test": "tsx scripts/graph/integration.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1090.0",
@@ -66,6 +68,7 @@
     "@tanstack/react-router": "^1.170.15",
     "@tanstack/react-start": "^1.168.25",
     "dayjs": "^1.11.20",
+    "gremlin": "3.7.6",
     "jose": "^6.2.2",
     "konva": "^10.2.5",
     "lucide-react": "^1.25.0",
@@ -86,7 +89,10 @@
     "esbuild": "^0.28.1",
     "h3-v2": "npm:h3@2.0.1-rc.19",
     "js-yaml": "4.3.2",
-    "postcss": "8.5.28"
+    "postcss": "8.5.28",
+    "gremlin": {
+      "uuid": "11.1.1"
+    }
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^5.1.1",
@@ -103,6 +109,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.5.2",
+    "@types/gremlin": "3.6.7",
     "@types/node": "^25.9.5",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.0.4",
