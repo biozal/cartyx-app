@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { expect, it, vi } from 'vitest';
 vi.unmock('mongoose');
+import {
+  identitySettingsContract,
+  settingsSourceFixture,
+} from '../../../scripts/identity/settings-contract';
 import { identityImportContract } from '../../../scripts/identity/import-contract';
 import { importSourceFixture } from '../../../scripts/identity/import-contract';
 import { mapIdentitySource } from '../../../scripts/identity/import-source';
@@ -16,6 +20,8 @@ import {
   profileSnapshotSchema,
 } from '~/server/repositories/identity/profile-model';
 import { createIdentityProfiles } from '~/server/repositories/identity/profile-head';
+import { createTargetIdentitySettings } from '~/server/repositories/identity/target-settings';
+import { identityAudioAssignmentKey } from '~/server/repositories/identity/audio-prefix';
 import {
   identityProfileContract,
   profileFixture,
@@ -107,4 +113,38 @@ it('reconciles an import completed by another worker during its initial empty-ta
   );
   await observer.apply(plan);
   expect(write).not.toHaveBeenCalled();
+});
+
+it('preserves profile and token data through concurrent settings writes and media allocation recovery', async () => {
+  const { state, graph } = memory();
+  await identitySettingsContract(state, graph);
+});
+
+it('does not write settings after failed reads or an invalid media candidate', async () => {
+  const { state, graph } = memory();
+  const write = vi.fn(async () => {
+    throw new Error('Unexpected write');
+  });
+  const broken = createTargetIdentitySettings(
+    {
+      get: async () => {
+        throw new Error('Read unavailable');
+      },
+      create: write,
+      replace: write,
+    },
+    graph
+  );
+  await expect(broken.setRulerColor('fixture_valid', '#123456')).rejects.toThrow(
+    'Read unavailable'
+  );
+  await expect(broken.resolveAudioStoragePrefix('1'.repeat(24))).rejects.toThrow(
+    'Read unavailable'
+  );
+  expect(write).not.toHaveBeenCalled();
+  const plan = mapIdentitySource(settingsSourceFixture());
+  await createIdentityImporter(state, graph).apply(plan);
+  const invalid = createTargetIdentitySettings(state, graph, () => 'invalid');
+  await expect(invalid.resolveAudioStoragePrefix(plan.account.userId)).rejects.toThrow();
+  expect(await state.get(identityAudioAssignmentKey(plan.account.userId))).toBeNull();
 });

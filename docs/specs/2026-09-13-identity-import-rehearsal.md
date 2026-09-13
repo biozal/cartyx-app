@@ -127,8 +127,9 @@ to avoid shared edge-lock contention.
 ## Next work
 
 Complete the target runtime write facet: provider-first/email-only account selection,
-login/profile publication coordination, preference updates, media-prefix allocation,
-and revision-aware provider revocation. Then add the environment-bound private bulk
+login/profile publication coordination and revision-aware provider revocation.
+[Preference updates and media-prefix allocation](2026-09-13-identity-settings-writes.md)
+now have inactive target implementations and recovery contracts. Then add the environment-bound private bulk
 manifest, full source/reference reconciliation and a maintenance-mode dev cutover
 rehearsal. Runtime Gremlin authorization separation, availability boundaries,
 campaign transaction replacement, retention/recovery, and separate dev/prod cutover

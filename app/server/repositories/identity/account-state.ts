@@ -47,6 +47,14 @@ const commandSchema = z.discriminatedUnion('kind', [
   z
     .object({
       ...common,
+      kind: z.literal('assign_audio'),
+      expectedRevision: uuid,
+      audioStoragePrefix: prefix,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
       kind: z.literal('initialize'),
       email: exact.nullable(),
       audioStoragePrefix: prefix.nullable(),
@@ -193,10 +201,7 @@ export function createIdentityAccountState(store: ReservationStateStore) {
   return {
     async begin(input: AccountCommand): Promise<'prepared' | AccountOutcome> {
       const command = parse(commandSchema, input); // Clone before awaiting caller-controlled state.
-      if (
-        (command.kind === 'login' || command.kind === 'logout') &&
-        command.expectedRevision === command.operationId
-      )
+      if ('expectedRevision' in command && command.expectedRevision === command.operationId)
         throw new Error('Account operation requires a fresh revision');
       const value = {
         version: 1 as const,
@@ -265,6 +270,14 @@ export function createIdentityAccountState(store: ReservationStateStore) {
             email: command.email ?? current.value.email,
             tokenRevision: id,
             tokens: command.tokens,
+          };
+        } else if (command.kind === 'assign_audio') {
+          if (current.value.audioStoragePrefix !== null) return finish(id, 'rejected');
+          // This mutation never rotates tokens or changes identity/profile fields.
+          next = {
+            ...current.value,
+            lastOperationId: id,
+            audioStoragePrefix: command.audioStoragePrefix,
           };
         } else {
           if (

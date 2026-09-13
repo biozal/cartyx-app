@@ -1,12 +1,19 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  unlinkSync,
+  renameSync,
+} from 'node:fs';
 import { readCqlConfig } from '../../app/server/db/cql/config';
-import { createControlStateStore } from '../../app/server/db/cql/control-state';
+import { createControlStateStore, type StateKey } from '../../app/server/db/cql/control-state';
 import { createCqlClient } from '../../app/server/db/cql/client';
 import { readGraphConfig } from '../../app/server/db/graph/config';
 import { createGraphClient } from '../../app/server/db/graph/client';
-import { findIdentity } from '../../app/server/db/graph/identity';
+import { findIdentity, type GraphIdentity } from '../../app/server/db/graph/identity';
 import {
   createGraphProfileStore,
   profileUserIdentity,
@@ -28,10 +35,24 @@ import {
 import { mapIdentitySource } from './import-source';
 import { importSourceFixture } from './import-contract';
 import {
+  createIdentityAccountState,
   identityAccountKey,
   identityAccountOperationKey,
 } from '../../app/server/repositories/identity/account-state';
 import { identityReservationKey } from '../../app/server/repositories/identity/reservations';
+import {
+  createTargetIdentitySettings,
+  IdentityPreferenceWriteError,
+} from '../../app/server/repositories/identity/target-settings';
+import { createTargetIdentityReader } from '../../app/server/repositories/identity/target-reader';
+import { settingsSourceFixture } from './settings-contract';
+type SettingsWitness = {
+  plan: IdentityImportPlan;
+  keys: StateKey[];
+  vertices: GraphIdentity[];
+  preferenceOperationId?: string;
+  mediaPrefix?: string;
+};
 
 // Fixed synthetic resources are recorded in the private witness before any write.
 function importKeys(plan: IdentityImportPlan) {
@@ -67,12 +88,20 @@ try {
       snapshot: profileFixture(),
     };
     const importPlan = mapIdentitySource(importSourceFixture());
+    const settingsWitness: SettingsWitness = {
+      plan: mapIdentitySource(settingsSourceFixture()),
+      keys: [],
+      vertices: [],
+    };
+    const manifest = {
+      keyspace: config.keyspace,
+      endpoint: graphConfig.url,
+      command,
+      importPlan,
+      settingsWitness,
+    };
     mkdirSync('.local/cql', { recursive: true, mode: 0o700 });
-    writeFileSync(
-      path,
-      JSON.stringify({ keyspace: config.keyspace, endpoint: graphConfig.url, command, importPlan }),
-      { mode: 0o600, flag: 'wx' }
-    );
+    writeFileSync(path, JSON.stringify(manifest), { mode: 0o600, flag: 'wx' });
     await profiles.begin(command);
     const interrupted = createIdentityProfiles(
       {
@@ -112,13 +141,84 @@ try {
       createIdentityImporter(state, graph).verify(importPlan),
       /requires recovery/
     );
-    process.stdout.write('Seeded graph publication and pending account import restart witnesses\n');
+    const save = () => {
+      writeFileSync(`${path}.pending`, JSON.stringify(manifest), { mode: 0o600 });
+      renameSync(`${path}.pending`, path);
+    };
+    const track = (key: StateKey) => {
+      if (!settingsWitness.keys.some((item) => JSON.stringify(item) === JSON.stringify(key)))
+        settingsWitness.keys.push(key);
+      save();
+    };
+    const trackedState = {
+      get: (key: StateKey) => state.get(key),
+      create: (...args: Parameters<typeof state.create>) => {
+        if (args[0].type === 'identity_audio_assignment')
+          settingsWitness.mediaPrefix = (args[2] as { prefix: string }).prefix;
+        track(args[0]);
+        return state.create(...args);
+      },
+      replace: (...args: Parameters<typeof state.replace>) => {
+        track(args[0]);
+        return state.replace(...args);
+      },
+    };
+    const trackedGraph: typeof graph = {
+      get: (...args) => graph.get(...args),
+      put: (snapshot) => {
+        for (const identity of [
+          profileUserIdentity(snapshot.userId),
+          profileRevisionIdentity(snapshot.userId, snapshot.snapshotId),
+        ])
+          if (
+            !settingsWitness.vertices.some(
+              (item) => JSON.stringify(item) === JSON.stringify(identity)
+            )
+          )
+            settingsWitness.vertices.push(identity);
+        save();
+        return graph.put(snapshot);
+      },
+    };
+    await createIdentityImporter(trackedState, trackedGraph).apply(settingsWitness.plan);
+    const interruptedSettings = createTargetIdentitySettings(
+      {
+        ...trackedState,
+        replace: async (...args) => {
+          if (args[0].type === 'identity_profile_head') {
+            settingsWitness.preferenceOperationId = args[2];
+            save();
+          }
+          const result = await trackedState.replace(...args);
+          if (['identity_profile_head', 'identity_account'].includes(args[0].type))
+            throw new Error('settings witness interruption');
+          return result;
+        },
+      },
+      trackedGraph
+    );
+    await assert.rejects(
+      interruptedSettings.setRulerColor(
+        settingsWitness.plan.account.binding!.providerId,
+        '#aB9876'
+      ),
+      (error: unknown) =>
+        error instanceof IdentityPreferenceWriteError && error.outcome === 'uncertain'
+    );
+    await assert.rejects(
+      interruptedSettings.resolveAudioStoragePrefix(settingsWitness.plan.account.userId),
+      /settings witness interruption/
+    );
+    process.stdout.write(
+      'Seeded graph publication, pending account import, preference and media allocation restart witnesses\n'
+    );
   } else {
     const manifest = JSON.parse(readFileSync(path, 'utf8'));
     assert.equal(manifest.keyspace, config.keyspace);
     assert.equal(manifest.endpoint, graphConfig.url);
     const command = manifest.command as PublishProfile;
     const importPlan = manifest.importPlan as IdentityImportPlan | undefined;
+    const settingsWitness = manifest.settingsWitness as SettingsWitness | undefined;
     const { userId, snapshotId } = command.snapshot;
     assert.equal((await state.get(profileHeadKey(userId)))?.revision, command.operationId);
     assert.deepEqual(await graph.get(userId, snapshotId), command.snapshot);
@@ -137,12 +237,34 @@ try {
       await importer.apply(importPlan);
       await importer.verify(importPlan);
     }
+    if (settingsWitness) {
+      assert.ok(settingsWitness.preferenceOperationId);
+      const settings = createTargetIdentitySettings(state, graph);
+      const prefix = await settings.resolveAudioStoragePrefix(settingsWitness.plan.account.userId);
+      assert.equal(prefix, settingsWitness.mediaPrefix);
+      assert.equal(await profiles.resume(settingsWitness.preferenceOperationId), 'applied');
+      const reader = createTargetIdentityReader(state, graph);
+      assert.equal(
+        await reader.lookupAudioStoragePrefix(settingsWitness.plan.account.userId),
+        prefix
+      );
+      assert.deepEqual(
+        await reader.readPreferences(settingsWitness.plan.account.binding!.providerId),
+        { rulerColor: '#aB9876' }
+      );
+      const tokens = await createIdentityAccountState(state).readTokens(
+        settingsWitness.plan.account.userId
+      );
+      assert.equal(tokens?.tokenRevision, settingsWitness.plan.account.operationId);
+      assert.deepEqual(tokens?.tokens, settingsWitness.plan.account.tokens);
+    }
     const admin = createCqlClient(readCqlConfig('schema'));
     try {
       for (const key of [
         profileHeadKey(userId),
         profileOperationKey(command.operationId),
         ...(importPlan ? importKeys(importPlan) : []),
+        ...(settingsWitness?.keys ?? []),
       ]) {
         await admin.execute(
           `DELETE FROM ${config.keyspace}.control_state WHERE scope = ? AND resource_type = ? AND resource_id = ?`,
@@ -159,6 +281,7 @@ try {
               profileUserIdentity(importPlan.account.userId),
             ]
           : []),
+        ...(settingsWitness?.vertices ?? []),
       ]) {
         await client.execute(findIdentity(identity).hasLabel(identity.kind).drop());
         assert.deepEqual(await client.execute(findIdentity(identity).count()), [0]);
@@ -168,7 +291,7 @@ try {
     }
     unlinkSync(path);
     process.stdout.write(
-      'Verified graph profile/CQL publication and account import recovery; removed exact restart witnesses\n'
+      'Verified graph publication, account import, preference and media allocation recovery; removed exact restart witnesses\n'
     );
   }
 } finally {

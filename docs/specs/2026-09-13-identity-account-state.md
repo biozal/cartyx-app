@@ -143,3 +143,9 @@ from a reviewed plan, including original encrypted tokens. It uses the same acco
 receipt and reservation checks and cannot update an existing account. The
 [import rehearsal](2026-09-13-identity-import-rehearsal.md) composes it with graph
 publication and tests interruption/replay without switching the application backend.
+
+The `assign_audio` command conditionally fills only an absent media namespace after
+checking reservation ownership. It preserves identity and encrypted tokens/token
+revision while advancing the account revision. The [target settings write facet](2026-09-13-identity-settings-writes.md)
+coordinates a durable candidate, definitive contention retries and lost-receipt
+recovery. It cannot replace an established namespace or enable target authentication.

@@ -317,3 +317,18 @@ accounts or establish cutover readiness. Synthetic recovery contracts and a pend
 import restart witness extend the existing local/dev/CI database fixtures. Full
 runtime writes and an environment-bound bulk import/reconciliation runner remain
 ahead of a maintenance-mode dev cutover rehearsal.
+
+## Identity settings and media writes — September 13
+
+PR #557 now includes inactive [target settings writes](2026-09-13-identity-settings-writes.md).
+Preference changes preserve all other verified profile fields and reject stale
+publication revisions. Media allocation retains a single per-user candidate,
+reserves it exactly, and conditionally fills an absent account namespace without
+rotating tokens. Concurrent uploads and logins, collision refusal, write interruption
+and explicit recovery extend the real-store contract. The restart helper now carries
+unreceipted preference and media writes through the database restart.
+
+The application remains Mongo-backed. Target login/profile coordination,
+revision-aware token clearing/provider revocation, the bulk import manifest and
+reconciliation runner, availability/runtime authorization and separate dev/prod
+cutovers remain ahead. No production schema or source data is changed.
