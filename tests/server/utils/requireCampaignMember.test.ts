@@ -39,6 +39,28 @@ beforeEach(() => {
 });
 
 describe('requireCampaignMember', () => {
+  it('allows the legacy campaign owner even without a members entry', async () => {
+    vi.mocked(Campaign.findById).mockResolvedValue({
+      gameMasterId: 'dbuser-1',
+      members: [],
+    } as never);
+    expect(await requireCampaignMember('camp-A')).toMatchObject({ userId: 'dbuser-1', isGM: true });
+  });
+
+  it('rereads membership and denies a revoked member despite the session GM role', async () => {
+    vi.mocked(Campaign.findById).mockResolvedValueOnce({
+      gameMasterId: 'another-owner',
+      members: [{ userId: 'dbuser-1', role: 'gm' }],
+    } as never);
+    expect(await requireCampaignMember('camp-A')).toMatchObject({ isGM: true });
+    vi.mocked(Campaign.findById).mockResolvedValueOnce({
+      gameMasterId: 'another-owner',
+      members: [],
+    } as never);
+    await expect(requireCampaignMember('camp-A')).rejects.toBeInstanceOf(CampaignAccessError);
+    expect(Campaign.findById).toHaveBeenCalledTimes(2);
+  });
+
   it('allows the GM (gameMasterId match) and reports isGM', async () => {
     vi.mocked(Campaign.findById).mockResolvedValue({
       _id: 'camp-A',

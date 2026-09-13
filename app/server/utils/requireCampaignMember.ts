@@ -1,7 +1,6 @@
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
-import { User } from '../db/models/User';
-import { Campaign } from '../db/models/Campaign';
+import { identityRepository, campaignAccessRepository } from '../repositories/identity';
 
 /**
  * "You cannot reach this campaign" — either it does not exist, or the caller
@@ -57,13 +56,12 @@ export async function requireCampaignMember(
   await connectDB();
   if (!isDBConnected()) throw new Error('Database not available');
 
-  const dbUser = await User.findOne({ providerId: user.id });
-  if (!dbUser) throw new Error('User not found');
+  const userId = await identityRepository.findUserId(user.id);
+  if (!userId) throw new Error('User not found');
 
-  const campaign = await Campaign.findById(campaignId);
+  const campaign = await campaignAccessRepository.findAccess(campaignId);
   if (!campaign) throw new CampaignAccessError();
 
-  const userId = String(dbUser._id);
   const members = campaign.members ?? [];
   const member = members.find((m) => String(m.userId) === userId);
   const isGM = String(campaign.gameMasterId) === userId || member?.role === 'gm';

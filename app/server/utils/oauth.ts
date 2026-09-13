@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { connectDB, isDBConnected } from '../db/connection';
-import { User } from '../db/models/User';
+import { identityRepository } from '../repositories/identity';
+import type { IdentityProfile } from '../repositories/identity/types';
 import type { SessionUser } from '../session';
 import { providerConfigured } from './helpers';
 import { serverCaptureException } from './telemetry';
@@ -332,7 +333,11 @@ export async function exchangeGithubCode(
 }
 
 /** Build the SessionUser identity claims, never including provider tokens. */
-function toSessionUser(profile: OAuthProfile, role: string, stored?: UserDoc | null): SessionUser {
+function toSessionUser(
+  profile: OAuthProfile,
+  role: string,
+  stored?: IdentityProfile | null
+): SessionUser {
   return {
     id: profile.id,
     provider: profile.provider,
@@ -342,14 +347,6 @@ function toSessionUser(profile: OAuthProfile, role: string, stored?: UserDoc | n
     role,
     tokenIssuedAt: profile.tokenIssuedAt,
   };
-}
-
-interface UserDoc {
-  email?: string | null;
-  firstName?: string | null;
-  lastName?: string | null;
-  avatarUrl?: string | null;
-  role?: string;
 }
 
 export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
@@ -372,7 +369,7 @@ export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
       accessToken: profile.accessToken ? encryptToken(profile.accessToken) : null,
       refreshToken: profile.refreshToken ? encryptToken(profile.refreshToken) : null,
     };
-    const $set = {
+    const stored = await identityRepository.recordLogin({
       provider: profile.provider,
       providerId: profile.id,
       ...(profile.email && { email: profile.email }),
@@ -383,39 +380,9 @@ export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
       ...(profile.avatar && { avatarUrl: profile.avatar }),
       oauthTokens,
       lastLoginAt: new Date(),
-    };
+    });
 
-    // 1. Returning user — match by the OAuth subject id.
-    let stored = (await User.findOneAndUpdate(
-      { providerId: profile.id },
-      { $set },
-      { returnDocument: 'after', new: true }
-    )) as UserDoc | null;
-
-    // 2. First login for a pre-provisioned account. The dev seed (and the
-    //    invite flow) create User docs keyed only by email, with no providerId,
-    //    to be "claimed" on first OAuth login. Link the OAuth identity onto that
-    //    existing doc — which preserves its campaign memberships. Only claim
-    //    docs with no providerId yet, so we never hijack an account already
-    //    bound to a different provider identity.
-    if (!stored && profile.email) {
-      stored = (await User.findOneAndUpdate(
-        { email: profile.email, providerId: null },
-        { $set },
-        { returnDocument: 'after', new: true }
-      )) as UserDoc | null;
-    }
-
-    // 3. Brand-new user — create the account.
-    if (!stored) {
-      stored = (await User.findOneAndUpdate(
-        { providerId: profile.id },
-        { $set, $setOnInsert: { createdAt: new Date(), role: 'unknown' } },
-        { upsert: true, returnDocument: 'after', new: true }
-      )) as UserDoc | null;
-    }
-
-    return toSessionUser(profile, stored?.role ?? 'unknown', stored);
+    return toSessionUser(profile, stored.role ?? 'unknown', stored);
   } catch (e) {
     // A write failure here (lost connection, duplicate-key from the unique email
     // index, etc.) means we could NOT persist/claim the account. Swallowing it and
@@ -425,12 +392,6 @@ export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
     serverCaptureException(e, profile.id, { action: 'upsertUser', provider: profile.provider });
     throw e;
   }
-}
-
-interface EncryptedTokenField {
-  ciphertext?: string;
-  iv?: string;
-  authTag?: string;
 }
 
 /**
@@ -450,12 +411,7 @@ export async function revokeToken(user: SessionUser): Promise<void> {
     await connectDB();
     if (!isDBConnected()) return;
 
-    // Tokens are select:false, so they must be explicitly selected.
-    const stored = (await User.findOne({ providerId: user.id }).select('+oauthTokens').lean()) as {
-      oauthTokens?: { accessToken?: EncryptedTokenField | null };
-    } | null;
-
-    const enc = stored?.oauthTokens?.accessToken;
+    const enc = await identityRepository.readAccessToken(user.id);
     if (!enc || !enc.ciphertext || !enc.iv || !enc.authTag) return;
 
     const accessToken = decryptToken({
@@ -489,7 +445,7 @@ export async function revokeToken(user: SessionUser): Promise<void> {
     }
 
     // Clear the stored tokens once we've attempted revocation.
-    await User.updateOne({ providerId: user.id }, { $unset: { oauthTokens: '' } });
+    await identityRepository.clearTokens(user.id);
   } catch (e) {
     serverCaptureException(e, user.id, { action: 'revokeToken', provider: user.provider });
   }

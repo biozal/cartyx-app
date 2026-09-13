@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
 import { exportIdentity, verifyArchive } from './archive';
+import { testMongoIdentityRepository } from './mongo-repository-test';
 
 const { BSON, MongoClient } = mongoose.mongo;
 const images = {
@@ -183,6 +184,8 @@ try {
         !(await readdir(join(root, '.local/data/identity', run))).includes('manifest.json')
       );
     }
+  stage = 'identity repository contract';
+  await testMongoIdentityRepository(adminUri);
   stage = 'empty collections';
   await client.db('empty_fixture').createCollection('users');
   await client.db('empty_fixture').createCollection('campaigns');
@@ -214,7 +217,7 @@ try {
     !(await readdir(join(root, '.local/data/identity', failedRun[0]))).includes('manifest.json')
   );
   console.log(
-    'Identity archive integration passed: read-only authorization, raw BSON, hidden fields, multiple cursor batches, snapshot consistency, private verification, empty collections, incomplete-export and standalone-snapshot rejection.'
+    'Identity archive and repository integration passed: login/claim/concurrency, profile privacy, preferences, membership revocation, read-only authorization, raw BSON, hidden fields, multiple cursor batches, snapshot consistency, private verification, empty collections, incomplete-export and standalone-snapshot rejection.'
   );
 } catch (error) {
   console.error(

@@ -219,6 +219,7 @@ describe('upsertUser', () => {
     // the OAuth callback relies on this throw to redirect to an error page rather
     // than logging the user in with an unpersisted "unknown" session.
     await expect(upsertUser(profile)).rejects.toThrow(dbError);
+    expect(mockFindOneAndUpdate).toHaveBeenCalledTimes(1);
   });
 
   it('rethrows when the DB is not connected (no broken session)', async () => {
@@ -240,6 +241,23 @@ describe('upsertUser', () => {
     // an unpersisted "unknown" session.
     await expect(upsertUser(profile)).rejects.toThrow(/not connected/);
     expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('refuses to mint a session when persistence returns no account', async () => {
+    mockFindOneAndUpdate.mockResolvedValue(null);
+    const { upsertUser } = await import('~/server/utils/oauth');
+    await expect(
+      upsertUser({
+        id: 'google_missing',
+        provider: 'google',
+        name: null,
+        email: null,
+        avatar: null,
+        accessToken: null,
+        refreshToken: null,
+        tokenIssuedAt: 1,
+      })
+    ).rejects.toThrow('Identity was not persisted');
   });
 
   it('persists provider tokens ENCRYPTED (not plaintext) and never returns them in the session user', async () => {

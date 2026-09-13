@@ -224,3 +224,12 @@ and identity/membership exception reporting. Dev's 8 users/3 campaigns and prod'
 records or application backend modes changed. This is a source rehearsal, not an
 import or restore gate. See the [identity preflight contract and evidence](2026-09-13-identity-source-preflight.md)
 for preservation rules, limits, Docker tests and remaining repository work.
+
+## Identity repository extraction — September 13
+
+Login persistence, logout token access, profile/preferences and the shared campaign
+access guard now use explicit Mongo-backed repository interfaces on PR #557.
+Reusable real-database contracts exercise account claiming, concurrent first
+login, uniqueness, privacy and preserved account/media fields. No live backend
+cutover or data mutation was performed. The [identity repository contract](2026-09-13-identity-repository.md)
+records behavior, remaining direct identity consumers and target recovery gates.
