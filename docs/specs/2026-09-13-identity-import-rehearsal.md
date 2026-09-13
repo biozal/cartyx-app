@@ -54,11 +54,13 @@ snapshots, not current source equality or readiness to retire Mongo.
 ## Operator import protocol
 
 `scripts/identity/import-account.ts` exposes `createIdentityImporter(state, graph)`
-for trusted operator code and synthetic tests. There is deliberately no real-data
-apply CLI yet. A future bulk runner must verify a frozen archive, bind a durable
-manifest to the intended environment/keyspace/graph endpoint, retain each exact
-plan privately **before** invoking the importer, and reconcile all accounts and
-references before cutover. The source mapper generates fresh operation/revision
+for trusted operator code and synthetic tests. The subsequent
+[private bulk runner](2026-09-13-identity-bulk-import.md) now verifies a frozen archive,
+binds a durable package to the environment/endpoints/keyspace/CA fingerprints, and
+retains each exact plan privately **before** invoking this importer. Its operator
+CLI has prepare/check/apply/verify commands; no real source account was applied as
+part of implementation. Final source/reference reconciliation and all other cutover
+gates remain required. The source mapper generates fresh operation/revision
 IDs; re-running it is not a way to resume a previously started import.
 
 A plan contains the source frame SHA-256, original user ID, three distinct operation
@@ -131,9 +133,10 @@ provider-first/email-only selection and recoverable account/profile writes. The
 [token facet](2026-09-13-identity-token-clearing.md) fences stored token generations.
 Complete runtime integration and provider-specific revocation recovery.
 [Preference updates and media-prefix allocation](2026-09-13-identity-settings-writes.md)
-now have inactive target implementations and recovery contracts. Then add the environment-bound private bulk
-manifest, full source/reference reconciliation and a maintenance-mode dev cutover
-rehearsal. Runtime Gremlin authorization separation, availability boundaries,
+now have inactive target implementations and recovery contracts. The
+[private bulk package/runner](2026-09-13-identity-bulk-import.md) is implemented;
+complete final source/reference reconciliation and a maintenance-mode dev cutover
+rehearsal after the remaining gates pass. Runtime Gremlin authorization separation, availability boundaries,
 campaign transaction replacement, retention/recovery, and separate dev/prod cutover
 gates remain. No application backend switch or production schema change accompanies
 this work.

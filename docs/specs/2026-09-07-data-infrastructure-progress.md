@@ -426,3 +426,33 @@ before and after commit. The restart helper verifies durable admission refusal a
 a lost closure acknowledgement alongside recorded and unresolved provider attempts,
 without HTTP replay. Final local/dev and exact-head CI evidence is recorded in the
 external handoff and PR #557.
+
+## Private identity bulk package and runner — September 13
+
+PR #557 adds an [environment-bound private bulk import package and runner](2026-09-13-identity-bulk-import.md).
+Preparation copies and verifies original BSON, catalog and audit before durably
+publishing exact per-user plans and a target-bound completion manifest. Loading
+checks source labels, all hashes, complete reference audit and every retained plan
+against its source without reminting IDs. Environment, endpoints, keyspace and CA
+fingerprints must match; credentials are never persisted in the binding.
+
+The operator CLI provides offline prepare/check and explicit maintenance apply/verify.
+Batch receipts bind exact package bytes, apply users sequentially and reuse their
+existing recovery protocols. Changed packages cannot take over an anchored batch;
+historical completion cannot restore newer target state. Campaigns remain archived,
+not imported, and every report retains `cutoverReady: false`.
+
+An offline package from the existing private dev snapshot preserves all 8 users and
+3 campaigns. It is a historical-source rehearsal, not a final cutover export. No
+real source accounts were applied to target storage. Mongo remains selected, and
+provider resolution/admission/session policy and other runtime/cutover gates remain
+open. Existing logout behavior is unchanged.
+
+Unit and shared real-store contracts cover private/incomplete/corrupt packages,
+changed bindings/projections, membership inconsistencies, concurrent preparation
+and apply, before/after-commit batch boundaries and newer target-state refusal.
+The restart helper retains the exact package and binding, leaves the first account
+unreceipted and the second absent, then recovers without remapping. Newly written
+recovery resources are recorded before mutation for exact cleanup. Local seed/verify
+passed without restarting developer services; final dev and exact-head CI evidence
+is recorded in the handoff and PR #557.

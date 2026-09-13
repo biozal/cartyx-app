@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import mongoose from 'mongoose';
 import { verifyArchive } from './archive';
 import { parseIdentityImportPlan, type IdentityImportPlan } from './import-account';
@@ -25,7 +26,7 @@ const timestamp = (value: unknown) => {
 };
 
 /** Map a single original BSON frame, without defaults, token decryption or ID normalization. */
-export function mapIdentitySource(input: Uint8Array): IdentityImportPlan {
+function mapSource(input: Uint8Array, retained?: IdentityImportPlan): IdentityImportPlan {
   const raw = Buffer.from(input);
   let doc: Doc;
   try {
@@ -113,11 +114,11 @@ export function mapIdentitySource(input: Uint8Array): IdentityImportPlan {
     return parseIdentityImportPlan({
       version: 1,
       sourceSha256: createHash('sha256').update(raw).digest('hex'),
-      reservationOperationId: randomUUID(),
-      profileOperationId: randomUUID(),
+      reservationOperationId: retained?.reservationOperationId ?? randomUUID(),
+      profileOperationId: retained?.profileOperationId ?? randomUUID(),
       account: {
         kind: 'import',
-        operationId: randomUUID(),
+        operationId: retained?.account.operationId ?? randomUUID(),
         userId,
         binding:
           doc.providerId == null ? null : { provider: doc.provider, providerId: doc.providerId },
@@ -125,11 +126,26 @@ export function mapIdentitySource(input: Uint8Array): IdentityImportPlan {
         audioStoragePrefix: doc.audioStoragePrefix ?? null,
         tokens,
       },
-      snapshot: { userId, snapshotId: randomBytes(12).toString('hex'), content },
+      snapshot: {
+        userId,
+        snapshotId: retained?.snapshot.snapshotId ?? randomBytes(12).toString('hex'),
+        content,
+      },
     });
   } catch {
     throw new IdentityMappingError('target_shape_or_bound');
   }
+}
+
+export function mapIdentitySource(input: Uint8Array): IdentityImportPlan {
+  return mapSource(input);
+}
+
+/** Verify the exact source projection using retained IDs; never remint a recovery plan. */
+export function verifyIdentityImportSource(input: Uint8Array, retained: IdentityImportPlan) {
+  const plan = parseIdentityImportPlan(retained);
+  if (!isDeepStrictEqual(mapSource(input, plan), plan))
+    throw new IdentityMappingError('target_shape_or_bound');
 }
 
 /** Offline only. Plans and source values never leave this function or reach a database. */

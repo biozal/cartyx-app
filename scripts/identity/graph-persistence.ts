@@ -7,6 +7,7 @@ import {
   readFileSync,
   unlinkSync,
   renameSync,
+  rmSync,
 } from 'node:fs';
 import { readCqlConfig } from '../../app/server/db/cql/config';
 import { createControlStateStore, type StateKey } from '../../app/server/db/cql/control-state';
@@ -69,6 +70,21 @@ import {
   type IdentityAdmissionTicket,
 } from '../../app/server/repositories/identity/login-admission';
 import { admissionApplicationFixture } from './login-admission-contract';
+import { createIdentityBulkImporter, IdentityBulkImportError } from './bulk-import';
+import {
+  identityImportTarget,
+  prepareIdentityImportPackage,
+  loadIdentityImportPackage,
+  type IdentityImportTarget,
+} from './bulk-package';
+import { writeBulkArchiveFixture } from './bulk-contract';
+type BulkWitness = {
+  keys: StateKey[];
+  vertices: GraphIdentity[];
+  directory: string;
+  target: IdentityImportTarget;
+  batchId?: string;
+};
 type RevocationWitness = {
   keys: StateKey[];
   vertices: GraphIdentity[];
@@ -112,6 +128,47 @@ const client = createGraphClient(graphConfig);
 const graph = createGraphProfileStore(client);
 const profiles = createIdentityProfiles(state, graph);
 const path = '.local/cql/identity-graph-persistence.json';
+const tracking = (
+  witness: {
+    keys: StateKey[];
+    vertices: GraphIdentity[];
+    mediaPrefix?: string;
+  },
+  save: () => void
+) => {
+  const track = (key: StateKey) => {
+    if (!witness.keys.some((item) => JSON.stringify(item) === JSON.stringify(key)))
+      witness.keys.push(key);
+    save();
+  };
+  const trackedState = {
+    get: (key: StateKey) => state.get(key),
+    create: (...args: Parameters<typeof state.create>) => {
+      if (args[0].type === 'identity_audio_assignment')
+        witness.mediaPrefix = (args[2] as { prefix: string }).prefix;
+      track(args[0]);
+      return state.create(...args);
+    },
+    replace: (...args: Parameters<typeof state.replace>) => {
+      track(args[0]);
+      return state.replace(...args);
+    },
+  };
+  const trackedGraph: typeof graph = {
+    get: (...args) => graph.get(...args),
+    put: (snapshot) => {
+      for (const identity of [
+        profileUserIdentity(snapshot.userId),
+        profileRevisionIdentity(snapshot.userId, snapshot.snapshotId),
+      ])
+        if (!witness.vertices.some((item) => JSON.stringify(item) === JSON.stringify(identity)))
+          witness.vertices.push(identity);
+      save();
+      return graph.put(snapshot);
+    },
+  };
+  return { trackedState, trackedGraph };
+};
 try {
   if (mode === 'identity-graph-seed') {
     if (existsSync(path)) throw new Error('Recover existing identity graph witness before seeding');
@@ -136,6 +193,12 @@ try {
       { keys: [], vertices: [] },
       { keys: [], vertices: [] },
     ];
+    const bulkWitness: BulkWitness = {
+      keys: [],
+      vertices: [],
+      directory: `.local/cql/identity-bulk-${randomUUID()}`,
+      target: identityImportTarget('local', config, graphConfig),
+    };
     const manifest = {
       keyspace: config.keyspace,
       endpoint: graphConfig.url,
@@ -145,6 +208,7 @@ try {
       tokenWitness,
       loginWitness,
       revocationWitnesses,
+      bulkWitness,
     };
     mkdirSync('.local/cql', { recursive: true, mode: 0o700 });
     writeFileSync(path, JSON.stringify(manifest), { mode: 0o600, flag: 'wx' });
@@ -191,45 +255,7 @@ try {
       writeFileSync(`${path}.pending`, JSON.stringify(manifest), { mode: 0o600 });
       renameSync(`${path}.pending`, path);
     };
-    const tracking = (witness: {
-      keys: StateKey[];
-      vertices: GraphIdentity[];
-      mediaPrefix?: string;
-    }) => {
-      const track = (key: StateKey) => {
-        if (!witness.keys.some((item) => JSON.stringify(item) === JSON.stringify(key)))
-          witness.keys.push(key);
-        save();
-      };
-      const trackedState = {
-        get: (key: StateKey) => state.get(key),
-        create: (...args: Parameters<typeof state.create>) => {
-          if (args[0].type === 'identity_audio_assignment')
-            witness.mediaPrefix = (args[2] as { prefix: string }).prefix;
-          track(args[0]);
-          return state.create(...args);
-        },
-        replace: (...args: Parameters<typeof state.replace>) => {
-          track(args[0]);
-          return state.replace(...args);
-        },
-      };
-      const trackedGraph: typeof graph = {
-        get: (...args) => graph.get(...args),
-        put: (snapshot) => {
-          for (const identity of [
-            profileUserIdentity(snapshot.userId),
-            profileRevisionIdentity(snapshot.userId, snapshot.snapshotId),
-          ])
-            if (!witness.vertices.some((item) => JSON.stringify(item) === JSON.stringify(identity)))
-              witness.vertices.push(identity);
-          save();
-          return graph.put(snapshot);
-        },
-      };
-      return { trackedState, trackedGraph };
-    };
-    const { trackedState, trackedGraph } = tracking(settingsWitness);
+    const { trackedState, trackedGraph } = tracking(settingsWitness, save);
     await createIdentityImporter(trackedState, trackedGraph).apply(settingsWitness.plan);
     const interruptedSettings = createTargetIdentitySettings(
       {
@@ -259,7 +285,7 @@ try {
       interruptedSettings.resolveAudioStoragePrefix(settingsWitness.plan.account.userId),
       /settings witness interruption/
     );
-    const trackedTokens = tracking(tokenWitness);
+    const trackedTokens = tracking(tokenWitness, save);
     await createIdentityImporter(trackedTokens.trackedState, trackedTokens.trackedGraph).apply(
       tokenWitness.plan
     );
@@ -291,7 +317,7 @@ try {
       createIdentityAccountState(state).readAccount(observed.userId),
       /requires operation recovery/
     );
-    const trackedLogin = tracking(loginWitness);
+    const trackedLogin = tracking(loginWitness, save);
     const login = createIdentityLoginCoordinator(
       trackedLogin.trackedState,
       trackedLogin.trackedGraph
@@ -319,7 +345,7 @@ try {
       /requires operation recovery/
     );
     for (const [index, witness] of revocationWitnesses.entries()) {
-      const tracked = tracking(witness);
+      const tracked = tracking(witness, save);
       witness.application = admissionApplicationFixture();
       save();
       const admission = createIdentityLoginAdmission(tracked.trackedState, witness.application);
@@ -390,8 +416,44 @@ try {
         );
       }
     }
+    mkdirSync(bulkWitness.directory, { mode: 0o700 });
+    await writeBulkArchiveFixture(`${bulkWitness.directory}/source`);
+    const bulkDirectory = `${bulkWitness.directory}/package`;
+    await prepareIdentityImportPackage(
+      `${bulkWitness.directory}/source`,
+      bulkDirectory,
+      bulkWitness.target
+    );
+    bulkWitness.batchId = (
+      await loadIdentityImportPackage(bulkDirectory, bulkWitness.target)
+    ).manifest.batchId;
+    save();
+    const trackedBulk = tracking(bulkWitness, save);
+    const interruptedBulk = createIdentityBulkImporter(
+      {
+        ...trackedBulk.trackedState,
+        create: async (...args) => {
+          const result = await trackedBulk.trackedState.create(...args);
+          if (args[0].type === 'identity_account')
+            throw new Error('bulk account witness interruption');
+          return result;
+        },
+      },
+      trackedBulk.trackedGraph,
+      bulkWitness.target
+    );
+    await assert.rejects(interruptedBulk.apply(bulkDirectory), IdentityBulkImportError);
+    const pendingBulk = await loadIdentityImportPackage(bulkDirectory, bulkWitness.target);
+    await assert.rejects(
+      createIdentityAccountState(state).readAccount(pendingBulk.plans[0].account.userId),
+      /requires operation recovery/
+    );
+    assert.equal(
+      await createIdentityAccountState(state).readAccount(pendingBulk.plans[1].account.userId),
+      null
+    );
     process.stdout.write(
-      'Seeded graph publication, pending account import, preference/media allocation, token clear, login, provider attempt/local-clear and closed OAuth admission restart witnesses\n'
+      'Seeded graph publication, pending account import, preference/media allocation, token clear, login, provider attempt/local-clear and closed OAuth admission and private bulk-package restart witnesses\n'
     );
   } else {
     const manifest = JSON.parse(readFileSync(path, 'utf8'));
@@ -403,6 +465,7 @@ try {
     const tokenWitness = manifest.tokenWitness as SettingsWitness | undefined;
     const loginWitness = manifest.loginWitness as LoginWitness | undefined;
     const revocationWitnesses = (manifest.revocationWitnesses ?? []) as RevocationWitness[];
+    const bulkWitness = manifest.bulkWitness as BulkWitness | undefined;
     const { userId, snapshotId } = command.snapshot;
     assert.equal((await state.get(profileHeadKey(userId)))?.revision, command.operationId);
     assert.deepEqual(await graph.get(userId, snapshotId), command.snapshot);
@@ -514,6 +577,22 @@ try {
         },
       });
     }
+    if (bulkWitness) {
+      assert.match(bulkWitness.directory, /^\.local\/cql\/identity-bulk-[0-9a-f-]{36}$/);
+      const target = identityImportTarget('local', config, graphConfig);
+      assert.deepEqual(target, bulkWitness.target);
+      const directory = `${bulkWitness.directory}/package`;
+      const batch = await loadIdentityImportPackage(directory, target);
+      assert.equal(batch.manifest.batchId, bulkWitness.batchId);
+      const tracked = tracking(bulkWitness, () => {
+        writeFileSync(`${path}.pending`, JSON.stringify(manifest), { mode: 0o600 });
+        renameSync(`${path}.pending`, path);
+      });
+      const runner = createIdentityBulkImporter(tracked.trackedState, tracked.trackedGraph, target);
+      await runner.apply(directory);
+      await runner.verify(directory);
+      assert.deepEqual(await loadIdentityImportPackage(directory, target), batch);
+    }
     const admin = createCqlClient(readCqlConfig('schema'));
     try {
       for (const key of [
@@ -524,6 +603,7 @@ try {
         ...(tokenWitness?.keys ?? []),
         ...(loginWitness?.keys ?? []),
         ...revocationWitnesses.flatMap((witness) => witness.keys),
+        ...(bulkWitness?.keys ?? []),
       ]) {
         await admin.execute(
           `DELETE FROM ${config.keyspace}.control_state WHERE scope = ? AND resource_type = ? AND resource_id = ?`,
@@ -544,6 +624,7 @@ try {
         ...(tokenWitness?.vertices ?? []),
         ...(loginWitness?.vertices ?? []),
         ...revocationWitnesses.flatMap((witness) => witness.vertices),
+        ...(bulkWitness?.vertices ?? []),
       ]) {
         await client.execute(findIdentity(identity).hasLabel(identity.kind).drop());
         assert.deepEqual(await client.execute(findIdentity(identity).count()), [0]);
@@ -551,9 +632,10 @@ try {
     } finally {
       await admin.close();
     }
+    if (bulkWitness) rmSync(bulkWitness.directory, { recursive: true });
     unlinkSync(path);
     process.stdout.write(
-      'Verified graph publication, account import, preference/media allocation, token clear, login, provider attempt/local-clear recovery without HTTP replay and durable OAuth admission refusal; removed exact restart witnesses\n'
+      'Verified graph publication, account import, preference/media allocation, token clear, login, provider attempt/local-clear recovery without HTTP replay, durable OAuth admission refusal and exact private bulk-package recovery without remapping; removed exact restart witnesses\n'
     );
   }
 } finally {

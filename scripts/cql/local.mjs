@@ -33,6 +33,19 @@ const run = (command, args, options = {}) => {
 const container = JSON.parse(run('docker', ['inspect', 'cartyx-local-cassandra-1']))[0];
 if (!container.State.Running || !container.NetworkSettings.Networks['cartyx-local_default'])
   throw new Error('Start the local database stack with npm run db:up');
+// Bulk restart recovery binds the exact transport endpoint. Reuse its original
+// loopback port or fail if occupied; never silently remap a retained import target.
+let retainedPort = '';
+const witnessPath = resolve(root, '.local/cql/identity-graph-persistence.json');
+if (action === 'identity-graph-verify' && existsSync(witnessPath)) {
+  const witness = JSON.parse(readFileSync(witnessPath, 'utf8'));
+  const port = witness.bulkWitness?.target?.cql?.port;
+  if (witness.bulkWitness) {
+    if (!Number.isInteger(port) || port < 1 || port > 65535)
+      throw new Error('Invalid retained bulk-import CQL port');
+    retainedPort = String(port);
+  }
+}
 const name = `cartyx-cql-proxy-${randomUUID()}`;
 const proxy = `import socket, socketserver, threading
 class Handler(socketserver.BaseRequestHandler):
@@ -72,7 +85,7 @@ try {
     '--network',
     'cartyx-local_default',
     '-p',
-    '127.0.0.1::9042',
+    `127.0.0.1:${retainedPort}:9042`,
     '--read-only',
     '--cap-drop',
     'ALL',

@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { expect, it, vi } from 'vitest';
+import { identityBulkImportContract } from '../../../scripts/identity/bulk-contract';
 import {
   identityLoginAdmissionContract,
   admissionApplicationFixture,
@@ -84,6 +85,10 @@ function memory() {
   };
   return { state, graph };
 }
+it('recovers private environment-bound bulk imports without remapping or restoring newer state', async () => {
+  const { state, graph } = memory();
+  await identityBulkImportContract(state, graph);
+});
 it('blocks delayed OAuth admission before provider dispatch and across recovery', async () => {
   const { state, graph } = memory();
   await identityLoginAdmissionContract(state, graph);
