@@ -98,6 +98,10 @@ export function createIdentityReservations(store: ReservationStateStore) {
     return stored.userId === userId;
   }
   return {
+    async assertOwner(userId: string, claim: IdentityReservationClaim): Promise<void> {
+      if (!(await owns(parse(claimSchema, claim), parse(objectId, userId))))
+        throw new Error('Identity identifier belongs to another account');
+    },
     async begin(input: IdentityReservationIntent): Promise<IdentityReservationStatus> {
       const intent = normalize(input); // Snapshot caller-owned arrays before the first await.
       const key = journalKey(intent.operationId);

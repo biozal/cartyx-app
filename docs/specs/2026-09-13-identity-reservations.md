@@ -69,7 +69,8 @@ not account existence, a valid provider binding, permission, completed login or 
 safe point to mint a session. The trusted caller must select the account ID; this
 API must never be exposed to a browser or arbitrary caller-selected account ID.
 Different operations can reserve different provider IDs for the same account;
-the future authoritative account CAS must enforce allowed provider binding.
+the [account state CAS](2026-09-13-identity-account-state.md) now enforces one
+provider binding while remaining inactive.
 
 Claims never expire, transfer or get deleted here. A conflict after an earlier
 acquisition retains that earlier claim. This protects uniqueness under delayed
@@ -79,10 +80,10 @@ protocol before cutover. Do not manually delete a reservation and let an old wor
 resume. A fixed claim order does not promise that one whole multi-claim operation
 always succeeds when requests overlap in different ways.
 
-This journal covers reservation preparation only. The next implementation must
-provide authoritative account state and operation revisions, source-account
-claiming, token revision fencing for overlapping login/logout, and graph projection
-recovery. A reservation must never directly drive an unconditional mutable graph
+This journal covers reservation preparation only. The inactive
+[account state protocol](2026-09-13-identity-account-state.md) adds account/token
+revisions and durable outcome receipts. Source-account matching/import, provider
+revocation orchestration and graph projection recovery remain. A reservation must never directly drive an unconditional mutable graph
 write: a delayed worker could overwrite newer account state. Runtime Gremlin
 permission separation and schema changes remain required before graph application
 writes. Availability separation, campaign transaction replacement, importer and

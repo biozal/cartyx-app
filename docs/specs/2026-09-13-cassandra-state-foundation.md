@@ -156,3 +156,8 @@ immutable exact identifiers and resumable preparation intents in the existing
 state table. Real CQL contracts now include claim competition, partial conflicts
 and interrupted writes. The restart witness also includes an unfinished identity
 reservation. This remains operator/test code; no application authority switched.
+
+The inactive [account state protocol](2026-09-13-identity-account-state.md) now adds
+single-account binding/token CAS and durable outcome receipts. The restart witness
+also verifies recovery of an account committed before its receipt was recorded.
+No runtime application binding or schema authority changed.

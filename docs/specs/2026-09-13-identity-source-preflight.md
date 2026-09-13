@@ -138,7 +138,8 @@ now covers request-time identity consumers, login/account claiming, token storag
 preferences, media prefixes and transitional membership mirrors with contract
 tests. The [reservation preparation journal](2026-09-13-identity-reservations.md)
 adds tested identifier uniqueness and interruption recovery. Availability
-boundaries, authoritative account state/fencing, graph projection recovery, the
+boundaries, integration of the inactive [account state/fencing protocol](2026-09-13-identity-account-state.md),
+graph projection recovery, the
 graph/CQL adapter, importer and dev rehearsal are still required. Runtime Gremlin
 authorization and the remaining phase-4 gates stay open; this preflight does not
 authorize a backend cutover.

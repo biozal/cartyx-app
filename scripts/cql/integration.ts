@@ -11,6 +11,7 @@ import {
 import { runCqlSchema, cqlSchemaManifest } from './schema';
 import cassandra from 'cassandra-driver';
 import { identityReservationContract } from '../identity/reservation-contract';
+import { identityAccountStateContract } from '../identity/account-state-contract';
 
 const runtime = readCqlConfig('runtime');
 const adminConfig = readCqlConfig('schema');
@@ -179,19 +180,21 @@ try {
     }
   }
   assert.deepEqual(await store.get(key), { revision: third, value: payload });
-  await identityReservationContract({
-    get: (key) => store.get(key),
-    create: (key, revision, value) => {
+  const trackedStore = {
+    get: (key: StateKey) => store.get(key),
+    create: (key: StateKey, revision: string, value: unknown) => {
       track(key);
       return store.create(key, revision, value);
     },
-    replace: (key, expected, revision, value) => {
+    replace: (key: StateKey, expected: string, revision: string, value: unknown) => {
       track(key);
       return store.replace(key, expected, revision, value);
     },
-  });
+  };
+  await identityReservationContract(trackedStore);
+  await identityAccountStateContract(trackedStore);
   process.stdout.write(
-    'PASS: CQL schema repeat/recovery/drift, scoped records, conditional create/update, replay reconciliation, stale-write rejection, runtime permissions, TLS/authentication, identity reservation concurrency/interruption/conflicts\n'
+    'PASS: CQL schema repeat/recovery/drift, scoped records, conditional create/update, replay reconciliation, stale-write rejection, runtime permissions, TLS/authentication, identity reservation concurrency/interruption/conflicts, account binding/token fencing/receipt recovery\n'
   );
 } finally {
   const cleanup = await Promise.allSettled([

@@ -15,6 +15,13 @@ import {
   type IdentityReservationIntent,
 } from '../../app/server/repositories/identity/reservations';
 
+import {
+  createIdentityAccountState,
+  identityAccountKey,
+  identityAccountOperationKey,
+  type AccountCommand,
+} from '../../app/server/repositories/identity/account-state';
+
 const mode = process.argv[2];
 if (!['seed-persistence', 'verify-persistence'].includes(mode))
   throw new Error('Invalid persistence mode');
@@ -45,11 +52,22 @@ try {
         { kind: 'provider_id', value: `fixture_restart_${userId}` },
       ],
     };
+    const account: AccountCommand = {
+      kind: 'initialize',
+      operationId: randomUUID(),
+      userId,
+      email: null,
+      audioStoragePrefix: null,
+    };
     mkdirSync('.local/cql', { recursive: true, mode: 0o700 });
-    writeFileSync(path, JSON.stringify({ keyspace: config.keyspace, key, record, reservation }), {
-      mode: 0o600,
-      flag: 'wx',
-    });
+    writeFileSync(
+      path,
+      JSON.stringify({ keyspace: config.keyspace, key, record, reservation, account }),
+      {
+        mode: 0o600,
+        flag: 'wx',
+      }
+    );
     assert.equal(await store.create(key, record.revision, record.value), true);
     assert.deepEqual(await store.get(key), record);
     await createIdentityReservations(store).begin(reservation);
@@ -65,8 +83,25 @@ try {
       interrupted.resume(reservation.operationId),
       /restart witness interruption/
     );
+    await createIdentityAccountState(store).begin(account);
+    const interruptedAccount = createIdentityAccountState({
+      get: (key) => store.get(key),
+      replace: (...args) => store.replace(...args),
+      create: async (...args) => {
+        await store.create(...args);
+        throw new Error('account restart witness interruption');
+      },
+    });
+    await assert.rejects(
+      interruptedAccount.resume(account.operationId),
+      /account restart witness interruption/
+    );
+    await assert.rejects(
+      createIdentityAccountState(store).readAccount(account.userId),
+      /requires operation recovery/
+    );
     process.stdout.write(
-      'Seeded CQL revision and interrupted identity reservation restart witnesses\n'
+      'Seeded CQL revision, interrupted reservation and unreceipted account restart witnesses\n'
     );
   } else {
     const manifest = JSON.parse(readFileSync(path, 'utf8'));
@@ -103,6 +138,25 @@ try {
         });
       }
     }
+    if (manifest.account) {
+      const account = manifest.account as AccountCommand;
+      const accounts = createIdentityAccountState(store);
+      assert.equal(
+        (await store.get(identityAccountKey(account.userId)))?.revision,
+        account.operationId
+      );
+      const receipt = await store.get(identityAccountOperationKey(account.operationId));
+      const status = (receipt?.value as { status?: string } | undefined)?.status;
+      if (status === 'prepared')
+        await assert.rejects(accounts.readAccount(account.userId), /requires operation recovery/);
+      else assert.equal(status, 'applied'); // A previous verify may have resumed before losing its reply.
+      assert.equal(await accounts.resume(account.operationId), 'applied');
+      assert.equal((await accounts.readAccount(account.userId))?.revision, account.operationId);
+      cleanupKeys.push(
+        identityAccountKey(account.userId),
+        identityAccountOperationKey(account.operationId)
+      );
+    }
     const admin = createCqlClient(readCqlConfig('schema'));
     try {
       for (const key of cleanupKeys)
@@ -116,7 +170,7 @@ try {
     for (const key of cleanupKeys) assert.equal(await store.get(key), null);
     unlinkSync(path);
     process.stdout.write(
-      'Verified CQL revision and identity reservation recovery; removed exact witnesses\n'
+      'Verified CQL revision, reservation and account receipt recovery; removed exact witnesses\n'
     );
   }
 } finally {

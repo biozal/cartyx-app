@@ -146,10 +146,11 @@ Next work:
 1. Separate identity availability from remaining Mongo domain availability, and
    replace the Mongo transaction/mirror dependency with a recoverable contract
    before enabling a target backend.
-2. Build authoritative account operations on the inactive
+2. Integrate the inactive [account state protocol](2026-09-13-identity-account-state.md)
+   with source-account selection, import and provider revocation. It builds on the
    [reservation preparation journal](2026-09-13-identity-reservations.md), which now
    covers immutable identifier ownership and interrupted preparation. Account-level
-   fencing/release and recovery for partial graph/CQL writes remain required. Address login/logout overlap: current logout clears
+   release and recovery for partial graph/CQL writes remain required. Address login/logout overlap: current logout clears
    by provider ID and is not conditional on the token revision it read. This
    extraction preserves that behavior; it does not establish safe token fencing.
 3. Separate runtime Gremlin authorization from schema administration, implement

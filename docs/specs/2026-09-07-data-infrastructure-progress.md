@@ -267,3 +267,21 @@ without restarting the running developer stack. Claims cannot expire or transfer
 account-level binding/fencing and safe release, token revisions, graph projection
 recovery, runtime authorization and import/cutover work remain required. The
 application bindings still select Mongo explicitly on the single draft PR #557.
+
+## Account binding and token fencing — September 13
+
+The inactive [account state protocol](2026-09-13-identity-account-state.md) adds
+single-account provider binding, account/token revision checks and durable operation
+receipts on Cassandra. An account cannot advance until its previous applied outcome
+is recorded. Terminal receipts retain a command digest instead of historical token
+envelopes. Profiles, roles and campaign relationships are outside this operational
+state; the application remains bound to Mongo.
+
+Local Docker and Kubernetes dev passed real-store competition, stale logout,
+concurrent resume, delayed worker and interrupted account/receipt contracts. The
+local persistence helper also passed; CI now carries a committed account with an
+unfinished receipt through its database restart. Synthetic fixture records were
+cleaned up, with no source-account writes or production changes. Typecheck, lint
+and focused unit contracts passed locally. Full target integration, graph recovery,
+provider revocation orchestration and audited bound-account import remain open in
+single draft PR #557.
