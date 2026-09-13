@@ -1,5 +1,4 @@
-import crypto from 'node:crypto';
-import { User } from '../db/models/User';
+import { identityRepository } from '../repositories/identity';
 
 /**
  * The R2 key layout for audio, and the per-user namespace that makes it
@@ -56,9 +55,6 @@ import { User } from '../db/models/User';
 /** Every audio object in the bucket lives under this. */
 export const AUDIO_KEY_ROOT = 'uploads/audio/';
 
-/** Bytes of randomness per prefix; 16 bytes = 32 hex characters = 128 bits. */
-const PREFIX_BYTES = 16;
-
 /**
  * A minted prefix, exactly.
  *
@@ -106,29 +102,7 @@ export function assertStoragePrefix(storagePrefix: string): void {
  *   never uploads audio never gets a prefix and no backfill is needed.
  */
 export async function resolveAudioStoragePrefix(userId: string): Promise<string> {
-  const existing = await User.findById(userId).select('audioStoragePrefix').lean();
-  if (!existing) throw new Error('User not found');
-  if (existing.audioStoragePrefix) return existing.audioStoragePrefix;
-
-  // `$in: [null]` matches a null value AND a missing field, so this cannot
-  // match a document that already has a prefix — that is the stability guard.
-  const minted = crypto.randomBytes(PREFIX_BYTES).toString('hex');
-  const updated = await User.findOneAndUpdate(
-    { _id: userId, audioStoragePrefix: { $in: [null] } },
-    { $set: { audioStoragePrefix: minted } },
-    { new: true }
-  )
-    .select('audioStoragePrefix')
-    .lean();
-
-  if (updated?.audioStoragePrefix) return updated.audioStoragePrefix;
-
-  // The conditional write matched nothing, which means another request minted
-  // one between the read above and here. Theirs won; read it back rather than
-  // returning a prefix that was never stored.
-  const raced = await User.findById(userId).select('audioStoragePrefix').lean();
-  if (!raced?.audioStoragePrefix) throw new Error('Failed to assign audio storage prefix');
-  return raced.audioStoragePrefix;
+  return identityRepository.resolveAudioStoragePrefix(userId);
 }
 
 /**
@@ -139,6 +113,5 @@ export async function resolveAudioStoragePrefix(userId: string): Promise<string>
  * objects, which is an empty scan, not a reason to write to their document.
  */
 export async function lookupAudioStoragePrefix(userId: string): Promise<string | null> {
-  const doc = await User.findById(userId).select('audioStoragePrefix').lean();
-  return doc?.audioStoragePrefix ?? null;
+  return identityRepository.lookupAudioStoragePrefix(userId);
 }

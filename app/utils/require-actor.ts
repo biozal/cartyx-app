@@ -43,11 +43,11 @@
 export async function requireActor(): Promise<{ userId: string; sessionUserId: string }> {
   const { getSession } = await import('~/server/session');
   const { connectDB } = await import('~/server/db/connection');
-  const { User } = await import('~/server/db/models/User');
+  const { identityRepository } = await import('~/server/repositories/identity');
   const session = await getSession();
   if (!session) throw new Error('Not authenticated');
   await connectDB();
-  const dbUser = await User.findOne({ providerId: session.id }).select('_id').lean();
-  if (!dbUser) throw new Error('User not found');
-  return { userId: String(dbUser._id), sessionUserId: session.id };
+  const userId = await identityRepository.findUserId(session.id);
+  if (!userId) throw new Error('User not found');
+  return { userId, sessionUserId: session.id };
 }

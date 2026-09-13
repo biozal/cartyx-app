@@ -7,7 +7,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
-import { User } from '../db/models/User';
+import { identityRepository } from '../repositories/identity';
 import { Campaign } from '../db/models/Campaign';
 import { Location } from '../db/models/Location';
 import { Character } from '../db/models/Character';
@@ -144,13 +144,13 @@ async function requireGmOfCampaign(campaignId: string): Promise<{ sessionUserId:
   await connectDB();
   if (!isDBConnected()) throw new Error('Database not available');
 
-  const dbUser = await User.findOne({ providerId: user.id });
+  const dbUser = await identityRepository.findProfile(user.id);
   if (!dbUser) throw new Error('User not found');
 
   const campaign = await Campaign.findById(campaignId);
   if (!campaign) throw new Error('Campaign not found');
 
-  const userId = String(dbUser._id);
+  const userId = String(dbUser.id);
   const members = (campaign.members ?? []) as Array<{ userId: unknown; role?: string }>;
   const member = members.find((m) => String(m.userId) === userId);
   const isGM = String(campaign.gameMasterId) === userId || member?.role === 'gm';

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
-import { User } from '../db/models/User';
+import { identityRepository, identityMembershipMirror } from '../repositories/identity';
 import { Campaign } from '../db/models/Campaign';
 import { requireCampaignMember } from '../utils/requireCampaignMember';
 import { Player } from '../db/models/Player';
@@ -585,7 +585,7 @@ export const validateInviteCode = async ({
     await connectDB();
     if (!isDBConnected()) throw new Error('Database not available');
 
-    const dbUser = await User.findOne({ providerId: user.id });
+    const dbUser = await identityRepository.findProfile(user.id);
     if (!dbUser) throw new Error('User not found');
 
     const normalizedInviteCode = data.inviteCode.trim().toUpperCase();
@@ -594,7 +594,7 @@ export const validateInviteCode = async ({
     if (campaign.status !== 'active') throw new Error('Campaign is not active');
 
     // Check if user is already a member
-    const userId = String(dbUser._id);
+    const userId = String(dbUser.id);
     const alreadyMember =
       (campaign.members ?? []).some((m) => String(m.userId) === userId) ||
       String(campaign.gameMasterId) === userId;
@@ -631,10 +631,10 @@ export const completeJoinWizard = async ({
     await connectDB();
     if (!isDBConnected()) throw new Error('Database not available');
 
-    const dbUser = await User.findOne({ providerId: user.id });
+    const dbUser = await identityRepository.findProfile(user.id);
     if (!dbUser) throw new Error('User not found');
 
-    const userId = String(dbUser._id);
+    const userId = String(dbUser.id);
     const now = new Date();
 
     // 1. Add user to campaign members (with capacity check)
@@ -642,7 +642,7 @@ export const completeJoinWizard = async ({
       {
         _id: data.campaignId,
         status: 'active',
-        'members.userId': { $ne: dbUser._id },
+        'members.userId': { $ne: dbUser.id },
         $expr: {
           $lt: [
             {
@@ -659,7 +659,7 @@ export const completeJoinWizard = async ({
         },
       },
       {
-        $addToSet: { members: { userId: dbUser._id, role: 'player', joinedAt: now } },
+        $addToSet: { members: { userId: dbUser.id, role: 'player', joinedAt: now } },
       },
       {
         new: true,
@@ -671,14 +671,11 @@ export const completeJoinWizard = async ({
     }
 
     // 2. Update User.campaigns
-    await User.updateOne(
-      { _id: dbUser._id },
-      {
-        $addToSet: {
-          campaigns: { campaignId: updatedCampaign._id, status: 'active', joinedAt: now },
-        },
-      }
-    );
+    await identityMembershipMirror.addCampaignLink(dbUser.id, {
+      campaignId: String(updatedCampaign._id),
+      status: 'active',
+      joinedAt: now,
+    });
 
     // 3. Guard against duplicate player (race condition / double-submit)
     const existingPlayer = await Player.findOne({

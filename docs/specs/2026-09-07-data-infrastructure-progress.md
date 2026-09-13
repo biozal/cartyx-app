@@ -232,4 +232,21 @@ access guard now use explicit Mongo-backed repository interfaces on PR #557.
 Reusable real-database contracts exercise account claiming, concurrent first
 login, uniqueness, privacy and preserved account/media fields. No live backend
 cutover or data mutation was performed. The [identity repository contract](2026-09-13-identity-repository.md)
-records behavior, remaining direct identity consumers and target recovery gates.
+records behavior, transitional Mongo dependencies and target recovery gates.
+
+## Remaining identity consumer extraction — September 13
+
+PR #557 now routes domain lookups, session access, actor resolution, display names
+and audio prefix persistence through the identity repository. User-side campaign
+mirrors use explicit operations; campaign creation retains its Mongo transaction.
+A legacy untyped Player reference keeps its BSON representation at the domain
+boundary. An architectural regression test guards against direct request-code
+User model imports.
+
+Local build/typecheck and authenticated MongoDB 7 repository/archive integration
+passed, including concurrent prefix assignment, forced uniqueness conflicts,
+reference casting and transaction commit/rollback. Permission regression tests
+preserve session member requirements and observe revocation. No cluster or source
+data was changed. Mongo remains authoritative; availability separation, target
+reservations, token revision fencing, partial-operation recovery, runtime Gremlin
+authorization, import and separate dev/prod cutovers remain.

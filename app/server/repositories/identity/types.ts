@@ -38,6 +38,15 @@ export interface IdentityRepository {
   recordLogin(input: RecordIdentityLogin): Promise<IdentityProfile>;
   findProfile(providerId: string): Promise<IdentityProfile | null>;
   findUserId(providerId: string): Promise<string | null>;
+  readDisplayName(userId: string): Promise<{
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+  } | null>;
+  /** Lazily assigns an immutable namespace; never returns an unpersisted candidate. */
+  resolveAudioStoragePrefix(userId: string): Promise<string>;
+  /** Read-only, including when the user or prefix is missing. */
+  lookupAudioStoragePrefix(userId: string): Promise<string | null>;
   readAccessToken(providerId: string): Promise<{
     ciphertext?: string | null;
     iv?: string | null;
@@ -46,6 +55,18 @@ export interface IdentityRepository {
   clearTokens(providerId: string): Promise<void>;
   readPreferences(providerId: string): Promise<{ rulerColor?: string | null } | null>;
   setRulerColor(providerId: string, rulerColor: string): Promise<void>;
+}
+
+export interface IdentityCampaignLink {
+  campaignId: string;
+  joinedAt: Date;
+  status: string;
+}
+
+/** Legacy user-side membership mirror. Never an authority for access decisions. */
+export interface IdentityMembershipMirrorRepository {
+  appendCampaignLink(userId: string, link: IdentityCampaignLink): Promise<void>;
+  addCampaignLink(userId: string, link: IdentityCampaignLink): Promise<void>;
 }
 
 /** Transitional membership authority: campaign data stays on MongoDB. */

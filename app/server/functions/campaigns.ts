@@ -2,7 +2,8 @@ import { z } from 'zod';
 import mongoose from 'mongoose';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
-import { User } from '../db/models/User';
+import { identityRepository, identityMembershipMirror } from '../repositories/identity';
+import { membershipMirrorForMongoTransaction } from '../repositories/identity/mongo-transaction';
 import { Campaign } from '../db/models/Campaign';
 import { Player } from '../db/models/Player';
 import { Session } from '../db/models/Session';
@@ -117,16 +118,16 @@ export const listCampaigns = async () => {
     await connectDB();
     if (!isDBConnected()) return [];
 
-    const dbUser = await User.findOne({ providerId: user.id });
+    const dbUser = await identityRepository.findProfile(user.id);
     if (!dbUser) return [];
 
     // Include legacy campaigns (pre-members migration) where user is the GM
     const raw = await Campaign.find({
       $or: [
-        { 'members.userId': dbUser._id },
-        { gameMasterId: dbUser._id, members: { $in: [null, []] } },
+        { 'members.userId': dbUser.id },
+        { gameMasterId: dbUser.id, members: { $in: [null, []] } },
         // Ensure the GM always sees their campaigns, even if members is non-empty and missing the GM
-        { gameMasterId: dbUser._id },
+        { gameMasterId: dbUser.id },
       ],
     }).sort({ createdAt: -1 });
 
@@ -180,7 +181,7 @@ export const listCampaigns = async () => {
       );
     }
 
-    const userId = String(dbUser._id);
+    const userId = String(dbUser.id);
     return raw.map((c) => {
       const partyMembers = playersByCampaignId[String(c._id)] ?? [];
       const serialized = serializeCampaign(
@@ -209,11 +210,11 @@ export const getCampaign = async ({ data }: { data: z.infer<typeof getCampaignSc
     await connectDB();
     if (!isDBConnected()) throw new Error('Database not available');
 
-    const dbUser = await User.findOne({ providerId: user.id });
+    const dbUser = await identityRepository.findProfile(user.id);
     const c = await Campaign.findById(data.id);
     if (!c) return null;
 
-    const userId = dbUser ? String(dbUser._id) : undefined;
+    const userId = dbUser ? String(dbUser.id) : undefined;
 
     // Only members can see campaigns; treat gameMasterId as implicit member for legacy campaigns
     const members = c.members ?? [];
@@ -341,7 +342,7 @@ export const createCampaign = async ({ data }: { data: z.infer<typeof campaignIn
 
     if (!name.trim()) throw new Error('Campaign name is required');
 
-    const dbUser = await User.findOne({ providerId: user.id });
+    const dbUser = await identityRepository.findProfile(user.id);
     if (!dbUser) throw new Error('User not found');
 
     let imagePath: string | null = null;
@@ -388,7 +389,7 @@ export const createCampaign = async ({ data }: { data: z.infer<typeof campaignIn
             const created = (await Campaign.create(
               [
                 {
-                  gameMasterId: dbUser._id,
+                  gameMasterId: dbUser.id,
                   name: name.trim(),
                   description: description.trim(),
                   imagePath,
@@ -401,7 +402,7 @@ export const createCampaign = async ({ data }: { data: z.infer<typeof campaignIn
                   links: links ?? [],
                   maxPlayers: parseMaxPlayers(maxPlayers),
                   inviteCode,
-                  members: [{ userId: dbUser._id, role: 'gm', joinedAt: new Date() }],
+                  members: [{ userId: dbUser.id, role: 'gm', joinedAt: new Date() }],
                 },
               ],
               { session: mongoSession }
@@ -426,7 +427,7 @@ export const createCampaign = async ({ data }: { data: z.infer<typeof campaignIn
               {
                 campaignId: campaign._id,
                 name: 'Session 0',
-                gm: dbUser._id,
+                gm: dbUser.id,
                 number: 0,
                 startDate: now,
                 endDate: null,
@@ -456,7 +457,7 @@ This is the **Catch Up** section. Your players will see this on their Dashboard 
                 campaignId: campaign._id,
                 name: 'General',
                 tabOrder: 0,
-                createdBy: dbUser._id,
+                createdBy: dbUser.id,
               },
             ],
             { session: mongoSession }
@@ -469,21 +470,17 @@ This is the **Catch Up** section. Your players will see this on their Dashboard 
           const { importSrdContent } = await import('./srdImport');
           await importSrdContent({
             campaignId: String(campaign._id),
-            gmId: String(dbUser._id),
+            gmId: String(dbUser.id),
             session: mongoSession,
           });
         }
 
         // Sync User.campaigns array
-        await User.updateOne(
-          { _id: dbUser._id },
-          {
-            $push: {
-              campaigns: { campaignId: campaign._id, joinedAt: new Date(), status: 'active' },
-            },
-          },
-          { session: mongoSession }
-        );
+        await membershipMirrorForMongoTransaction(mongoSession).appendCampaignLink(dbUser.id, {
+          campaignId: String(campaign._id),
+          joinedAt: new Date(),
+          status: 'active',
+        });
 
         return campaign;
       })) as CampaignResult;
@@ -521,12 +518,12 @@ export const updateCampaign = async ({
     await connectDB();
     if (!isDBConnected()) throw new Error('Database not available');
 
-    const dbUser = await User.findOne({ providerId: user.id });
+    const dbUser = await identityRepository.findProfile(user.id);
     if (!dbUser) throw new Error('User not found');
 
     const campaign = await Campaign.findById(data.id);
     if (!campaign) throw new Error('Campaign not found');
-    if (String(campaign.gameMasterId) !== String(dbUser._id)) throw new Error('Forbidden');
+    if (String(campaign.gameMasterId) !== String(dbUser.id)) throw new Error('Forbidden');
 
     const {
       name,
@@ -602,7 +599,7 @@ export const joinCampaign = async ({ data }: { data: z.infer<typeof joinCampaign
     await connectDB();
     if (!isDBConnected()) throw new Error('Database not available');
 
-    const dbUser = await User.findOne({ providerId: user.id });
+    const dbUser = await identityRepository.findProfile(user.id);
     if (!dbUser) throw new Error('User not found');
 
     const normalizedInviteCode = data.inviteCode.trim().toUpperCase();
@@ -612,8 +609,8 @@ export const joinCampaign = async ({ data }: { data: z.infer<typeof joinCampaign
 
     // Treat GM as implicit member (consistent with getCampaign)
     const alreadyMember =
-      (campaign.members ?? []).some((m) => String(m.userId) === String(dbUser._id)) ||
-      String(campaign.gameMasterId) === String(dbUser._id);
+      (campaign.members ?? []).some((m) => String(m.userId) === String(dbUser.id)) ||
+      String(campaign.gameMasterId) === String(dbUser.id);
     if (alreadyMember) throw new Error('Already a member of this campaign');
 
     const now = new Date();
@@ -622,7 +619,7 @@ export const joinCampaign = async ({ data }: { data: z.infer<typeof joinCampaign
       {
         _id: campaign._id,
         status: 'active',
-        'members.userId': { $ne: dbUser._id },
+        'members.userId': { $ne: dbUser.id },
         $expr: {
           $lt: [
             {
@@ -639,7 +636,7 @@ export const joinCampaign = async ({ data }: { data: z.infer<typeof joinCampaign
         },
       },
       {
-        $addToSet: { members: { userId: dbUser._id, role: 'player', joinedAt: now } },
+        $addToSet: { members: { userId: dbUser.id, role: 'player', joinedAt: now } },
       },
       {
         new: true,
@@ -650,14 +647,11 @@ export const joinCampaign = async ({ data }: { data: z.infer<typeof joinCampaign
       throw new Error('Campaign is full');
     }
 
-    await User.updateOne(
-      { _id: dbUser._id },
-      {
-        $addToSet: {
-          campaigns: { campaignId: updatedCampaign._id, status: 'active', joinedAt: now },
-        },
-      }
-    );
+    await identityMembershipMirror.addCampaignLink(dbUser.id, {
+      campaignId: String(updatedCampaign._id),
+      status: 'active',
+      joinedAt: now,
+    });
 
     // Create placeholder Player document (can be edited later)
     const displayName = [
@@ -667,15 +661,18 @@ export const joinCampaign = async ({ data }: { data: z.infer<typeof joinCampaign
       .filter(Boolean)
       .join(' ')
       .trim();
+    // This legacy Player.userId field is not in the current schema, so Mongoose
+    // will not cast its filter. Preserve the BSON reference used before extraction.
+    const mongoUserId = new mongoose.Types.ObjectId(dbUser.id);
     await Player.updateOne(
       {
         campaignId: updatedCampaign._id,
-        userId: dbUser._id,
+        userId: mongoUserId,
       },
       {
         $setOnInsert: {
           campaignId: updatedCampaign._id,
-          userId: dbUser._id,
+          userId: mongoUserId,
           characterName: displayName || 'Adventurer',
           characterClass: 'Adventurer',
           joinedAt: now,
@@ -705,12 +702,12 @@ export const activateSession = async ({
     await connectDB();
     if (!isDBConnected()) throw new Error('Database not available');
 
-    const dbUser = await User.findOne({ providerId: user.id });
+    const dbUser = await identityRepository.findProfile(user.id);
     if (!dbUser) throw new Error('User not found');
 
     const campaign = await Campaign.findById(data.campaignId);
     if (!campaign) throw new Error('Campaign not found');
-    if (String(campaign.gameMasterId) !== String(dbUser._id)) throw new Error('Forbidden');
+    if (String(campaign.gameMasterId) !== String(dbUser.id)) throw new Error('Forbidden');
 
     const mongoSession = await mongoose.startSession();
     try {

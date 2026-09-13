@@ -1,9 +1,9 @@
 # Identity repository — Mongo-backed extraction
 
-The first identity/access code slice moves login persistence, logout token access,
-profile/preferences and the shared campaign access check behind server repository
-interfaces. It continues in draft PR #557 against `dev`. Both repository instances
-are explicitly Mongo-backed. There is no backend-selection flag, graph import,
+The identity/access extraction moves request-time user reads, login/token writes,
+profile/preferences, media prefixes and user-side campaign mirrors behind server
+repository interfaces. It continues in draft PR #557 against `dev`. All repository
+instances are explicitly Mongo-backed. There is no backend-selection flag, graph import,
 target schema change or live application deployment in this slice.
 
 ## Boundary and callers
@@ -20,6 +20,18 @@ isolated real database fixtures. `index.ts` binds the production models.
 | `utils/oauth.ts` logout          | Explicit encrypted access-token read and clearing stored tokens                                           | Decryption, provider revocation, best-effort logout handling                                                          |
 | `functions/auth.ts`              | Read the current profile and ruler preference, update ruler color                                         | Authentication, DTO shaping, display/default fallback and error handling                                              |
 | `utils/requireCampaignMember.ts` | Resolve the session provider ID to the application user ID; read authoritative campaign ownership/members | Permission decision and indistinguishable missing/non-member error                                                    |
+
+Domain functions, session access, the play route and `requireActor` now resolve
+provider identities through this boundary. `mapAoE` reads only display-name fields;
+`audio-storage` delegates prefix persistence while retaining key construction and
+validation. Server-handler dynamic imports remain dynamic to preserve client
+bundling. Bootstrap, inspection, source export and development fixtures remain
+explicit database/operator code.
+
+Application IDs cross the boundary as strings. Mongo domain schemas cast typed
+references back to BSON. The deprecated join path explicitly converts the legacy
+`Player.userId` filter to ObjectId because that field is absent from the current
+Player schema and would otherwise escape Mongoose casting.
 
 Ordinary identity results explicitly enumerate the public profile fields. They
 exclude token envelopes, media prefixes, memberships and unknown stored fields.
@@ -62,6 +74,27 @@ is observed on the next read; missing campaigns and non-members get the same
 `CampaignAccessError`. This does not provide an atomic authorization-plus-mutation
 transaction across subsequent domain operations.
 
+## Media prefixes and transitional membership writes
+
+Media namespaces retain the existing 128-bit lowercase hexadecimal format. A
+read-only lookup never assigns one. Concurrent first assignments conditionally
+write only a null/missing prefix and return the persisted winner; they never
+return an unpersisted candidate. A unique-index collision propagates without
+assigning another account's prefix. Existing prefixes are preserved.
+
+`IdentityMembershipMirrorRepository` writes only the user-side campaign link.
+Campaign ownership/membership remains the authorization authority. Campaign
+creation uses `membershipMirrorForMongoTransaction` to retain its existing Mongo
+transaction: the campaign and user link commit or roll back together. This
+explicitly Mongo-specific binding must be replaced with recoverable orchestration
+before identity moves to another store.
+
+Join paths retain their existing sequential writes and partial-failure behavior.
+The mirror preserves `$push`/`$addToSet` and generated subdocument IDs; it does not
+promise idempotency. Missing-user updates do not upsert. The session access guard
+still requires an explicit campaign member, including for legacy owners; its
+policy remains distinct from the shared campaign guard's owner fallback.
+
 ## Validation
 
 `npm run identity:test` now runs the reusable repository behavior contract in
@@ -78,6 +111,11 @@ and checks:
   new logins and twelve concurrent claims, one resulting account, and subsequent
   explicit reconciliation. Only unique-index conflicts may reject a racing call.
 - Campaign ownership/member conversion and visibility of a subsequent revocation.
+- Read-only missing-prefix behavior, twelve concurrent assignments for both
+  missing and explicit-null prefixes, stable subsequent reads and distinct owners.
+- A forced cross-account prefix collision with exactly one persisted winner.
+- String-to-BSON campaign/member/mirror references, preserved unrelated fields,
+  missing-user no-upsert behavior, and campaign/mirror transaction commit/abort.
 
 Local MongoDB 7.0.41 passes this contract. The existing MongoDB 7/8 CI matrix runs
 the same contract with pinned images. The fixture ignores application Mongo
@@ -89,25 +127,25 @@ details, private source archives and the existing read-only dev/prod evidence.
 Unit tests retain OAuth encryption/revocation, failure propagation and campaign
 denial checks, and add null-persistence refusal, role refresh/DTO filtering,
 anonymous/unavailable preference behavior, failed writes, best-effort logout,
-legacy-owner access and revoked-member denial. Application CI covers build and
+legacy-owner access and revoked-member denial. Session access regression tests
+preserve member-only authorization and separate provider/application IDs. An AST
+boundary test rejects direct User model imports (including dynamic imports) and
+literal users-collection access outside database/operator and identity repository
+code. Application CI covers build and
 browser behavior before the PR is updated for review.
 
 ## Remaining identity work before target storage can become authoritative
 
-This boundary is intentionally incomplete across the application. Existing Mongo
-availability/bootstrap calls remain at callers. Direct User access still exists
-in campaign/session/player functions, `sessionAccess`, `audio-storage` prefix
-operations, `mapAoE`, the play route, and identity lookups in tags, session events,
-tabletop, rules, notes, cleanup, monsters and GM screens. Development fixtures and
-database inspection also access users. Move these operations through reviewed
-interfaces before enabling a target backend; otherwise login and other domains
-would read different identity authorities.
+All currently identified request-time User model consumers now use repositories.
+Existing Mongo availability/bootstrap checks remain at callers because their
+other domain operations still depend on Mongo. Storage selection remains fixed;
+extraction alone does not make a graph switch safe.
 
 Next work:
 
-1. Complete those identity operations and availability boundaries while preserving
-   campaign/session authorities on Mongo. Test lazy, concurrent media-prefix
-   assignment and membership mirror writes as explicit transitional operations.
+1. Separate identity availability from remaining Mongo domain availability, and
+   replace the Mongo transaction/mirror dependency with a recoverable contract
+   before enabling a target backend.
 2. Define target identity reservations and an authoritative conditional operation
    record with recovery for partial graph/CQL writes, uniqueness conflicts and
    unknown commit outcomes. Address login/logout overlap: current logout clears

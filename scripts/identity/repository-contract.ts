@@ -30,6 +30,12 @@ export async function identityRepositoryContract(harness: {
 
   assert.equal(await identity.findProfile('missing'), null);
   assert.equal(await identity.findUserId('missing'), null);
+  assert.equal(await identity.readDisplayName('000000000000000000000000'), null);
+  assert.equal(await identity.lookupAudioStoragePrefix('000000000000000000000000'), null);
+  await assert.rejects(
+    identity.resolveAudioStoragePrefix('000000000000000000000000'),
+    /User not found/
+  );
   assert.equal(await identity.readAccessToken('missing'), null);
   assert.equal(await identity.readPreferences('missing'), null);
   // Preserve updateOne semantics: these operations do not upsert missing users.
@@ -67,6 +73,13 @@ export async function identityRepositoryContract(harness: {
   assert.equal(claimed.firstName, 'Keep');
   assert.equal(claimed.lastName, 'Name');
   assert.equal(claimed.avatarUrl, 'https://example.invalid/avatar');
+  assert.deepEqual(await identity.readDisplayName(seeded), {
+    firstName: 'Keep',
+    lastName: 'Name',
+    email: 'claim@example.invalid',
+  });
+  assert.equal(await identity.lookupAudioStoragePrefix(seeded), 'a'.repeat(32));
+  assert.equal(await identity.resolveAudioStoragePrefix(seeded), 'a'.repeat(32));
   const after = await harness.readUser(seeded);
   for (const key of ['createdAt', 'campaigns', 'preferences', 'audioStoragePrefix', 'legacy']) {
     assert.deepEqual(after[key], before[key]);
@@ -175,4 +188,26 @@ export async function identityRepositoryContract(harness: {
   await harness.revokeMembership(campaignId);
   assert.deepEqual(await access.findAccess(campaignId), { gameMasterId: null, members: [] });
   assert.equal(await access.findAccess('000000000000000000000000'), null);
+
+  const namespaces = new Set<string>(['a'.repeat(32), 'c'.repeat(32)]);
+  for (const state of ['missing', 'null'] as const) {
+    const ownerId = await harness.seedUser({
+      role: 'player',
+      ...(state === 'null' && { audioStoragePrefix: null }),
+      legacy: { keep: true },
+    });
+    const original = await harness.readUser(ownerId);
+    assert.equal(await identity.lookupAudioStoragePrefix(ownerId), null);
+    assert.deepEqual(await harness.readUser(ownerId), original); // A scan cannot mint a prefix.
+    const prefixes = await Promise.all(
+      Array.from({ length: 12 }, () => identity.resolveAudioStoragePrefix(ownerId))
+    );
+    assert.equal(new Set(prefixes).size, 1);
+    assert.match(prefixes[0], /^[0-9a-f]{32}$/);
+    assert.ok(!namespaces.has(prefixes[0]));
+    namespaces.add(prefixes[0]);
+    assert.equal((await harness.readUser(ownerId)).audioStoragePrefix, prefixes[0]);
+    assert.equal(await identity.resolveAudioStoragePrefix(ownerId), prefixes[0]);
+    assert.deepEqual((await harness.readUser(ownerId)).legacy, { keep: true });
+  }
 }

@@ -133,8 +133,10 @@ The fixture creates its own loopback-only container, random credentials and
 synthetic data, and removes its container/volumes and temporary artifacts. It
 ignores application `MONGODB_URI` and accepts no server/database write target.
 
-The first [identity repository and Mongo adapter slice](2026-09-13-identity-repository.md)
-now covers login/account claiming, token storage, preferences and the shared campaign
-access guard with contract tests. Remaining identity consumers, reservations/recovery,
-the graph/CQL adapter, importer and dev rehearsal are still required. Runtime Gremlin authorization and the remaining phase-4 gates stay
-open; this preflight does not authorize a backend cutover.
+The [identity repository and Mongo adapter extraction](2026-09-13-identity-repository.md)
+now covers request-time identity consumers, login/account claiming, token storage,
+preferences, media prefixes and transitional membership mirrors with contract
+tests. Availability boundaries, target reservations/recovery, the graph/CQL
+adapter, importer and dev rehearsal are still required. Runtime Gremlin
+authorization and the remaining phase-4 gates stay open; this preflight does not
+authorize a backend cutover.

@@ -1,7 +1,13 @@
-import type { Model } from 'mongoose';
+import { randomBytes } from 'node:crypto';
+import type { ClientSession, Model } from 'mongoose';
 import type { IUser } from '../../db/models/User';
 import type { ICampaign } from '../../db/models/Campaign';
-import type { CampaignAccessRepository, IdentityProfile, IdentityRepository } from './types';
+import type {
+  CampaignAccessRepository,
+  IdentityProfile,
+  IdentityRepository,
+  IdentityMembershipMirrorRepository,
+} from './types';
 
 // Explicit projection into domain values: never return a Mongoose document or
 // spread a stored record (which may contain token envelopes or media identifiers).
@@ -16,7 +22,10 @@ function profile(doc: IUser & { _id: unknown }): IdentityProfile {
   };
 }
 
-export function createMongoIdentityRepository(users: Model<IUser>): IdentityRepository {
+export function createMongoIdentityRepository(
+  users: Model<IUser>,
+  mintAudioPrefix: () => string = () => randomBytes(16).toString('hex')
+): IdentityRepository {
   return {
     async recordLogin(input) {
       // Enumerate permitted fields. Even a structurally wider caller cannot set
@@ -59,12 +68,42 @@ export function createMongoIdentityRepository(users: Model<IUser>): IdentityRepo
       return profile(stored);
     },
     async findProfile(providerId) {
-      const stored = await users.findOne({ providerId }).lean();
+      const stored = await users.findOne({ providerId });
       return stored ? profile(stored) : null;
     },
     async findUserId(providerId) {
       const stored = await users.findOne({ providerId });
       return stored ? String(stored._id) : null;
+    },
+    async readDisplayName(userId) {
+      const stored = await users.findById(userId).select('firstName lastName email').lean();
+      return stored
+        ? { firstName: stored.firstName, lastName: stored.lastName, email: stored.email }
+        : null;
+    },
+    async resolveAudioStoragePrefix(userId) {
+      const existing = await users.findById(userId).select('audioStoragePrefix').lean();
+      if (!existing) throw new Error('User not found');
+      if (existing.audioStoragePrefix) return existing.audioStoragePrefix;
+      const minted = mintAudioPrefix();
+      if (!/^[0-9a-f]{32}$/.test(minted)) throw new Error('Invalid audio storage prefix');
+      // Null/missing only: a racing uploader cannot replace an established prefix.
+      const updated = await users
+        .findOneAndUpdate(
+          { _id: userId, audioStoragePrefix: { $in: [null] } },
+          { $set: { audioStoragePrefix: minted } },
+          { returnDocument: 'after' }
+        )
+        .select('audioStoragePrefix')
+        .lean();
+      if (updated?.audioStoragePrefix) return updated.audioStoragePrefix;
+      const raced = await users.findById(userId).select('audioStoragePrefix').lean();
+      if (!raced?.audioStoragePrefix) throw new Error('Failed to assign audio storage prefix');
+      return raced.audioStoragePrefix;
+    },
+    async lookupAudioStoragePrefix(userId) {
+      const stored = await users.findById(userId).select('audioStoragePrefix').lean();
+      return stored?.audioStoragePrefix ?? null;
     },
     async readAccessToken(providerId) {
       const stored = await users.findOne({ providerId }).select('+oauthTokens').lean();
@@ -80,6 +119,34 @@ export function createMongoIdentityRepository(users: Model<IUser>): IdentityRepo
     },
     async setRulerColor(providerId, rulerColor) {
       await users.updateOne({ providerId }, { $set: { 'preferences.rulerColor': rulerColor } });
+    },
+  };
+}
+
+export function createMongoMembershipMirror(
+  users: Model<IUser>,
+  session?: ClientSession
+): IdentityMembershipMirrorRepository {
+  // Preserve the existing $push/$addToSet behavior, including Mongoose's
+  // subdocument IDs. This mirror API does not promise idempotent membership.
+  return {
+    async appendCampaignLink(userId, link) {
+      const update = {
+        $push: {
+          campaigns: { campaignId: link.campaignId, joinedAt: link.joinedAt, status: link.status },
+        },
+      };
+      if (session) await users.updateOne({ _id: userId }, update, { session });
+      else await users.updateOne({ _id: userId }, update);
+    },
+    async addCampaignLink(userId, link) {
+      const update = {
+        $addToSet: {
+          campaigns: { campaignId: link.campaignId, status: link.status, joinedAt: link.joinedAt },
+        },
+      };
+      if (session) await users.updateOne({ _id: userId }, update, { session });
+      else await users.updateOne({ _id: userId }, update);
     },
   };
 }

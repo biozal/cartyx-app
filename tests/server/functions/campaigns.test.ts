@@ -120,9 +120,12 @@ const mockMongoSession = {
   withTransaction: vi.fn(async (fn: () => Promise<void>) => fn()),
   endSession: vi.fn(),
 };
-vi.mock('mongoose', () => ({
-  default: { startSession: vi.fn(() => mockMongoSession) },
-}));
+vi.mock('mongoose', async () => {
+  const actual = await vi.importActual<typeof import('mongoose')>('mongoose');
+  return { default: { startSession: vi.fn(() => mockMongoSession), Types: actual.default.Types } };
+});
+
+import mongoose from 'mongoose';
 
 import { getSession } from '~/server/session';
 import { User } from '~/server/db/models/User';
@@ -703,6 +706,12 @@ describe('createCampaign', () => {
 });
 
 describe('joinCampaign', () => {
+  beforeEach(() => {
+    vi.mocked(User.findOne).mockResolvedValue({
+      ...mockDbUser,
+      _id: '507f1f77bcf86cd799439011',
+    } as never);
+  });
   it('adds user as player member with a valid invite code', async () => {
     const campaignDoc = makeCampaign({
       gameMasterId: 'gm-user',
@@ -711,7 +720,7 @@ describe('joinCampaign', () => {
     vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc as never);
     const updatedDoc = {
       ...campaignDoc,
-      members: [...campaignDoc.members, { userId: 'dbuser-1', role: 'player' }],
+      members: [...campaignDoc.members, { userId: '507f1f77bcf86cd799439011', role: 'player' }],
     };
     vi.mocked(Campaign.findOneAndUpdate).mockResolvedValue(updatedDoc as never);
 
@@ -730,18 +739,18 @@ describe('joinCampaign', () => {
     vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc as never);
     const updatedDoc = {
       ...campaignDoc,
-      members: [...campaignDoc.members, { userId: 'dbuser-1', role: 'player' }],
+      members: [...campaignDoc.members, { userId: '507f1f77bcf86cd799439011', role: 'player' }],
     };
     vi.mocked(Campaign.findOneAndUpdate).mockResolvedValue(updatedDoc as never);
 
     await _joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } });
 
     expect(Player.updateOne).toHaveBeenCalledWith(
-      { campaignId: 'camp-1', userId: 'dbuser-1' },
+      { campaignId: 'camp-1', userId: new mongoose.Types.ObjectId('507f1f77bcf86cd799439011') },
       {
         $setOnInsert: expect.objectContaining({
           campaignId: 'camp-1',
-          userId: 'dbuser-1',
+          userId: new mongoose.Types.ObjectId('507f1f77bcf86cd799439011'),
           characterClass: 'Adventurer',
         }),
       },
@@ -758,7 +767,9 @@ describe('joinCampaign', () => {
   });
 
   it('throws when already a member', async () => {
-    const campaignDoc = makeCampaign({ members: [{ userId: 'dbuser-1', role: 'player' }] });
+    const campaignDoc = makeCampaign({
+      members: [{ userId: '507f1f77bcf86cd799439011', role: 'player' }],
+    });
     vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc as never);
 
     await expect(_joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } })).rejects.toThrow(
