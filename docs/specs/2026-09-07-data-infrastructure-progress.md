@@ -378,3 +378,27 @@ evidence is recorded in draft PR #557 after those runs complete.
 Mongo remains selected for every subsystem. Provider HTTP ordering/recovery,
 runtime integration, bulk import/reconciliation and the remaining phase-4 gates
 must still be completed before a maintenance-mode dev cutover rehearsal.
+
+## Provider attempt accounting and local recovery — September 13
+
+PR #557 adds an inactive per-generation provider-attempt journal and Google/GitHub
+transport adapter, preserving Apple's existing ordinary-logout skip. A definitive
+Cassandra claim winner alone may dispatch; uncertain claims and lost responses
+never confer permission to resend. Recorded HTTP status remains separate from
+the original generation's recoverable local `cleared|stale` outcome. Encrypted
+plans are stripped on admission, and historical receipts never touch newer tokens.
+
+The [provider runbook](2026-09-13-identity-provider-revocation.md) records primary
+provider documentation and the remaining admission/reauthorization problem. A
+Google success response does not establish immediate completion, and a database
+fence cannot prevent broader grant revocation from affecting another generation.
+This slice adds no grant lock, timeout takeover, manual completion, backend flag,
+active OAuth change, source-account import or production schema migration.
+
+Shared contracts exercise all ten write boundaries before/after commit, competing
+dispatchers/resumers, lost responses, HTTP failure statuses, stale generations and
+newer login during HTTP, using synthetic provider responses. Restart witnesses
+cover response-recorded local clear recovery and an unresolved attempt that must
+remain unresolved without HTTP replay. Local Docker contracts and seed/verify
+passed; seed/verify did not restart developer services. Final dev and exact-head
+CI evidence is recorded in PR #557 and the external handoff.

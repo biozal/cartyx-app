@@ -101,7 +101,10 @@ overlap, the scope of grant revocation, credential handling, response classifica
 and uncertain requests. That protocol must define which new logins are allowed
 while revocation is pending and when reauthorization is required. A database-only
 CAS or an automatic HTTP retry is insufficient evidence. This slice deliberately
-adds no target provider HTTP caller or provider-completion receipt.
+adds no target provider HTTP caller or provider-completion receipt. The subsequent
+[inactive provider-attempt protocol](2026-09-13-identity-provider-revocation.md)
+now records response evidence and recovers local clearing without replaying HTTP.
+It does not close login admission, external completion or reauthorization gates.
 
 The subsequent [target login coordinator](2026-09-13-identity-login-coordination.md)
 now composes account/profile writes and verifies current state before returning

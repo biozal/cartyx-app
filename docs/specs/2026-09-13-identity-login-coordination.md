@@ -141,3 +141,12 @@ import/reconciliation, Gremlin runtime authorization, availability separation,
 campaign transactions, operational retention/recovery tooling and maintenance-mode
 dev/prod cutovers also remain open. These inactive facets do not establish cutover
 readiness or justify retiring Mongo.
+
+## Subsequent provider-attempt work
+
+The [inactive provider-attempt journal](2026-09-13-identity-provider-revocation.md)
+retains one dispatch opportunity per token generation and recovers local clearing
+from recorded HTTP evidence. It never replays an uncertain provider request. It
+does not gate this login coordinator: provider-specific admission must cover
+authorization/exchange requests before database preparation, and Google revocation
+can have wider scope and delayed propagation. No runtime activation is implied.

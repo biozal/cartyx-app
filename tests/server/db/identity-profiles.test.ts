@@ -6,6 +6,11 @@ import {
   settingsSourceFixture,
 } from '../../../scripts/identity/settings-contract';
 import { identityImportContract } from '../../../scripts/identity/import-contract';
+import { identityProviderRevocationContract } from '../../../scripts/identity/provider-revocation-contract';
+import {
+  createIdentityProviderRevocations,
+  IdentityProviderRevocationError,
+} from '~/server/repositories/identity/provider-revocation';
 import { identityTokensContract } from '../../../scripts/identity/tokens-contract';
 import { identityLoginContract, loginFixture } from '../../../scripts/identity/login-contract';
 import {
@@ -69,6 +74,90 @@ function memory() {
   };
   return { state, graph };
 }
+it('retains provider attempt evidence and recovers local clearing without repeating HTTP', async () => {
+  const { state, graph } = memory();
+  await identityProviderRevocationContract(state, graph);
+});
+it('sanitizes failed final revocation reads while preserving response and clear receipts for recovery', async () => {
+  const { state, graph } = memory();
+  const login = createIdentityLoginCoordinator(state, graph);
+  const loginPlan = await login.prepare({ ...loginFixture(), provider: 'google' });
+  await login.begin(loginPlan);
+  await login.resume(loginPlan.operationId);
+  const fence = {
+    userId: loginPlan.account.userId,
+    providerId: loginPlan.account.binding.providerId,
+    tokenRevision: loginPlan.account.operationId,
+  };
+  const revocations = createIdentityProviderRevocations(state);
+  const plan = await revocations.prepare(fence, 'fixture.client');
+  await revocations.begin(plan);
+  const interrupted = (faultAt: number) => {
+    let reads = 0;
+    return createIdentityProviderRevocations({
+      ...state,
+      get: async (key) => {
+        if (key.type === 'identity_provider_revocation' && ++reads === faultAt)
+          throw new Error('private driver comparison');
+        return state.get(key);
+      },
+    });
+  };
+  const send = vi.fn(async () => ({ kind: 'http' as const, status: 200 }));
+  await expect(interrupted(3).dispatch(fence, { ...plan, send })).rejects.toEqual(
+    new IdentityProviderRevocationError(fence.tokenRevision)
+  );
+  expect((await revocations.inspect(fence)).status).toBe('response');
+  await expect(interrupted(2).resume(fence)).rejects.toEqual(
+    new IdentityProviderRevocationError(fence.tokenRevision)
+  );
+  expect((await revocations.resume(fence)).localOutcome).toBe('cleared');
+  await revocations.dispatch(fence, { ...plan, send });
+  expect(send).toHaveBeenCalledTimes(1);
+});
+it('rejects malformed revocation plans and oversized token envelopes before touching storage', async () => {
+  const touched = vi.fn(async () => {
+    throw new Error('Unexpected storage call');
+  });
+  const revocations = createIdentityProviderRevocations({
+    get: touched,
+    create: touched,
+    replace: touched,
+  });
+  const fence = {
+    userId: '1'.repeat(24),
+    providerId: 'fixture_provider',
+    tokenRevision: randomUUID(),
+  };
+  const plan = {
+    version: 1 as const,
+    fence,
+    provider: 'google' as const,
+    clientId: 'fixture.client',
+    clearOperationId: randomUUID(),
+    accessToken: loginFixture().oauthTokens.accessToken!,
+  };
+  for (const invalid of [
+    { ...plan, provider: 'unknown' },
+    { ...plan, fence: { ...fence, providerId: { $ne: null } } },
+    { ...plan, accessToken: null },
+    { ...plan, clientId: 'invalid/path' },
+    { ...plan, clearOperationId: fence.tokenRevision },
+    { ...plan, plaintext: 'forbidden' },
+    {
+      ...plan,
+      fence: { ...fence, providerId: '界'.repeat(1024) },
+      clientId: 'x'.repeat(1024),
+      accessToken: { ...plan.accessToken, ciphertext: Buffer.alloc(4096).toString('base64') },
+    },
+  ])
+    await expect(revocations.begin(invalid as never)).rejects.toThrow();
+  await expect(
+    revocations.prepare({ ...fence, tokenRevision: 'invalid' }, plan.clientId)
+  ).rejects.toThrow();
+  await expect(revocations.prepare(fence, 'bad/client')).rejects.toThrow();
+  expect(touched).not.toHaveBeenCalled();
+});
 it('coordinates target login selection and cross-store recovery without returning historical sessions', async () => {
   const { state, graph } = memory();
   await identityLoginContract(state, graph);

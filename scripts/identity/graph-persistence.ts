@@ -56,6 +56,16 @@ import {
   type IdentityLoginPlan,
 } from '../../app/server/repositories/identity/target-login';
 import { loginFixture } from './login-contract';
+import {
+  createIdentityProviderRevocations,
+  IdentityProviderRevocationError,
+  type ProviderRevocationPlan,
+} from '../../app/server/repositories/identity/provider-revocation';
+type RevocationWitness = {
+  keys: StateKey[];
+  vertices: GraphIdentity[];
+  plan?: ProviderRevocationPlan;
+};
 type LoginWitness = { keys: StateKey[]; vertices: GraphIdentity[]; plan?: IdentityLoginPlan };
 type SettingsWitness = {
   plan: IdentityImportPlan;
@@ -112,6 +122,10 @@ try {
       vertices: [],
     };
     const loginWitness: LoginWitness = { keys: [], vertices: [] };
+    const revocationWitnesses: RevocationWitness[] = [
+      { keys: [], vertices: [] },
+      { keys: [], vertices: [] },
+    ];
     const manifest = {
       keyspace: config.keyspace,
       endpoint: graphConfig.url,
@@ -120,6 +134,7 @@ try {
       settingsWitness,
       tokenWitness,
       loginWitness,
+      revocationWitnesses,
     };
     mkdirSync('.local/cql', { recursive: true, mode: 0o700 });
     writeFileSync(path, JSON.stringify(manifest), { mode: 0o600, flag: 'wx' });
@@ -293,8 +308,56 @@ try {
       createIdentityAccountState(state).readAccount(loginWitness.plan.account.userId),
       /requires operation recovery/
     );
+    for (const [index, witness] of revocationWitnesses.entries()) {
+      const tracked = tracking(witness);
+      const login = createIdentityLoginCoordinator(tracked.trackedState, tracked.trackedGraph);
+      await login.recordLogin({ ...loginFixture(), provider: 'google' });
+      // The synthetic login's account key was recorded before its first mutation.
+      const key = witness.keys.find((key) => key.type === 'identity_account')!;
+      const account = (await createIdentityAccountState(state).readAccount(key.scope.slice(5)))!;
+      const revocations = createIdentityProviderRevocations(tracked.trackedState);
+      witness.plan = await revocations.prepare(
+        {
+          userId: account.userId,
+          providerId: account.binding!.providerId,
+          tokenRevision: account.tokenRevision!,
+        },
+        'fixture.restart'
+      );
+      save();
+      await revocations.begin(witness.plan);
+      if (index === 0) {
+        await revocations.dispatch(witness.plan.fence, {
+          ...witness.plan,
+          send: async () => ({ kind: 'http', status: 200 }),
+        });
+        const interrupted = createIdentityProviderRevocations({
+          ...tracked.trackedState,
+          replace: async (...args) => {
+            const result = await tracked.trackedState.replace(...args);
+            if (args[0].type === 'identity_account')
+              throw new Error('provider local clear interruption');
+            return result;
+          },
+        });
+        await assert.rejects(
+          interrupted.resume(witness.plan.fence),
+          IdentityProviderRevocationError
+        );
+      } else {
+        await assert.rejects(
+          revocations.dispatch(witness.plan.fence, {
+            ...witness.plan,
+            send: async () => {
+              throw new Error('synthetic lost provider response');
+            },
+          }),
+          IdentityProviderRevocationError
+        );
+      }
+    }
     process.stdout.write(
-      'Seeded graph publication, pending account import, preference/media allocation, token clear and login restart witnesses\n'
+      'Seeded graph publication, pending account import, preference/media allocation, token clear, login and provider attempt/local-clear restart witnesses\n'
     );
   } else {
     const manifest = JSON.parse(readFileSync(path, 'utf8'));
@@ -305,6 +368,7 @@ try {
     const settingsWitness = manifest.settingsWitness as SettingsWitness | undefined;
     const tokenWitness = manifest.tokenWitness as SettingsWitness | undefined;
     const loginWitness = manifest.loginWitness as LoginWitness | undefined;
+    const revocationWitnesses = (manifest.revocationWitnesses ?? []) as RevocationWitness[];
     const { userId, snapshotId } = command.snapshot;
     assert.equal((await state.get(profileHeadKey(userId)))?.revision, command.operationId);
     assert.deepEqual(await graph.get(userId, snapshotId), command.snapshot);
@@ -375,6 +439,32 @@ try {
         plan.account.userId
       );
     }
+    for (const [index, witness] of revocationWitnesses.entries()) {
+      assert.ok(witness.plan);
+      const revocations = createIdentityProviderRevocations(state);
+      const result = await revocations.resume(witness.plan.fence);
+      assert.equal(result.status, index === 0 ? 'settled' : 'attempting');
+      if (index === 0) {
+        assert.equal(result.localOutcome, 'cleared');
+        assert.deepEqual(result.response, { kind: 'http', status: 200 });
+        assert.equal(
+          await createIdentityAccountState(state).readTokens(witness.plan.fence.userId),
+          null
+        );
+      } else {
+        assert.equal(
+          (await createIdentityAccountState(state).readTokens(witness.plan.fence.userId))!
+            .tokenRevision,
+          witness.plan.fence.tokenRevision
+        );
+      }
+      await revocations.dispatch(witness.plan.fence, {
+        ...witness.plan,
+        send: async () => {
+          assert.fail('Restart recovery must not repeat provider HTTP');
+        },
+      });
+    }
     const admin = createCqlClient(readCqlConfig('schema'));
     try {
       for (const key of [
@@ -384,6 +474,7 @@ try {
         ...(settingsWitness?.keys ?? []),
         ...(tokenWitness?.keys ?? []),
         ...(loginWitness?.keys ?? []),
+        ...revocationWitnesses.flatMap((witness) => witness.keys),
       ]) {
         await admin.execute(
           `DELETE FROM ${config.keyspace}.control_state WHERE scope = ? AND resource_type = ? AND resource_id = ?`,
@@ -403,6 +494,7 @@ try {
         ...(settingsWitness?.vertices ?? []),
         ...(tokenWitness?.vertices ?? []),
         ...(loginWitness?.vertices ?? []),
+        ...revocationWitnesses.flatMap((witness) => witness.vertices),
       ]) {
         await client.execute(findIdentity(identity).hasLabel(identity.kind).drop());
         assert.deepEqual(await client.execute(findIdentity(identity).count()), [0]);
@@ -412,7 +504,7 @@ try {
     }
     unlinkSync(path);
     process.stdout.write(
-      'Verified graph publication, account import, preference/media allocation, token clear and login recovery; removed exact restart witnesses\n'
+      'Verified graph publication, account import, preference/media allocation, token clear, login and provider attempt/local-clear recovery without HTTP replay; removed exact restart witnesses\n'
     );
   }
 } finally {
