@@ -60,11 +60,18 @@ jobs:
           fi
           npm run graph:schema -- apply
           npm run graph:test
+          if npm run identity:graph-schema -- verify; then
+            echo "An empty identity profile schema must fail verification"
+            exit 1
+          fi
+          npm run identity:graph-schema -- apply
       - name: Cassandra schema, state, permissions, and interrupted migration
         run: |
           npm run cql:local -- schema apply
           npm run cql:local -- test
+          npm run cql:local -- identity-graph-test
           npm run cql:local -- seed-persistence
+          npm run cql:local -- identity-graph-seed
       - name: Verify graph and state survive database restart
         run: |
           docker compose -p cartyx-local -f "$CARTYX_INFRASTRUCTURE_DIR/deploy/local/data.compose.yaml" stop janusgraph
@@ -72,10 +79,13 @@ jobs:
           docker compose -p cartyx-local -f "$CARTYX_INFRASTRUCTURE_DIR/deploy/local/data.compose.yaml" up -d --wait --wait-timeout 600 cassandra
           docker compose -p cartyx-local -f "$CARTYX_INFRASTRUCTURE_DIR/deploy/local/data.compose.yaml" up -d --wait --wait-timeout 600 janusgraph
           npm run graph:schema -- verify
+          npm run identity:graph-schema -- verify
           npm run graph:test
           npm run cql:local -- schema verify
           npm run cql:local -- verify-persistence
+          npm run cql:local -- identity-graph-verify
           npm run cql:local -- test
+          npm run cql:local -- identity-graph-test
       - name: Container status
         if: failure()
         run: docker ps -a --format '{{.Names}} {{.Status}}'

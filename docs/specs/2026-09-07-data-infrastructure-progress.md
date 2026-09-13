@@ -285,3 +285,17 @@ cleaned up, with no source-account writes or production changes. Typecheck, lint
 and focused unit contracts passed locally. Full target integration, graph recovery,
 provider revocation orchestration and audited bound-account import remain open in
 single draft PR #557.
+
+## Graph profiles and target reads — September 13
+
+PR #557 adds [graph profile publication and target reads](2026-09-13-identity-graph-profiles.md):
+a stable User vertex, immutable-by-API linked profile revisions, a conditional CQL
+publication pointer and durable recovery receipts. Target read methods combine
+verified graph content with settled account bindings and exclude private account
+fields from public profiles. The application remains explicitly Mongo-backed.
+
+The additive identity-profile schema is separate from the foundation's unchanged
+0001 marker. Local and Kubernetes dev real-store contracts passed, including physical graph-write
+interruption and repair, competing publication, delayed old writers, corrupt
+content refusal and target reads. CI now includes a cross-store publication
+restart witness. Full target writes/import and runtime authorization remain ahead.

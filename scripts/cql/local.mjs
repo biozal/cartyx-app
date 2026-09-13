@@ -8,10 +8,20 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const infra = process.env.CARTYX_INFRASTRUCTURE_DIR ?? resolve(root, '../cartyx-infrastructure');
 const [action, mode] = process.argv.slice(2);
 if (
-  !['schema', 'test', 'seed-persistence', 'verify-persistence'].includes(action) ||
+  ![
+    'schema',
+    'test',
+    'identity-graph-test',
+    'identity-graph-seed',
+    'identity-graph-verify',
+    'seed-persistence',
+    'verify-persistence',
+  ].includes(action) ||
   (action === 'schema' && !['apply', 'verify'].includes(mode))
 )
-  throw new Error('Usage: cql:local -- schema apply|verify OR test');
+  throw new Error(
+    'Usage: cql:local -- schema apply|verify, test, identity-graph-test [manifest], identity-graph-seed, identity-graph-verify, seed-persistence, or verify-persistence'
+  );
 const run = (command, args, options = {}) => {
   const result = spawnSync(command, args, { cwd: root, encoding: 'utf8', ...options });
   if (result.error || result.status !== 0)
@@ -86,14 +96,27 @@ try {
     [
       '--import',
       'tsx',
-      `scripts/cql/${action === 'schema' ? 'cli' : action === 'test' ? 'integration' : 'persistence'}.ts`,
-      ...(action.endsWith('-persistence') ? [action] : []),
+      action.startsWith('identity-graph-')
+        ? action === 'identity-graph-test'
+          ? 'scripts/identity/graph-integration.ts'
+          : 'scripts/identity/graph-persistence.ts'
+        : `scripts/cql/${action === 'schema' ? 'cli' : action === 'test' ? 'integration' : 'persistence'}.ts`,
+      ...(action.endsWith('-persistence') ||
+      ['identity-graph-seed', 'identity-graph-verify'].includes(action)
+        ? [action]
+        : []),
       ...(mode ? [mode] : []),
     ],
     {
       stdio: 'inherit',
       env: {
         ...process.env,
+        ...(action.startsWith('identity-graph-') && {
+          GREMLIN_URL: 'wss://localhost:18182/gremlin',
+          GREMLIN_USERNAME: 'cartyx_admin',
+          GREMLIN_PASSWORD_FILE: resolve(secrets, 'gremlin-password'),
+          GREMLIN_CA_FILE: resolve(secrets, 'tls.crt'),
+        }),
         CQL_CONTACT_POINT: '127.0.0.1',
         CQL_PORT: port,
         CQL_TLS_SERVER_NAME: 'localhost',

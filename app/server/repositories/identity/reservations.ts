@@ -98,6 +98,15 @@ export function createIdentityReservations(store: ReservationStateStore) {
     return stored.userId === userId;
   }
   return {
+    async findOwner(input: IdentityReservationClaim): Promise<string | null> {
+      const claim = parse(claimSchema, input);
+      const row = await store.get(identityReservationKey(claim));
+      if (!row) return null;
+      const stored = parse(reservationSchema, row.value);
+      if (stored.claim.kind !== claim.kind || stored.claim.value !== claim.value)
+        throw new Error('Identity reservation key collision or corruption');
+      return stored.userId; // Reservation ownership alone is not an authenticated account binding.
+    },
     async assertOwner(userId: string, claim: IdentityReservationClaim): Promise<void> {
       if (!(await owns(parse(claimSchema, claim), parse(objectId, userId))))
         throw new Error('Identity identifier belongs to another account');

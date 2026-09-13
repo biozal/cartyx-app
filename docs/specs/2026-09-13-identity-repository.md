@@ -153,8 +153,9 @@ Next work:
    release and recovery for partial graph/CQL writes remain required. Address login/logout overlap: current logout clears
    by provider ID and is not conditional on the token revision it read. This
    extraction preserves that behavior; it does not establish safe token fencing.
-3. Separate runtime Gremlin authorization from schema administration, implement
-   the graph/CQL adapter and importer, and exercise the same behavior contracts
+3. Build on the inactive [graph publication/read facet](2026-09-13-identity-graph-profiles.md).
+   Separate runtime Gremlin authorization from schema administration, finish target
+   write operations and importer, and exercise the same behavior contracts
    plus target-specific fault/recovery tests.
 4. Rehearse the verified BSON import in dev, validate actual login/access and
    recovery, then cut over dev and production separately under the migration

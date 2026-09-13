@@ -131,7 +131,9 @@ restart, a new process refuses the unreceipted read, resumes by operation ID,
 verifies settled state and removes its exact records. The local seed/verify helper
 exercises that protocol without restarting the developer's running services.
 
-Graph projection recovery/runtime authorization, full target repository wiring,
+The inactive [graph publication/read facet](2026-09-13-identity-graph-profiles.md)
+now joins this account state to verified profile revisions. Runtime authorization,
+full target write repository wiring,
 source import (including bound accounts/tokens), availability separation, campaign
 transaction replacement, safe reservation release and separate dev/prod cutovers
 remain ahead.
