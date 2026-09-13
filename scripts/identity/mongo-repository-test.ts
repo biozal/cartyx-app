@@ -8,6 +8,7 @@ import {
   createMongoMembershipMirror,
 } from '../../app/server/repositories/identity/mongo';
 import { identityRepositoryContract } from './repository-contract';
+import { testMongoIdentityTokens } from './mongo-tokens-test';
 
 /** Called only with the disposable authenticated Docker fixture's URI. */
 export async function testMongoIdentityRepository(fixtureUri: string) {
@@ -63,6 +64,8 @@ export async function testMongoIdentityRepository(fixtureUri: string) {
           );
       },
     });
+
+    await testMongoIdentityTokens(users);
 
     // A duplicate random candidate cannot escape as an assigned namespace.
     const collisionOwners = await db

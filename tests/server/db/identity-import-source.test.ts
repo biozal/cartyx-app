@@ -76,6 +76,8 @@ it('requires review for unmapped fields, malformed source/token shapes and targe
     { createdAt: '2020-01-01' },
     { role: 'admin' },
     { updatedAt: 'not-a-date' },
+    { oauthTokens: { ...source.oauthTokens, revision: null } },
+    { oauthTokens: { ...source.oauthTokens, revision: 'not-a-revision' } },
     { oauthTokens: { accessToken: { ciphertext: 'private-value', iv: 'bad', authTag: 'bad' } } },
     { oauthTokens: { accessToken: { ...source.oauthTokens.accessToken, privateExtra: true } } },
     { firstName: 'x'.repeat(1025) },
@@ -137,4 +139,17 @@ it('validates the complete import plan before any target read or write', async (
   ])
     await expect(importer.apply(input as never)).rejects.toThrow();
   expect(touched).not.toHaveBeenCalled();
+});
+
+it('archive-preserves Mongo token revisions without carrying source fences to the target', () => {
+  const source = BSON.deserialize(importSourceFixture());
+  const revision = '11111111-1111-4111-8111-111111111111';
+  const raw = BSON.serialize({ ...source, oauthTokens: { ...source.oauthTokens, revision } });
+  const plan = mapIdentitySource(raw);
+  expect(plan.account.operationId).not.toBe(revision);
+  expect(plan.account.tokens).toEqual(source.oauthTokens);
+  expect(BSON.deserialize(raw).oauthTokens.revision).toBe(revision);
+  expect(() =>
+    mapIdentitySource(BSON.serialize({ _id: source._id, oauthTokens: { revision } }))
+  ).toThrow(IdentityMappingError);
 });

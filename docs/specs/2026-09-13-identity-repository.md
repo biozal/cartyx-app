@@ -35,8 +35,8 @@ Player schema and would otherwise escape Mongoose casting.
 
 Ordinary identity results explicitly enumerate the public profile fields. They
 exclude token envelopes, media prefixes, memberships and unknown stored fields.
-Sensitive token access has a separate named method; it returns only the access
-token envelope needed for revocation. Mongoose's hidden-field selection remains
+Sensitive token access has a separate named method; it returns the access
+token envelope and a server-only user/provider/token-generation fence. Mongoose's hidden-field selection remains
 explicit inside the adapter. The token encryption key and session cookie format
 are unchanged. These interfaces are server-only and do not grant authorization.
 
@@ -63,9 +63,10 @@ are unchanged. These interfaces are server-only and do not grant authorization.
   index race. A later explicit login can reconcile by provider ID. This is not
   a promise that every concurrent request succeeds or an exactly-once contract.
 - Preference updates modify only `preferences.rulerColor`, preserve other nested
-  preferences, and do not create a missing account. Clearing tokens unsets only
-  the token envelope. Those two methods retain existing missing-user no-op
-  semantics; callers retain their current success/default behavior.
+  preferences, and do not create a missing account. Clearing tokens conditionally
+  unsets the observed token bundle and returns `cleared` or `stale`. Neither
+  operation upserts a missing user. Legacy token reads may conditionally add a
+  missing bundle revision; see the token clearing runbook for recovery semantics.
 
 The shared campaign guard reads the Mongo campaign on every call. It preserves
 legacy owner access, explicit GM membership and player membership. A session's
@@ -150,9 +151,10 @@ Next work:
    with source-account selection, import and provider revocation. It builds on the
    [reservation preparation journal](2026-09-13-identity-reservations.md), which now
    covers immutable identifier ownership and interrupted preparation. Account-level
-   release and recovery for partial graph/CQL writes remain required. Address login/logout overlap: current logout clears
-   by provider ID and is not conditional on the token revision it read. This
-   extraction preserves that behavior; it does not establish safe token fencing.
+   release and recovery for partial graph/CQL writes remain required. The subsequent
+   [token clearing contract](2026-09-13-identity-token-clearing.md) now fences Mongo
+   logout against the generation it read and provides inactive target clear recovery.
+   External provider revocation overlap still needs its own protocol before cutover.
 3. Build on the inactive [graph publication/read facet](2026-09-13-identity-graph-profiles.md).
    Separate runtime Gremlin authorization from schema administration, finish target
    write operations and importer, and exercise the same behavior contracts

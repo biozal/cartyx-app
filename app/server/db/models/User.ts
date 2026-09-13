@@ -20,6 +20,8 @@ const userSchema = new mongoose.Schema({
   // Used at logout time to revoke the provider grant.
   oauthTokens: {
     type: {
+      // Replaced with the bundle on login, including by older application writers.
+      revision: String,
       accessToken: {
         ciphertext: String,
         iv: String,

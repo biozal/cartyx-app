@@ -99,10 +99,10 @@ developer's stack. No schema change is required for these operational records.
 
 Implement target login selection and coordination across account/profile state,
 including provider-first lookup, email-only account claims, omitted field preservation,
-concurrent settings writes and interrupted login recovery. Replace the current
-`readAccessToken`/`clearTokens(providerId)` interface with explicit token-revision
-context and define provider revocation ordering/recovery. The current Mongo OAuth
-path still performs an external provider request and then clears by provider ID;
+concurrent settings writes and interrupted login recovery. The subsequent
+[token clearing slice](2026-09-13-identity-token-clearing.md) replaces the token
+interface with explicit generation context and adds recoverable clearing across
+media-only account changes. Provider revocation ordering/recovery is still open;
 stored-state fencing alone cannot undo an external revocation.
 
 Complete the environment-bound private bulk import manifest/reconciliation runner,

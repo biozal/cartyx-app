@@ -332,3 +332,27 @@ The application remains Mongo-backed. Target login/profile coordination,
 revision-aware token clearing/provider revocation, the bulk import manifest and
 reconciliation runner, availability/runtime authorization and separate dev/prod
 cutovers remain ahead. No production schema or source data is changed.
+
+## Identity token clearing — September 13
+
+PR #557 now carries an [observed token generation contract](2026-09-13-identity-token-clearing.md)
+through Mongo and OAuth, plus an inactive Cassandra clear coordinator. Mongo login
+rotates a hidden revision inside its encrypted token bundle; legacy bundles acquire
+one through a conditional update. A delayed clear cannot erase a newer login's
+tokens. Target clearing retains the original fence and durable attempt IDs, resumes
+lost account receipts and reconciles media-only account changes without clearing
+a different token generation. Terminal recovery never mutates later tokens.
+
+Typecheck, lint and 228 unit files / 2,541 tests passed locally. Synthetic real-store
+contracts passed in local Docker, including all clear write boundaries, concurrent
+resumes and delayed physical mutations. Real Mongo fixtures cover legacy upgrade,
+older/newer login writers and uncertain mutations. Local restart seed/verify passed
+with an unreceipted token clear and exact cleanup; CI also exercises this witness
+across its actual database restart. Kubernetes dev and exact-head CI evidence is
+recorded in draft PR #557 after each run completes.
+
+Mongo remains selected for every subsystem. Provider HTTP ordering remains the
+existing attempt-then-clear behavior with the original generation fence. It is
+not an external revocation recovery protocol. Target login/profile coordination
+and provider-specific revocation are still cutover gates; source accounts and
+production target schemas remain unchanged by these synthetic tests.

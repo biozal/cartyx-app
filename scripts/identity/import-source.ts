@@ -72,7 +72,18 @@ export function mapIdentitySource(input: Uint8Array): IdentityImportPlan {
   let tokens: unknown = null;
   if (doc.oauthTokens != null) {
     requireSource(object(doc.oauthTokens));
-    known(doc.oauthTokens, ['accessToken', 'refreshToken']);
+    known(doc.oauthTokens, ['revision', 'accessToken', 'refreshToken']);
+    // Mongo fencing metadata is archive-preserved. Target import assigns its own
+    // initial token revision; Mongo fences must never be usable against that target.
+    if (Object.hasOwn(doc.oauthTokens, 'revision'))
+      requireSource(
+        typeof doc.oauthTokens.revision === 'string' &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+            doc.oauthTokens.revision
+          ) &&
+          doc.providerId != null
+      );
+
     for (const field of ['accessToken', 'refreshToken']) {
       const envelope = doc.oauthTokens[field];
       if (envelope != null) {
@@ -140,13 +151,10 @@ export async function checkIdentityImportArchive(directory: string) {
     blockers,
     sourceFindingCategories: Object.keys(report.findings).length,
     archiveOnlyFieldOccurrences: Object.fromEntries(
-      ['campaigns', '__v', 'updatedAt'].map((field) => [
+      ['campaigns', '__v', 'updatedAt', 'oauthTokens.revision'].map((field) => [
         field,
         report.fields
-          .filter(
-            (entry) =>
-              entry.path.length === 2 && entry.path[0] === 'users' && entry.path[1] === field
-          )
+          .filter((entry) => entry.path[0] === 'users' && entry.path.slice(1).join('.') === field)
           .reduce((count, entry) => count + entry.occurrences, 0),
       ])
     ),

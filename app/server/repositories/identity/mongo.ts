@@ -1,4 +1,5 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { parseIdentityTokenFence } from './token-fence';
 import type { ClientSession, Model } from 'mongoose';
 import type { IUser } from '../../db/models/User';
 import type { ICampaign } from '../../db/models/Campaign';
@@ -38,6 +39,7 @@ export function createMongoIdentityRepository(
         ...(input.lastName !== undefined && { lastName: input.lastName }),
         ...(input.avatarUrl !== undefined && { avatarUrl: input.avatarUrl }),
         oauthTokens: {
+          revision: randomUUID(),
           accessToken: input.oauthTokens.accessToken,
           refreshToken: input.oauthTokens.refreshToken,
         },
@@ -106,12 +108,49 @@ export function createMongoIdentityRepository(
       return stored?.audioStoragePrefix ?? null;
     },
     async readAccessToken(providerId) {
-      const stored = await users.findOne({ providerId }).select('+oauthTokens').lean();
-      const token = stored?.oauthTokens?.accessToken;
-      return token ? { ciphertext: token.ciphertext, iv: token.iv, authTag: token.authTag } : null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const stored = await users.findOne({ providerId }).select('+oauthTokens').lean();
+        const token = stored?.oauthTokens?.accessToken;
+        if (!stored || !token) return null;
+        let tokenRevision = stored.oauthTokens?.revision;
+        if (tokenRevision === undefined) {
+          tokenRevision = randomUUID();
+          // Upgrade a legacy envelope only while the entire original pair is still
+          // current. A newer login always installs a revision in its atomic update.
+          const upgraded = await users.updateOne(
+            {
+              _id: stored._id,
+              providerId,
+              'oauthTokens.revision': { $exists: false },
+              oauthTokens: stored.oauthTokens,
+            },
+            { $set: { 'oauthTokens.revision': tokenRevision } }
+          );
+          if (upgraded.matchedCount === 0) continue; // Definitive CAS loss only.
+        }
+        const fence = parseIdentityTokenFence({
+          userId: String(stored._id),
+          providerId,
+          tokenRevision: tokenRevision as string,
+        });
+        return {
+          ...fence,
+          accessToken: { ciphertext: token.ciphertext, iv: token.iv, authTag: token.authTag },
+        };
+      }
+      throw new Error('Identity token read contended');
     },
-    async clearTokens(providerId) {
-      await users.updateOne({ providerId }, { $unset: { oauthTokens: '' } });
+    async clearTokens(input) {
+      const fence = parseIdentityTokenFence(input);
+      const result = await users.updateOne(
+        {
+          _id: fence.userId,
+          providerId: fence.providerId,
+          'oauthTokens.revision': fence.tokenRevision,
+        },
+        { $unset: { oauthTokens: '' } }
+      );
+      return result.matchedCount === 1 ? 'cleared' : 'stale';
     },
     async readPreferences(providerId) {
       const stored = await users.findOne({ providerId }).select('preferences').lean();

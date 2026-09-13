@@ -6,6 +6,9 @@ import {
   settingsSourceFixture,
 } from '../../../scripts/identity/settings-contract';
 import { identityImportContract } from '../../../scripts/identity/import-contract';
+import { identityTokensContract } from '../../../scripts/identity/tokens-contract';
+import { createTargetIdentityTokens } from '~/server/repositories/identity/target-tokens';
+import { createMongoIdentityRepository } from '~/server/repositories/identity/mongo';
 import { importSourceFixture } from '../../../scripts/identity/import-contract';
 import { mapIdentitySource } from '../../../scripts/identity/import-source';
 import { createIdentityImporter } from '../../../scripts/identity/import-account';
@@ -61,6 +64,28 @@ function memory() {
   };
   return { state, graph };
 }
+it('fences token generations through concurrent login, media writes and clear recovery', async () => {
+  const { state, graph } = memory();
+  await identityTokensContract(state, graph);
+});
+it('refuses incomplete or query-shaped token fences before touching either backend', async () => {
+  const touched = vi.fn(async () => {
+    throw new Error('Backend must not be called');
+  });
+  const target = createTargetIdentityTokens({ get: touched, create: touched, replace: touched });
+  const mongo = createMongoIdentityRepository({ updateOne: touched } as never);
+  const valid = { userId: '1'.repeat(24), providerId: 'fixture', tokenRevision: randomUUID() };
+  for (const repository of [target, mongo])
+    for (const invalid of [
+      'fixture',
+      { ...valid, userId: { $ne: null } },
+      { ...valid, providerId: { $ne: null } },
+      { ...valid, tokenRevision: undefined },
+      { ...valid, accessToken: 'private' },
+    ])
+      await expect(repository.clearTokens(invalid as never)).rejects.toThrow('Invalid identity');
+  expect(touched).not.toHaveBeenCalled();
+});
 it('recovers profile publication and combines graph content with settled account identities', async () => {
   const { state, graph } = memory();
   await identityProfileContract(state, graph);

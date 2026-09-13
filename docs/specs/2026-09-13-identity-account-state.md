@@ -109,9 +109,10 @@ in logs, Git or CI artifacts.
 
 These fences protect **stored token state**. Provider HTTP revocation is an external
 side effect and may affect an entire grant; a database CAS cannot undo that request.
-Provider-specific revocation ordering/recovery and wiring the new contract into
-OAuth remain required. The current Mongo logout path is unchanged by this inactive
-slice and still clears by provider ID.
+Provider-specific revocation ordering/recovery remains required. The subsequent
+[token clearing slice](2026-09-13-identity-token-clearing.md) now wires an observed
+token generation into Mongo/OAuth and adds inactive target recovery that reconciles
+media-only account changes. It does not claim to fence external provider requests.
 
 ## Verification
 

@@ -19,6 +19,7 @@ import { checkIdentityProfileSchema } from './profile-schema';
 import { identityProfileContract, profileFixture } from './profile-contract';
 import { identityImportContract } from './import-contract';
 import { identitySettingsContract } from './settings-contract';
+import { identityTokensContract } from './tokens-contract';
 const config = readCqlConfig('runtime');
 const graphConfig = readGraphConfig();
 const state = createControlStateStore(config);
@@ -83,6 +84,7 @@ try {
       identityProfileContract,
       identityImportContract,
       identitySettingsContract,
+      identityTokensContract,
     ])
       await contract(
         {
@@ -153,7 +155,7 @@ try {
     );
     await assert.rejects(graph.get(corrupt.userId, corrupt.snapshotId), /digest mismatch/);
     process.stdout.write(
-      'PASS: immutable graph profiles, physical-write recovery, publication CAS/receipts, recoverable BSON account import, preference writes/media allocation, delayed writers, target reads, scope/privacy, schema checksum and corruption refusal\n'
+      'PASS: immutable graph profiles, physical-write recovery, publication CAS/receipts, recoverable BSON account import, preference writes/media allocation, token clear fencing/recovery, delayed writers, target reads, scope/privacy, schema checksum and corruption refusal\n'
     );
   }
 } catch (error) {

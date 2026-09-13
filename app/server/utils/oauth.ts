@@ -411,8 +411,9 @@ export async function revokeToken(user: SessionUser): Promise<void> {
     await connectDB();
     if (!isDBConnected()) return;
 
-    const enc = await identityRepository.readAccessToken(user.id);
-    if (!enc || !enc.ciphertext || !enc.iv || !enc.authTag) return;
+    const observed = await identityRepository.readAccessToken(user.id);
+    const enc = observed?.accessToken;
+    if (!observed || !enc || !enc.ciphertext || !enc.iv || !enc.authTag) return;
 
     const accessToken = decryptToken({
       ciphertext: enc.ciphertext,
@@ -444,8 +445,13 @@ export async function revokeToken(user: SessionUser): Promise<void> {
       });
     }
 
-    // Clear the stored tokens once we've attempted revocation.
-    await identityRepository.clearTokens(user.id);
+    // The HTTP request cannot be undone by this database fence. Preserve the
+    // existing ordering, but never erase a generation installed during that request.
+    await identityRepository.clearTokens({
+      userId: observed.userId,
+      providerId: observed.providerId,
+      tokenRevision: observed.tokenRevision,
+    });
   } catch (e) {
     serverCaptureException(e, user.id, { action: 'revokeToken', provider: user.provider });
   }

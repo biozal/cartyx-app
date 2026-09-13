@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { parseIdentityTokenFence } from '../../app/server/repositories/identity/token-fence';
 import type {
   CampaignAccessRepository,
   IdentityRepository,
@@ -40,7 +42,14 @@ export async function identityRepositoryContract(harness: {
   assert.equal(await identity.readPreferences('missing'), null);
   // Preserve updateOne semantics: these operations do not upsert missing users.
   await identity.setRulerColor('missing', '#123456');
-  await identity.clearTokens('missing');
+  assert.equal(
+    await identity.clearTokens({
+      userId: '0'.repeat(24),
+      providerId: 'missing',
+      tokenRevision: randomUUID(),
+    }),
+    'stale'
+  );
   assert.equal(await harness.countUsers('missing'), 0);
 
   const fresh = await identity.recordLogin(login('fixture_new', 'New@Example.invalid'));
@@ -85,7 +94,7 @@ export async function identityRepositoryContract(harness: {
     assert.deepEqual(after[key], before[key]);
   }
   assert.deepEqual(
-    await identity.readAccessToken('fixture_claim'),
+    (await identity.readAccessToken('fixture_claim'))?.accessToken,
     login('unused').oauthTokens.accessToken
   );
   for (const value of [claimed, await identity.findProfile('fixture_claim')]) {
@@ -107,7 +116,25 @@ export async function identityRepositoryContract(harness: {
     preferences: {},
     campaigns: [],
   };
+  const older = (await identity.readAccessToken('fixture_claim'))!;
+  const olderFence = parseIdentityTokenFence({
+    userId: older.userId,
+    providerId: older.providerId,
+    tokenRevision: older.tokenRevision,
+  });
   const returning = await identity.recordLogin(widerInput);
+  const current = (await identity.readAccessToken('fixture_claim'))!;
+  const currentFence = {
+    userId: current.userId,
+    providerId: current.providerId,
+    tokenRevision: current.tokenRevision,
+  };
+  assert.notEqual(current.tokenRevision, older.tokenRevision);
+  // Even an identical pair and login timestamp get a distinct generation.
+  assert.equal(await identity.clearTokens(olderFence), 'stale');
+  assert.deepEqual(await identity.readAccessToken('fixture_claim'), current);
+  assert.equal(await identity.clearTokens({ ...currentFence, providerId: 'wrong' }), 'stale');
+  assert.equal(await identity.clearTokens({ ...currentFence, userId: '0'.repeat(24) }), 'stale');
   assert.equal(returning.id, seeded);
   assert.equal(returning.role, 'gm');
   assert.equal(returning.email, 'claim@example.invalid');
@@ -120,10 +147,38 @@ export async function identityRepositoryContract(harness: {
     rulerColor: '#abcdef',
     future: true,
   });
-  await identity.clearTokens('fixture_claim');
+  assert.equal(await identity.clearTokens(currentFence), 'cleared');
+  assert.equal(await identity.clearTokens(currentFence), 'stale');
   assert.equal(await identity.readAccessToken('fixture_claim'), null);
   assert.ok(!Object.hasOwn(await harness.readUser(seeded), 'oauthTokens'));
   assert.equal(await identity.findUserId('fixture_claim'), seeded);
+
+  // Legacy token pairs acquire one stable revision without changing source values.
+  const legacyId = await harness.seedUser({
+    providerId: 'fixture_legacy_tokens',
+    provider: 'fixture',
+    oauthTokens: login('unused').oauthTokens,
+    legacy: { keep: true },
+  });
+  const legacyBefore = await harness.readUser(legacyId);
+  const reads = await Promise.all(
+    Array.from({ length: 8 }, () => identity.readAccessToken('fixture_legacy_tokens'))
+  );
+  assert.ok(reads.every(Boolean));
+  assert.equal(new Set(reads.map((read) => read!.tokenRevision)).size, 1);
+  const legacyAfter = await harness.readUser(legacyId);
+  const { revision, ...legacyTokens } = legacyAfter.oauthTokens as Record<string, unknown>;
+  assert.deepEqual({ ...legacyAfter, oauthTokens: legacyTokens }, legacyBefore);
+  assert.equal(revision, reads[0]!.tokenRevision);
+  const legacyFence = {
+    userId: legacyId,
+    providerId: 'fixture_legacy_tokens',
+    tokenRevision: reads[0]!.tokenRevision,
+  };
+  await identity.resolveAudioStoragePrefix(legacyId);
+  await identity.setRulerColor('fixture_legacy_tokens', '#987654');
+  assert.equal(await identity.clearTokens(legacyFence), 'cleared');
+  assert.equal(await identity.readAccessToken('fixture_legacy_tokens'), null);
 
   // Exact email matches cannot hijack an already bound account. Failures must
   // propagate so the caller cannot mint a session for a nonexistent account.

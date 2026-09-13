@@ -46,12 +46,19 @@ import {
 } from '../../app/server/repositories/identity/target-settings';
 import { createTargetIdentityReader } from '../../app/server/repositories/identity/target-reader';
 import { settingsSourceFixture } from './settings-contract';
+import {
+  createIdentityTokenClearer,
+  createTargetIdentityTokens,
+} from '../../app/server/repositories/identity/target-tokens';
+import type { IdentityTokenFence } from '../../app/server/repositories/identity/types';
 type SettingsWitness = {
   plan: IdentityImportPlan;
   keys: StateKey[];
   vertices: GraphIdentity[];
   preferenceOperationId?: string;
   mediaPrefix?: string;
+  tokenClearOperationId?: string;
+  tokenFence?: IdentityTokenFence;
 };
 
 // Fixed synthetic resources are recorded in the private witness before any write.
@@ -93,12 +100,18 @@ try {
       keys: [],
       vertices: [],
     };
+    const tokenWitness: SettingsWitness = {
+      plan: mapIdentitySource(settingsSourceFixture()),
+      keys: [],
+      vertices: [],
+    };
     const manifest = {
       keyspace: config.keyspace,
       endpoint: graphConfig.url,
       command,
       importPlan,
       settingsWitness,
+      tokenWitness,
     };
     mkdirSync('.local/cql', { recursive: true, mode: 0o700 });
     writeFileSync(path, JSON.stringify(manifest), { mode: 0o600, flag: 'wx' });
@@ -145,41 +158,41 @@ try {
       writeFileSync(`${path}.pending`, JSON.stringify(manifest), { mode: 0o600 });
       renameSync(`${path}.pending`, path);
     };
-    const track = (key: StateKey) => {
-      if (!settingsWitness.keys.some((item) => JSON.stringify(item) === JSON.stringify(key)))
-        settingsWitness.keys.push(key);
-      save();
-    };
-    const trackedState = {
-      get: (key: StateKey) => state.get(key),
-      create: (...args: Parameters<typeof state.create>) => {
-        if (args[0].type === 'identity_audio_assignment')
-          settingsWitness.mediaPrefix = (args[2] as { prefix: string }).prefix;
-        track(args[0]);
-        return state.create(...args);
-      },
-      replace: (...args: Parameters<typeof state.replace>) => {
-        track(args[0]);
-        return state.replace(...args);
-      },
-    };
-    const trackedGraph: typeof graph = {
-      get: (...args) => graph.get(...args),
-      put: (snapshot) => {
-        for (const identity of [
-          profileUserIdentity(snapshot.userId),
-          profileRevisionIdentity(snapshot.userId, snapshot.snapshotId),
-        ])
-          if (
-            !settingsWitness.vertices.some(
-              (item) => JSON.stringify(item) === JSON.stringify(identity)
-            )
-          )
-            settingsWitness.vertices.push(identity);
+    const tracking = (witness: SettingsWitness) => {
+      const track = (key: StateKey) => {
+        if (!witness.keys.some((item) => JSON.stringify(item) === JSON.stringify(key)))
+          witness.keys.push(key);
         save();
-        return graph.put(snapshot);
-      },
+      };
+      const trackedState = {
+        get: (key: StateKey) => state.get(key),
+        create: (...args: Parameters<typeof state.create>) => {
+          if (args[0].type === 'identity_audio_assignment')
+            witness.mediaPrefix = (args[2] as { prefix: string }).prefix;
+          track(args[0]);
+          return state.create(...args);
+        },
+        replace: (...args: Parameters<typeof state.replace>) => {
+          track(args[0]);
+          return state.replace(...args);
+        },
+      };
+      const trackedGraph: typeof graph = {
+        get: (...args) => graph.get(...args),
+        put: (snapshot) => {
+          for (const identity of [
+            profileUserIdentity(snapshot.userId),
+            profileRevisionIdentity(snapshot.userId, snapshot.snapshotId),
+          ])
+            if (!witness.vertices.some((item) => JSON.stringify(item) === JSON.stringify(identity)))
+              witness.vertices.push(identity);
+          save();
+          return graph.put(snapshot);
+        },
+      };
+      return { trackedState, trackedGraph };
     };
+    const { trackedState, trackedGraph } = tracking(settingsWitness);
     await createIdentityImporter(trackedState, trackedGraph).apply(settingsWitness.plan);
     const interruptedSettings = createTargetIdentitySettings(
       {
@@ -209,8 +222,40 @@ try {
       interruptedSettings.resolveAudioStoragePrefix(settingsWitness.plan.account.userId),
       /settings witness interruption/
     );
+    const trackedTokens = tracking(tokenWitness);
+    await createIdentityImporter(trackedTokens.trackedState, trackedTokens.trackedGraph).apply(
+      tokenWitness.plan
+    );
+    const observed = (await createTargetIdentityTokens(state).readAccessToken(
+      tokenWitness.plan.account.binding!.providerId
+    ))!;
+    tokenWitness.tokenFence = {
+      userId: observed.userId,
+      providerId: observed.providerId,
+      tokenRevision: observed.tokenRevision,
+    };
+    tokenWitness.tokenClearOperationId = randomUUID();
+    save();
+    const interruptedClear = createIdentityTokenClearer({
+      ...trackedTokens.trackedState,
+      replace: async (...args) => {
+        const result = await trackedTokens.trackedState.replace(...args);
+        if (args[0].type === 'identity_account')
+          throw new Error('token clear witness interruption');
+        return result;
+      },
+    });
+    await interruptedClear.begin(tokenWitness.tokenClearOperationId, tokenWitness.tokenFence);
+    await assert.rejects(
+      interruptedClear.resume(tokenWitness.tokenClearOperationId),
+      /token clear witness interruption/
+    );
+    await assert.rejects(
+      createIdentityAccountState(state).readAccount(observed.userId),
+      /requires operation recovery/
+    );
     process.stdout.write(
-      'Seeded graph publication, pending account import, preference and media allocation restart witnesses\n'
+      'Seeded graph publication, pending account import, preference/media allocation and token clear restart witnesses\n'
     );
   } else {
     const manifest = JSON.parse(readFileSync(path, 'utf8'));
@@ -219,6 +264,7 @@ try {
     const command = manifest.command as PublishProfile;
     const importPlan = manifest.importPlan as IdentityImportPlan | undefined;
     const settingsWitness = manifest.settingsWitness as SettingsWitness | undefined;
+    const tokenWitness = manifest.tokenWitness as SettingsWitness | undefined;
     const { userId, snapshotId } = command.snapshot;
     assert.equal((await state.get(profileHeadKey(userId)))?.revision, command.operationId);
     assert.deepEqual(await graph.get(userId, snapshotId), command.snapshot);
@@ -258,6 +304,23 @@ try {
       assert.equal(tokens?.tokenRevision, settingsWitness.plan.account.operationId);
       assert.deepEqual(tokens?.tokens, settingsWitness.plan.account.tokens);
     }
+    if (tokenWitness) {
+      assert.ok(tokenWitness.tokenClearOperationId);
+      assert.ok(tokenWitness.tokenFence);
+      const clearer = createIdentityTokenClearer(state);
+      assert.equal(await clearer.resume(tokenWitness.tokenClearOperationId), 'cleared');
+      assert.equal(
+        await createTargetIdentityTokens(state).readAccessToken(tokenWitness.tokenFence.providerId),
+        null
+      );
+      const account = await createIdentityAccountState(state).readAccount(
+        tokenWitness.tokenFence.userId
+      );
+      assert.ok(account);
+      assert.notEqual(account.tokenRevision, tokenWitness.tokenFence.tokenRevision);
+      assert.deepEqual(account.binding, tokenWitness.plan.account.binding);
+      assert.deepEqual((await profiles.read(account.userId))!.snapshot, tokenWitness.plan.snapshot);
+    }
     const admin = createCqlClient(readCqlConfig('schema'));
     try {
       for (const key of [
@@ -265,6 +328,7 @@ try {
         profileOperationKey(command.operationId),
         ...(importPlan ? importKeys(importPlan) : []),
         ...(settingsWitness?.keys ?? []),
+        ...(tokenWitness?.keys ?? []),
       ]) {
         await admin.execute(
           `DELETE FROM ${config.keyspace}.control_state WHERE scope = ? AND resource_type = ? AND resource_id = ?`,
@@ -282,6 +346,7 @@ try {
             ]
           : []),
         ...(settingsWitness?.vertices ?? []),
+        ...(tokenWitness?.vertices ?? []),
       ]) {
         await client.execute(findIdentity(identity).hasLabel(identity.kind).drop());
         assert.deepEqual(await client.execute(findIdentity(identity).count()), [0]);
@@ -291,7 +356,7 @@ try {
     }
     unlinkSync(path);
     process.stdout.write(
-      'Verified graph publication, account import, preference and media allocation recovery; removed exact restart witnesses\n'
+      'Verified graph publication, account import, preference/media allocation and token clear recovery; removed exact restart witnesses\n'
     );
   }
 } finally {

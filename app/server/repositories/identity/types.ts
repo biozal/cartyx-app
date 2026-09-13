@@ -14,6 +14,23 @@ export interface EncryptedIdentityToken {
   authTag: string;
 }
 
+/** Server-only fence for one stored token generation; never put it in a session. */
+export interface IdentityTokenFence {
+  userId: string;
+  providerId: string;
+  tokenRevision: string;
+}
+
+export interface IdentityAccessToken extends IdentityTokenFence {
+  accessToken: {
+    ciphertext?: string | null;
+    iv?: string | null;
+    authTag?: string | null;
+  };
+}
+
+export type IdentityTokenClearOutcome = 'cleared' | 'stale';
+
 export interface RecordIdentityLogin {
   providerId: string;
   provider: string;
@@ -47,12 +64,9 @@ export interface IdentityRepository {
   resolveAudioStoragePrefix(userId: string): Promise<string>;
   /** Read-only, including when the user or prefix is missing. */
   lookupAudioStoragePrefix(userId: string): Promise<string | null>;
-  readAccessToken(providerId: string): Promise<{
-    ciphertext?: string | null;
-    iv?: string | null;
-    authTag?: string | null;
-  } | null>;
-  clearTokens(providerId: string): Promise<void>;
+  readAccessToken(providerId: string): Promise<IdentityAccessToken | null>;
+  /** Clear only the observed generation. Does not revoke an external provider grant. */
+  clearTokens(fence: IdentityTokenFence): Promise<IdentityTokenClearOutcome>;
   readPreferences(providerId: string): Promise<{ rulerColor?: string | null } | null>;
   setRulerColor(providerId: string, rulerColor: string): Promise<void>;
 }
