@@ -39,6 +39,11 @@ beforeEach(() => {
 });
 
 describe('requireCampaignMember', () => {
+  it('never grants ownership by stringifying an absent owner', async () => {
+    vi.mocked(User.findOne).mockResolvedValue({ _id: 'null' } as never);
+    vi.mocked(Campaign.findById).mockResolvedValue({ members: [] } as never);
+    await expect(requireCampaignMember('camp-A')).rejects.toBeInstanceOf(CampaignAccessError);
+  });
   it('allows the legacy campaign owner even without a members entry', async () => {
     vi.mocked(Campaign.findById).mockResolvedValue({
       gameMasterId: 'dbuser-1',

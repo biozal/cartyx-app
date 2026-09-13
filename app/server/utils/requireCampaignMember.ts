@@ -63,8 +63,8 @@ export async function requireCampaignMember(
   if (!campaign) throw new CampaignAccessError();
 
   const members = campaign.members ?? [];
-  const member = members.find((m) => String(m.userId) === userId);
-  const isGM = String(campaign.gameMasterId) === userId || member?.role === 'gm';
+  const member = members.find((m) => m.userId === userId);
+  const isGM = campaign.gameMasterId === userId || member?.role === 'gm';
   const isMember = !!member || isGM;
   // Deliberately the SAME error and the SAME message as the missing-campaign
   // case above — see `CampaignAccessError`. A caller who is not at this table
