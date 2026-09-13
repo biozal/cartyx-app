@@ -107,7 +107,9 @@ export async function testMongoIdentityTokens(users: Model<IUser>) {
         kind === 'upgrade'
           ? interrupted.readAccessToken(login.providerId)
           : interrupted.clearTokens(fence(observed!)),
-        /Mongo token mutation uncertain/
+        kind === 'upgrade'
+          ? /Identity token revision upgrade uncertain/
+          : /Mongo token mutation uncertain/
       );
       assert.equal(writes, 1);
       if (kind === 'clear')

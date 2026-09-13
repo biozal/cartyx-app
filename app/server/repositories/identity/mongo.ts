@@ -117,15 +117,21 @@ export function createMongoIdentityRepository(
           tokenRevision = randomUUID();
           // Upgrade a legacy envelope only while the entire original pair is still
           // current. A newer login always installs a revision in its atomic update.
-          const upgraded = await users.updateOne(
-            {
-              _id: stored._id,
-              providerId,
-              'oauthTokens.revision': { $exists: false },
-              oauthTokens: stored.oauthTokens,
-            },
-            { $set: { 'oauthTokens.revision': tokenRevision } }
-          );
+          const upgraded = await users
+            .updateOne(
+              {
+                _id: stored._id,
+                providerId,
+                'oauthTokens.revision': { $exists: false },
+                oauthTokens: stored.oauthTokens,
+              },
+              { $set: { 'oauthTokens.revision': tokenRevision } }
+            )
+            .catch(() => {
+              // Casting/driver errors may include the sensitive comparison value.
+              // OAuth reports errors to telemetry, so do not propagate that cause.
+              throw new Error('Identity token revision upgrade uncertain');
+            });
           if (upgraded.matchedCount === 0) continue; // Definitive CAS loss only.
         }
         const fence = parseIdentityTokenFence({
