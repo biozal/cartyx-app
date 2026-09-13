@@ -7,6 +7,11 @@ import {
 } from '../../../scripts/identity/settings-contract';
 import { identityImportContract } from '../../../scripts/identity/import-contract';
 import { identityTokensContract } from '../../../scripts/identity/tokens-contract';
+import { identityLoginContract, loginFixture } from '../../../scripts/identity/login-contract';
+import {
+  createIdentityLoginCoordinator,
+  IdentityLoginError,
+} from '~/server/repositories/identity/target-login';
 import { createTargetIdentityTokens } from '~/server/repositories/identity/target-tokens';
 import { createMongoIdentityRepository } from '~/server/repositories/identity/mongo';
 import { importSourceFixture } from '../../../scripts/identity/import-contract';
@@ -64,6 +69,88 @@ function memory() {
   };
   return { state, graph };
 }
+it('coordinates target login selection and cross-store recovery without returning historical sessions', async () => {
+  const { state, graph } = memory();
+  await identityLoginContract(state, graph);
+});
+it('validates login input and complete plan bounds before persistence', async () => {
+  const touched = vi.fn(async () => {
+    throw new Error('Unexpected storage call');
+  });
+  const invalid = createIdentityLoginCoordinator(
+    { get: touched, create: touched, replace: touched },
+    { get: touched, put: touched }
+  );
+  for (const input of [
+    { ...loginFixture(), providerId: { $ne: null } },
+    { ...loginFixture(), oauthTokens: { accessToken: 'private', refreshToken: null } },
+    { ...loginFixture(), firstName: '\ud800' },
+    { ...loginFixture(), lastLoginAt: new Date('invalid') },
+  ])
+    await expect(invalid.prepare(input as never)).rejects.toThrow('Invalid identity');
+  expect(touched).not.toHaveBeenCalled();
+  const { state, graph } = memory();
+  const plan = await createIdentityLoginCoordinator(state, graph).prepare(loginFixture());
+  for (const bad of [
+    { ...plan, profile: { ...plan.profile, expectedRevision: plan.profile.operationId } },
+    { ...plan, initializationOperationId: null },
+    {
+      ...plan,
+      profile: { ...plan.profile, snapshot: { ...plan.profile.snapshot, userId: '0'.repeat(24) } },
+    },
+    {
+      ...plan,
+      account: {
+        ...plan.account,
+        tokens: {
+          accessToken: {
+            ciphertext: Buffer.alloc(3072).toString('base64'),
+            iv: Buffer.alloc(12).toString('base64'),
+            authTag: Buffer.alloc(16).toString('base64'),
+          },
+          refreshToken: null,
+        },
+      },
+      profile: {
+        ...plan.profile,
+        snapshot: {
+          ...plan.profile.snapshot,
+          content: {
+            ...plan.profile.snapshot.content,
+            firstName: '🐉'.repeat(512),
+            lastName: '🐉'.repeat(512),
+            avatarUrl: '🐉'.repeat(2048),
+          },
+        },
+      },
+    },
+  ])
+    await expect(invalid.begin(bad as never)).rejects.toThrow();
+  expect(touched).not.toHaveBeenCalled();
+});
+it('stops uncertain login preparation without leaking the cause or retrying mutations', async () => {
+  const { state, graph } = memory();
+  const write = vi.fn(async () => {
+    throw new Error('private token comparison');
+  });
+  const login = createIdentityLoginCoordinator(
+    { get: (key) => state.get(key), create: write, replace: write },
+    graph
+  );
+  let caught: unknown;
+  try {
+    await login.recordLogin(loginFixture());
+  } catch (error) {
+    caught = error;
+  }
+  expect(caught).toBeInstanceOf(IdentityLoginError);
+  const failure = caught as IdentityLoginError;
+  expect(failure.outcome).toBe('uncertain');
+  expect(failure.operationId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(failure.message).not.toContain('private');
+  expect(write).toHaveBeenCalledTimes(1);
+  await expect(login.resume(failure.operationId)).rejects.toThrow('not found');
+});
 it('fences token generations through concurrent login, media writes and clear recovery', async () => {
   const { state, graph } = memory();
   await identityTokensContract(state, graph);

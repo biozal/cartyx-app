@@ -356,3 +356,25 @@ existing attempt-then-clear behavior with the original generation fence. It is
 not an external revocation recovery protocol. Target login/profile coordination
 and provider-specific revocation are still cutover gates; source accounts and
 production target schemas remain unchanged by these synthetic tests.
+
+## Target identity login coordination — September 13
+
+PR #557 now includes inactive [login selection and coordination](2026-09-13-identity-login-coordination.md).
+It selects the actual provider-bound account first, claims only an exact-email
+unbound account, and retains one canonical new ID when registration is needed.
+The full bounded plan is journaled before reservations, initialization, graph
+publication and account login. Recovery uses the original commands and revisions;
+terminal receipts remove encrypted plan contents and never return a session.
+
+The runtime-shaped method returns a public profile only after verifying this
+login's token generation and profile publication against a stable account revision.
+Concurrent preference/media changes cause conservative rejection where needed,
+preserving their state. All 228 unit files / 2,544 tests, typecheck and lint passed
+locally. The shared contracts now cover every registration write boundary,
+concurrent resumes/logins and superseded result refusal. A new exact restart witness
+retains an account login committed before its receipt. Local/dev and exact-head CI
+evidence is recorded in draft PR #557 after those runs complete.
+
+Mongo remains selected for every subsystem. Provider HTTP ordering/recovery,
+runtime integration, bulk import/reconciliation and the remaining phase-4 gates
+must still be completed before a maintenance-mode dev cutover rehearsal.

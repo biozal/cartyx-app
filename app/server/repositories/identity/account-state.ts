@@ -30,6 +30,16 @@ const tokens = z
   .strict();
 const binding = z.object({ provider: exact, providerId: exact }).strict();
 const common = { operationId: uuid, userId };
+export const accountLoginCommandSchema = z
+  .object({
+    ...common,
+    kind: z.literal('login'),
+    expectedRevision: uuid,
+    binding,
+    email: exact.optional(),
+    tokens,
+  })
+  .strict();
 /** Operator-only creation from a reviewed archive; never replaces an existing account. */
 export const accountImportCommandSchema = z
   .object({
@@ -60,16 +70,7 @@ const commandSchema = z.discriminatedUnion('kind', [
       audioStoragePrefix: prefix.nullable(),
     })
     .strict(),
-  z
-    .object({
-      ...common,
-      kind: z.literal('login'),
-      expectedRevision: uuid,
-      binding,
-      email: exact.optional(),
-      tokens,
-    })
-    .strict(),
+  accountLoginCommandSchema,
   z
     .object({
       ...common,

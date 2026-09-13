@@ -97,9 +97,10 @@ developer's stack. No schema change is required for these operational records.
 
 ## Remaining identity work
 
-Implement target login selection and coordination across account/profile state,
-including provider-first lookup, email-only account claims, omitted field preservation,
-concurrent settings writes and interrupted login recovery. The subsequent
+The subsequent [target login coordinator](2026-09-13-identity-login-coordination.md)
+now handles provider-first lookup, exact-email account claims, omitted field
+preservation, concurrent settings writes and interrupted recovery. Runtime
+integration remains inactive. The
 [token clearing slice](2026-09-13-identity-token-clearing.md) replaces the token
 interface with explicit generation context and adds recoverable clearing across
 media-only account changes. Provider revocation ordering/recovery is still open;

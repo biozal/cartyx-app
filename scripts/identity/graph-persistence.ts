@@ -51,6 +51,12 @@ import {
   createTargetIdentityTokens,
 } from '../../app/server/repositories/identity/target-tokens';
 import type { IdentityTokenFence } from '../../app/server/repositories/identity/types';
+import {
+  createIdentityLoginCoordinator,
+  type IdentityLoginPlan,
+} from '../../app/server/repositories/identity/target-login';
+import { loginFixture } from './login-contract';
+type LoginWitness = { keys: StateKey[]; vertices: GraphIdentity[]; plan?: IdentityLoginPlan };
 type SettingsWitness = {
   plan: IdentityImportPlan;
   keys: StateKey[];
@@ -105,6 +111,7 @@ try {
       keys: [],
       vertices: [],
     };
+    const loginWitness: LoginWitness = { keys: [], vertices: [] };
     const manifest = {
       keyspace: config.keyspace,
       endpoint: graphConfig.url,
@@ -112,6 +119,7 @@ try {
       importPlan,
       settingsWitness,
       tokenWitness,
+      loginWitness,
     };
     mkdirSync('.local/cql', { recursive: true, mode: 0o700 });
     writeFileSync(path, JSON.stringify(manifest), { mode: 0o600, flag: 'wx' });
@@ -158,7 +166,11 @@ try {
       writeFileSync(`${path}.pending`, JSON.stringify(manifest), { mode: 0o600 });
       renameSync(`${path}.pending`, path);
     };
-    const tracking = (witness: SettingsWitness) => {
+    const tracking = (witness: {
+      keys: StateKey[];
+      vertices: GraphIdentity[];
+      mediaPrefix?: string;
+    }) => {
       const track = (key: StateKey) => {
         if (!witness.keys.some((item) => JSON.stringify(item) === JSON.stringify(key)))
           witness.keys.push(key);
@@ -254,8 +266,35 @@ try {
       createIdentityAccountState(state).readAccount(observed.userId),
       /requires operation recovery/
     );
+    const trackedLogin = tracking(loginWitness);
+    const login = createIdentityLoginCoordinator(
+      trackedLogin.trackedState,
+      trackedLogin.trackedGraph
+    );
+    loginWitness.plan = await login.prepare(loginFixture());
+    save(); // Retain the canonical selected ID and complete plan before any login writes.
+    await login.begin(loginWitness.plan);
+    const interruptedLogin = createIdentityLoginCoordinator(
+      {
+        ...trackedLogin.trackedState,
+        replace: async (...args) => {
+          const result = await trackedLogin.trackedState.replace(...args);
+          if (args[0].type === 'identity_account') throw new Error('login witness interruption');
+          return result;
+        },
+      },
+      trackedLogin.trackedGraph
+    );
+    await assert.rejects(
+      interruptedLogin.resume(loginWitness.plan.operationId),
+      /login witness interruption/
+    );
+    await assert.rejects(
+      createIdentityAccountState(state).readAccount(loginWitness.plan.account.userId),
+      /requires operation recovery/
+    );
     process.stdout.write(
-      'Seeded graph publication, pending account import, preference/media allocation and token clear restart witnesses\n'
+      'Seeded graph publication, pending account import, preference/media allocation, token clear and login restart witnesses\n'
     );
   } else {
     const manifest = JSON.parse(readFileSync(path, 'utf8'));
@@ -265,6 +304,7 @@ try {
     const importPlan = manifest.importPlan as IdentityImportPlan | undefined;
     const settingsWitness = manifest.settingsWitness as SettingsWitness | undefined;
     const tokenWitness = manifest.tokenWitness as SettingsWitness | undefined;
+    const loginWitness = manifest.loginWitness as LoginWitness | undefined;
     const { userId, snapshotId } = command.snapshot;
     assert.equal((await state.get(profileHeadKey(userId)))?.revision, command.operationId);
     assert.deepEqual(await graph.get(userId, snapshotId), command.snapshot);
@@ -321,6 +361,20 @@ try {
       assert.deepEqual(account.binding, tokenWitness.plan.account.binding);
       assert.deepEqual((await profiles.read(account.userId))!.snapshot, tokenWitness.plan.snapshot);
     }
+    if (loginWitness) {
+      assert.ok(loginWitness.plan);
+      const plan = loginWitness.plan;
+      const login = createIdentityLoginCoordinator(state, graph);
+      assert.equal(await login.resume(plan.operationId), 'applied');
+      const account = await createIdentityAccountState(state).readTokens(plan.account.userId);
+      assert.equal(account?.tokenRevision, plan.account.operationId);
+      assert.deepEqual(account?.tokens, plan.account.tokens);
+      assert.deepEqual((await profiles.read(plan.account.userId))!.snapshot, plan.profile.snapshot);
+      assert.equal(
+        await createTargetIdentityReader(state, graph).findUserId(plan.account.binding.providerId),
+        plan.account.userId
+      );
+    }
     const admin = createCqlClient(readCqlConfig('schema'));
     try {
       for (const key of [
@@ -329,6 +383,7 @@ try {
         ...(importPlan ? importKeys(importPlan) : []),
         ...(settingsWitness?.keys ?? []),
         ...(tokenWitness?.keys ?? []),
+        ...(loginWitness?.keys ?? []),
       ]) {
         await admin.execute(
           `DELETE FROM ${config.keyspace}.control_state WHERE scope = ? AND resource_type = ? AND resource_id = ?`,
@@ -347,6 +402,7 @@ try {
           : []),
         ...(settingsWitness?.vertices ?? []),
         ...(tokenWitness?.vertices ?? []),
+        ...(loginWitness?.vertices ?? []),
       ]) {
         await client.execute(findIdentity(identity).hasLabel(identity.kind).drop());
         assert.deepEqual(await client.execute(findIdentity(identity).count()), [0]);
@@ -356,7 +412,7 @@ try {
     }
     unlinkSync(path);
     process.stdout.write(
-      'Verified graph publication, account import, preference/media allocation and token clear recovery; removed exact restart witnesses\n'
+      'Verified graph publication, account import, preference/media allocation, token clear and login recovery; removed exact restart witnesses\n'
     );
   }
 } finally {

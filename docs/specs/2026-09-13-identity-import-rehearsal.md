@@ -126,8 +126,10 @@ to avoid shared edge-lock contention.
 
 ## Next work
 
-Complete the target runtime write facet: provider-first/email-only account selection,
-login/profile publication coordination and revision-aware provider revocation.
+The [target login coordinator](2026-09-13-identity-login-coordination.md) now handles
+provider-first/email-only selection and recoverable account/profile writes. The
+[token facet](2026-09-13-identity-token-clearing.md) fences stored token generations.
+Complete runtime integration and provider-specific revocation recovery.
 [Preference updates and media-prefix allocation](2026-09-13-identity-settings-writes.md)
 now have inactive target implementations and recovery contracts. Then add the environment-bound private bulk
 manifest, full source/reference reconciliation and a maintenance-mode dev cutover

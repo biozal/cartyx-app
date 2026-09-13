@@ -10,14 +10,14 @@ import {
   profileDigest,
   type ImmutableProfileStore,
 } from './profile-model';
-const commandSchema = z
+export const publishProfileSchema = z
   .object({
     operationId: profileOperationId,
     expectedRevision: profileOperationId.nullable(),
     snapshot: profileSnapshotSchema,
   })
   .strict();
-export type PublishProfile = z.infer<typeof commandSchema>;
+export type PublishProfile = z.infer<typeof publishProfileSchema>;
 const base = {
   version: z.literal(1),
   operationId: profileOperationId,
@@ -25,7 +25,7 @@ const base = {
   digest: z.string().regex(/^[0-9a-f]{64}$/),
 };
 const journalSchema = z.discriminatedUnion('status', [
-  z.object({ ...base, status: z.literal('prepared'), command: commandSchema }).strict(),
+  z.object({ ...base, status: z.literal('prepared'), command: publishProfileSchema }).strict(),
   z.object({ ...base, status: z.literal('applied') }).strict(),
   z.object({ ...base, status: z.literal('rejected') }).strict(),
 ]);
@@ -98,7 +98,7 @@ export function createIdentityProfiles(state: ReservationStateStore, graph: Immu
   }
   return {
     async begin(input: PublishProfile) {
-      const command = parseProfile(commandSchema, input);
+      const command = parseProfile(publishProfileSchema, input);
       if (command.expectedRevision === command.operationId)
         throw new Error('Profile operation requires fresh revision');
       const value = {

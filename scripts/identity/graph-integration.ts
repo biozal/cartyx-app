@@ -20,6 +20,7 @@ import { identityProfileContract, profileFixture } from './profile-contract';
 import { identityImportContract } from './import-contract';
 import { identitySettingsContract } from './settings-contract';
 import { identityTokensContract } from './tokens-contract';
+import { identityLoginContract } from './login-contract';
 const config = readCqlConfig('runtime');
 const graphConfig = readGraphConfig();
 const state = createControlStateStore(config);
@@ -65,6 +66,7 @@ function trackSnapshot(snapshot: ProfileSnapshot) {
   save();
 }
 save();
+let contractsPassed = Boolean(recovery);
 try {
   if (!recovery) {
     await checkIdentityProfileSchema(graphConfig);
@@ -85,6 +87,7 @@ try {
       identityImportContract,
       identitySettingsContract,
       identityTokensContract,
+      identityLoginContract,
     ])
       await contract(
         {
@@ -155,8 +158,9 @@ try {
     );
     await assert.rejects(graph.get(corrupt.userId, corrupt.snapshotId), /digest mismatch/);
     process.stdout.write(
-      'PASS: immutable graph profiles, physical-write recovery, publication CAS/receipts, recoverable BSON account import, preference writes/media allocation, token clear fencing/recovery, delayed writers, target reads, scope/privacy, schema checksum and corruption refusal\n'
+      'PASS: immutable graph profiles, physical-write recovery, publication CAS/receipts, recoverable BSON account import, preference writes/media allocation, token clear fencing/recovery, login selection/coordination/recovery, delayed writers, target reads, scope/privacy, schema checksum and corruption refusal\n'
     );
+    contractsPassed = true;
   }
 } catch (error) {
   process.stderr.write(
@@ -182,5 +186,8 @@ try {
   await Promise.all([state.close(), admin.close()]);
   if (results.some((result) => result.status === 'rejected'))
     throw new Error(`Identity graph cleanup incomplete; retain ${manifest}`);
-  unlinkSync(manifest);
+  // Preserve the exact ledger on test failure, even if this cleanup pass succeeded.
+  // A failed concurrent test may have had other workers still submitting writes.
+  if (contractsPassed) unlinkSync(manifest);
+  else process.stderr.write('Retained exact fixture manifest for explicit cleanup after failure\n');
 }

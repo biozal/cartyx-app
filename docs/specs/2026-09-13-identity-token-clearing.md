@@ -103,7 +103,9 @@ while revocation is pending and when reauthorization is required. A database-onl
 CAS or an automatic HTTP retry is insufficient evidence. This slice deliberately
 adds no target provider HTTP caller or provider-completion receipt.
 
-Target login/profile coordination, environment-bound bulk import/reconciliation,
+The subsequent [target login coordinator](2026-09-13-identity-login-coordination.md)
+now composes account/profile writes and verifies current state before returning
+a fresh login result. Runtime integration, environment-bound bulk import/reconciliation,
 runtime Gremlin authorization, availability boundaries, campaign transaction
 replacement and the other phase-4 gates remain required before cutover.
 
