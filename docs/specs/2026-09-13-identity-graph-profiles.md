@@ -161,6 +161,7 @@ physical graph writes, repair missing edges, reject corrupt content, verify sche
 repeat/concurrency/checksum refusal and preserve the foundation schema.
 
 The target read facet and publication protocol are ready for the next integration
-slice. They do not complete identity migration or validate importing existing
-accounts. Runtime authorization, full target writes, preservation audits/import,
-recovery tooling and separate dev/prod cutovers remain open.
+slice. The [import rehearsal](2026-09-13-identity-import-rehearsal.md) now composes
+profile publication with create-only account imports and checks archived source
+projections offline. Runtime authorization, full runtime writes, environment-bound
+bulk import/reconciliation, recovery tooling and separate dev/prod cutovers remain open.

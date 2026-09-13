@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { IdentityAudit } from '../../../scripts/identity/audit';
 import { verifyArchive } from '../../../scripts/identity/archive';
+import { checkIdentityImportArchive } from '../../../scripts/identity/import-source';
 
 const { BSON } = mongoose.mongo;
 const directories: string[] = [];
@@ -81,6 +82,20 @@ async function fixture() {
 }
 
 describe('identity source audit', () => {
+  it('checks import compatibility without leaking source values or accepting corrupt archives', async () => {
+    const { directory, user } = await fixture();
+    const report = await checkIdentityImportArchive(directory);
+    expect(report).toMatchObject({
+      users: 1,
+      mapped: 0,
+      blockers: { unmapped_fields: 1 },
+      cutoverReady: false,
+    });
+    expect(JSON.stringify(report)).not.toContain('private-cipher');
+    expect(JSON.stringify(report)).not.toContain('legacy');
+    await writeFile(join(directory, 'users.bson'), Buffer.concat([user, user]));
+    await expect(checkIdentityImportArchive(directory)).rejects.toThrow('Invalid identity archive');
+  });
   it('preserves hidden/legacy field inventory without reporting field values', async () => {
     const { directory, report } = await fixture();
     expect(await verifyArchive(directory)).toEqual(report);

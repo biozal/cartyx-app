@@ -136,10 +136,11 @@ ignores application `MONGODB_URI` and accepts no server/database write target.
 The [identity repository and Mongo adapter extraction](2026-09-13-identity-repository.md)
 now covers request-time identity consumers, login/account claiming, token storage,
 preferences, media prefixes and transitional membership mirrors with contract
-tests. The [reservation preparation journal](2026-09-13-identity-reservations.md)
-adds tested identifier uniqueness and interruption recovery. Availability
-boundaries, integration of the inactive [account state/fencing protocol](2026-09-13-identity-account-state.md),
-the inactive [graph publication/read facet](2026-09-13-identity-graph-profiles.md),
-full target write integration, importer and dev rehearsal remain before cutover. Runtime Gremlin
-authorization and the remaining phase-4 gates stay open; this preflight does not
-authorize a backend cutover.
+tests. The [reservation preparation journal](2026-09-13-identity-reservations.md),
+[account state/fencing protocol](2026-09-13-identity-account-state.md),
+[graph publication/read facet](2026-09-13-identity-graph-profiles.md), and
+[create-only import rehearsal](2026-09-13-identity-import-rehearsal.md) now compose
+the supported target projection. Full runtime writes, availability separation,
+environment-bound bulk import and a maintenance-mode dev rehearsal remain before
+cutover. Runtime Gremlin authorization and the remaining phase-4 gates stay open;
+this preflight does not authorize a backend cutover.

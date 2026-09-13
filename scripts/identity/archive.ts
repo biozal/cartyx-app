@@ -46,7 +46,12 @@ async function writePrivate(path: string, data: Buffer) {
   }
 }
 
-async function inspect(path: string, collection: CollectionName, audit: IdentityAudit) {
+async function inspect(
+  path: string,
+  collection: CollectionName,
+  audit: IdentityAudit,
+  inspectUser?: (raw: Buffer) => void
+) {
   const file = await privateRead(path);
   let bytes = 0;
   let count = 0;
@@ -73,6 +78,7 @@ async function inspect(path: string, collection: CollectionName, audit: Identity
       check(raw[length - 1] === 0);
       audit.add(collection, raw); // Full BSON validation, not just a valid frame length.
       hash.update(raw);
+      if (collection === 'users') inspectUser?.(Buffer.from(raw));
       count++;
       bytes += length;
     }
@@ -83,8 +89,12 @@ async function inspect(path: string, collection: CollectionName, audit: Identity
   }
 }
 
-/** Private, read-only verification. Hashes detect corruption, not malicious replacement. */
-export async function verifyArchive(directory: string) {
+/**
+ * Private, read-only verification. Hashes detect corruption, not malicious replacement.
+ * Optional observations are provisional until this resolves: never write a target
+ * from the callback. It receives a copy of the same bytes being hashed and audited.
+ */
+export async function verifyArchive(directory: string, inspectUser?: (raw: Buffer) => void) {
   const stat = await lstat(directory);
   check(stat.isDirectory() && (stat.mode & 0o077) === 0 && stat.uid === process.getuid?.());
   const manifest = JSON.parse((await readSmall(join(directory, 'manifest.json'))).toString());
@@ -106,7 +116,7 @@ export async function verifyArchive(directory: string) {
   // Paths are fixed by this format; never resolve paths supplied in a manifest.
   const collections = [];
   for (const name of COLLECTIONS)
-    collections.push(await inspect(join(directory, `${name}.bson`), name, audit));
+    collections.push(await inspect(join(directory, `${name}.bson`), name, audit, inspectUser));
   check(isDeepStrictEqual(manifest.collections, collections));
   for (const name of ['catalog', 'audit'] as const) {
     const raw = await readSmall(join(directory, `${name}.json`));

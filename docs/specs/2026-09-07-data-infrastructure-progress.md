@@ -299,3 +299,21 @@ The additive identity-profile schema is separate from the foundation's unchanged
 interruption and repair, competing publication, delayed old writers, corrupt
 content refusal and target reads. CI now includes a cross-store publication
 restart witness. Full target writes/import and runtime authorization remain ahead.
+
+## Identity import projection and recovery — September 13
+
+PR #557 adds a [create-only account import rehearsal](2026-09-13-identity-import-rehearsal.md)
+that coordinates exact reservations, graph profile publication and Cassandra account
+creation. It preserves existing IDs, supported profile fields, encrypted tokens
+and media prefixes, verifies current state before completion, and refuses changed
+source/plans or replay that would restore older login/profile state. The application
+remains explicitly Mongo-backed.
+
+Offline checks verified the supported projections of all 8 dev and 2 production
+users from the private source snapshots with no mapping blockers. Four legacy dev
+`updatedAt` dates remain explicitly archive-owned, together with campaign mirrors,
+`__v`, missing/null distinctions and BSON types. These checks do not import source
+accounts or establish cutover readiness. Synthetic recovery contracts and a pending
+import restart witness extend the existing local/dev/CI database fixtures. Full
+runtime writes and an environment-bound bulk import/reconciliation runner remain
+ahead of a maintenance-mode dev cutover rehearsal.

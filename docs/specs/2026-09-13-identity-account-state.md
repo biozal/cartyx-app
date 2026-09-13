@@ -134,6 +134,12 @@ exercises that protocol without restarting the developer's running services.
 The inactive [graph publication/read facet](2026-09-13-identity-graph-profiles.md)
 now joins this account state to verified profile revisions. Runtime authorization,
 full target write repository wiring,
-source import (including bound accounts/tokens), availability separation, campaign
+environment-bound bulk source import, availability separation, campaign
 transaction replacement, safe reservation release and separate dev/prod cutovers
 remain ahead.
+
+The operator-only `import` command now creates an absent bound or unbound account
+from a reviewed plan, including original encrypted tokens. It uses the same account
+receipt and reservation checks and cannot update an existing account. The
+[import rehearsal](2026-09-13-identity-import-rehearsal.md) composes it with graph
+publication and tests interruption/replay without switching the application backend.

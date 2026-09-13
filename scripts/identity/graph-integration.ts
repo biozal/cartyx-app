@@ -17,6 +17,7 @@ import {
 import type { ProfileSnapshot } from '../../app/server/repositories/identity/profile-model';
 import { checkIdentityProfileSchema } from './profile-schema';
 import { identityProfileContract, profileFixture } from './profile-contract';
+import { identityImportContract } from './import-contract';
 const config = readCqlConfig('runtime');
 const graphConfig = readGraphConfig();
 const state = createControlStateStore(config);
@@ -77,26 +78,27 @@ try {
       ),
       /Graph request failed/
     );
-    await identityProfileContract(
-      {
-        get: (key) => state.get(key),
-        create: (key, revision, value) => {
-          trackKey(key);
-          return state.create(key, revision, value);
+    for (const contract of [identityProfileContract, identityImportContract])
+      await contract(
+        {
+          get: (key) => state.get(key),
+          create: (key, revision, value) => {
+            trackKey(key);
+            return state.create(key, revision, value);
+          },
+          replace: (key, expected, revision, value) => {
+            trackKey(key);
+            return state.replace(key, expected, revision, value);
+          },
         },
-        replace: (key, expected, revision, value) => {
-          trackKey(key);
-          return state.replace(key, expected, revision, value);
-        },
-      },
-      {
-        get: (...args) => graph.get(...args),
-        put: (snapshot) => {
-          trackSnapshot(snapshot);
-          return graph.put(snapshot);
-        },
-      }
-    );
+        {
+          get: (...args) => graph.get(...args),
+          put: (snapshot) => {
+            trackSnapshot(snapshot);
+            return graph.put(snapshot);
+          },
+        }
+      );
 
     const mutates = (bytecode: gremlin.process.Bytecode): boolean => {
       const visit = (item: unknown): boolean =>
@@ -146,7 +148,7 @@ try {
     );
     await assert.rejects(graph.get(corrupt.userId, corrupt.snapshotId), /digest mismatch/);
     process.stdout.write(
-      'PASS: immutable graph profiles, physical-write recovery, publication CAS/receipts, delayed writers, target reads, scope/privacy, schema checksum and corruption refusal\n'
+      'PASS: immutable graph profiles, physical-write recovery, publication CAS/receipts, recoverable BSON account import, delayed writers, target reads, scope/privacy, schema checksum and corruption refusal\n'
     );
   }
 } catch (error) {

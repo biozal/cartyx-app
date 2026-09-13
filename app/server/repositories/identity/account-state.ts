@@ -30,7 +30,20 @@ const tokens = z
   .strict();
 const binding = z.object({ provider: exact, providerId: exact }).strict();
 const common = { operationId: uuid, userId };
+/** Operator-only creation from a reviewed archive; never replaces an existing account. */
+export const accountImportCommandSchema = z
+  .object({
+    ...common,
+    kind: z.literal('import'),
+    binding: binding.nullable(),
+    email: exact.nullable(),
+    audioStoragePrefix: prefix.nullable(),
+    tokens: tokens.nullable(),
+  })
+  .strict()
+  .refine((value) => value.binding !== null || value.tokens === null);
 const commandSchema = z.discriminatedUnion('kind', [
+  accountImportCommandSchema,
   z
     .object({
       ...common,
@@ -180,7 +193,10 @@ export function createIdentityAccountState(store: ReservationStateStore) {
   return {
     async begin(input: AccountCommand): Promise<'prepared' | AccountOutcome> {
       const command = parse(commandSchema, input); // Clone before awaiting caller-controlled state.
-      if (command.kind !== 'initialize' && command.expectedRevision === command.operationId)
+      if (
+        (command.kind === 'login' || command.kind === 'logout') &&
+        command.expectedRevision === command.operationId
+      )
         throw new Error('Account operation requires a fresh revision');
       const value = {
         version: 1 as const,
@@ -207,7 +223,10 @@ export function createIdentityAccountState(store: ReservationStateStore) {
       const command = saved.value.command;
       const current = await rawAccount(command.userId);
       if (current?.revision === id) return finish(id, 'applied');
-      const expected = command.kind === 'initialize' ? null : command.expectedRevision;
+      const expected =
+        command.kind === 'initialize' || command.kind === 'import'
+          ? null
+          : command.expectedRevision;
       if ((current?.revision ?? null) !== expected) {
         // If this operation already committed and was superseded, its applied receipt
         // necessarily exists: later writers may advance only after that receipt.
@@ -219,16 +238,16 @@ export function createIdentityAccountState(store: ReservationStateStore) {
           throw new Error('Identity account requires operation recovery');
       }
       let next: Account;
-      if (command.kind === 'initialize') {
+      if (command.kind === 'initialize' || command.kind === 'import') {
         next = {
           version: 1,
           userId: command.userId,
           lastOperationId: id,
-          binding: null,
+          binding: command.kind === 'import' ? command.binding : null,
           email: command.email,
           audioStoragePrefix: command.audioStoragePrefix,
-          tokenRevision: null,
-          tokens: null,
+          tokenRevision: command.kind === 'import' && command.binding ? id : null,
+          tokens: command.kind === 'import' ? command.tokens : null,
         };
       } else {
         if (!current) return finish(id, 'rejected');

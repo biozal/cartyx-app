@@ -1,5 +1,10 @@
 // @vitest-environment node
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
+vi.unmock('mongoose');
+import { identityImportContract } from '../../../scripts/identity/import-contract';
+import { importSourceFixture } from '../../../scripts/identity/import-contract';
+import { mapIdentitySource } from '../../../scripts/identity/import-source';
+import { createIdentityImporter } from '../../../scripts/identity/import-account';
 import { randomUUID } from 'node:crypto';
 import type { StateRecord } from '~/server/db/cql/control-state';
 import type { ReservationStateStore } from '~/server/repositories/identity/reservations';
@@ -71,4 +76,35 @@ it('rejects secret fields and malformed profile revisions before persistence', a
   ])
     await expect(profiles.begin(invalid as never)).rejects.toThrow();
   expect(await profiles.read(snapshot.userId)).toBeNull();
+});
+
+it('recovers original account import across reservations, graph publication and authentication state', async () => {
+  const { state, graph } = memory();
+  await identityImportContract(state, graph);
+});
+
+it('reconciles an import completed by another worker during its initial empty-target check', async () => {
+  const { state, graph } = memory();
+  const plan = mapIdentitySource(importSourceFixture());
+  let delay = true;
+  const write = vi.fn(async () => {
+    throw new Error('Completed import must not write');
+  });
+  const observer = createIdentityImporter(
+    {
+      get: async (key) => {
+        const row = await state.get(key);
+        if (delay && key.type === 'identity_import') {
+          delay = false;
+          await createIdentityImporter(state, graph).apply(plan);
+        }
+        return row;
+      },
+      create: write,
+      replace: write,
+    },
+    graph
+  );
+  await observer.apply(plan);
+  expect(write).not.toHaveBeenCalled();
 });
