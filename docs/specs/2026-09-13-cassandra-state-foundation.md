@@ -147,3 +147,12 @@ TLS/hostname/authentication tests passed on local ARM64 Docker and Kubernetes de
 AMD64. Local checks used installed Node 24.21.0. Production schema is unchanged.
 Graph runtime authorization separation, search, field/constraint inventory, and
 per-domain operation/repository contracts remain before the first subsystem cutover.
+
+## Identity reservation preparation
+
+The first domain-specific use of conditional state is the inactive
+[identity reservation journal](2026-09-13-identity-reservations.md). It records
+immutable exact identifiers and resumable preparation intents in the existing
+state table. Real CQL contracts now include claim competition, partial conflicts
+and interrupted writes. The restart witness also includes an unfinished identity
+reservation. This remains operator/test code; no application authority switched.

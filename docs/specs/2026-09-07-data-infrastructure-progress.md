@@ -250,3 +250,20 @@ preserve session member requirements and observe revocation. No cluster or sourc
 data was changed. Mongo remains authoritative; availability separation, target
 reservations, token revision fencing, partial-operation recovery, runtime Gremlin
 authorization, import and separate dev/prod cutovers remain.
+
+## Identity uniqueness preparation — September 13
+
+The inactive [identity reservation journal](2026-09-13-identity-reservations.md)
+adds exact provider/email/audio namespace ownership and resumable preparation
+through Cassandra conditional records. Eight competing owners, concurrent resumes,
+failures before/after each write, partial conflicts and corruption refusal passed
+against local Docker and Kubernetes dev. Disposable fixture keys were cleaned up;
+Mongo identity data and production were unchanged. Typecheck, lint and focused
+unit contracts passed locally.
+
+CI now carries an unfinished reservation through its real database restart and
+resumes from the durable journal afterward. Local seed/verify exercised the helper
+without restarting the running developer stack. Claims cannot expire or transfer;
+account-level binding/fencing and safe release, token revisions, graph projection
+recovery, runtime authorization and import/cutover work remain required. The
+application bindings still select Mongo explicitly on the single draft PR #557.

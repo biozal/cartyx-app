@@ -136,7 +136,9 @@ ignores application `MONGODB_URI` and accepts no server/database write target.
 The [identity repository and Mongo adapter extraction](2026-09-13-identity-repository.md)
 now covers request-time identity consumers, login/account claiming, token storage,
 preferences, media prefixes and transitional membership mirrors with contract
-tests. Availability boundaries, target reservations/recovery, the graph/CQL
-adapter, importer and dev rehearsal are still required. Runtime Gremlin
+tests. The [reservation preparation journal](2026-09-13-identity-reservations.md)
+adds tested identifier uniqueness and interruption recovery. Availability
+boundaries, authoritative account state/fencing, graph projection recovery, the
+graph/CQL adapter, importer and dev rehearsal are still required. Runtime Gremlin
 authorization and the remaining phase-4 gates stay open; this preflight does not
 authorize a backend cutover.

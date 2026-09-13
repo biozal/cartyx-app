@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
+import { mkdirSync, writeFileSync, unlinkSync, renameSync } from 'node:fs';
 import { readCqlConfig } from '../../app/server/db/cql/config';
 import { createCqlClient } from '../../app/server/db/cql/client';
 import {
@@ -10,6 +10,7 @@ import {
 } from '../../app/server/db/cql/control-state';
 import { runCqlSchema, cqlSchemaManifest } from './schema';
 import cassandra from 'cassandra-driver';
+import { identityReservationContract } from '../identity/reservation-contract';
 
 const runtime = readCqlConfig('runtime');
 const adminConfig = readCqlConfig('schema');
@@ -30,20 +31,31 @@ const scratch = {
 const deniedTable = `denied_probe_${token}`;
 mkdirSync('.local/cql/runs', { recursive: true, mode: 0o700 });
 const manifest = `.local/cql/runs/${token}.json`;
-writeFileSync(
-  manifest,
-  JSON.stringify(
-    {
-      keyspace: runtime.keyspace,
-      keys: [key, other, differentType],
-      deniedTable,
-      scratchKeyspaces: [scratch.keyspace, scratch.schemaKeyspace],
-    },
-    null,
-    2
-  ),
-  { mode: 0o600 }
-);
+const probeKeys = [key, other, differentType];
+const writeManifest = () => {
+  writeFileSync(
+    `${manifest}.tmp`,
+    JSON.stringify(
+      {
+        keyspace: runtime.keyspace,
+        keys: probeKeys,
+        deniedTable,
+        scratchKeyspaces: [scratch.keyspace, scratch.schemaKeyspace],
+      },
+      null,
+      2
+    ),
+    { mode: 0o600 }
+  );
+  renameSync(`${manifest}.tmp`, manifest);
+};
+writeManifest();
+const track = (item: StateKey) => {
+  if (!probeKeys.some((key) => JSON.stringify(key) === JSON.stringify(item))) {
+    probeKeys.push(item);
+    writeManifest(); // Persist each exact fixture key before a possible write.
+  }
+};
 try {
   // Rehearse an interrupted installer in uniquely named, empty keyspaces.
   for (const keyspace of [scratch.keyspace, scratch.schemaKeyspace]) {
@@ -167,15 +179,26 @@ try {
     }
   }
   assert.deepEqual(await store.get(key), { revision: third, value: payload });
+  await identityReservationContract({
+    get: (key) => store.get(key),
+    create: (key, revision, value) => {
+      track(key);
+      return store.create(key, revision, value);
+    },
+    replace: (key, expected, revision, value) => {
+      track(key);
+      return store.replace(key, expected, revision, value);
+    },
+  });
   process.stdout.write(
-    'PASS: CQL schema repeat/recovery/drift, scoped records, conditional create/update, replay reconciliation, stale-write rejection, runtime permissions, TLS/authentication\n'
+    'PASS: CQL schema repeat/recovery/drift, scoped records, conditional create/update, replay reconciliation, stale-write rejection, runtime permissions, TLS/authentication, identity reservation concurrency/interruption/conflicts\n'
   );
 } finally {
   const cleanup = await Promise.allSettled([
     ...[scratch.keyspace, scratch.schemaKeyspace].map((keyspace) =>
       admin.execute(`DROP KEYSPACE IF EXISTS ${keyspace}`, [], { ddl: true })
     ),
-    ...[key, other, differentType].map((item) =>
+    ...probeKeys.map((item) =>
       admin.execute(
         `DELETE FROM ${runtime.keyspace}.control_state WHERE scope = ? AND resource_type = ? AND resource_id = ?`,
         [item.scope, item.type, item.id]
