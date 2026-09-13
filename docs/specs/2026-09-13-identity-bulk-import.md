@@ -61,7 +61,9 @@ It checks the exact target, hashes and count limits, re-verifies the full BSON
 archive/reference audit, and compares every retained plan to its corresponding
 source projection in archive order. `verifyIdentityImportSource` uses the retained
 operation/snapshot IDs during comparison; it does not generate new recovery IDs.
-Reordering, omitting or substituting a plan fails even if its file hash is updated.
+Reordering, omitting or substituting a source projection fails even if its file hash
+is updated. Operation IDs must also be unique across every retained user plan, so
+colliding global journals are refused before database access.
 
 `createIdentityBulkImporter(state, graph, target)` exposes `apply(directory)` and
 `verify(directory)`. Both reload/verify the complete package before any database

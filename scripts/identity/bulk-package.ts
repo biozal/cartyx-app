@@ -276,6 +276,12 @@ export async function loadIdentityImportPackage(
   const inputPlans: unknown = JSON.parse(planBytes.toString());
   check(Array.isArray(inputPlans) && inputPlans.length === manifest.users);
   const plans = inputPlans.map(parseIdentityImportPlan);
+  const operationIds = plans.flatMap((plan) => [
+    plan.account.operationId,
+    plan.profileOperationId,
+    plan.reservationOperationId,
+  ]);
+  check(new Set(operationIds).size === operationIds.length);
   const archive = join(directory, 'archive');
   await privateDirectory(archive);
   const archiveBytes = await readPrivate(join(archive, 'manifest.json'), 16 * 1024 * 1024);

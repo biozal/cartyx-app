@@ -122,6 +122,7 @@ it.each([
   'plan_hash',
   'changed_projection',
   'reordered_plans',
+  'duplicate_operation_id',
   'world_readable',
   'symlink_file',
   'symlink_directory',
@@ -131,9 +132,11 @@ it.each([
   const marker = join(directory, 'manifest.json');
   if (failure === 'missing_marker') await rm(marker);
   if (failure === 'plan_hash') await writeFile(join(directory, 'plans.json'), '[]');
-  if (failure === 'changed_projection' || failure === 'reordered_plans') {
+  if (['changed_projection', 'reordered_plans', 'duplicate_operation_id'].includes(failure)) {
     const plans = JSON.parse(await readFile(join(directory, 'plans.json'), 'utf8'));
     if (failure === 'changed_projection') plans[0].snapshot.content.firstName = 'substituted';
+    else if (failure === 'duplicate_operation_id')
+      plans[1].account.operationId = plans[0].account.operationId;
     else plans.reverse();
     const bytes = Buffer.from(JSON.stringify(plans));
     await writeFile(join(directory, 'plans.json'), bytes);
