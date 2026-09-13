@@ -205,3 +205,12 @@ The operator-only schema/client work is recorded in
 Gremlin contracts have been exercised in local Docker and Kubernetes dev. All
 application subsystems remain on MongoDB; runtime access separation, CQL state,
 search, and domain migration contracts are still required before cutovers.
+
+## September 13: consolidated application PR and Cassandra state
+
+Application work from #556 and #557 is consolidated in #557 against dev; #556 is
+closed. The [Cassandra state foundation](2026-09-13-cassandra-state-foundation.md)
+adds a runtime CQL client, revisioned conditional state, and an admin-only schema
+journal. Local Docker and Kubernetes dev passed the real conditional-write,
+permission, TLS, migration-resume, and drift checks. Production and all domain
+persistence remain on their previous authorities.
