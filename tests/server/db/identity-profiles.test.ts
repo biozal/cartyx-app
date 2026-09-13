@@ -1,5 +1,15 @@
 // @vitest-environment node
 import { expect, it, vi } from 'vitest';
+import {
+  identityLoginAdmissionContract,
+  admissionApplicationFixture,
+} from '../../../scripts/identity/login-admission-contract';
+import {
+  createIdentityLoginAdmission,
+  createAdmissionBoundProviderRevocations,
+  identityLoginAdmissionKey,
+  IdentityLoginAdmissionError,
+} from '~/server/repositories/identity/login-admission';
 vi.unmock('mongoose');
 import {
   identitySettingsContract,
@@ -74,6 +84,78 @@ function memory() {
   };
   return { state, graph };
 }
+it('blocks delayed OAuth admission before provider dispatch and across recovery', async () => {
+  const { state, graph } = memory();
+  await identityLoginAdmissionContract(state, graph);
+});
+it('rejects invalid admission configuration, tickets, and revocation plans before storage', async () => {
+  const touched = vi.fn(async () => {
+    throw new Error('private driver details');
+  });
+  const state = { get: touched, create: touched, replace: touched };
+  const app = admissionApplicationFixture();
+  for (const invalid of [
+    { provider: 'google', clientId: 'fixture' },
+    { provider: 'github', clientId: 'fixture', projectId: 'unexpected' },
+    { provider: 'google', clientId: 'fixture', projectId: '../project' },
+    { provider: 'unsupported', clientId: 'fixture' },
+  ])
+    expect(() => createIdentityLoginAdmission(state, invalid as never)).toThrow();
+  const admission = createIdentityLoginAdmission(state, app);
+  for (const ticket of [
+    { version: 1, application: app, revision: 'bad' },
+    { version: 1, application: { ...app, clientId: 'different' }, revision: randomUUID() },
+  ])
+    await expect(admission.assert(ticket as never)).rejects.toEqual(
+      new IdentityLoginAdmissionError()
+    );
+  const plan = {
+    version: 1 as const,
+    provider: 'google' as const,
+    clientId: app.clientId,
+    fence: { userId: 'a'.repeat(24), providerId: 'fixture', tokenRevision: randomUUID() },
+    clearOperationId: randomUUID(),
+    accessToken: loginFixture().oauthTokens.accessToken!,
+  };
+  const revocations = createAdmissionBoundProviderRevocations(state, app);
+  for (const bad of [
+    { ...plan, clientId: 'different' },
+    { ...plan, provider: 'github' },
+    { ...plan, accessToken: null },
+    {
+      ...plan,
+      fence: { ...plan.fence, providerId: '界'.repeat(1024) },
+      clientId: 'x'.repeat(1024),
+      accessToken: { ...plan.accessToken, ciphertext: Buffer.alloc(4096).toString('base64') },
+    },
+  ])
+    await expect(revocations.begin(bad as never)).rejects.toThrow();
+  await expect(
+    createAdmissionBoundProviderRevocations(state, {
+      provider: 'apple',
+      clientId: app.clientId,
+    }).begin({ ...plan, provider: 'apple' })
+  ).rejects.toEqual(new IdentityLoginAdmissionError());
+  expect(touched).not.toHaveBeenCalled();
+  await expect(admission.issue()).rejects.toEqual(new IdentityLoginAdmissionError());
+});
+it('refuses corrupt admission domain and epoch records without exposing private data', async () => {
+  const { state } = memory();
+  const app = admissionApplicationFixture();
+  const admission = createIdentityLoginAdmission(state, app);
+  await admission.initialize();
+  const ticket = await admission.issue();
+  const key = identityLoginAdmissionKey(app);
+  const saved = (await state.get(key))!;
+  await state.replace(key, saved.revision, randomUUID(), {
+    version: 1,
+    domain: { provider: 'google', id: 'wrong-private-project' },
+    status: 'open',
+  });
+  await expect(admission.assert(ticket)).rejects.toEqual(new IdentityLoginAdmissionError());
+  await expect(admission.issue()).rejects.toEqual(new IdentityLoginAdmissionError());
+  await expect(admission.block()).rejects.toEqual(new IdentityLoginAdmissionError());
+});
 it('retains provider attempt evidence and recovers local clearing without repeating HTTP', async () => {
   const { state, graph } = memory();
   await identityProviderRevocationContract(state, graph);

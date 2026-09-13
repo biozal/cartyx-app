@@ -22,6 +22,7 @@ import { identitySettingsContract } from './settings-contract';
 import { identityTokensContract } from './tokens-contract';
 import { identityProviderRevocationContract } from './provider-revocation-contract';
 import { identityLoginContract } from './login-contract';
+import { identityLoginAdmissionContract } from './login-admission-contract';
 const config = readCqlConfig('runtime');
 const graphConfig = readGraphConfig();
 const state = createControlStateStore(config);
@@ -90,6 +91,7 @@ try {
       identityTokensContract,
       identityLoginContract,
       identityProviderRevocationContract,
+      identityLoginAdmissionContract,
     ])
       await contract(
         {
@@ -160,7 +162,7 @@ try {
     );
     await assert.rejects(graph.get(corrupt.userId, corrupt.snapshotId), /digest mismatch/);
     process.stdout.write(
-      'PASS: immutable graph profiles, physical-write recovery, publication CAS/receipts, recoverable BSON account import, preference writes/media allocation, token clear fencing/recovery, login selection/coordination/recovery, provider attempt receipts/local recovery (synthetic HTTP), delayed writers, target reads, scope/privacy, schema checksum and corruption refusal\n'
+      'PASS: immutable graph profiles, physical-write recovery, publication CAS/receipts, recoverable BSON account import, preference writes/media allocation, token clear fencing/recovery, login selection/coordination/recovery, provider attempt receipts/local recovery and OAuth admission barriers (synthetic HTTP), delayed writers, target reads, scope/privacy, schema checksum and corruption refusal\n'
     );
     contractsPassed = true;
   }

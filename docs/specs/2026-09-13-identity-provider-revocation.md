@@ -147,3 +147,11 @@ attempts, environment-bound retention tooling, runtime integration, bulk import,
 Gremlin authorization and the other identity cutover gates remain open. Mongo
 continues serving every subsystem. No source accounts or production schema are
 changed by this slice.
+
+## Admission follow-up
+
+The inactive [OAuth admission barrier](2026-09-13-identity-login-admission.md) now
+retains context from before authorization, checks it around login, and closes a
+provider domain before external revocation dispatch. It has no reopen operation.
+This does not resolve uncertain provider attempts or establish safe reauthorization;
+read its limitations before composing these lower-level primitives into a runtime.

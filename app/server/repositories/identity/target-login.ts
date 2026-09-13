@@ -275,13 +275,23 @@ export function createIdentityLoginCoordinator(
     prepare,
     begin,
     resume,
-    async recordLogin(input: RecordIdentityLogin): Promise<IdentityProfile> {
-      const plan = await prepare(input);
+    async recordLogin(
+      input: RecordIdentityLogin,
+      assertAdmission?: () => Promise<void>
+    ): Promise<IdentityProfile> {
+      // Capture login input before admission introduces an asynchronous boundary.
+      const request = parseProfile(inputSchema, input);
+      // The caller retains admission from before OAuth authorization started.
+      await assertAdmission?.();
+      const plan = await prepare(request);
       try {
+        await assertAdmission?.();
         await begin(plan);
         if ((await resume(plan.operationId)) !== 'applied')
           throw new IdentityLoginError(plan.operationId, 'rejected');
-        return await currentResult(plan);
+        const result = await currentResult(plan);
+        await assertAdmission?.();
+        return result;
       } catch (error) {
         if (error instanceof IdentityLoginError) throw error;
         throw new IdentityLoginError(plan.operationId, 'uncertain');

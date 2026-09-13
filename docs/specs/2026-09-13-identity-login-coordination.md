@@ -150,3 +150,11 @@ from recorded HTTP evidence. It never replays an uncertain provider request. It
 does not gate this login coordinator: provider-specific admission must cover
 authorization/exchange requests before database preparation, and Google revocation
 can have wider scope and delayed propagation. No runtime activation is implied.
+
+## Admission follow-up
+
+The inactive [OAuth admission barrier](2026-09-13-identity-login-admission.md) now
+retains context from before authorization, checks it around login, and closes a
+provider domain before external revocation dispatch. It has no reopen operation.
+This does not resolve uncertain provider attempts or establish safe reauthorization;
+read its limitations before composing these lower-level primitives into a runtime.

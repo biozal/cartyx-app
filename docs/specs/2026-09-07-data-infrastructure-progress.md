@@ -402,3 +402,27 @@ cover response-recorded local clear recovery and an unresolved attempt that must
 remain unresolved without HTTP replay. Local Docker contracts and seed/verify
 passed; seed/verify did not restart developer services. Final dev and exact-head
 CI evidence is recorded in PR #557 and the external handoff.
+
+## OAuth admission barrier — September 13
+
+PR #557 adds an inactive [OAuth admission barrier](2026-09-13-identity-login-admission.md).
+Authorization retains its original application/epoch before redirect. Target login
+checks that context before selection, before writes and before returning a current
+result. Closure during a committed login refuses its DTO without rolling back state.
+Google clients share a project barrier; GitHub uses its application. Apple ordinary
+logout stays local-only and is refused by the external revocation facade.
+
+The external facade closes admission before retaining/dispatching a revocation plan.
+Lost closure acknowledgements stop dispatch. Explicit database recovery and historical
+HTTP/local outcomes never reopen admission, including success, failure and skip.
+This coarse domain-wide barrier is an incomplete recovery policy and remains inactive;
+provider resolution, safe reauthorization, OAuth state/PKCE and session integration
+are still gates. No lease expiry, force-completion, runtime switch or source import
+was introduced.
+
+Memory and real-store contracts cover shared projects, delayed responses, concurrent
+closure/dispatch, selection/commit races and both barrier/journal write boundaries
+before and after commit. The restart helper verifies durable admission refusal after
+a lost closure acknowledgement alongside recorded and unresolved provider attempts,
+without HTTP replay. Final local/dev and exact-head CI evidence is recorded in the
+external handoff and PR #557.

@@ -61,10 +61,20 @@ import {
   IdentityProviderRevocationError,
   type ProviderRevocationPlan,
 } from '../../app/server/repositories/identity/provider-revocation';
+import {
+  createIdentityLoginAdmission,
+  createAdmissionBoundProviderRevocations,
+  IdentityLoginAdmissionError,
+  type IdentityAdmissionApplication,
+  type IdentityAdmissionTicket,
+} from '../../app/server/repositories/identity/login-admission';
+import { admissionApplicationFixture } from './login-admission-contract';
 type RevocationWitness = {
   keys: StateKey[];
   vertices: GraphIdentity[];
   plan?: ProviderRevocationPlan;
+  application?: IdentityAdmissionApplication;
+  admissionTicket?: IdentityAdmissionTicket;
 };
 type LoginWitness = { keys: StateKey[]; vertices: GraphIdentity[]; plan?: IdentityLoginPlan };
 type SettingsWitness = {
@@ -310,6 +320,12 @@ try {
     );
     for (const [index, witness] of revocationWitnesses.entries()) {
       const tracked = tracking(witness);
+      witness.application = admissionApplicationFixture();
+      save();
+      const admission = createIdentityLoginAdmission(tracked.trackedState, witness.application);
+      await admission.initialize();
+      witness.admissionTicket = await admission.issue();
+      save();
       const login = createIdentityLoginCoordinator(tracked.trackedState, tracked.trackedGraph);
       await login.recordLogin({ ...loginFixture(), provider: 'google' });
       // The synthetic login's account key was recorded before its first mutation.
@@ -322,10 +338,28 @@ try {
           providerId: account.binding!.providerId,
           tokenRevision: account.tokenRevision!,
         },
-        'fixture.restart'
+        witness.application.clientId
       );
       save();
-      await revocations.begin(witness.plan);
+      // Commit the closure but lose its acknowledgement before the revocation journal.
+      await assert.rejects(
+        createIdentityLoginAdmission(
+          {
+            ...tracked.trackedState,
+            replace: async (...args) => {
+              await tracked.trackedState.replace(...args);
+              throw new Error('synthetic admission acknowledgement loss');
+            },
+          },
+          witness.application
+        ).block(),
+        IdentityLoginAdmissionError
+      );
+      await assert.rejects(admission.assert(witness.admissionTicket), IdentityLoginAdmissionError);
+      await createAdmissionBoundProviderRevocations(
+        tracked.trackedState,
+        witness.application
+      ).begin(witness.plan);
       if (index === 0) {
         await revocations.dispatch(witness.plan.fence, {
           ...witness.plan,
@@ -357,7 +391,7 @@ try {
       }
     }
     process.stdout.write(
-      'Seeded graph publication, pending account import, preference/media allocation, token clear, login and provider attempt/local-clear restart witnesses\n'
+      'Seeded graph publication, pending account import, preference/media allocation, token clear, login, provider attempt/local-clear and closed OAuth admission restart witnesses\n'
     );
   } else {
     const manifest = JSON.parse(readFileSync(path, 'utf8'));
@@ -442,6 +476,21 @@ try {
     for (const [index, witness] of revocationWitnesses.entries()) {
       assert.ok(witness.plan);
       const revocations = createIdentityProviderRevocations(state);
+      if (witness.application) {
+        assert.ok(witness.admissionTicket);
+        const admission = createIdentityLoginAdmission(state, witness.application);
+        assert.deepEqual(await admission.inspect(), { status: 'blocked' });
+        await assert.rejects(
+          admission.assert(witness.admissionTicket),
+          IdentityLoginAdmissionError
+        );
+        await assert.rejects(admission.issue(), IdentityLoginAdmissionError);
+        await assert.rejects(admission.initialize(), IdentityLoginAdmissionError);
+        await createAdmissionBoundProviderRevocations(state, witness.application).resume(
+          witness.plan
+        );
+        await assert.rejects(admission.issue(), IdentityLoginAdmissionError);
+      }
       const result = await revocations.resume(witness.plan.fence);
       assert.equal(result.status, index === 0 ? 'settled' : 'attempting');
       if (index === 0) {
@@ -504,7 +553,7 @@ try {
     }
     unlinkSync(path);
     process.stdout.write(
-      'Verified graph publication, account import, preference/media allocation, token clear, login and provider attempt/local-clear recovery without HTTP replay; removed exact restart witnesses\n'
+      'Verified graph publication, account import, preference/media allocation, token clear, login, provider attempt/local-clear recovery without HTTP replay and durable OAuth admission refusal; removed exact restart witnesses\n'
     );
   }
 } finally {

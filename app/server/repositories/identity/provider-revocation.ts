@@ -72,6 +72,12 @@ function receiptBase(plan: ProviderRevocationPlan) {
   return { version, fence, provider, clientId, clearOperationId, digest: digest(plan) };
 }
 
+export function parseProviderRevocationPlan(input: unknown): ProviderRevocationPlan {
+  const plan = parseProfile(planSchema, input);
+  encodeState({ ...receiptBase(plan), status: 'prepared', plan });
+  return plan;
+}
+
 /** Sanitized recovery reference; never retain a transport error, URL or token in the cause. */
 export class IdentityProviderRevocationError extends Error {
   constructor(readonly tokenRevision: string) {
@@ -157,7 +163,7 @@ export function createIdentityProviderRevocations(state: ReservationStateStore) 
         current.tokenRevision !== fence.tokenRevision
       )
         throw new Error('Identity provider revocation generation is not current');
-      const plan = parseProfile(planSchema, {
+      const plan = parseProviderRevocationPlan({
         version: 1,
         fence,
         provider: account.binding?.provider,
@@ -165,11 +171,10 @@ export function createIdentityProviderRevocations(state: ReservationStateStore) 
         accessToken: current.tokens.accessToken,
         clearOperationId: newStateRevision(),
       });
-      encodeState({ ...receiptBase(plan), status: 'prepared', plan });
       return plan;
     },
     async begin(input: ProviderRevocationPlan) {
-      const plan = parseProfile(planSchema, input);
+      const plan = parseProviderRevocationPlan(input);
       const value = { ...receiptBase(plan), status: 'prepared', plan };
       encodeState(value);
       await state.create(identityProviderRevocationKey(plan.fence), newStateRevision(), value);
