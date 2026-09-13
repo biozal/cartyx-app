@@ -214,3 +214,13 @@ adds a runtime CQL client, revisioned conditional state, and an admin-only schem
 journal. Local Docker and Kubernetes dev passed the real conditional-write,
 permission, TLS, migration-resume, and drift checks. Production and all domain
 persistence remain on their previous authorities.
+
+## Identity source preflight — September 13
+
+The ongoing application PR #557 now includes a read-only snapshot export for
+users/campaigns, private raw BSON archives, offline hash/count/audit verification,
+and identity/membership exception reporting. Dev's 8 users/3 campaigns and prod's
+2 users/0 campaigns exported and verified with zero finding categories. No source
+records or application backend modes changed. This is a source rehearsal, not an
+import or restore gate. See the [identity preflight contract and evidence](2026-09-13-identity-source-preflight.md)
+for preservation rules, limits, Docker tests and remaining repository work.
