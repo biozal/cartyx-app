@@ -87,6 +87,9 @@ choose an environment. `GREMLIN_TIMEOUT_MS` defaults to 10,000 and permits 100â€
 The production/operator password must never be mounted into application containers.
 Runtime authentication/authorization separation is a gate before any application
 consumer is connected; the existing infrastructure endpoint is administrator-only.
+The [request-isolation prerequisite](2026-09-14-gremlin-authorization-prerequisite.md)
+tracks the candidate handler fix in infrastructure PR #14 and its separate image
+promotion. Application CI still uses the currently deployed infrastructure revision.
 
 `graph:test` requires an installed schema and uses isolated, randomly generated probe
 identities. It checks repeated/concurrent apply, checksum rejection, scoped lookups,

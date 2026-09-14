@@ -500,3 +500,19 @@ Unit failure/isolation/input-mutation contracts and the disposable authenticated
 Mongo repository contract exercise this boundary; the real connection is closed to
 verify refusal after a previous success. Exact-head build, MongoDB 7/8 and unchanged
 database restart results are recorded in the handoff and PR #557.
+
+## Gremlin authorization handler prerequisite — September 14
+
+The [authorization prerequisite](2026-09-14-gremlin-authorization-prerequisite.md)
+records an upstream shared-principal race found while preparing runtime graph
+permissions. Infrastructure PR #14 backports request-local principals, removes
+request content from authorization-denial diagnostics and releases malformed HTTP
+buffers. The candidate image first reproduces the original races/disclosure, then
+verifies the patched handlers and locks the resulting server JAR checksum.
+
+All 17 infrastructure tests, the local arm64 candidate build and runtime classpath
+checks passed. Native two-architecture scans and database recovery are tracked in
+the infrastructure PR and external handoff. This application update documents the
+dependency; its CI remains pinned to the existing deployed infrastructure revision.
+The candidate has not been promoted, and there is no runtime Authorizer/account yet.
+Mongo remains active and no real source accounts were applied.
