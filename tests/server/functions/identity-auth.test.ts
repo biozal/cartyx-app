@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('~/server/repositories/identity', () => ({
+  ensureIdentityAvailable: vi.fn(),
   identityRepository: {
     findProfile: vi.fn(),
     readPreferences: vi.fn(),
@@ -16,11 +17,17 @@ vi.mock('~/server/utils/telemetry', () => ({
   serverCaptureEvent: vi.fn(),
 }));
 
-import { identityRepository } from '~/server/repositories/identity';
+import { identityRepository, ensureIdentityAvailable } from '~/server/repositories/identity';
 import { connectDB, isDBConnected } from '~/server/db/connection';
 import { getSession, clearSession } from '~/server/session';
 import { revokeToken } from '~/server/utils/oauth';
-import { getMe, getUserPreferences, setRulerColor, logoutFn } from '~/server/functions/auth';
+import {
+  getMe,
+  getUserPreferences,
+  setRulerColor,
+  logoutFn,
+  getPartyToken,
+} from '~/server/functions/auth';
 import { DEFAULT_RULER_COLOR } from '~/types/schemas/userPreferences';
 
 const session = {
@@ -36,6 +43,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(getSession).mockResolvedValue(session);
   vi.mocked(isDBConnected).mockReturnValue(true);
+  vi.mocked(ensureIdentityAvailable).mockResolvedValue(true);
 });
 
 describe('auth through the identity repository', () => {
@@ -66,6 +74,7 @@ describe('auth through the identity repository', () => {
       'Not authenticated'
     );
     expect(connectDB).not.toHaveBeenCalled();
+    expect(ensureIdentityAvailable).not.toHaveBeenCalled();
     expect(identityRepository.setRulerColor).not.toHaveBeenCalled();
   });
 
@@ -75,12 +84,38 @@ describe('auth through the identity repository', () => {
   });
 
   it('preserves preferences fallback on an unavailable database, but refuses writes', async () => {
-    vi.mocked(isDBConnected).mockReturnValue(false);
+    vi.mocked(ensureIdentityAvailable).mockResolvedValue(false);
     expect(await getUserPreferences()).toEqual({ rulerColor: DEFAULT_RULER_COLOR });
     await expect(setRulerColor({ data: { rulerColor: '#abcdef' } })).rejects.toThrow(
       'Database not available'
     );
     expect(identityRepository.readPreferences).not.toHaveBeenCalled();
+    expect(identityRepository.setRulerColor).not.toHaveBeenCalled();
+  });
+
+  it('uses identity availability independently of the remaining Mongo domain connection', async () => {
+    vi.mocked(isDBConnected).mockReturnValue(false);
+    vi.mocked(identityRepository.findProfile).mockResolvedValue({ id: 'account', role: 'gm' });
+    vi.mocked(identityRepository.readPreferences).mockResolvedValue({ rulerColor: '#123456' });
+    expect(await getMe()).toMatchObject({ role: 'gm' });
+    expect(await getUserPreferences()).toEqual({ rulerColor: '#123456' });
+    expect(await setRulerColor({ data: { rulerColor: '#abcdef' } })).toEqual({
+      rulerColor: '#abcdef',
+    });
+    expect(connectDB).not.toHaveBeenCalled();
+    expect(isDBConnected).not.toHaveBeenCalled();
+    // A session/campaign credential still needs the separate Mongo domain store.
+    expect(await getPartyToken({ data: { sessionId: 'session' } })).toBe('');
+    expect(connectDB).toHaveBeenCalledOnce();
+  });
+
+  it('preserves display fallback and write refusal when identity connection setup throws', async () => {
+    const failure = new Error('identity connection failed');
+    vi.mocked(ensureIdentityAvailable).mockRejectedValue(failure);
+    await expect(getMe()).rejects.toBe(failure);
+    expect(await getUserPreferences()).toEqual({ rulerColor: DEFAULT_RULER_COLOR });
+    await expect(setRulerColor({ data: { rulerColor: '#abcdef' } })).rejects.toBe(failure);
+    expect(identityRepository.findProfile).not.toHaveBeenCalled();
     expect(identityRepository.setRulerColor).not.toHaveBeenCalled();
   });
 

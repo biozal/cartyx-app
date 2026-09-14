@@ -39,6 +39,15 @@ it('keeps request code behind the identity repository, including dynamic imports
           /(?:^|\/)models\/User(?:\.ts)?$/.test(module.text)
         )
           violations.push(name);
+        // Identity-only orchestration must not gate itself on another store's
+        // connection. Mixed campaign/session handlers retain their domain checks.
+        if (
+          ['server/utils/oauth.ts', 'utils/require-actor.ts'].includes(name) &&
+          module &&
+          ts.isStringLiteral(module) &&
+          /(?:^|\/)db\/connection(?:\.ts)?$/.test(module.text)
+        )
+          violations.push(name);
         if (
           ts.isCallExpression(node) &&
           ts.isPropertyAccessExpression(node.expression) &&

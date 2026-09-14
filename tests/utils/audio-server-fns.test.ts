@@ -35,6 +35,7 @@ vi.mock('~/server/session', () => ({
 // for real.
 vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
+  isDBConnected: vi.fn(() => true),
 }));
 
 vi.mock('~/server/db/models/User', () => ({
@@ -52,6 +53,7 @@ vi.mock('~/server/functions/audio', () => ({
 
 import { getSession } from '~/server/session';
 import { User } from '~/server/db/models/User';
+import { isDBConnected } from '~/server/db/connection';
 import {
   createAudioUpload,
   confirmAudioUpload,
@@ -122,6 +124,14 @@ const FAKE_ASSET = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+it('stops an authenticated audio request before resolving an actor or writing domain data when identity is unavailable', async () => {
+  vi.mocked(getSession).mockResolvedValue(SESSION_USER);
+  vi.mocked(isDBConnected).mockReturnValueOnce(false);
+  await expect(listAudioAssetsFn({ data: {} })).rejects.toThrow('Database not connected');
+  expect(User.findOne).not.toHaveBeenCalled();
+  expect(listAudioAssets).not.toHaveBeenCalled();
 });
 
 describe('createAudioUploadFn', () => {

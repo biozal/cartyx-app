@@ -9,6 +9,9 @@ const updateLean = vi.fn();
 const updateSelect = vi.fn(() => ({ lean: updateLean }));
 const findOneAndUpdate = vi.fn(() => ({ select: updateSelect }));
 
+vi.mock('~/server/db/connection', () => ({ connectDB: vi.fn(), isDBConnected: vi.fn(() => true) }));
+import { isDBConnected } from '~/server/db/connection';
+
 vi.mock('~/server/db/models/User', () => ({ User: { findById, findOneAndUpdate } }));
 
 const USER = '507f1f77bcf86cd799439011';
@@ -145,4 +148,15 @@ describe('lookupAudioStoragePrefix', () => {
     const { lookupAudioStoragePrefix } = await import('~/server/functions/audio-storage');
     expect(await lookupAudioStoragePrefix(USER)).toBeNull();
   });
+});
+
+it('refuses prefix allocation and lookup while identity storage is unavailable', async () => {
+  const { resolveAudioStoragePrefix, lookupAudioStoragePrefix } =
+    await import('~/server/functions/audio-storage');
+  vi.mocked(isDBConnected).mockReturnValueOnce(false);
+  await expect(resolveAudioStoragePrefix(USER)).rejects.toThrow('Database not connected');
+  vi.mocked(isDBConnected).mockReturnValueOnce(false);
+  await expect(lookupAudioStoragePrefix(USER)).rejects.toThrow('Database not connected');
+  expect(findById).not.toHaveBeenCalled();
+  expect(findOneAndUpdate).not.toHaveBeenCalled();
 });

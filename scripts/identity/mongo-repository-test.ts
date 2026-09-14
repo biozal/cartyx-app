@@ -9,6 +9,10 @@ import {
 } from '../../app/server/repositories/identity/mongo';
 import { identityRepositoryContract } from './repository-contract';
 import { testMongoIdentityTokens } from './mongo-tokens-test';
+import {
+  createIdentityStorage,
+  IdentityStorageUnavailableError,
+} from '../../app/server/repositories/identity/availability';
 
 /** Called only with the disposable authenticated Docker fixture's URI. */
 export async function testMongoIdentityRepository(fixtureUri: string) {
@@ -32,9 +36,13 @@ export async function testMongoIdentityRepository(fixtureUri: string) {
     await users.createIndexes();
     await campaigns.createIndexes();
     const db = connection.db!;
+    const identityStorage = createIdentityStorage(
+      createMongoIdentityRepository(users),
+      async () => connection.readyState === 1
+    );
     const objectId = (value: string) => new mongoose.Types.ObjectId(value);
     await identityRepositoryContract({
-      identity: createMongoIdentityRepository(users),
+      identity: identityStorage.repository,
       access: createMongoCampaignAccessRepository(campaigns),
       async seedUser(document) {
         const result = await db.collection('users').insertOne(document);
@@ -164,6 +172,18 @@ export async function testMongoIdentityRepository(fixtureUri: string) {
     } finally {
       await transaction.endSession();
     }
+    // A prior successful operation is not a readiness lease. After the real
+    // fixture connection closes, do not buffer a model query or start a write.
+    await connection.close();
+    assert.equal(await identityStorage.ensureAvailable(), false);
+    await assert.rejects(
+      identityStorage.repository.findProfile('fixture_mirror_owner'),
+      IdentityStorageUnavailableError
+    );
+    await assert.rejects(
+      identityStorage.repository.setRulerColor('fixture_mirror_owner', '#abcdef'),
+      IdentityStorageUnavailableError
+    );
   } finally {
     await connection.close();
   }

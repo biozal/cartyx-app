@@ -217,7 +217,7 @@ try {
     !(await readdir(join(root, '.local/data/identity', failedRun[0]))).includes('manifest.json')
   );
   console.log(
-    'Identity archive and repository integration passed: login/claim/concurrency, profile privacy, preferences, membership revocation, read-only authorization, raw BSON, hidden fields, multiple cursor batches, snapshot consistency, private verification, empty collections, incomplete-export and standalone-snapshot rejection.'
+    'Identity archive and repository integration passed: availability and disconnected-operation refusal, login/claim/concurrency, profile privacy, preferences, membership revocation, read-only authorization, raw BSON, hidden fields, multiple cursor batches, snapshot consistency, private verification, empty collections, incomplete-export and standalone-snapshot rejection.'
   );
 } catch (error) {
   console.error(

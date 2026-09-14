@@ -23,6 +23,7 @@ vi.mock('~/server/session', () => ({
 
 vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
+  isDBConnected: vi.fn(() => true),
 }));
 
 vi.mock('~/server/db/models/User', () => ({

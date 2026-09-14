@@ -481,3 +481,22 @@ user before recovery, then verifies matching observations after exact-plan resum
 Validation results belong in the handoff and PR #557. Mongo and existing logout
 behavior remain active; no real-data apply, provider policy or production change
 is included.
+
+## Identity availability boundary — September 14
+
+The [runtime identity availability composition](2026-09-14-identity-availability.md)
+now checks the selected adapter before every repository operation and captures
+command values before waiting for connection setup. Failed readiness prevents
+queries/writes; adapter failures propagate without retries. OAuth, profile/preferences
+and actor orchestration no longer use domain Mongo readiness as an identity proxy.
+Mixed campaign/session handlers retain their Mongo dependency and authorization.
+
+Mongo remains explicitly selected with its existing connection/bootstrap policy.
+Display defaults, write refusal, actor IDs, provider revocation and session behavior
+remain as documented. No target credentials, backend flag or provider-policy change
+is introduced. Target health/readiness and the remaining cutover gates stay open.
+
+Unit failure/isolation/input-mutation contracts and the disposable authenticated
+Mongo repository contract exercise this boundary; the real connection is closed to
+verify refusal after a previous success. Exact-head build, MongoDB 7/8 and unchanged
+database restart results are recorded in the handoff and PR #557.

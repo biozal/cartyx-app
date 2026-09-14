@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { connectDB, isDBConnected } from '../db/connection';
-import { identityRepository } from '../repositories/identity';
+import { identityRepository, ensureIdentityAvailable } from '../repositories/identity';
 import type { IdentityProfile } from '../repositories/identity/types';
 import type { SessionUser } from '../session';
 import { providerConfigured } from './helpers';
@@ -350,8 +349,7 @@ function toSessionUser(
 }
 
 export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
-  await connectDB();
-  if (!isDBConnected()) {
+  if (!(await ensureIdentityAvailable())) {
     // With no DB connection we can neither look up nor persist the account, so
     // minting a session would log the user into an unpersisted, role-less
     // "unknown" session. Fail loudly (consistent with the catch below) so the
@@ -408,8 +406,7 @@ export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
  */
 export async function revokeToken(user: SessionUser): Promise<void> {
   try {
-    await connectDB();
-    if (!isDBConnected()) return;
+    if (!(await ensureIdentityAvailable())) return;
 
     const observed = await identityRepository.readAccessToken(user.id);
     const enc = observed?.accessToken;

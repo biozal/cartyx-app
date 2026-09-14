@@ -138,15 +138,19 @@ browser behavior before the PR is updated for review.
 ## Remaining identity work before target storage can become authoritative
 
 All currently identified request-time User model consumers now use repositories.
-Existing Mongo availability/bootstrap checks remain at callers because their
-other domain operations still depend on Mongo. Storage selection remains fixed;
-extraction alone does not make a graph switch safe.
+The [identity availability boundary](2026-09-14-identity-availability.md) now
+checks the selected identity adapter before every operation. Identity-only OAuth,
+profile/preferences and actor orchestration use this boundary. Mixed domain callers
+retain their separate Mongo checks because campaigns/sessions and other models still
+depend on Mongo. Storage selection remains fixed; extraction alone does not make a
+graph switch safe.
 
 Next work:
 
-1. Separate identity availability from remaining Mongo domain availability, and
+1. Implement readiness/health for the completed target identity composition and
    replace the Mongo transaction/mirror dependency with a recoverable contract
-   before enabling a target backend.
+   before enabling a target backend. The caller/repository availability separation
+   is in place, with Mongo still selected.
 2. Integrate the inactive [account state protocol](2026-09-13-identity-account-state.md)
    with source-account selection, import and provider revocation. It builds on the
    [reservation preparation journal](2026-09-13-identity-reservations.md), which now

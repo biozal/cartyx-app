@@ -46,7 +46,8 @@ export interface RecordIdentityLogin {
 }
 
 /**
- * Caller establishes availability and authorization; this interface is server-only.
+ * The runtime composition establishes availability; callers establish authorization.
+ * Direct operator adapters establish their own connections. This is server-only.
  * Missing optional login fields leave stored values intact. Identity strings are
  * exact values, including provider prefixes and email casing. Writes reject on
  * failure/uncertain completion; callers must not mint a session on rejection.
