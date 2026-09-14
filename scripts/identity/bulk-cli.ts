@@ -14,7 +14,7 @@ import { checkIdentityProfileSchema } from './profile-schema';
 try {
   const [mode, environment, directory, destination, ...extra] = process.argv.slice(2);
   if (
-    !['prepare', 'check', 'apply', 'verify'].includes(mode) ||
+    !['prepare', 'check', 'apply', 'verify', 'inspect'].includes(mode) ||
     !['local', 'dev', 'prod'].includes(environment) ||
     !directory ||
     extra.length ||
@@ -49,7 +49,16 @@ try {
           createGraphProfileStore(createGraphClient(graph)),
           target
         );
-        console.log(JSON.stringify(await runner[mode === 'apply' ? 'apply' : 'verify'](directory)));
+        if (mode === 'inspect') {
+          const report = await runner.inspect(directory);
+          console.log(JSON.stringify(report));
+          // A readable diagnostic report is not successful target verification.
+          if (!report.allObservedMatching) process.exitCode = 2;
+        } else {
+          console.log(
+            JSON.stringify(await runner[mode === 'apply' ? 'apply' : 'verify'](directory))
+          );
+        }
       } finally {
         await state.close();
       }

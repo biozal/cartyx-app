@@ -18,7 +18,10 @@ import {
 } from './bulk-import';
 import type { ReservationStateStore } from '../../app/server/repositories/identity/reservations';
 import type { ImmutableProfileStore } from '../../app/server/repositories/identity/profile-model';
-import { createIdentityAccountState } from '../../app/server/repositories/identity/account-state';
+import {
+  createIdentityAccountState,
+  identityAccountKey,
+} from '../../app/server/repositories/identity/account-state';
 
 export const bulkTargetFixture = (): IdentityImportTarget => ({
   environment: 'local',
@@ -106,6 +109,24 @@ export async function identityBulkImportContract(
   const root = await mkdtemp(join(tmpdir(), 'cartyx-bulk-contract-'));
   const target = bulkTargetFixture();
   const runner = createIdentityBulkImporter(state, graph, target);
+  let inspectionWrites = 0;
+  const refuseWrite = async () => {
+    inspectionWrites++;
+    throw new Error('Inspection attempted a mutation');
+  };
+  const observe = async (
+    directory: string,
+    get: ReservationStateStore['get'] = (key) => state.get(key),
+    graphGet: ImmutableProfileStore['get'] = (...args) => graph.get(...args)
+  ) => {
+    const report = await createIdentityBulkImporter(
+      { get, create: refuseWrite, replace: refuseWrite },
+      { get: graphGet, put: refuseWrite },
+      target
+    ).inspect(directory);
+    assert.equal(inspectionWrites, 0);
+    return report;
+  };
   const fixture = async () => {
     const id = randomUUID();
     const source = join(root, `${id}-source`);
@@ -117,9 +138,94 @@ export async function identityBulkImportContract(
   };
   try {
     const initial = await fixture();
+    const empty = await observe(initial.directory);
+    assert.equal(empty.batchReceipt, 'missing');
+    assert.equal(empty.matchingUsers, 0);
+    assert.equal(empty.allObservedMatching, false);
+    assert.deepEqual(
+      empty.observations.map((item) => item.receipt),
+      ['missing', 'missing']
+    );
+    assert.deepEqual(
+      empty.observations.map((item) => item.account),
+      ['different', 'different']
+    );
     await assert.rejects(runner.verify(initial.directory), IdentityBulkImportError);
     await runner.apply(initial.directory);
     await runner.verify(initial.directory);
+    const complete = await observe(initial.directory);
+    assert.deepEqual(complete, {
+      version: 1,
+      users: 2,
+      archivedCampaigns: 1,
+      batchReceipt: 'applied',
+      observations: [1, 2].map((ordinal) => ({
+        ordinal,
+        receipt: 'applied',
+        reservations: 'matching',
+        account: 'matching',
+        profile: 'matching',
+      })),
+      matchingUsers: 2,
+      allObservedMatching: true,
+      cutoverReady: false,
+    });
+    // Read overlays simulate corruption/outages without altering the retained fixture.
+    // Each field stays conservative and other users are still inspected.
+    for (const type of ['identity_bulk_import', 'identity_import'])
+      for (const failure of ['missing', 'changed', 'malformed', 'unreadable']) {
+        const report = await observe(initial.directory, async (key) => {
+          const row = await state.get(key);
+          if (key.type !== type) return row;
+          if (failure === 'missing') return null;
+          if (failure === 'unreadable') throw new Error('private driver identity and credentials');
+          return {
+            ...row!,
+            value:
+              failure === 'malformed'
+                ? { private: 'malformed receipt' }
+                : { ...(row!.value as object), digest: '0'.repeat(64) },
+          };
+        });
+        const expected =
+          failure === 'missing' ? 'missing' : failure === 'changed' ? 'conflict' : 'unverified';
+        assert.equal(
+          type === 'identity_bulk_import' ? report.batchReceipt : report.observations[0].receipt,
+          expected
+        );
+        assert.equal(report.allObservedMatching, false);
+        assert.ok(!JSON.stringify(report).includes('private'));
+      }
+    for (const [type, field] of [
+      ['identity_account', 'account'],
+      ['identity_profile_head', 'profile'],
+      ['identity_reservation', 'reservations'],
+    ] as const)
+      for (const failure of ['missing', 'malformed', 'unreadable']) {
+        const report = await observe(initial.directory, async (key) => {
+          if (key.type !== type) return state.get(key);
+          if (failure === 'missing') return null;
+          if (failure === 'unreadable') throw new Error('private target state');
+          return { revision: randomUUID(), value: { private: 'invalid state' } };
+        });
+        assert.equal(
+          report.observations[0][field],
+          failure === 'missing' ? 'different' : 'unverified'
+        );
+        assert.equal(report.allObservedMatching, false);
+        assert.equal(report.observations[1].receipt, 'applied');
+      }
+    for (const failure of ['missing', 'changed', 'unreadable']) {
+      const report = await observe(initial.directory, undefined, async (...args) => {
+        if (failure === 'missing') return null;
+        if (failure === 'unreadable') throw new Error('private Gremlin details');
+        const snapshot = await graph.get(...args);
+        return { ...snapshot!, content: { ...snapshot!.content, firstName: 'Changed' } };
+      });
+      assert.equal(report.observations[0].profile, 'unverified');
+      assert.equal(report.matchingUsers, 0);
+      assert.equal(report.allObservedMatching, false);
+    }
     // Original archive can be moved away: the package retains all original bytes.
     await rm(initial.source, { recursive: true });
     assert.deepEqual(await loadIdentityImportPackage(initial.directory, target), initial.batch);
@@ -139,6 +245,12 @@ export async function identityBulkImportContract(
     assert.equal(await accounts.resume(logout.operationId), 'applied');
     await assert.rejects(runner.apply(initial.directory), IdentityBulkImportError);
     assert.equal(await accounts.readTokens(first.userId), null);
+    const newer = await observe(initial.directory);
+    assert.equal(newer.batchReceipt, 'applied');
+    assert.equal(newer.observations[0].receipt, 'applied');
+    assert.equal(newer.observations[0].account, 'different');
+    assert.equal(newer.matchingUsers, 1);
+    assert.equal(newer.allObservedMatching, false);
 
     // Competing identical packages converge using the original retained plans.
     // Real JanusGraph contention can be uncertain; wait for all workers before resuming.
@@ -146,6 +258,30 @@ export async function identityBulkImportContract(
     await Promise.allSettled(Array.from({ length: 4 }, () => runner.apply(concurrent.directory)));
     await runner.apply(concurrent.directory);
     await runner.verify(concurrent.directory);
+    // Same encrypted values in a later generation must not conceal a read race.
+    const originalAccount = concurrent.batch.plans[0].account;
+    let accountReads = 0;
+    const race = await observe(concurrent.directory, async (key) => {
+      if (
+        JSON.stringify(key) === JSON.stringify(identityAccountKey(originalAccount.userId)) &&
+        ++accountReads === 2
+      ) {
+        const command = {
+          kind: 'login' as const,
+          userId: originalAccount.userId,
+          operationId: randomUUID(),
+          expectedRevision: originalAccount.operationId,
+          binding: originalAccount.binding!,
+          tokens: originalAccount.tokens!,
+        };
+        await accounts.begin(command);
+        assert.equal(await accounts.resume(command.operationId), 'applied');
+      }
+      return state.get(key);
+    });
+    assert.equal(race.observations[0].account, 'different');
+    assert.equal(race.allObservedMatching, false);
+    await assert.rejects(runner.verify(concurrent.directory), IdentityBulkImportError);
 
     // Failure before/after the batch anchor, between users, and at final receipt.
     // Existing per-user contracts cover all lower-level write boundaries.
@@ -189,11 +325,26 @@ export async function identityBulkImportContract(
           return true;
         });
         assert.ok(fired);
+        const interruptedReport = await observe(item.directory);
+        assert.equal(
+          interruptedReport.batchReceipt,
+          boundary === 'anchor' && !afterCommit
+            ? 'missing'
+            : boundary === 'receipt' && afterCommit
+              ? 'applied'
+              : 'prepared'
+        );
+        assert.equal(
+          interruptedReport.matchingUsers,
+          boundary === 'receipt' ? 2 : boundary === 'between_users' && afterCommit ? 1 : 0
+        );
+        assert.equal(interruptedReport.allObservedMatching, boundary === 'receipt' && afterCommit);
         if (boundary === 'anchor' || boundary === 'between_users')
           assert.equal(await accounts.readAccount(secondId), null);
         assert.deepEqual(await loadIdentityImportPackage(item.directory, target), item.batch);
         await runner.apply(item.directory);
         await runner.verify(item.directory);
+        assert.equal((await observe(item.directory)).allObservedMatching, true);
         assert.equal(
           (await accounts.readAccount(firstId))!.revision,
           item.batch.plans[0].account.operationId
@@ -209,6 +360,10 @@ export async function identityBulkImportContract(
     manifest.batchId = original.batch.manifest.batchId;
     await writeFile(manifestPath, encode(manifest));
     await assert.rejects(runner.apply(other.directory), IdentityBulkImportError);
+    const conflict = await observe(other.directory);
+    assert.equal(conflict.batchReceipt, 'conflict');
+    assert.equal(conflict.matchingUsers, 0);
+    assert.equal(conflict.allObservedMatching, false);
     assert.equal(await accounts.readAccount(other.batch.plans[0].account.userId), null);
     assert.ok(await state.get(identityBulkImportKey(original.batch.manifest.batchId)));
   } finally {

@@ -42,6 +42,15 @@ const planSchema = z
         .size === 3
   );
 export type IdentityImportPlan = z.infer<typeof planSchema>;
+export type IdentityImportReceiptObservation =
+  'missing' | 'prepared' | 'applied' | 'conflict' | 'unverified';
+export type IdentityImportValueObservation = 'matching' | 'different' | 'unverified';
+export interface IdentityImportObservation {
+  receipt: IdentityImportReceiptObservation;
+  reservations: IdentityImportValueObservation;
+  account: IdentityImportValueObservation;
+  profile: IdentityImportValueObservation;
+}
 export function parseIdentityImportPlan(input: unknown): IdentityImportPlan {
   const plan = parseProfile(planSchema, input);
   // Includes both subcommands plus receipt overhead. Reject bounds before any target write.
@@ -64,6 +73,10 @@ const receiptSchema = z
   .strict();
 const digest = (plan: IdentityImportPlan) =>
   createHash('sha256').update(JSON.stringify(plan)).digest('hex');
+const matchesReceipt = (plan: IdentityImportPlan, value: z.infer<typeof receiptSchema>) =>
+  value.userId === plan.account.userId &&
+  value.sourceSha256 === plan.sourceSha256 &&
+  value.digest === digest(plan);
 const claimsFor = ({ account }: IdentityImportPlan): IdentityReservationClaim[] => [
   ...(account.binding ? [{ kind: 'provider_id' as const, value: account.binding.providerId }] : []),
   ...(account.email ? [{ kind: 'email' as const, value: account.email }] : []),
@@ -85,37 +98,86 @@ export function createIdentityImporter(state: ReservationStateStore, graph: Immu
     const row = await state.get(identityImportKey(plan.account.userId));
     if (!row) return null;
     const value = parseProfile(receiptSchema, row.value);
-    if (
-      value.userId !== plan.account.userId ||
-      value.sourceSha256 !== plan.sourceSha256 ||
-      value.digest !== digest(plan)
-    )
-      throw new Error('Identity import source or plan changed');
+    if (!matchesReceipt(plan, value)) throw new Error('Identity import source or plan changed');
     return { revision: row.revision, value };
   }
-  async function verify(plan: IdentityImportPlan) {
-    for (const claim of claimsFor(plan)) await reservations.assertOwner(plan.account.userId, claim);
+  async function matchingReservations(plan: IdentityImportPlan) {
+    for (const claim of claimsFor(plan))
+      if ((await reservations.findOwner(claim)) !== plan.account.userId) return false;
+    return true;
+  }
+  async function matchingAccount(plan: IdentityImportPlan) {
     const account = await accounts.readAccount(plan.account.userId);
     const encrypted = await accounts.readTokens(plan.account.userId);
-    const profile = await profiles.read(plan.account.userId);
-    if (
-      !isDeepStrictEqual(account, {
+    return (
+      isDeepStrictEqual(account, {
         userId: plan.account.userId,
         revision: plan.account.operationId,
         binding: plan.account.binding,
         email: plan.account.email,
         audioStoragePrefix: plan.account.audioStoragePrefix,
         tokenRevision: plan.account.binding ? plan.account.operationId : null,
-      }) ||
-      !isDeepStrictEqual(encrypted?.tokens ?? null, plan.account.tokens) ||
-      !isDeepStrictEqual(profile, {
-        revision: plan.profileOperationId,
-        snapshot: plan.snapshot,
-      })
+      }) &&
+      isDeepStrictEqual(
+        encrypted,
+        plan.account.binding && plan.account.tokens
+          ? {
+              userId: plan.account.userId,
+              providerId: plan.account.binding.providerId,
+              revision: plan.account.operationId,
+              tokenRevision: plan.account.operationId,
+              tokens: plan.account.tokens,
+            }
+          : null
+      )
+    );
+  }
+  async function matchingProfile(plan: IdentityImportPlan) {
+    return isDeepStrictEqual(await profiles.read(plan.account.userId), {
+      revision: plan.profileOperationId,
+      snapshot: plan.snapshot,
+    });
+  }
+  async function verify(plan: IdentityImportPlan) {
+    if (
+      !(await matchingReservations(plan)) ||
+      !(await matchingAccount(plan)) ||
+      !(await matchingProfile(plan))
     )
       throw new Error('Identity import target differs from plan');
   }
   return {
+    /** Read-only observations, not recovery authorization or a consistent snapshot. */
+    async inspect(input: IdentityImportPlan): Promise<IdentityImportObservation> {
+      const plan = parseIdentityImportPlan(input);
+      let saved: IdentityImportReceiptObservation;
+      try {
+        const row = await state.get(identityImportKey(plan.account.userId));
+        if (!row) saved = 'missing';
+        else {
+          const value = parseProfile(receiptSchema, row.value);
+          saved = matchesReceipt(plan, value) ? value.status : 'conflict';
+        }
+      } catch {
+        saved = 'unverified';
+      }
+      const observe = async (
+        check: () => Promise<boolean>
+      ): Promise<IdentityImportValueObservation> => {
+        try {
+          return (await check()) ? 'matching' : 'different';
+        } catch {
+          // An unreadable, unsettled or malformed record is never reported as absent.
+          return 'unverified';
+        }
+      };
+      return {
+        receipt: saved,
+        reservations: await observe(() => matchingReservations(plan)),
+        account: await observe(() => matchingAccount(plan)),
+        profile: await observe(() => matchingProfile(plan)),
+      };
+    },
     async verify(input: IdentityImportPlan): Promise<void> {
       const plan = parseIdentityImportPlan(input);
       if ((await receipt(plan))?.value.status !== 'applied')

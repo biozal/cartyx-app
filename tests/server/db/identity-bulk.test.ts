@@ -107,14 +107,15 @@ it('refuses changed targets and damaged packages before any target access', asyn
       environment: 'prod' as const,
       cql: { ...target.cql, keyspace: 'cartyx_prod_state' as const },
     },
-  ])
-    await expect(
-      createIdentityBulkImporter(state, graph, changed).apply(directory)
-    ).rejects.toEqual(new IdentityBulkImportError(null));
+  ]) {
+    const runner = createIdentityBulkImporter(state, graph, changed);
+    for (const mode of ['apply', 'verify', 'inspect'] as const)
+      await expect(runner[mode](directory)).rejects.toEqual(new IdentityBulkImportError(null));
+  }
   await writeFile(join(directory, 'archive', 'users.bson'), Buffer.alloc(4));
-  await expect(createIdentityBulkImporter(state, graph, target).apply(directory)).rejects.toEqual(
-    new IdentityBulkImportError(null)
-  );
+  const runner = createIdentityBulkImporter(state, graph, target);
+  for (const mode of ['apply', 'verify', 'inspect'] as const)
+    await expect(runner[mode](directory)).rejects.toEqual(new IdentityBulkImportError(null));
   expect(touched).not.toHaveBeenCalled();
 });
 it.each([

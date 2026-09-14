@@ -443,6 +443,17 @@ try {
       bulkWitness.target
     );
     await assert.rejects(interruptedBulk.apply(bulkDirectory), IdentityBulkImportError);
+    const bulkInspection = await interruptedBulk.inspect(bulkDirectory);
+    assert.equal(bulkInspection.batchReceipt, 'prepared');
+    assert.deepEqual(
+      bulkInspection.observations.map((item) => item.receipt),
+      ['prepared', 'missing']
+    );
+    assert.deepEqual(
+      bulkInspection.observations.map((item) => item.account),
+      ['unverified', 'different']
+    );
+    assert.equal(bulkInspection.allObservedMatching, false);
     const pendingBulk = await loadIdentityImportPackage(bulkDirectory, bulkWitness.target);
     await assert.rejects(
       createIdentityAccountState(state).readAccount(pendingBulk.plans[0].account.userId),
@@ -589,8 +600,23 @@ try {
         renameSync(`${path}.pending`, path);
       });
       const runner = createIdentityBulkImporter(tracked.trackedState, tracked.trackedGraph, target);
+      const pending = await runner.inspect(directory);
+      assert.equal(pending.batchReceipt, 'prepared');
+      assert.deepEqual(
+        pending.observations.map((item) => item.receipt),
+        ['prepared', 'missing']
+      );
+      assert.deepEqual(
+        pending.observations.map((item) => item.account),
+        ['unverified', 'different']
+      );
+      assert.equal(pending.allObservedMatching, false);
+      process.stdout.write(
+        'Read-only bulk inspection identified the unreceipted account and untouched user after restart\n'
+      );
       await runner.apply(directory);
       await runner.verify(directory);
+      assert.equal((await runner.inspect(directory)).allObservedMatching, true);
       assert.deepEqual(await loadIdentityImportPackage(directory, target), batch);
     }
     const admin = createCqlClient(readCqlConfig('schema'));

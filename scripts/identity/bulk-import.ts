@@ -6,7 +6,11 @@ import {
   type ImmutableProfileStore,
 } from '../../app/server/repositories/identity/profile-model';
 import type { ReservationStateStore } from '../../app/server/repositories/identity/reservations';
-import { createIdentityImporter } from './import-account';
+import {
+  createIdentityImporter,
+  type IdentityImportObservation,
+  type IdentityImportReceiptObservation,
+} from './import-account';
 import {
   loadIdentityImportPackage,
   parseIdentityImportTarget,
@@ -31,6 +35,16 @@ export class IdentityBulkImportError extends Error {
     super('Identity bulk import requires private package verification or exact-plan recovery');
     this.name = 'IdentityBulkImportError';
   }
+}
+export interface IdentityBulkImportInspection {
+  version: 1;
+  users: number;
+  archivedCampaigns: number;
+  batchReceipt: IdentityImportReceiptObservation;
+  observations: (IdentityImportObservation & { ordinal: number })[];
+  matchingUsers: number;
+  allObservedMatching: boolean;
+  cutoverReady: false;
 }
 
 /**
@@ -93,5 +107,52 @@ export function createIdentityBulkImporter(
   return {
     apply: (directory: string) => run(directory, true),
     verify: (directory: string) => run(directory, false),
+    /** Never creates receipts, settles operations, restores data or calls providers. */
+    async inspect(directory: string): Promise<IdentityBulkImportInspection> {
+      let batchId: string | null = null;
+      try {
+        const batch = await loadIdentityImportPackage(directory, target);
+        batchId = batch.manifest.batchId;
+        let batchReceipt: IdentityImportReceiptObservation;
+        try {
+          const row = await state.get(identityBulkImportKey(batchId));
+          if (!row) batchReceipt = 'missing';
+          else {
+            const value = parseProfile(receiptSchema, row.value);
+            batchReceipt =
+              value.batchId === batchId && value.digest === batch.digest
+                ? value.status
+                : 'conflict';
+          }
+        } catch {
+          batchReceipt = 'unverified';
+        }
+        const observations: IdentityBulkImportInspection['observations'] = [];
+        for (const plan of batch.plans)
+          observations.push({
+            ordinal: observations.length + 1,
+            ...(await importer.inspect(plan)),
+          });
+        const matchingUsers = observations.filter(
+          (item) =>
+            item.receipt === 'applied' &&
+            item.reservations === 'matching' &&
+            item.account === 'matching' &&
+            item.profile === 'matching'
+        ).length;
+        return {
+          version: 1,
+          users: batch.manifest.users,
+          archivedCampaigns: batch.manifest.campaigns,
+          batchReceipt,
+          observations,
+          matchingUsers,
+          allObservedMatching: batchReceipt === 'applied' && matchingUsers === batch.manifest.users,
+          cutoverReady: false,
+        };
+      } catch {
+        throw new IdentityBulkImportError(batchId);
+      }
+    },
   };
 }

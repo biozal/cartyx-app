@@ -95,11 +95,62 @@ that it contains the latest live Mongo state. The existing dev archive package i
 an offline rehearsal only and must not be mistaken for a final cutover export.
 
 `IdentityBulkImportError(batchId|null)` contains only an operational recovery
-reference, never source values or driver causes. CLI output is counts only:
+reference, never source values or driver causes. Apply/check/verify CLI output is counts only:
 `users`, `archivedCampaigns` and always `cutoverReady: false`. Failed CLI commands
 report a fixed message and nonzero status, without an automatic retry. Preserve
 the private directory; do not regenerate plans or invent a replacement batch ID
 to resolve a failed apply.
+
+## Read-only recovery inspection
+
+`inspect(directory)` validates the same complete private package and target binding
+before target access. It then reads the batch receipt and every archived user's
+import receipt, exact reservations, settled account/token generation and published
+profile. It never creates or finishes a receipt, changes account/profile state,
+regenerates a plan or calls a provider. The application still uses Mongo.
+
+The version-1 report contains counts and fixed status values. Users are identified
+only by a one-based `ordinal` in the retained `plans.json`/BSON archive order. It
+does not print user/operation IDs, reservation values, hashes, encrypted tokens,
+profile content, endpoints or driver causes. Keep the original package available
+to map an ordinal privately; a report cannot replace the package or authorize
+recovery.
+
+| Field                              | Observation                                                                                                                                                                                                                   |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `batchReceipt`, per-user `receipt` | `missing`, matching `prepared`/`applied`, `conflict` for a valid receipt bound to another plan/package, or `unverified` for unreadable/malformed records                                                                      |
+| `reservations`                     | `matching` when every required exact claim belongs to the archived user; `different` for a missing/other owner; `unverified` for failed reads or malformed/colliding claims                                                   |
+| `account`                          | `matching` only for the original settled revision, binding, metadata and complete encrypted-token generation; `different` for readable missing/newer/different state; `unverified` for unsettled, corrupt or unreadable state |
+| `profile`                          | `matching` only for the exact settled publication and graph content; `different` for a readable absent/different publication; `unverified` for unsettled publication, missing/changed published graph content or failed reads |
+
+`matchingUsers` counts users whose import receipt is `applied` and all three value
+checks match. `allObservedMatching` additionally requires a matching applied batch
+receipt. Neither field is an atomic snapshot or proves cutover readiness;
+`cutoverReady` is always false. A batch receipt may conflict even when individual
+users match. Zero required reservations are vacuously matching. A missing receipt
+does not prove an empty target, and an unverified field is never treated as absent.
+Independent fields/users are still inspected when a read fails; errors are not
+retried. Package validation and CLI schema/connection setup failures remain fatal.
+
+After stopping all relevant writers, inspect before choosing the next operator action:
+
+```sh
+IDENTITY_IMPORT_MAINTENANCE=confirmed npm run identity:bulk -- inspect dev <private-package>
+```
+
+Exit status is `0` only when all observations match, `2` for a completed diagnostic
+report with any incomplete/conflicting/unverified observation, and `1` for invalid
+input/package/binding, missing maintenance attestation or setup failure. Inspect
+does not acquire a writer lock; keep writers stopped through any subsequent recovery
+and verification. The CLI verifies the existing schema without installing it.
+
+For a prepared receipt, review the original package and lower-level recovery runbooks
+before explicitly resuming that same package. Matching values with a prepared receipt
+still require receipt recovery. A conflict or newer target value requires investigation;
+never edit the package, synthesize receipts, delete reservations or restore old tokens
+to make the report match. An unverified account may be a committed write whose receipt
+was lost, corruption or a read outage; the status intentionally does not guess which.
+No retention/deletion policy or automated repair is introduced.
 
 ## Operator commands
 
@@ -140,6 +191,12 @@ fields, source-label mismatch and orphan/mismatched membership references.
 The shared real-store contract covers bound/unbound users, concurrent resumes,
 before/after-commit faults at batch creation, between users and final completion,
 changed-package takeover refusal, and preservation of newer target state.
+Inspection contracts run against the same memory/local/dev adapters, with mutations
+refused and counted. They cover empty, interrupted and completed batches, receipt
+conflicts/corruption/outages, missing reservations/heads/accounts, changed or missing
+published graph content and a concurrent login that preserves encrypted token bytes
+while advancing the generation. Verification compares complete token revisions so
+that this read race cannot pass solely on equal envelopes.
 
 The private restart witness retains a complete package before database writes,
 leaves the first account committed without its receipt and the second user absent,
@@ -149,3 +206,6 @@ each write. Verification removes only those synthetic resources and the generate
 witness package. Local seed/verify does not restart developer databases; CI performs
 the actual restart and repeats the real-store contracts afterward. Final results
 belong in PR #557 and the external handoff.
+Before recovery, read-only inspection must identify the first user's prepared receipt
+and unverified account plus the untouched second user, both before and after restart.
+After exact-plan recovery all observations must match.

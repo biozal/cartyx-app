@@ -456,3 +456,28 @@ unreceipted and the second absent, then recovers without remapping. Newly writte
 recovery resources are recorded before mutation for exact cleanup. Local seed/verify
 passed without restarting developer services; final dev and exact-head CI evidence
 is recorded in the handoff and PR #557.
+
+## Read-only bulk recovery inspection — September 13
+
+The [private bulk runner](2026-09-13-identity-bulk-import.md#read-only-recovery-inspection)
+now inspects batch and per-user receipts, reservations, settled accounts/token
+generations and graph publications before an operator chooses whether to resume.
+Reports use archive ordinals, counts and fixed statuses; no identifiers, token
+values, profile content or driver causes are printed. Missing receipts, another
+plan's receipt, newer state and unreadable/unsettled state remain distinct.
+Inspection makes no writes or provider calls, and every report keeps cutover closed.
+
+The CLI requires the existing maintenance attestation and returns exit 2 for a
+readable report that does not fully match, exit 1 for preflight/setup failure, and
+exit 0 only for matching observations. This is not a cross-store snapshot or
+permission to restore data. Exact original packages and source snapshots remain
+necessary for recovery. A token-generation read race is also refused even when
+the later login preserves the original encrypted values.
+
+Shared contracts prohibit inspection writes and exercise interrupted/completed
+imports, corruption/outages, historical receipts and concurrent token changes.
+The restart witness inspects the unreceipted first account and untouched second
+user before recovery, then verifies matching observations after exact-plan resume.
+Validation results belong in the handoff and PR #557. Mongo and existing logout
+behavior remain active; no real-data apply, provider policy or production change
+is included.
