@@ -88,8 +88,8 @@ The production/operator password must never be mounted into application containe
 Runtime authentication/authorization separation is a gate before any application
 consumer is connected; the existing infrastructure endpoint is administrator-only.
 The [request-isolation prerequisite](2026-09-14-gremlin-authorization-prerequisite.md)
-tracks the candidate handler fix in infrastructure PR #14 and its separate image
-promotion. Application CI still uses the currently deployed infrastructure revision.
+records the handler fix in infrastructure PR #14, its publication and verified dev
+rollout through PR #15. Application CI pins that promoted infrastructure revision.
 
 `graph:test` requires an installed schema and uses isolated, randomly generated probe
 identities. It checks repeated/concurrent apply, checksum rejection, scoped lookups,

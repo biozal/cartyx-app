@@ -516,3 +516,20 @@ the infrastructure PR and external handoff. This application update documents th
 dependency; its CI remains pinned to the existing deployed infrastructure revision.
 The candidate has not been promoted, and there is no runtime Authorizer/account yet.
 Mongo remains active and no real source accounts were applied.
+
+## Published authorization-handler images and dev recovery — September 14
+
+Infrastructure PRs #14 and #15 are merged. The [authorization prerequisite](2026-09-14-gremlin-authorization-prerequisite.md)
+now records publication of both tested architectures, anonymous digest/artifact
+verification, and the live dev rollout on its original retained volume. Application
+Graph foundation CI pins the merged promotion revision `e9390ea392a08fa72cc557383d87e2e48a6d2c5a`.
+
+A fresh pre-upgrade backup preceded the rollout. Dev graph/CQL identity contracts,
+TLS/authentication and live network isolation passed against the new images. A new
+off-host backup and independent-volume restore passed; exact scratch storage was
+removed and source readiness preserved. Detailed private recovery metadata and
+exact-head application CI results belong in the external handoff and PR #557.
+
+Production remains pinned to `data-v0.1.1`, and existing developer containers were
+not restarted. There is still no runtime Authorizer/application graph account,
+provider-policy change, real source import or target identity activation.

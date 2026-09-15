@@ -1,52 +1,70 @@
 # Gremlin authorization request isolation
 
-Runtime graph authorization remains a cutover gate. The current infrastructure
-endpoint authenticates only an administrator, whose credentials must not be
-mounted into application containers. Profile revisions remain immutable by the
-repository API, pending a server policy that prevents bypasses.
+The authorization-handler prerequisite is published and deployed to dev. Runtime
+application graph authorization remains a cutover gate: the server still has only
+an operator account, and administrator credentials must not be mounted into
+application containers. Profile revisions remain immutable by the repository API,
+pending a server policy that prevents bypasses.
 
-Inspection of the pinned TinkerPop 3.7.6 server found a prerequisite defect:
-its shared authorization handlers retain an authenticated user in a mutable field.
-Overlapping WebSocket connections can authorize a request with another connection's
-principal; HTTP denials can audit another connection's principal. The upstream
+The pinned TinkerPop 3.7.6 handlers retained a mutable authenticated principal in
+shared instances. Overlapping WebSocket connections could authorize with another
+connection's principal; HTTP denials could audit the wrong principal. The upstream
 [request-isolation fix](https://github.com/apache/tinkerpop/commit/eae093bbfdbaf599fff0e44cb7250bf360dba706)
-is backported in the candidate build in
-[infrastructure PR #14](https://github.com/biozal/cartyx-infrastructure/pull/14),
-at `555321c6f8d2b02f69502cf01d90ed07e95f27c7`.
+was backported in [infrastructure PR #14](https://github.com/biozal/cartyx-infrastructure/pull/14),
+merged at `6aa15cb8fab913414ac9d778c31475e68761296b`.
 
-The candidate also removes request content and Authorizer exception messages from
-authorization-denial responses/logs, and releases malformed HTTP request buffers.
-It replaces exactly two classes in the server JAR and locks the output checksum.
-Storage versions, schemas, deployed image pins and credentials are unchanged.
-The candidate also refreshes four superseded Ubuntu Python package pins to
-`3.12.3-1ubuntu0.17` so fresh Cassandra builds remain possible; wheel hashes and
-Cassandra JAR locks are unchanged.
+The build also removes request content and Authorizer exception messages from
+these handlers' denial responses/logs, releases malformed HTTP buffers, and locks
+the JAR containing exactly two modified classes. Four superseded Ubuntu Python
+pins advance to `3.12.3-1ubuntu0.17`; storage versions, schemas, credentials and
+runtime permissions are unchanged.
 
-The image build uses deterministic overlapping requests to reproduce both original
-isolation failures before exercising the patched handlers. It also checks restricted
-bytecode forwarding, anonymous identity, denied scripts/bytecode, unexpected failures,
-private-content exclusion and HTTP reference counts. These tests use the actual
-server handlers with Netty embedded channels. They are not an end-to-end runtime
-authorization policy test. The existing native image CI additionally builds/scans
-both architectures and tests TLS, authentication, persistence and fresh-volume restore.
+## Publication and dev verification
+
+[Publication run 34903874475](https://github.com/biozal/cartyx-infrastructure/actions/runs/34903874475)
+built, scanned and tested both native architectures before publishing. Every build
+reproduces the original races/disclosure, then verifies the fixed handlers with
+Netty embedded channels. Tests cover restricted bytecode forwarding, anonymous
+identity, denied scripts/bytecode, unexpected failures, content exclusion and HTTP
+reference counts. Image CI additionally verifies TLS/authentication, persistence
+and an independent-volume restore. This is not an end-to-end runtime permission
+policy test.
+
+Anonymous registry access verified both published indexes and matched their
+amd64/arm64 manifests and config identities to the tested artifacts. Both scans
+have zero unexcepted HIGH/CRITICAL findings; Cassandra retains its existing scoped
+SnakeYAML exception.
+
+[Infrastructure PR #15](https://github.com/biozal/cartyx-infrastructure/pull/15)
+promotes the verified digests in Chart and Compose. Its exact-head infrastructure
+[CI run](https://github.com/biozal/cartyx-infrastructure/actions/runs/34922497615)
+passed. Dev follows the merged revision
+`e9390ea392a08fa72cc557383d87e2e48a6d2c5a`, which is also pinned by application
+Graph foundation CI. Both database resources became healthy on the original dev
+volume after a fresh pre-upgrade backup.
+
+Live dev graph/CQL, TLS/authentication, identity recovery and network isolation
+contracts passed against the new images. A new backup passed full off-host checksum
+verification; restoring it into an independent namespace/volume passed graph,
+TLS/authentication and scoped CQL checks. Only that verified scratch namespace and
+volume were removed. The source remained healthy on its original volume, and
+synthetic test recovery manifests were cleared. Private backup keys and detailed
+results are retained in the external migration handoff, not this repository.
+
+Production remains on immutable tag `data-v0.1.1`. Running developer containers
+were not restarted. No real source accounts were imported or backend activated.
 
 ## Remaining work
 
-1. Review and publish the infrastructure candidate, verify its multi-architecture
-   digest, then promote image pins separately with the documented dev recovery
-   rehearsal. Application CI currently remains pinned to the deployed infrastructure
-   revision; a green application workflow does not demonstrate use of this candidate.
-2. Define a server-enforced application policy that permits the exact profile
-   creation/read/link operations and prevents general mutation. A client traversal
-   allowlist is insufficient. Check nested bytecode, scripts/lambdas, traversal-source
-   instructions, aliases, processors/sessions, deserialization and concurrency.
-   The stock close-request behavior is unchanged by this backport.
-3. Issue separate runtime credentials only with the completed policy. Verify actual
-   authenticated protocol requests, immutable profile recovery and denial of bypasses
-   before selecting the target composition. Application user/campaign authorization
-   remains necessary in addition to service-account permissions.
+- Promote production separately through its immutable release and recovery workflow.
+- Define a server-enforced application policy allowing the exact profile operations
+  and preventing general mutation. Check nested bytecode, scripts/lambdas, source
+  instructions, aliases, processors/sessions, deserialization and concurrency.
+  A client allowlist is insufficient; the stock close-request behavior is unchanged.
+- Issue runtime credentials only with the completed policy. Verify authenticated
+  protocol requests, immutable-profile recovery and denied bypasses before selecting
+  target storage. Application user/campaign authorization remains necessary.
 
-This prerequisite does not add an Authorizer, issue an application graph password,
-activate target storage or resolve provider logout/reauthorization policy. Mongo
-remains authoritative. Exact-head verification and promotion state belong in PR #557
-and the external migration handoff.
+The handler rollout does not resolve provider logout/reauthorization policy,
+OAuth admission/session binding or the other identity cutover gates. Mongo remains
+authoritative. PR #557 and the external handoff record exact-head application CI.
