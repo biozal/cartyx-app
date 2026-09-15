@@ -39,7 +39,23 @@
     "fixture": "tsx scripts/dev-fixtures/cli.ts",
     "srd:lint": "tsx scripts/srd/lint.ts",
     "srd:extract": "tsx scripts/srd/extract-rules.ts",
-    "srd:generate": "tsx scripts/srd/generate-srd-data.ts"
+    "srd:generate": "tsx scripts/srd/generate-srd-data.ts",
+    "db:up": "node scripts/dev-data.mjs up",
+    "db:down": "node scripts/dev-data.mjs down",
+    "db:status": "node scripts/dev-data.mjs status",
+    "db:smoke": "node scripts/dev-data.mjs smoke",
+    "db:tools": "node scripts/dev-data.mjs tools",
+    "db:chart-test": "node scripts/dev-data.mjs chart-test",
+    "graph:schema": "tsx scripts/graph/cli.ts",
+    "graph:test": "tsx scripts/graph/integration.ts",
+    "cql:schema": "tsx scripts/cql/cli.ts",
+    "cql:test": "tsx scripts/cql/integration.ts",
+    "cql:local": "node scripts/cql/local.mjs",
+    "identity:graph-schema": "tsx scripts/identity/profile-schema-cli.ts",
+    "identity:import-check": "tsx scripts/identity/import-check-cli.ts",
+    "identity:archive": "tsx scripts/identity/cli.ts",
+    "identity:test": "tsx scripts/identity/integration.ts",
+    "identity:bulk": "tsx scripts/identity/bulk-cli.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1090.0",
@@ -59,7 +75,9 @@
     "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-router": "^1.170.15",
     "@tanstack/react-start": "^1.168.25",
+    "cassandra-driver": "4.9.0",
     "dayjs": "^1.11.20",
+    "gremlin": "3.7.6",
     "jose": "^6.2.2",
     "konva": "^10.2.5",
     "lucide-react": "^1.25.0",
@@ -79,8 +97,14 @@
   "overrides": {
     "esbuild": "^0.28.1",
     "h3-v2": "npm:h3@2.0.1-rc.19",
-    "js-yaml": "4.3.0",
-    "postcss": "8.5.19"
+    "js-yaml": "4.3.2",
+    "postcss": "8.5.28",
+    "gremlin": {
+      "uuid": "11.1.1"
+    },
+    "cassandra-driver": {
+      "adm-zip": "0.6.1"
+    }
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^5.1.1",
@@ -97,6 +121,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.5.2",
+    "@types/gremlin": "3.6.7",
     "@types/node": "^25.9.5",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.0.4",

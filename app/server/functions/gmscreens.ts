@@ -2,7 +2,7 @@ import { z } from 'zod';
 import mongoose from 'mongoose';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
-import { User } from '../db/models/User';
+import { identityRepository } from '../repositories/identity';
 import { Campaign } from '../db/models/Campaign';
 import { GMScreen, GMSCREEN_LIMITS } from '../db/models/GMScreen';
 import { Note } from '../db/models/Note';
@@ -409,13 +409,13 @@ async function requireCampaignGM(
   await connectDB();
   if (!isDBConnected()) throw new Error('Database not available');
 
-  const dbUser = await User.findOne({ providerId: user.id });
+  const dbUser = await identityRepository.findProfile(user.id);
   if (!dbUser) throw new Error('User not found');
 
   const campaign = await Campaign.findById(campaignId);
   if (!campaign) throw new Error('Campaign not found');
 
-  const userId = String(dbUser._id);
+  const userId = String(dbUser.id);
   const members = campaign.members ?? [];
 
   // GM access: user is the gameMasterId OR has role 'gm' in members

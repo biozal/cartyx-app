@@ -219,6 +219,7 @@ describe('upsertUser', () => {
     // the OAuth callback relies on this throw to redirect to an error page rather
     // than logging the user in with an unpersisted "unknown" session.
     await expect(upsertUser(profile)).rejects.toThrow(dbError);
+    expect(mockFindOneAndUpdate).toHaveBeenCalledTimes(1);
   });
 
   it('rethrows when the DB is not connected (no broken session)', async () => {
@@ -240,6 +241,23 @@ describe('upsertUser', () => {
     // an unpersisted "unknown" session.
     await expect(upsertUser(profile)).rejects.toThrow(/not connected/);
     expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('refuses to mint a session when persistence returns no account', async () => {
+    mockFindOneAndUpdate.mockResolvedValue(null);
+    const { upsertUser } = await import('~/server/utils/oauth');
+    await expect(
+      upsertUser({
+        id: 'google_missing',
+        provider: 'google',
+        name: null,
+        email: null,
+        avatar: null,
+        accessToken: null,
+        refreshToken: null,
+        tokenIssuedAt: 1,
+      })
+    ).rejects.toThrow('Identity was not persisted');
   });
 
   it('persists provider tokens ENCRYPTED (not plaintext) and never returns them in the session user', async () => {
@@ -313,7 +331,7 @@ describe('revokeToken (reads from encrypted server-side store)', () => {
     mockUpdateOne.mockReset();
     mockConnectDB.mockClear();
     mockIsDBConnected.mockReturnValue(true);
-    mockUpdateOne.mockResolvedValue(undefined);
+    mockUpdateOne.mockResolvedValue({ matchedCount: 1 });
   });
 
   afterEach(() => {
@@ -339,7 +357,13 @@ describe('revokeToken (reads from encrypted server-side store)', () => {
   it('decrypts the stored Google token and calls the Google revoke endpoint, then clears tokens', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     globalThis.fetch = fetchMock;
-    mockFindOneReturning({ oauthTokens: { accessToken: await storedToken('google-access-xyz') } });
+    mockFindOneReturning({
+      _id: '1'.repeat(24),
+      oauthTokens: {
+        revision: '11111111-1111-4111-8111-111111111111',
+        accessToken: await storedToken('google-access-xyz'),
+      },
+    });
 
     const { revokeToken } = await import('~/server/utils/oauth');
     await revokeToken(sessionUser('google', 'google_123'));
@@ -351,7 +375,11 @@ describe('revokeToken (reads from encrypted server-side store)', () => {
     expect(url).toContain(encodeURIComponent('google-access-xyz'));
     // Tokens cleared after revocation.
     expect(mockUpdateOne).toHaveBeenCalledWith(
-      { providerId: 'google_123' },
+      {
+        _id: '1'.repeat(24),
+        providerId: 'google_123',
+        'oauthTokens.revision': '11111111-1111-4111-8111-111111111111',
+      },
       { $unset: { oauthTokens: '' } }
     );
   });
@@ -361,7 +389,13 @@ describe('revokeToken (reads from encrypted server-side store)', () => {
     process.env.GITHUB_CLIENT_SECRET = 'test-client-secret';
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     globalThis.fetch = fetchMock;
-    mockFindOneReturning({ oauthTokens: { accessToken: await storedToken('gh-access-abc') } });
+    mockFindOneReturning({
+      _id: '1'.repeat(24),
+      oauthTokens: {
+        revision: '11111111-1111-4111-8111-111111111111',
+        accessToken: await storedToken('gh-access-abc'),
+      },
+    });
 
     const { revokeToken } = await import('~/server/utils/oauth');
     await revokeToken(sessionUser('github', 'github_456'));
@@ -375,6 +409,43 @@ describe('revokeToken (reads from encrypted server-side store)', () => {
 
     delete process.env.GITHUB_CLIENT_ID;
     delete process.env.GITHUB_CLIENT_SECRET;
+  });
+
+  it('keeps the original generation fence after a login during provider revocation', async () => {
+    const observedRevision = '11111111-1111-4111-8111-111111111111';
+    let revision = observedRevision;
+    mockFindOneReturning({
+      _id: '1'.repeat(24),
+      oauthTokens: { revision, accessToken: await storedToken('older-access') },
+    });
+    globalThis.fetch = vi.fn(async () => {
+      revision = '22222222-2222-4222-8222-222222222222';
+      return { ok: true } as Response;
+    });
+    mockUpdateOne.mockImplementation(async (filter) => ({
+      matchedCount: filter['oauthTokens.revision'] === revision ? 1 : 0,
+    }));
+    const { revokeToken } = await import('~/server/utils/oauth');
+    await revokeToken(sessionUser('google'));
+    expect(mockUpdateOne).toHaveBeenCalledTimes(1);
+    expect(mockUpdateOne.mock.calls[0][0]['oauthTokens.revision']).toBe(observedRevision);
+    expect(mockFindOne).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not clear or retry after an uncertain provider request', async () => {
+    mockFindOneReturning({
+      _id: '1'.repeat(24),
+      oauthTokens: {
+        revision: '11111111-1111-4111-8111-111111111111',
+        accessToken: await storedToken('access'),
+      },
+    });
+    const fetchMock = vi.fn().mockRejectedValue(new Error('Synthetic network interruption'));
+    globalThis.fetch = fetchMock;
+    const { revokeToken } = await import('~/server/utils/oauth');
+    await revokeToken(sessionUser('google'));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(mockUpdateOne).not.toHaveBeenCalled();
   });
 
   it('early-returns without fetch when no token is stored', async () => {
@@ -409,7 +480,10 @@ describe('revokeToken (reads from encrypted server-side store)', () => {
     // SESSION_SECRET was rotated since the token was persisted).
     const valid = await storedToken('google-access-xyz');
     const tampered = { ...valid, ciphertext: Buffer.from('garbage-ciphertext').toString('base64') };
-    mockFindOneReturning({ oauthTokens: { accessToken: tampered } });
+    mockFindOneReturning({
+      _id: '1'.repeat(24),
+      oauthTokens: { revision: '11111111-1111-4111-8111-111111111111', accessToken: tampered },
+    });
 
     const { revokeToken } = await import('~/server/utils/oauth');
     // Logout must proceed gracefully: revokeToken must not throw to its caller.

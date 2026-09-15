@@ -1,0 +1,12 @@
+import { readGraphConfig } from '../../app/server/db/graph/config';
+import { checkSchema } from './schema';
+
+const mode = process.argv[2];
+if (mode !== 'apply' && mode !== 'verify') throw new Error('Usage: graph:schema -- apply|verify');
+try {
+  const result = await checkSchema(readGraphConfig(), mode === 'apply');
+  process.stdout.write(`Graph schema ${result.version} verified (${result.checksum})\n`);
+} catch (error) {
+  process.stderr.write(`${error instanceof Error ? error.message : 'Graph schema check failed'}\n`);
+  process.exitCode = 1;
+}

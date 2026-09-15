@@ -2,7 +2,7 @@ import { z } from 'zod';
 import mongoose from 'mongoose';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
-import { User } from '../db/models/User';
+import { identityRepository } from '../repositories/identity';
 import { Campaign } from '../db/models/Campaign';
 import { Session } from '../db/models/Session';
 import { requireCampaignMember } from '../utils/requireCampaignMember';
@@ -25,12 +25,12 @@ async function requireGM(campaignId: string) {
   await connectDB();
   if (!isDBConnected()) throw new Error('Database not available');
 
-  const dbUser = await User.findOne({ providerId: user.id });
+  const dbUser = await identityRepository.findProfile(user.id);
   if (!dbUser) throw new Error('User not found');
 
   const campaign = await Campaign.findById(campaignId);
   if (!campaign) throw new Error('Campaign not found');
-  if (String(campaign.gameMasterId) !== String(dbUser._id)) throw new Error('Forbidden');
+  if (String(campaign.gameMasterId) !== String(dbUser.id)) throw new Error('Forbidden');
 
   return { user, dbUser, campaign };
 }
@@ -131,7 +131,7 @@ export const createSession = async ({ data }: { data: z.infer<typeof createSessi
             {
               campaignId: data.campaignId,
               name: data.name,
-              gm: dbUser._id,
+              gm: dbUser.id,
               number,
               startDate: new Date(data.startDate),
               status: 'not_started',

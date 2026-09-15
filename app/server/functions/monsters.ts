@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
-import { User } from '../db/models/User';
+import { identityRepository } from '../repositories/identity';
 import { Campaign } from '../db/models/Campaign';
 import { Monster } from '../db/models/Monster';
 import { normalizeTags } from '../utils/helpers';
@@ -31,13 +31,13 @@ async function requireCampaignGM(
   await connectDB();
   if (!isDBConnected()) throw new Error('Database not available');
 
-  const dbUser = await User.findOne({ providerId: user.id });
+  const dbUser = await identityRepository.findProfile(user.id);
   if (!dbUser) throw new Error('User not found');
 
   const campaign = await Campaign.findById(campaignId);
   if (!campaign) throw new Error('Campaign not found');
 
-  const userId = String(dbUser._id);
+  const userId = String(dbUser.id);
   const members = campaign.members ?? [];
   const isGM =
     String(campaign.gameMasterId) === userId ||

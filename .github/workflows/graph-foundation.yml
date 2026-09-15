@@ -1,0 +1,91 @@
+name: Graph foundation
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  identity-archive:
+    name: Identity archive (MongoDB ${{ matrix.mongodb }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        mongodb: ['7', '8']
+    env:
+      IDENTITY_TEST_MONGO_VERSION: ${{ matrix.mongodb }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '25'
+          cache: npm
+      - run: npm ci
+      - name: Snapshot export with an authenticated read-only account
+        run: npm run identity:test
+  graph:
+    name: Graph foundation (real Cassandra and JanusGraph)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CARTYX_INFRASTRUCTURE_DIR: ${{ github.workspace }}/.local/graph-infrastructure
+      GREMLIN_URL: wss://localhost:18182/gremlin
+      GREMLIN_USERNAME: cartyx_admin
+      GREMLIN_PASSWORD_FILE: ${{ github.workspace }}/.local/graph-infrastructure/.local/data/local/gremlin-password
+      GREMLIN_CA_FILE: ${{ github.workspace }}/.local/graph-infrastructure/.local/data/local/tls.crt
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: biozal/cartyx-infrastructure
+          ref: e9390ea392a08fa72cc557383d87e2e48a6d2c5a
+          path: .local/graph-infrastructure
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '25'
+          cache: npm
+      - run: npm ci
+      - name: Start pinned TLS databases
+        run: npm run db:up
+      - name: Verify refuses a missing schema, then install explicitly
+        run: |
+          if npm run graph:schema -- verify; then
+            echo 'An empty graph must fail schema verification'
+            exit 1
+          fi
+          npm run graph:schema -- apply
+          npm run graph:test
+          if npm run identity:graph-schema -- verify; then
+            echo "An empty identity profile schema must fail verification"
+            exit 1
+          fi
+          npm run identity:graph-schema -- apply
+      - name: Cassandra schema, state, permissions, and interrupted migration
+        run: |
+          npm run cql:local -- schema apply
+          npm run cql:local -- test
+          npm run cql:local -- identity-graph-test
+          npm run cql:local -- seed-persistence
+          npm run cql:local -- identity-graph-seed
+      - name: Verify graph and state survive database restart
+        run: |
+          docker compose -p cartyx-local -f "$CARTYX_INFRASTRUCTURE_DIR/deploy/local/data.compose.yaml" stop janusgraph
+          docker compose -p cartyx-local -f "$CARTYX_INFRASTRUCTURE_DIR/deploy/local/data.compose.yaml" restart cassandra
+          docker compose -p cartyx-local -f "$CARTYX_INFRASTRUCTURE_DIR/deploy/local/data.compose.yaml" up -d --wait --wait-timeout 600 cassandra
+          docker compose -p cartyx-local -f "$CARTYX_INFRASTRUCTURE_DIR/deploy/local/data.compose.yaml" up -d --wait --wait-timeout 600 janusgraph
+          npm run graph:schema -- verify
+          npm run identity:graph-schema -- verify
+          npm run graph:test
+          npm run cql:local -- schema verify
+          npm run cql:local -- verify-persistence
+          npm run cql:local -- identity-graph-verify
+          npm run cql:local -- test
+          npm run cql:local -- identity-graph-test
+      - name: Container status
+        if: failure()
+        run: docker ps -a --format '{{.Names}} {{.Status}}'
