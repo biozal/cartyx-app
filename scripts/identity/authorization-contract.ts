@@ -108,7 +108,9 @@ export async function identityAuthorizationContract(
     }
   };
   try {
-    assert.deepEqual((await client.submit(allowed)).toArray(), ['User']);
+    assert.deepEqual((await client.submit(allowed)).toArray(), [
+      new gremlin.process.Traverser('User', 1),
+    ]);
     for (const traversal of [
       findIdentity(identity).drop(),
       findIdentity(identity).property('identityProfileFirstName', 'private-payload-marker'),
@@ -173,7 +175,9 @@ export async function identityAuthorizationContract(
       concurrent.every((result) => result.status === 'fulfilled'),
       'Concurrent principal isolation failed'
     );
-    assert.deepEqual((await client.submit(allowed)).toArray(), ['User']);
+    assert.deepEqual((await client.submit(allowed)).toArray(), [
+      new gremlin.process.Traverser('User', 1),
+    ]);
   } finally {
     void client.close().catch(() => undefined);
     agent.destroy();
