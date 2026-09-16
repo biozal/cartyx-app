@@ -23,6 +23,18 @@ assert.equal(process.env.CARTYX_JANUSGRAPH_IMAGE, 'cartyx-janusgraph:identity-po
 const run = (command, args, cwd = root, env = process.env) =>
   execFileSync(command, args, { cwd, env, stdio: 'inherit' });
 const output = (args) => execFileSync('docker', args, { encoding: 'utf8' }).trim();
+// cpSync preserves file modes but recreates directories using the process umask.
+// Scope 077 to these synchronous private copies; database secret generation must
+// retain its separate container-readable file policy.
+const copyPrivate = (source, destination, recursive = false) => {
+  const previousMask = process.umask(0o077);
+  try {
+    cpSync(source, destination, { recursive, errorOnExist: true, force: false });
+  } finally {
+    process.umask(previousMask);
+  }
+};
+
 const composeFile = resolve(infra, 'deploy/local/data.compose.yaml');
 const compose = ['compose', '-p', 'cartyx-local', '-f', composeFile];
 assert.equal(output([...compose, 'ps', '-aq']), '', 'Refuse an existing source stack');
@@ -114,12 +126,8 @@ try {
   const packageDirectory = resolve(root, witness.bulkWitness.directory);
   const retained = resolve(root, '.local/identity-policy-retained');
   mkdirSync(retained, { mode: 0o700 });
-  cpSync(witnessPath, resolve(retained, 'witness.json'), { errorOnExist: true, force: false });
-  cpSync(packageDirectory, resolve(retained, 'bulk'), {
-    recursive: true,
-    errorOnExist: true,
-    force: false,
-  });
+  copyPrivate(witnessPath, resolve(retained, 'witness.json'));
+  copyPrivate(packageDirectory, resolve(retained, 'bulk'), true);
   run(process.execPath, ['deploy/data/smoke.mjs', 'seed'], infra, operatorEnv);
   run(process.execPath, ['deploy/data/backup.mjs', 'local-backup'], infra, operatorEnv);
   fixture('identity-graph-verify'); // Exact source cleanup before changing routes.
@@ -154,12 +162,8 @@ try {
   assert.ok(override.includes('127.0.0.1:18183:8182'));
   writeFileSync(restoreOverride, override.replace('127.0.0.1:18183:8182', '127.0.0.1:18182:8182'));
   docker([...restoreCompose, 'up', '-d', '--wait', '--wait-timeout', '600', 'janusgraph']);
-  cpSync(resolve(retained, 'witness.json'), witnessPath, { errorOnExist: true, force: false });
-  cpSync(resolve(retained, 'bulk'), packageDirectory, {
-    recursive: true,
-    errorOnExist: true,
-    force: false,
-  });
+  copyPrivate(resolve(retained, 'witness.json'), witnessPath);
+  copyPrivate(resolve(retained, 'bulk'), packageDirectory, true);
   const restoreEnv = { ...restrictedEnv, IDENTITY_GRAPH_FIXTURE_PROJECT: 'cartyx-restore' };
   fixture('identity-graph-verify', restoreEnv);
   fixture('identity-graph-test', restoreEnv);
