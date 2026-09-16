@@ -404,7 +404,7 @@ export function entityStoreContract(makeStore: () => Promise<EntityStore>) {
 }
 ```
 
-- [ ] **Step 2:** Wire the memory run (`entity-store.memory.test.ts` calls the contract with `createMemoryEntityStore`) and the real run (`scripts/graph/entity-store-integration.ts` runs the same contract through Vitest's `describe` in a node-environment project `graph-contracts`, added to `vitest.workspace` and to the Graph foundation workflow after `graph:schema -- apply`). Run `npx vitest run tests/server/db/entity-store.memory.test.ts`. Expected: FAIL (modules missing).
+- [ ] **Step 2:** Wire the memory run (`entity-store.memory.test.ts` calls the contract with `createMemoryEntityStore`) and the real run (`scripts/graph/entity-store-integration.ts` runs the same contract through Vitest's `describe` in a node-environment project `graph-contracts`, added to `test.projects` in `vitest.config.ts` (excluded from `npm test`, which runs `--project unit`) and to the Graph foundation workflow after `graph:schema -- apply`). Run `npx vitest run tests/server/db/entity-store.memory.test.ts`. Expected: FAIL (modules missing).
 - [ ] **Step 3:** Implement the codec, memory store and graph store:
   - **Writes:** a single traversal per operation. Update uses `V().has(identity…).has('revision', expected).property(single,'revision',expected+1).property(single,'doc',…)…`, and an empty result means stale or missing (a follow-up `get` decides which).
   - **Reads:** `elementMap()` → `JSON.parse(doc)` → `codec.upgrade` if `docVersion` < `version` → `schema.parse`.
