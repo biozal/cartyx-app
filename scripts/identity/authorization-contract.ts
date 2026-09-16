@@ -29,8 +29,17 @@ type Socket = EventEmitter & { send(data: Buffer | string): void; terminate(): v
 const require = createRequire(import.meta.url);
 const WebSocket = require('ws') as new (url: string, options: Record<string, unknown>) => Socket;
 
+// TinkerPop represents decode failure as a request with no ID. Authenticate
+// first: otherwise SimpleAuthenticator challenges even that invalid request.
 async function rejectedFrame(config: GraphConnectionConfig, body: Buffer | string) {
   const socket = new WebSocket(config.url, { ca: config.ca, rejectUnauthorized: true });
+  const mime = 'application/vnd.gremlin-v3.0+json';
+  const send = (request: Record<string, unknown>) =>
+    socket.send(
+      Buffer.concat([Buffer.from([mime.length]), Buffer.from(mime), writer.writeRequest(request)])
+    );
+  const requestId = randomUUID();
+  let phase: 'challenge' | 'authenticated' | 'attack' = 'challenge';
   try {
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('Decoder rejection timed out')), 5000);
@@ -38,17 +47,54 @@ async function rejectedFrame(config: GraphConnectionConfig, body: Buffer | strin
         clearTimeout(timer);
         error ? reject(error) : resolve();
       };
-      socket.once('open', () => socket.send(body));
+      socket.once('open', () =>
+        send({
+          requestId,
+          op: 'bytecode',
+          processor: 'traversal',
+          args: {
+            gremlin: findIdentity(profileUserIdentity('0'.repeat(24)))
+              .limit(2)
+              .label()
+              .getBytecode(),
+            aliases: { g: 'g' },
+          },
+        })
+      );
       socket.once('error', () => finish(new Error('Unexpected TLS/WebSocket transport failure')));
-      socket.once('close', () => finish());
-      socket.once('message', (data: Buffer) => {
+      socket.once('close', () =>
+        finish(phase === 'attack' ? undefined : new Error('Closed before authenticated probe'))
+      );
+      socket.on('message', (data: Buffer) => {
         try {
           const response = JSON.parse(data.toString());
-          assert.equal(response.status.code, 498, 'Decoder must reject before authentication');
-          assert.ok(!JSON.stringify(response).includes('private-payload-marker'));
-          finish();
+          if (phase === 'challenge') {
+            assert.equal(response.status.code, 407);
+            phase = 'authenticated';
+            send({
+              requestId,
+              op: 'authentication',
+              processor: '',
+              args: {
+                sasl: Buffer.from(`\0${config.username}\0${config.password}`).toString('base64'),
+              },
+            });
+          } else if (phase === 'authenticated') {
+            assert.ok([200, 204].includes(response.status.code));
+            phase = 'attack';
+            socket.send(body);
+          } else {
+            assert.ok([401, 498].includes(response.status.code), 'Malformed input must be refused');
+            assert.equal(
+              response.requestId,
+              null,
+              'Decoder must discard malformed request identity'
+            );
+            assert.ok(!JSON.stringify(response).includes('private-payload-marker'));
+            finish();
+          }
         } catch {
-          finish(new Error('Unexpected decoder rejection response'));
+          finish(new Error(`Unexpected decoder rejection response during ${phase}`));
         }
       });
     });
@@ -274,6 +320,6 @@ export async function identityAuthorizationContract(
     [1]
   );
   console.log(
-    'PASS: real JanusGraph identity TLS/SASL, explicit envelope/traversal denials, guarded decoding/MIME/HTTP, immutable content and concurrent operator/service isolation'
+    'PASS: identity TLS/SASL, explicit envelope/traversal denials, guarded decoding/MIME/HTTP, immutable content and concurrent operator/service isolation'
   );
 }
