@@ -54,13 +54,41 @@ results are retained in the external migration handoff, not this repository.
 Production remains on immutable tag `data-v0.1.1`. Running developer containers
 were not restarted. No real source accounts were imported or backend activated.
 
+## Constrained identity policy candidate — September 16
+
+[Infrastructure PR #16](https://github.com/biozal/cartyx-infrastructure/pull/16)
+packages an inactive policy candidate at `a78ec204ff01fd70157a040e02969d5d8bf54e24`.
+It allows the identity service's six exact immutable profile traversal forms,
+checks the complete request envelope and prevents fallback to an unconfigured
+binary serializer. Its guarded GraphSON decoder rejects active/unknown typed
+values before typed deserialization. Runtime scripts, direct mutation/deletion,
+source instructions, mismatched ownership, aliases, processors and sessions fail
+closed. The administrator remains an operator principal.
+
+The Java 11 candidate passed 1,315 checks using all 126 checksum-matched runtime
+libraries. Tests use real SASL/WebSocket requests against a temporary TinkerGraph
+server, including concurrent operator/runtime connections, failure privacy and
+unchanged graph contents after denials and revision retries. These tests do not
+replace the real JanusGraph/CQL runtime integration and recovery gates.
+
+`scripts/identity/export-profile-authorization.ts` captures synthetic requests from
+the actual profile repository with the installed JavaScript GraphSON writer. The
+new CI contract job compares them with the immutable infrastructure fixture. Its
+policy checkout pin is separate from the deployed image/integration checkout pin;
+this does not change application runtime, deployed images or graph credentials.
+
+Native candidate image CI, review/publication, authenticated application tests
+against real JanusGraph, configured-policy backup/restore rehearsal and runtime
+secret provisioning remain required before activation. The service principal would
+span users; application user/campaign authorization remains necessary. The policy
+checks the digest format, while the repository verifies its content correspondence.
+
 ## Remaining work
 
 - Promote production separately through its immutable release and recovery workflow.
-- Define a server-enforced application policy allowing the exact profile operations
-  and preventing general mutation. Check nested bytecode, scripts/lambdas, source
-  instructions, aliases, processors/sessions, deserialization and concurrency.
-  A client allowlist is insufficient; the stock close-request behavior is unchanged.
+- Complete candidate verification/publication and configure the server-enforced
+  policy only with real JanusGraph application, TLS and recovery evidence. The
+  candidate channelizer gates close and session requests before the stock switch.
 - Issue runtime credentials only with the completed policy. Verify authenticated
   protocol requests, immutable-profile recovery and denied bypasses before selecting
   target storage. Application user/campaign authorization remains necessary.

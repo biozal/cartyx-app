@@ -27,6 +27,26 @@ jobs:
       - run: npm ci
       - name: Snapshot export with an authenticated read-only account
         run: npm run identity:test
+  identity-authorization-contract:
+    name: Identity graph authorization contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: biozal/cartyx-infrastructure
+          # Policy candidate only; deployed database image pin below remains separate.
+          ref: a78ec204ff01fd70157a040e02969d5d8bf54e24
+          path: .local/identity-authorization-policy
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '25'
+          cache: npm
+      - run: npm ci
+      - name: Actual client requests must match the server policy fixture
+        run: npx tsx scripts/identity/export-profile-authorization.ts .local/identity-authorization-policy/deploy/images/janusgraph/authorization/profile-requests.json --check
   graph:
     name: Graph foundation (real Cassandra and JanusGraph)
     runs-on: ubuntu-latest
