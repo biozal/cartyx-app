@@ -548,7 +548,9 @@ evidence:
 - The complete restricted-principal identity suite on live dev.
 - A new backup and independent-volume restore that passed the same suite.
 
-Application Graph foundation CI now pins `ce0276059bb9112c67836049b2e53a5617003ceb`.
+Application Graph foundation CI now pins `7f7cfdfe3bf3a5d6279b3f3994942837322f2a4b`. That revision adds the pre-authentication
+hardening from the adversarial review (infrastructure PRs #18/#19), which is also verified live
+in dev and on an independent restore.
 No application deployment holds graph credentials. Mongo remains authoritative, and
 production stays on `data-v0.1.1`. No real source import or provider-policy change
 occurred. Detailed private recovery metadata remains in the external handoff.

@@ -136,11 +136,69 @@ wire-denial contracts therefore used a per-connection SSH local tunnel to the
 data Service ClusterIPs on the node. The infrastructure restore check runs its
 GraphBinary rejection last for the same reason.
 
-Application Graph foundation CI now pins `ce02760` for the fixture comparison,
+Application Graph foundation CI now pins `7f7cfdf` (originally `ce02760`) for the fixture comparison,
 the standard graph job and the configured-policy recovery job. The recovery job
 uses the published digests without an image override. It only adds its
 fixture-only denied principal after asserting the pinned configuration already
 selects the policy.
+
+## Adversarial review and pre-authentication hardening — September 16
+
+A production-readiness review probed live dev beyond the existing contracts.
+It found three upstream Gremlin Server behaviors that an unauthenticated
+client could exploit:
+
+- **Unbounded inflation.** Compression (permessage-deflate) had no inflation
+  bound. A compressed frame of a few KB was inflated to 8 MB and decoded
+  before login, even though the frame limit is 64 KiB. The heap is 1 GiB and
+  the JVM exits on out-of-memory.
+- **Unbounded pending requests.** Requests sent before login were retained
+  without limit: 50 × 60 KB requests were held silently. A failed login never
+  closed the connection.
+- **No idle timeout.** The idle-connection timeout was disabled.
+
+Infrastructure [PR #18](https://github.com/biozal/cartyx-infrastructure/pull/18)
+(`124c6a9`) bounds all three:
+
+- Compression is never negotiated.
+- Compressed (RSV-flagged), fragmented and continuation frames are closed.
+- A connection closes after more than 8 requests or 4 login attempts before
+  it authenticates, or if it has not authenticated within 15 seconds.
+- Startup requires an idle timeout; 60 seconds is deployed.
+
+The policy harness grew to 1,353 assertions, and every new live test was
+mutation-checked. [PR #19](https://github.com/biozal/cartyx-infrastructure/pull/19)
+(`7f7cfdf`) pins the published digests: Cassandra `sha256:69b88208…`, JanusGraph
+`sha256:1ecf29b8…`. Both were verified anonymously for amd64/arm64. PR #19 also
+adds a live `security.mjs` check that compression is never negotiated.
+
+Dev upgraded on its original volume after a verified pre-upgrade backup.
+Re-running the attacks live showed:
+
+| Attack                               | Result                          |
+| ------------------------------------ | ------------------------------- |
+| Compression offered by the client    | Not negotiated                  |
+| Forced compressed frame              | Closed in 94 ms                 |
+| 50 × 60 KB flood before login        | Closed in 96 ms                 |
+| Ten wrong passwords                  | Closed after four 401 responses |
+| Silent connection that never logs in | Closed at 15 s                  |
+| Logged-in connection left idle       | Closed at 60 s                  |
+
+The infrastructure checks and the complete restricted application suite passed
+on live dev and again on a fresh independent restore of a post-upgrade backup.
+The restore took 71 seconds and the scratch storage was removed afterward. Other
+review results:
+
+- **Password hashing.** bcrypt cost 4 is acceptable for 64-hex random
+  credentials.
+- **Logs.** Server logs contained no probe content.
+- **Latency.** Allowed reads measured p50 52 ms sequentially through an SSH
+  tunnel, 231 ms at 20 concurrent and 444 ms at 50 concurrent, with no
+  failures. Every repository operation opens a new TLS/SASL connection, so
+  application activation should measure in-cluster latency and consider
+  connection reuse.
+- **Existing alert.** The only open dependency alert is the documented,
+  time-limited Cassandra SnakeYAML exception.
 
 ## Remaining work
 

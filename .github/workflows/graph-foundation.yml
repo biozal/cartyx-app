@@ -36,8 +36,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: biozal/cartyx-infrastructure
-          # Published, dev-deployed identity policy (infrastructure PR #17).
-          ref: ce0276059bb9112c67836049b2e53a5617003ceb
+          # Published, dev-deployed identity policy (infrastructure PRs #17-#19).
+          ref: 7f7cfdfe3bf3a5d6279b3f3994942837322f2a4b
           path: .local/identity-authorization-policy
           persist-credentials: false
       - uses: actions/setup-node@v7
@@ -59,7 +59,7 @@ jobs:
         with:
           repository: biozal/cartyx-infrastructure
           # Published digest pins and the complete configured policy, as deployed to dev.
-          ref: ce0276059bb9112c67836049b2e53a5617003ceb
+          ref: 7f7cfdfe3bf3a5d6279b3f3994942837322f2a4b
           path: .local/identity-runtime-infrastructure
           persist-credentials: false
       - uses: actions/setup-node@v7
@@ -89,7 +89,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: biozal/cartyx-infrastructure
-          ref: ce0276059bb9112c67836049b2e53a5617003ceb
+          ref: 7f7cfdfe3bf3a5d6279b3f3994942837322f2a4b
           path: .local/graph-infrastructure
           persist-credentials: false
       - uses: actions/setup-node@v7
