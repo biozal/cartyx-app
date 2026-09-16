@@ -533,3 +533,22 @@ exact-head application CI results belong in the external handoff and PR #557.
 Production remains pinned to `data-v0.1.1`, and existing developer containers were
 not restarted. There is still no runtime Authorizer/application graph account,
 provider-policy change, real source import or target identity activation.
+
+## Identity graph policy published and active in dev — September 16
+
+Infrastructure PR #16 (the constrained identity policy) was reviewed, merged and
+published after native two-architecture verification. PR #17 pins those digests
+and configures the complete policy with a separate `cartyx_identity` credential.
+Dev reconciled it on its original volume after the new Secret key was added and a
+fresh off-host backup was verified. See the
+[authorization runbook](2026-09-14-gremlin-authorization-prerequisite.md) for this
+evidence:
+
+- Live dev infrastructure and network checks.
+- The complete restricted-principal identity suite on live dev.
+- A new backup and independent-volume restore that passed the same suite.
+
+Application Graph foundation CI now pins `ce0276059bb9112c67836049b2e53a5617003ceb`.
+No application deployment holds graph credentials. Mongo remains authoritative, and
+production stays on `data-v0.1.1`. No real source import or provider-policy change
+occurred. Detailed private recovery metadata remains in the external handoff.

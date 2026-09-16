@@ -1,5 +1,5 @@
 // Disposable CI rehearsal only. Never changes a deployed configuration or issues
-// a live credential. The candidate image is built from the separately pinned PR.
+// a live credential. Uses the pinned infrastructure's published database images.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -19,7 +19,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const infra = resolve(root, '.local/identity-runtime-infrastructure');
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Use a disposable GitHub Actions runner');
 assert.equal(process.env.CARTYX_INFRASTRUCTURE_DIR, infra);
-assert.equal(process.env.CARTYX_JANUSGRAPH_IMAGE, 'cartyx-janusgraph:identity-policy-fixture');
+// No image overrides: test the exact digests pinned by the infrastructure revision.
+assert.equal(process.env.CARTYX_JANUSGRAPH_IMAGE, undefined);
+assert.equal(process.env.CARTYX_CASSANDRA_IMAGE, undefined);
 const run = (command, args, cwd = root, env = process.env) =>
   execFileSync(command, args, { cwd, env, stdio: 'inherit' });
 const output = (args) => execFileSync('docker', args, { encoding: 'utf8' }).trim();
@@ -53,34 +55,36 @@ assert.equal(
 
 run(process.execPath, ['deploy/data/secrets.mjs', 'local'], infra);
 const secrets = resolve(infra, '.local/data/local');
-for (const key of ['gremlin-identity-password', 'gremlin-denied-password'])
-  writeFileSync(resolve(secrets, key), randomBytes(32).toString('hex') + '\n', {
-    mode: 0o644,
-    flag: 'wx',
-  });
-// Stage the exact candidate boundary in this throwaway infrastructure checkout.
-// Existing backup/restore helpers mount this same directory, so restored servers
-// must boot through the identical guarded serializer/channelizer/authorizer.
+// The pinned infrastructure already configures the complete deployed boundary and
+// provisions the cartyx_identity credential. Verify that, then add only an
+// authenticated-but-denied principal. Existing backup/restore helpers mount this
+// same throwaway directory, so restored servers boot through the same policy.
+assert.ok(existsSync(resolve(secrets, 'gremlin-identity-password')));
+writeFileSync(resolve(secrets, 'gremlin-denied-password'), randomBytes(32).toString('hex') + '\n', {
+  mode: 0o644,
+  flag: 'wx',
+});
 const configPath = resolve(infra, 'deploy/charts/cartyx-data/files/janusgraph-config.groovy');
 const original = readFileSync(configPath, 'utf8');
-assert.ok(!original.includes('IdentityChannelizer'));
+for (const selected of [
+  "config.channelizer = 'io.cartyx.graph.IdentityChannelizer'",
+  "authorizer: 'io.cartyx.graph.IdentityProfileAuthorizer'",
+  "className: 'io.cartyx.graph.IdentityGraphSONSerializer'",
+  "user('cartyx_identity', identityPassword)",
+])
+  assert.ok(
+    original.includes(selected),
+    'Pinned infrastructure must configure the identity policy'
+  );
 writeFileSync(
   configPath,
   original +
     `
-// Application CI fixture only; never promote this staged configuration.
+// Application CI fixture only: a valid principal the policy must deny.
 def fixtureCredentials = TinkerGraph.open(credentials)
-fixtureCredentials.traversal(CredentialTraversalSource.class)
-    .user('cartyx_identity', readSecret('gremlin-identity-password')).iterate()
 fixtureCredentials.traversal(CredentialTraversalSource.class)
     .user('cartyx_denied', readSecret('gremlin-denied-password')).iterate()
 fixtureCredentials.close()
-config.channelizer = 'io.cartyx.graph.IdentityChannelizer'
-config.maxContentLength = 65536
-config.authorization = [authorizer: 'io.cartyx.graph.IdentityProfileAuthorizer', config: [:]]
-config.serializers = [[className: 'io.cartyx.graph.IdentityGraphSONSerializer',
-    config: [ioRegistries: ['org.janusgraph.graphdb.tinkerpop.JanusGraphIoRegistry']]]]
-new File(root + '/server.yaml').text = yaml.dump(config)
 `
 );
 const operatorEnv = {

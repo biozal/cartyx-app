@@ -1,10 +1,11 @@
 # Gremlin authorization request isolation
 
-The authorization-handler prerequisite is published and deployed to dev. Runtime
-application graph authorization remains a cutover gate: the server still has only
-an operator account, and administrator credentials must not be mounted into
-application containers. Profile revisions remain immutable by the repository API,
-pending a server policy that prevents bypasses.
+The authorization-handler prerequisite and the constrained identity policy are
+published and deployed to dev (infrastructure `ce0276059bb9112c67836049b2e53a5617003ceb`).
+Dev JanusGraph now enforces the policy for the `cartyx_identity` service principal.
+No application deployment has that credential yet, and target storage is not
+selected. Administrator credentials must never be mounted into application
+containers. Production still has only the operator account (`data-v0.1.1`).
 
 The pinned TinkerPop 3.7.6 handlers retained a mutable authenticated principal in
 shared instances. Overlapping WebSocket connections could authorize with another
@@ -83,15 +84,71 @@ secret provisioning remain required before activation. The service principal wou
 span users; application user/campaign authorization remains necessary. The policy
 checks the digest format, while the repository verifies its content correspondence.
 
+## Publication and dev activation — September 16
+
+Infrastructure PR #16 was reviewed against the pinned TinkerPop 3.7.6 pipeline and
+merged as `81859e4411b33b218854618a8e07db859c5a1ca7`. There were no blocking findings.
+A non-blocking permessage-deflate resource question was recorded for any wider
+exposure.
+[Publication run 35130624204](https://github.com/biozal/cartyx-infrastructure/actions/runs/35130624204)
+passed the 1,315 policy assertions, scans and recovery on both native architectures.
+Anonymous registry checks re-hashed both indexes (linux/amd64 and linux/arm64 only).
+They matched each architecture's manifest and config to the tested artifacts.
+
+[Infrastructure PR #17](https://github.com/biozal/cartyx-infrastructure/pull/17),
+merged as `ce0276059bb9112c67836049b2e53a5617003ceb`, makes these changes:
+
+- Pins Cassandra `sha256:a8705b2f…` and JanusGraph `sha256:ebd0c068…`.
+- Selects all three policy classes together, with a 64 KiB content limit.
+- Creates `cartyx_identity` from a new, independent `gremlin-identity-password`
+  Secret key. Provisioning only adds that key to an existing Secret, and the
+  server refuses to start if the key is missing, too short, or equal to the
+  operator password.
+- Extends the infrastructure security check, which also runs on every cluster
+  restore, to verify restricted-principal denials, operator access and
+  GraphBinary rejection.
+
+Dev activation sequence:
+
+1. Added the dev key; every existing key was hash-verified unchanged.
+2. Took a verified pre-upgrade off-host backup.
+3. Merged. Dev upgraded on its original retained volume.
+4. Confirmed dev graph smoke, TLS/authentication, restricted-principal, scoped
+   CQL and live NetworkPolicy checks all passed.
+5. Ran this repository's complete identity suite against live dev through
+   `cartyx_identity`, with operator connections only for schema checks,
+   deliberate corruption and exact cleanup. The suite covered publication,
+   import, settings, login, token, provider, admission, bulk and wire denials.
+   Dev control records returned to zero.
+6. Took a new post-upgrade off-host backup and restored it into an independent
+   namespace/volume in 70 seconds. The restore passed the infrastructure checks
+   and the same complete restricted application suite, using only the
+   credentials recovered from the archive.
+7. Removed only that verified scratch namespace/volume. The source volume and
+   readiness were unchanged.
+
+Dev has no `cartyx_denied` principal, so on dev that sub-assertion only proves
+an unknown-principal refusal. CI still stages a valid denied principal.
+
+Operator note: `kubectl port-forward` (client 1.36) terminates every forwarded
+connection after the server deliberately closes one rejected connection. The
+wire-denial contracts therefore used a per-connection SSH local tunnel to the
+data Service ClusterIPs on the node. The infrastructure restore check runs its
+GraphBinary rejection last for the same reason.
+
+Application Graph foundation CI now pins `ce02760` for the fixture comparison,
+the standard graph job and the configured-policy recovery job. The recovery job
+uses the published digests without an image override. It only adds its
+fixture-only denied principal after asserting the pinned configuration already
+selects the policy.
+
 ## Remaining work
 
-- Promote production separately through its immutable release and recovery workflow.
-- Complete candidate verification/publication and configure the server-enforced
-  policy only with real JanusGraph application, TLS and recovery evidence. The
-  candidate channelizer gates close and session requests before the stock switch.
-- Issue runtime credentials only with the completed policy. Verify authenticated
-  protocol requests, immutable-profile recovery and denied bypasses before selecting
-  target storage. Application user/campaign authorization remains necessary.
+- Promote production separately through its immutable release and recovery
+  workflow. Provision the prod identity key before production reconciles the tag.
+- Before any target activation, give application pods a separate namespace Secret
+  containing only the identity credential and CA (never `cartyx-data`), and label
+  them as data clients. Application user/campaign authorization remains necessary.
 
 The handler rollout does not resolve provider logout/reauthorization policy,
 OAuth admission/session binding or the other identity cutover gates. Mongo remains
@@ -100,11 +157,11 @@ authoritative. PR #557 and the external handoff record exact-head application CI
 ## Configured-policy application rehearsal
 
 The separate `Identity authorization (real TLS databases and restore)` CI job
-builds the pinned unpublished PR #16 candidate on a disposable runner. It stages
-all three policy classes together in that runner's temporary infrastructure copy
-and generates distinct random operator, identity-service and denied-principal
-credentials. Chart/Compose source defaults, published image pins, live secrets
-and runtime backend selection remain unchanged.
+originally built the unpublished PR #16 candidate and staged the policy itself.
+It now runs the published pins and deployed configuration from `ce02760` on a
+disposable runner. The infrastructure tooling generates distinct random operator
+and identity-service credentials. The job adds only a denied-principal fixture.
+Runtime backend selection remains unchanged.
 
 `scripts/identity/authorization-ci.mjs` refuses existing stacks, source volumes,
 credentials or restart witnesses and requires the dedicated CI checkout. The
@@ -134,5 +191,5 @@ never uploaded as artifacts. This is an isolated application gate, not a live de
 backup rehearsal or authorization to select the target backend.
 
 The workflow result for the exact application head must be checked before citing
-this rehearsal as passed. Native image scans/publication, review, deployment
-configuration, live dev recovery and immutable production promotion remain separate.
+this rehearsal as passed. Live dev recovery evidence is recorded above; immutable
+production promotion remains separate.

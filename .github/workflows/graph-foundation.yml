@@ -36,8 +36,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: biozal/cartyx-infrastructure
-          # Policy candidate only; deployed database image pin below remains separate.
-          ref: a78ec204ff01fd70157a040e02969d5d8bf54e24
+          # Published, dev-deployed identity policy (infrastructure PR #17).
+          ref: ce0276059bb9112c67836049b2e53a5617003ceb
           path: .local/identity-authorization-policy
           persist-credentials: false
       - uses: actions/setup-node@v7
@@ -53,24 +53,20 @@ jobs:
     timeout-minutes: 45
     env:
       CARTYX_INFRASTRUCTURE_DIR: ${{ github.workspace }}/.local/identity-runtime-infrastructure
-      CARTYX_JANUSGRAPH_IMAGE: cartyx-janusgraph:identity-policy-fixture
     steps:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
         with:
           repository: biozal/cartyx-infrastructure
-          # Unpublished candidate, built locally on this disposable runner only.
-          ref: a78ec204ff01fd70157a040e02969d5d8bf54e24
+          # Published digest pins and the complete configured policy, as deployed to dev.
+          ref: ce0276059bb9112c67836049b2e53a5617003ceb
           path: .local/identity-runtime-infrastructure
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: '25'
           cache: npm
-      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - run: npm ci
-      - name: Build the checksum-locked policy candidate with its packaged JVM tests
-        run: docker build --tag "$CARTYX_JANUSGRAPH_IMAGE" "$CARTYX_INFRASTRUCTURE_DIR/deploy/images/janusgraph"
       - name: Install infrastructure fixture tools
         run: npm ci --prefix "$CARTYX_INFRASTRUCTURE_DIR/deploy/data" --ignore-scripts
       - name: Restricted application, denied bypasses, restart and independent-volume recovery
@@ -93,7 +89,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: biozal/cartyx-infrastructure
-          ref: e9390ea392a08fa72cc557383d87e2e48a6d2c5a
+          ref: ce0276059bb9112c67836049b2e53a5617003ceb
           path: .local/graph-infrastructure
           persist-credentials: false
       - uses: actions/setup-node@v7
