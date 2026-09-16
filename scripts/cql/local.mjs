@@ -30,8 +30,13 @@ const run = (command, args, options = {}) => {
 };
 // Reuse the running stack's image/network. This helper only forwards encrypted CQL
 // for the duration of an operator command; no permanent database host port is added.
-const container = JSON.parse(run('docker', ['inspect', 'cartyx-local-cassandra-1']))[0];
-if (!container.State.Running || !container.NetworkSettings.Networks['cartyx-local_default'])
+const project = process.env.IDENTITY_GRAPH_FIXTURE_PROJECT ?? 'cartyx-local';
+if (!['cartyx-local', 'cartyx-restore'].includes(project))
+  throw new Error('Unsupported fixture Compose project');
+if (project !== 'cartyx-local' && process.env.GITHUB_ACTIONS !== 'true')
+  throw new Error('Restore fixture routing is only supported on disposable CI runners');
+const container = JSON.parse(run('docker', ['inspect', `${project}-cassandra-1`]))[0];
+if (!container.State.Running || !container.NetworkSettings.Networks[`${project}_default`])
   throw new Error('Start the local database stack with npm run db:up');
 // Bulk restart recovery binds the exact transport endpoint. Reuse its original
 // loopback port or fail if occupied; never silently remap a retained import target.
@@ -83,7 +88,7 @@ try {
     '--name',
     name,
     '--network',
-    'cartyx-local_default',
+    `${project}_default`,
     '-p',
     `127.0.0.1:${retainedPort}:9042`,
     '--read-only',
@@ -126,8 +131,15 @@ try {
         ...process.env,
         ...(action.startsWith('identity-graph-') && {
           GREMLIN_URL: 'wss://localhost:18182/gremlin',
-          GREMLIN_USERNAME: 'cartyx_admin',
-          GREMLIN_PASSWORD_FILE: resolve(secrets, 'gremlin-password'),
+          GREMLIN_USERNAME: process.env.IDENTITY_GRAPH_OPERATOR_PASSWORD_FILE
+            ? 'cartyx_identity'
+            : 'cartyx_admin',
+          GREMLIN_PASSWORD_FILE: resolve(
+            secrets,
+            process.env.IDENTITY_GRAPH_OPERATOR_PASSWORD_FILE
+              ? 'gremlin-identity-password'
+              : 'gremlin-password'
+          ),
           GREMLIN_CA_FILE: resolve(secrets, 'tls.crt'),
         }),
         CQL_CONTACT_POINT: '127.0.0.1',

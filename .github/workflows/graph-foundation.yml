@@ -47,6 +47,37 @@ jobs:
       - run: npm ci
       - name: Actual client requests must match the server policy fixture
         run: npx tsx scripts/identity/export-profile-authorization.ts .local/identity-authorization-policy/deploy/images/janusgraph/authorization/profile-requests.json --check
+  identity-authorization-runtime:
+    name: Identity authorization (real TLS databases and restore)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARTYX_INFRASTRUCTURE_DIR: ${{ github.workspace }}/.local/identity-runtime-infrastructure
+      CARTYX_JANUSGRAPH_IMAGE: cartyx-janusgraph:identity-policy-fixture
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: biozal/cartyx-infrastructure
+          # Unpublished candidate, built locally on this disposable runner only.
+          ref: a78ec204ff01fd70157a040e02969d5d8bf54e24
+          path: .local/identity-runtime-infrastructure
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '25'
+          cache: npm
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - run: npm ci
+      - name: Build the checksum-locked policy candidate with its packaged JVM tests
+        run: docker build --tag "$CARTYX_JANUSGRAPH_IMAGE" "$CARTYX_INFRASTRUCTURE_DIR/deploy/images/janusgraph"
+      - name: Install infrastructure fixture tools
+        run: npm ci --prefix "$CARTYX_INFRASTRUCTURE_DIR/deploy/data" --ignore-scripts
+      - name: Restricted application, denied bypasses, restart and independent-volume recovery
+        run: node scripts/identity/authorization-ci.mjs
+      - name: Container status
+        if: failure()
+        run: docker ps -a --format '{{.Names}} {{.Status}}'
   graph:
     name: Graph foundation (real Cassandra and JanusGraph)
     runs-on: ubuntu-latest

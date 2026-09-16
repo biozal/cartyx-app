@@ -96,3 +96,43 @@ checks the digest format, while the repository verifies its content corresponden
 The handler rollout does not resolve provider logout/reauthorization policy,
 OAuth admission/session binding or the other identity cutover gates. Mongo remains
 authoritative. PR #557 and the external handoff record exact-head application CI.
+
+## Configured-policy application rehearsal
+
+The separate `Identity authorization (real TLS databases and restore)` CI job
+builds the pinned unpublished PR #16 candidate on a disposable runner. It stages
+all three policy classes together in that runner's temporary infrastructure copy
+and generates distinct random operator, identity-service and denied-principal
+credentials. Chart/Compose source defaults, published image pins, live secrets
+and runtime backend selection remain unchanged.
+
+`scripts/identity/authorization-ci.mjs` refuses existing stacks, source volumes,
+credentials or restart witnesses and requires the dedicated CI checkout. The
+profile integration and persistence fixtures use `cartyx_identity` for every
+repository operation; separate operator connections handle schema checks,
+intentional corruption and exact fixture cleanup. This is fixture wiring under
+`scripts/`, not an application credential fallback.
+
+The real TLS/GraphSON JavaScript contract checks explicit server denials for
+mutation, nested extra steps, source instructions, cross-owner links, scripts,
+request options, aliases, processors and close/session operations. It also probes
+guarded text/binary decoding, typed values, duplicate/trailing JSON, unsupported
+MIME, HTTP refusal, wrong credentials and a valid but unauthorized principal.
+Overlapping operator/service requests must preserve principal isolation and
+immutable profile contents. Existing publication/import/settings/login/token/
+provider/admission/bulk contracts run through the restricted connection.
+
+The job runs the retained-operation witnesses across actual database restart,
+then backs up another pending set using the infrastructure's drained backup tool.
+It recovers/cleans the source, stops it, restores into a verified distinct volume,
+and routes the original loopback endpoint to the restored server. The exact
+private witness and bulk package are reused without changing IDs, contents,
+CA or endpoint/port bindings. Recovery and authorization contracts must pass on
+the restored database and the original source must pass again afterward. Only
+synthetic fixtures are used; credentials, archives, plans and database logs are
+never uploaded as artifacts. This is an isolated application gate, not a live dev
+backup rehearsal or authorization to select the target backend.
+
+The workflow result for the exact application head must be checked before citing
+this rehearsal as passed. Native image scans/publication, review, deployment
+configuration, live dev recovery and immutable production promotion remain separate.

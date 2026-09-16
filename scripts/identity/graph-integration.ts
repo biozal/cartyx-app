@@ -5,7 +5,8 @@ import gremlin from 'gremlin';
 import { readCqlConfig } from '../../app/server/db/cql/config';
 import { createControlStateStore, type StateKey } from '../../app/server/db/cql/control-state';
 import { createCqlClient } from '../../app/server/db/cql/client';
-import { readGraphConfig } from '../../app/server/db/graph/config';
+import { graphTestConnections } from './graph-test-connections';
+import { identityAuthorizationContract } from './authorization-contract';
 import { createGraphClient } from '../../app/server/db/graph/client';
 import { findIdentity, type GraphIdentity } from '../../app/server/db/graph/identity';
 import { submitGraphRequest } from '../../app/server/db/graph/transport';
@@ -25,10 +26,11 @@ import { identityLoginContract } from './login-contract';
 import { identityBulkImportContract } from './bulk-contract';
 import { identityLoginAdmissionContract } from './login-admission-contract';
 const config = readCqlConfig('runtime');
-const graphConfig = readGraphConfig();
+const { runtime: graphConfig, operator: operatorConfig, restricted } = graphTestConnections();
 const state = createControlStateStore(config);
 const admin = createCqlClient(readCqlConfig('schema'));
 const client = createGraphClient(graphConfig);
+const operator = createGraphClient(operatorConfig);
 const graph = createGraphProfileStore(client);
 const keys: StateKey[] = [];
 const vertices: GraphIdentity[] = [];
@@ -72,19 +74,20 @@ save();
 let contractsPassed = Boolean(recovery);
 try {
   if (!recovery) {
-    await checkIdentityProfileSchema(graphConfig);
+    await checkIdentityProfileSchema(operatorConfig);
     await Promise.all([
-      checkIdentityProfileSchema(graphConfig, true),
-      checkIdentityProfileSchema(graphConfig, true),
+      checkIdentityProfileSchema(operatorConfig, true),
+      checkIdentityProfileSchema(operatorConfig, true),
     ]);
     await assert.rejects(
       submitGraphRequest(
-        graphConfig,
+        operatorConfig,
         readFileSync(new URL('./0001-profile-schema.groovy', import.meta.url), 'utf8'),
         { applySchema: true, checksum: 'incorrect' }
       ),
       /Graph request failed/
     );
+    if (restricted) await identityAuthorizationContract(graphConfig, operatorConfig, trackSnapshot);
     for (const contract of [
       identityProfileContract,
       identityImportContract,
@@ -145,7 +148,7 @@ try {
     const corrupt = profileFixture();
     trackSnapshot(corrupt);
     await graph.put(corrupt);
-    await client.execute(
+    await operator.execute(
       findIdentity(profileRevisionIdentity(corrupt.userId, corrupt.snapshotId))
         .inE('HAS_PROFILE_REVISION')
         .drop()
@@ -156,7 +159,7 @@ try {
     );
     await graph.put(corrupt);
     assert.deepEqual(await graph.get(corrupt.userId, corrupt.snapshotId), corrupt);
-    await client.execute(
+    await operator.execute(
       findIdentity(profileRevisionIdentity(corrupt.userId, corrupt.snapshotId)).property(
         'identityProfileFirstName',
         'corrupted'
@@ -184,8 +187,8 @@ try {
     (async () => {
       // Linked vertices share edge locks; do not delete them in concurrent transactions.
       for (const identity of vertices) {
-        await client.execute(findIdentity(identity).hasLabel(identity.kind).drop());
-        assert.deepEqual(await client.execute(findIdentity(identity).count()), [0]);
+        await operator.execute(findIdentity(identity).hasLabel(identity.kind).drop());
+        assert.deepEqual(await operator.execute(findIdentity(identity).count()), [0]);
       }
     })(),
   ]);

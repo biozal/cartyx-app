@@ -12,7 +12,7 @@ import {
 import { readCqlConfig } from '../../app/server/db/cql/config';
 import { createControlStateStore, type StateKey } from '../../app/server/db/cql/control-state';
 import { createCqlClient } from '../../app/server/db/cql/client';
-import { readGraphConfig } from '../../app/server/db/graph/config';
+import { graphTestConnections } from './graph-test-connections';
 import { createGraphClient } from '../../app/server/db/graph/client';
 import { findIdentity, type GraphIdentity } from '../../app/server/db/graph/identity';
 import {
@@ -121,10 +121,11 @@ const mode = process.argv[2];
 if (!['identity-graph-seed', 'identity-graph-verify'].includes(mode))
   throw new Error('Invalid graph persistence mode');
 const config = readCqlConfig('runtime');
-const graphConfig = readGraphConfig();
-await checkIdentityProfileSchema(graphConfig);
+const { runtime: graphConfig, operator: operatorConfig } = graphTestConnections();
+await checkIdentityProfileSchema(operatorConfig);
 const state = createControlStateStore(config);
 const client = createGraphClient(graphConfig);
+const operator = createGraphClient(operatorConfig);
 const graph = createGraphProfileStore(client);
 const profiles = createIdentityProfiles(state, graph);
 const path = '.local/cql/identity-graph-persistence.json';
@@ -652,8 +653,8 @@ try {
         ...revocationWitnesses.flatMap((witness) => witness.vertices),
         ...(bulkWitness?.vertices ?? []),
       ]) {
-        await client.execute(findIdentity(identity).hasLabel(identity.kind).drop());
-        assert.deepEqual(await client.execute(findIdentity(identity).count()), [0]);
+        await operator.execute(findIdentity(identity).hasLabel(identity.kind).drop());
+        assert.deepEqual(await operator.execute(findIdentity(identity).count()), [0]);
       }
     } finally {
       await admin.close();
