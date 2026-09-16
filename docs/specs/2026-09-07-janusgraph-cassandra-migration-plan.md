@@ -2,7 +2,9 @@
 
 Date: 2026-09-07
 
-Status: Local Docker and dev Kubernetes run the hardened database images. Production is active from immutable tag `data-v0.1.1`. Both environments passed independent off-host restores and reboot checks, and daily backups are enabled. No application subsystem has migrated. See [implementation evidence](2026-09-07-data-infrastructure-progress.md).
+Status (2026-09-16): superseded for sequencing by the [dev JanusGraph cutover plan](2026-09-16-dev-janusgraph-cutover-plan.md). No data migration, dev first, production later. The target model below still applies.
+
+Previous status: Local Docker and dev Kubernetes run the hardened database images. Production is active from immutable tag `data-v0.1.1`. Both environments passed independent off-host restores and reboot checks, and daily backups are enabled. No application subsystem has migrated. See [implementation evidence](2026-09-07-data-infrastructure-progress.md).
 
 ## Outcome and approach
 
