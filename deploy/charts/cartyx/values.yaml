@@ -9,6 +9,25 @@
 # values are never committed: the cluster uses a kubectl-created Secret via
 # secret.existingSecret; the kind path injects from .env via --set-string.
 
+# Graph/Cassandra access for the JanusGraph migration. Off by default: production
+# stays on MongoDB until its own cutover. When enabled, web/realtime/audio-worker get
+# the data-client label the database NetworkPolicy requires, plus a Secret holding ONLY
+# the application graph credential, the application CQL credential and the CA. The
+# operator graph password and the Cassandra admin password are never mounted here.
+data:
+  enabled: false
+  # Secret created by `kubernetes.mjs provision-app-secret <env>` in cartyx-infrastructure.
+  secretName: cartyx-app-data
+  graph:
+    service: cartyx-data-janusgraph
+    port: 8182
+    username: cartyx_identity
+  cql:
+    service: cartyx-data-cassandra
+    port: 9042
+    datacenter: dc1
+    stateKeyspace: ''
+
 web:
   image:
     repository: ghcr.io/biozal/cartyx-web

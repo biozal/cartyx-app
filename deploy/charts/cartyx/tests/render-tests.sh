@@ -295,6 +295,37 @@ if [ "$backoff_max_ms" -ge "$backoff_ms" ] && [ "$backoff_max_ms" -le "$claim_ms
   bad "RETRY_BACKOFF_MAX_MS ($backoff_max_ms) must sit between the base ($backoff_ms) and the claim budget ($claim_ms)"
 fi
 
+# ---- graph/Cassandra data access (opt-in per environment) ----
+DATA_ARGS=(
+  --set=data.enabled=true
+  --set=data.cql.stateKeyspace=cartyx_dev_state
+)
+# Off by default so production keeps rendering exactly as before.
+assert_not_contains "data access is off by default (no label)" "cartyx\.io/data-client"
+assert_not_contains "data access is off by default (no Gremlin env)" "GREMLIN_URL"
+assert_not_contains "data access is off by default (no credential mount)" "cartyx-app-data"
+
+# Enabled: every workload gets the label the database NetworkPolicy requires.
+label_count=$(render "${DATA_ARGS[@]}" | grep -c "cartyx\.io/data-client: 'true'")
+if [ "$label_count" -eq 3 ]; then ok; else bad "all three workloads are labelled data clients (got $label_count)"; fi
+assert_contains "graph endpoint is in-cluster TLS" "wss://cartyx-data-janusgraph:8182/gremlin" "${DATA_ARGS[@]}"
+assert_contains "CQL keyspace is set" "CQL_STATE_KEYSPACE" "${DATA_ARGS[@]}"
+assert_contains "credentials come from the app data Secret" "secretName: \"cartyx-app-data\"" "${DATA_ARGS[@]}"
+assert_contains "credential files are read-only" "readOnly: true" "${DATA_ARGS[@]}"
+
+# The operator graph password and the Cassandra admin password must never reach app pods.
+assert_not_contains "no operator graph credential" "key: gremlin-password" "${DATA_ARGS[@]}"
+assert_not_contains "no Cassandra admin credential" "cassandra-admin-password" "${DATA_ARGS[@]}"
+assert_not_contains "no schema credential" "CQL_ADMIN_PASSWORD_FILE" "${DATA_ARGS[@]}"
+
+# A keyspace is mandatory once enabled: a wrong default would write to another environment.
+assert_fails "data.enabled requires a state keyspace" "data.cql.stateKeyspace is required" \
+  --set=web.image.tag=t --set=realtime.image.tag=t --set=audioWorker.image.tag=t \
+  --set=ingress.webHost=w --set=ingress.wsHost=s --set=tls.certificate.clusterIssuer=i \
+  --set-string=secret.values.sessionSecret=render-test-session-secret-32-chars \
+  --set-string=secret.values.mongodbUri=mongodb://render-test/db \
+  --set=data.enabled=true
+
 # ---- summary ----
 echo "render-tests: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -24,6 +24,7 @@ spec:
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
       labels:
         {{- include "cartyx.realtime.selectorLabels" . | nindent 8 }}
+        {{- include "cartyx.data.podLabels" . | nindent 8 }}
     spec:
       securityContext:
         runAsNonRoot: true
@@ -55,6 +56,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "cartyx.secretName" . }}
                   key: mongodbUri
+            {{- include "cartyx.data.env" . | nindent 12 }}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -73,3 +75,7 @@ spec:
             failureThreshold: 3
           resources:
             {{- toYaml .Values.realtime.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "cartyx.data.volumeMount" . | nindent 12 }}
+      volumes:
+        {{- include "cartyx.data.volume" . | nindent 8 }}

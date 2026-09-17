@@ -16,6 +16,7 @@ spec:
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
       labels:
         {{- include "cartyx.web.selectorLabels" . | nindent 8 }}
+        {{- include "cartyx.data.podLabels" . | nindent 8 }}
     spec:
       securityContext:
         runAsNonRoot: true
@@ -58,6 +59,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "cartyx.secretName" . }}
                   key: mongodbUri
+            {{- include "cartyx.data.env" . | nindent 12 }}
             # The remaining secret keys are optional features (OAuth, R2).
             # `optional: true` lets an existingSecret omit them.
             - name: GOOGLE_CLIENT_SECRET
@@ -106,3 +108,7 @@ spec:
             failureThreshold: 3
           resources:
             {{- toYaml .Values.web.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "cartyx.data.volumeMount" . | nindent 12 }}
+      volumes:
+        {{- include "cartyx.data.volume" . | nindent 8 }}
