@@ -8,26 +8,6 @@ on:
 permissions:
   contents: read
 jobs:
-  identity-authorization-contract:
-    name: Identity graph authorization contract
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/checkout@v7
-        with:
-          repository: biozal/cartyx-infrastructure
-          # Published, dev-deployed identity policy (infrastructure PRs #17-#19).
-          ref: 7f7cfdfe3bf3a5d6279b3f3994942837322f2a4b
-          path: .local/identity-authorization-policy
-          persist-credentials: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '25'
-          cache: npm
-      - run: npm ci
-      - name: Actual client requests must match the server policy fixture
-        run: npx tsx scripts/identity/export-profile-authorization.ts .local/identity-authorization-policy/deploy/images/janusgraph/authorization/profile-requests.json --check
   identity-authorization-runtime:
     name: Identity authorization (real TLS databases and restore)
     runs-on: ubuntu-24.04

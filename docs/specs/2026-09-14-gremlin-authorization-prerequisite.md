@@ -72,11 +72,10 @@ server, including concurrent operator/runtime connections, failure privacy and
 unchanged graph contents after denials and revision retries. These tests do not
 replace the real JanusGraph/CQL runtime integration and recovery gates.
 
-`scripts/identity/export-profile-authorization.ts` captures synthetic requests from
-the actual profile repository with the installed JavaScript GraphSON writer. The
-new CI contract job compares them with the immutable infrastructure fixture. Its
-policy checkout pin is separate from the deployed image/integration checkout pin;
-this does not change application runtime, deployed images or graph credentials.
+An exporter previously captured synthetic profile requests for comparison with an
+immutable infrastructure fixture. The policy is now a step vocabulary rather than a
+list of exact traversals, so the fixture and its CI job were removed; the vocabulary
+is verified in the infrastructure image build instead.
 
 Native candidate image CI, review/publication, authenticated application tests
 against real JanusGraph, configured-policy backup/restore rehearsal and runtime
