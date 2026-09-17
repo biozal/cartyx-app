@@ -18,14 +18,10 @@ import {
   IdentityPreferenceWriteError,
 } from '../../app/server/repositories/identity/target-settings';
 import { createIdentityImporter } from './import-account';
-import { importSourceFixture } from './import-contract';
-import { mapIdentitySource } from './import-source';
+import { accountPlanFixture } from './account-fixture';
 
-export function settingsSourceFixture() {
-  const source = mongoose.mongo.BSON.deserialize(importSourceFixture());
-  delete source.audioStoragePrefix;
-  return mongoose.mongo.BSON.serialize(source);
-}
+/** A bound account whose audio namespace is still unallocated. */
+export const settingsAccountFixture = () => accountPlanFixture({ audioStoragePrefix: false });
 
 export async function identitySettingsContract(
   state: ReservationStateStore,
@@ -37,7 +33,7 @@ export async function identitySettingsContract(
   const reader = createTargetIdentityReader(state, graph);
   const settings = createTargetIdentitySettings(state, graph);
   const fixture = async () => {
-    const plan = mapIdentitySource(settingsSourceFixture());
+    const plan = settingsAccountFixture();
     await importer.apply(plan);
     return plan;
   };

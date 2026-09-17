@@ -222,7 +222,7 @@ users/campaigns, private raw BSON archives, offline hash/count/audit verificatio
 and identity/membership exception reporting. Dev's 8 users/3 campaigns and prod's
 2 users/0 campaigns exported and verified with zero finding categories. No source
 records or application backend modes changed. This is a source rehearsal, not an
-import or restore gate. See the [identity preflight contract and evidence](2026-09-13-identity-source-preflight.md)
+import or restore gate. See the removed data-migration tooling (see [the dev cutover plan](2026-09-16-dev-janusgraph-cutover-plan.md); no data is migrated)
 for preservation rules, limits, Docker tests and remaining repository work.
 
 ## Identity repository extraction — September 13
@@ -302,7 +302,7 @@ restart witness. Full target writes/import and runtime authorization remain ahea
 
 ## Identity import projection and recovery — September 13
 
-PR #557 adds a [create-only account import rehearsal](2026-09-13-identity-import-rehearsal.md)
+PR #557 previously added a create-only account import rehearsal, since removed with the removed data-migration tooling (see [the dev cutover plan](2026-09-16-dev-janusgraph-cutover-plan.md); no data is migrated)
 that coordinates exact reservations, graph profile publication and Cassandra account
 creation. It preserves existing IDs, supported profile fields, encrypted tokens
 and media prefixes, verifies current state before completion, and refuses changed
@@ -429,7 +429,7 @@ external handoff and PR #557.
 
 ## Private identity bulk package and runner — September 13
 
-PR #557 adds an [environment-bound private bulk import package and runner](2026-09-13-identity-bulk-import.md).
+PR #557 previously added an environment-bound private bulk import package and runner, since removed with the removed data-migration tooling (see [the dev cutover plan](2026-09-16-dev-janusgraph-cutover-plan.md); no data is migrated).
 Preparation copies and verifies original BSON, catalog and audit before durably
 publishing exact per-user plans and a target-bound completion manifest. Loading
 checks source labels, all hashes, complete reference audit and every retained plan
@@ -459,7 +459,7 @@ is recorded in the handoff and PR #557.
 
 ## Read-only bulk recovery inspection — September 13
 
-The [private bulk runner](2026-09-13-identity-bulk-import.md#read-only-recovery-inspection)
+The private bulk runner (removed)
 now inspects batch and per-user receipts, reservations, settled accounts/token
 generations and graph publications before an operator chooses whether to resume.
 Reports use archive ordinals, counts and fixed statuses; no identifiers, token

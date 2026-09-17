@@ -1,6 +1,5 @@
 // @vitest-environment node
 import { expect, it, vi } from 'vitest';
-import { identityBulkImportContract } from '../../../scripts/identity/bulk-contract';
 import {
   identityLoginAdmissionContract,
   admissionApplicationFixture,
@@ -14,9 +13,8 @@ import {
 vi.unmock('mongoose');
 import {
   identitySettingsContract,
-  settingsSourceFixture,
+  settingsAccountFixture,
 } from '../../../scripts/identity/settings-contract';
-import { identityImportContract } from '../../../scripts/identity/import-contract';
 import { identityProviderRevocationContract } from '../../../scripts/identity/provider-revocation-contract';
 import {
   createIdentityProviderRevocations,
@@ -30,8 +28,7 @@ import {
 } from '~/server/repositories/identity/target-login';
 import { createTargetIdentityTokens } from '~/server/repositories/identity/target-tokens';
 import { createMongoIdentityRepository } from '~/server/repositories/identity/mongo';
-import { importSourceFixture } from '../../../scripts/identity/import-contract';
-import { mapIdentitySource } from '../../../scripts/identity/import-source';
+import { accountPlanFixture } from '../../../scripts/identity/account-fixture';
 import { createIdentityImporter } from '../../../scripts/identity/import-account';
 import { randomUUID } from 'node:crypto';
 import type { StateRecord } from '~/server/db/cql/control-state';
@@ -85,10 +82,6 @@ function memory() {
   };
   return { state, graph };
 }
-it('recovers private environment-bound bulk imports without remapping or restoring newer state', async () => {
-  const { state, graph } = memory();
-  await identityBulkImportContract(state, graph);
-});
 it('blocks delayed OAuth admission before provider dispatch and across recovery', async () => {
   const { state, graph } = memory();
   await identityLoginAdmissionContract(state, graph);
@@ -372,14 +365,9 @@ it('rejects secret fields and malformed profile revisions before persistence', a
   expect(await profiles.read(snapshot.userId)).toBeNull();
 });
 
-it('recovers original account import across reservations, graph publication and authentication state', async () => {
-  const { state, graph } = memory();
-  await identityImportContract(state, graph);
-});
-
 it('reconciles an import completed by another worker during its initial empty-target check', async () => {
   const { state, graph } = memory();
-  const plan = mapIdentitySource(importSourceFixture());
+  const plan = accountPlanFixture();
   let delay = true;
   const write = vi.fn(async () => {
     throw new Error('Completed import must not write');
@@ -430,7 +418,7 @@ it('does not write settings after failed reads or an invalid media candidate', a
     'Read unavailable'
   );
   expect(write).not.toHaveBeenCalled();
-  const plan = mapIdentitySource(settingsSourceFixture());
+  const plan = settingsAccountFixture();
   await createIdentityImporter(state, graph).apply(plan);
   const invalid = createTargetIdentitySettings(state, graph, () => 'invalid');
   await expect(invalid.resolveAudioStoragePrefix(plan.account.userId)).rejects.toThrow();

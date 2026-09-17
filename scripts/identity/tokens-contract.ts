@@ -15,8 +15,7 @@ import {
 } from '../../app/server/repositories/identity/target-tokens';
 import type { IdentityTokenFence } from '../../app/server/repositories/identity/types';
 import { createIdentityImporter } from './import-account';
-import { mapIdentitySource } from './import-source';
-import { settingsSourceFixture } from './settings-contract';
+import { settingsAccountFixture } from './settings-contract';
 
 /** Runs unchanged against memory, local Docker and Kubernetes dev stores. */
 export async function identityTokensContract(
@@ -27,7 +26,7 @@ export async function identityTokensContract(
   const tokens = createTargetIdentityTokens(state);
   const clearer = createIdentityTokenClearer(state);
   const fixture = async () => {
-    const plan = mapIdentitySource(settingsSourceFixture());
+    const plan = settingsAccountFixture();
     await createIdentityImporter(state, graph).apply(plan);
     const read = await tokens.readAccessToken(plan.account.binding!.providerId);
     assert.ok(read);

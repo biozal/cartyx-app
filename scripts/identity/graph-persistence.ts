@@ -33,8 +33,7 @@ import {
   identityImportKey,
   type IdentityImportPlan,
 } from './import-account';
-import { mapIdentitySource } from './import-source';
-import { importSourceFixture } from './import-contract';
+import { accountPlanFixture } from './account-fixture';
 import {
   createIdentityAccountState,
   identityAccountKey,
@@ -46,7 +45,7 @@ import {
   IdentityPreferenceWriteError,
 } from '../../app/server/repositories/identity/target-settings';
 import { createTargetIdentityReader } from '../../app/server/repositories/identity/target-reader';
-import { settingsSourceFixture } from './settings-contract';
+import { settingsAccountFixture } from './settings-contract';
 import {
   createIdentityTokenClearer,
   createTargetIdentityTokens,
@@ -70,21 +69,6 @@ import {
   type IdentityAdmissionTicket,
 } from '../../app/server/repositories/identity/login-admission';
 import { admissionApplicationFixture } from './login-admission-contract';
-import { createIdentityBulkImporter, IdentityBulkImportError } from './bulk-import';
-import {
-  identityImportTarget,
-  prepareIdentityImportPackage,
-  loadIdentityImportPackage,
-  type IdentityImportTarget,
-} from './bulk-package';
-import { writeBulkArchiveFixture } from './bulk-contract';
-type BulkWitness = {
-  keys: StateKey[];
-  vertices: GraphIdentity[];
-  directory: string;
-  target: IdentityImportTarget;
-  batchId?: string;
-};
 type RevocationWitness = {
   keys: StateKey[];
   vertices: GraphIdentity[];
@@ -178,14 +162,14 @@ try {
       expectedRevision: null,
       snapshot: profileFixture(),
     };
-    const importPlan = mapIdentitySource(importSourceFixture());
+    const importPlan = accountPlanFixture();
     const settingsWitness: SettingsWitness = {
-      plan: mapIdentitySource(settingsSourceFixture()),
+      plan: settingsAccountFixture(),
       keys: [],
       vertices: [],
     };
     const tokenWitness: SettingsWitness = {
-      plan: mapIdentitySource(settingsSourceFixture()),
+      plan: settingsAccountFixture(),
       keys: [],
       vertices: [],
     };
@@ -194,12 +178,6 @@ try {
       { keys: [], vertices: [] },
       { keys: [], vertices: [] },
     ];
-    const bulkWitness: BulkWitness = {
-      keys: [],
-      vertices: [],
-      directory: `.local/cql/identity-bulk-${randomUUID()}`,
-      target: identityImportTarget('local', config, graphConfig),
-    };
     const manifest = {
       keyspace: config.keyspace,
       endpoint: graphConfig.url,
@@ -209,7 +187,6 @@ try {
       tokenWitness,
       loginWitness,
       revocationWitnesses,
-      bulkWitness,
     };
     mkdirSync('.local/cql', { recursive: true, mode: 0o700 });
     writeFileSync(path, JSON.stringify(manifest), { mode: 0o600, flag: 'wx' });
@@ -417,55 +394,8 @@ try {
         );
       }
     }
-    mkdirSync(bulkWitness.directory, { mode: 0o700 });
-    await writeBulkArchiveFixture(`${bulkWitness.directory}/source`);
-    const bulkDirectory = `${bulkWitness.directory}/package`;
-    await prepareIdentityImportPackage(
-      `${bulkWitness.directory}/source`,
-      bulkDirectory,
-      bulkWitness.target
-    );
-    bulkWitness.batchId = (
-      await loadIdentityImportPackage(bulkDirectory, bulkWitness.target)
-    ).manifest.batchId;
-    save();
-    const trackedBulk = tracking(bulkWitness, save);
-    const interruptedBulk = createIdentityBulkImporter(
-      {
-        ...trackedBulk.trackedState,
-        create: async (...args) => {
-          const result = await trackedBulk.trackedState.create(...args);
-          if (args[0].type === 'identity_account')
-            throw new Error('bulk account witness interruption');
-          return result;
-        },
-      },
-      trackedBulk.trackedGraph,
-      bulkWitness.target
-    );
-    await assert.rejects(interruptedBulk.apply(bulkDirectory), IdentityBulkImportError);
-    const bulkInspection = await interruptedBulk.inspect(bulkDirectory);
-    assert.equal(bulkInspection.batchReceipt, 'prepared');
-    assert.deepEqual(
-      bulkInspection.observations.map((item) => item.receipt),
-      ['prepared', 'missing']
-    );
-    assert.deepEqual(
-      bulkInspection.observations.map((item) => item.account),
-      ['unverified', 'different']
-    );
-    assert.equal(bulkInspection.allObservedMatching, false);
-    const pendingBulk = await loadIdentityImportPackage(bulkDirectory, bulkWitness.target);
-    await assert.rejects(
-      createIdentityAccountState(state).readAccount(pendingBulk.plans[0].account.userId),
-      /requires operation recovery/
-    );
-    assert.equal(
-      await createIdentityAccountState(state).readAccount(pendingBulk.plans[1].account.userId),
-      null
-    );
     process.stdout.write(
-      'Seeded graph publication, pending account import, preference/media allocation, token clear, login, provider attempt/local-clear and closed OAuth admission and private bulk-package restart witnesses\n'
+      'Seeded graph publication, pending account import, preference/media allocation, token clear, login, provider attempt/local-clear and closed OAuth admission restart witnesses\n'
     );
   } else {
     const manifest = JSON.parse(readFileSync(path, 'utf8'));
@@ -477,7 +407,6 @@ try {
     const tokenWitness = manifest.tokenWitness as SettingsWitness | undefined;
     const loginWitness = manifest.loginWitness as LoginWitness | undefined;
     const revocationWitnesses = (manifest.revocationWitnesses ?? []) as RevocationWitness[];
-    const bulkWitness = manifest.bulkWitness as BulkWitness | undefined;
     const { userId, snapshotId } = command.snapshot;
     assert.equal((await state.get(profileHeadKey(userId)))?.revision, command.operationId);
     assert.deepEqual(await graph.get(userId, snapshotId), command.snapshot);
@@ -589,37 +518,6 @@ try {
         },
       });
     }
-    if (bulkWitness) {
-      assert.match(bulkWitness.directory, /^\.local\/cql\/identity-bulk-[0-9a-f-]{36}$/);
-      const target = identityImportTarget('local', config, graphConfig);
-      assert.deepEqual(target, bulkWitness.target);
-      const directory = `${bulkWitness.directory}/package`;
-      const batch = await loadIdentityImportPackage(directory, target);
-      assert.equal(batch.manifest.batchId, bulkWitness.batchId);
-      const tracked = tracking(bulkWitness, () => {
-        writeFileSync(`${path}.pending`, JSON.stringify(manifest), { mode: 0o600 });
-        renameSync(`${path}.pending`, path);
-      });
-      const runner = createIdentityBulkImporter(tracked.trackedState, tracked.trackedGraph, target);
-      const pending = await runner.inspect(directory);
-      assert.equal(pending.batchReceipt, 'prepared');
-      assert.deepEqual(
-        pending.observations.map((item) => item.receipt),
-        ['prepared', 'missing']
-      );
-      assert.deepEqual(
-        pending.observations.map((item) => item.account),
-        ['unverified', 'different']
-      );
-      assert.equal(pending.allObservedMatching, false);
-      process.stdout.write(
-        'Read-only bulk inspection identified the unreceipted account and untouched user after restart\n'
-      );
-      await runner.apply(directory);
-      await runner.verify(directory);
-      assert.equal((await runner.inspect(directory)).allObservedMatching, true);
-      assert.deepEqual(await loadIdentityImportPackage(directory, target), batch);
-    }
     const admin = createCqlClient(readCqlConfig('schema'));
     try {
       for (const key of [
@@ -630,7 +528,6 @@ try {
         ...(tokenWitness?.keys ?? []),
         ...(loginWitness?.keys ?? []),
         ...revocationWitnesses.flatMap((witness) => witness.keys),
-        ...(bulkWitness?.keys ?? []),
       ]) {
         await admin.execute(
           `DELETE FROM ${config.keyspace}.control_state WHERE scope = ? AND resource_type = ? AND resource_id = ?`,
@@ -651,7 +548,6 @@ try {
         ...(tokenWitness?.vertices ?? []),
         ...(loginWitness?.vertices ?? []),
         ...revocationWitnesses.flatMap((witness) => witness.vertices),
-        ...(bulkWitness?.vertices ?? []),
       ]) {
         await operator.execute(findIdentity(identity).hasLabel(identity.kind).drop());
         assert.deepEqual(await operator.execute(findIdentity(identity).count()), [0]);
@@ -659,10 +555,9 @@ try {
     } finally {
       await admin.close();
     }
-    if (bulkWitness) rmSync(bulkWitness.directory, { recursive: true });
     unlinkSync(path);
     process.stdout.write(
-      'Verified graph publication, account import, preference/media allocation, token clear, login, provider attempt/local-clear recovery without HTTP replay, durable OAuth admission refusal and exact private bulk-package recovery without remapping; removed exact restart witnesses\n'
+      'Verified graph publication, account import, preference/media allocation, token clear, login, provider attempt/local-clear recovery without HTTP replay and durable OAuth admission refusal; removed exact restart witnesses\n'
     );
   }
 } finally {

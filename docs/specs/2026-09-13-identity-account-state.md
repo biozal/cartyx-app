@@ -142,7 +142,7 @@ remain ahead.
 The operator-only `import` command now creates an absent bound or unbound account
 from a reviewed plan, including original encrypted tokens. It uses the same account
 receipt and reservation checks and cannot update an existing account. The
-[import rehearsal](2026-09-13-identity-import-rehearsal.md) composes it with graph
+import rehearsal (removed; see the dev cutover plan) composed it with graph
 publication and tests interruption/replay without switching the application backend.
 
 The `assign_audio` command conditionally fills only an absent media namespace after

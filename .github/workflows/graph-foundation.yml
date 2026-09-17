@@ -8,25 +8,6 @@ on:
 permissions:
   contents: read
 jobs:
-  identity-archive:
-    name: Identity archive (MongoDB ${{ matrix.mongodb }})
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        mongodb: ['7', '8']
-    env:
-      IDENTITY_TEST_MONGO_VERSION: ${{ matrix.mongodb }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '25'
-          cache: npm
-      - run: npm ci
-      - name: Snapshot export with an authenticated read-only account
-        run: npm run identity:test
   identity-authorization-contract:
     name: Identity graph authorization contract
     runs-on: ubuntu-24.04

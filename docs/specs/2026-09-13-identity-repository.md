@@ -122,7 +122,7 @@ Local MongoDB 7.0.41 passes this contract. The existing MongoDB 7/8 CI matrix ru
 the same contract with pinned images. The fixture ignores application Mongo
 environment settings, imports no app connection/bootstrap, and writes only to its
 own disposable Docker database. No live Atlas records are mutated by these tests.
-See [source preflight](2026-09-13-identity-source-preflight.md) for image/kernel
+See the dev cutover plan for image/kernel
 details, private source archives and the existing read-only dev/prod evidence.
 
 Unit tests retain OAuth encryption/revocation, failure propagation and campaign

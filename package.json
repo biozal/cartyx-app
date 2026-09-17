@@ -51,11 +51,7 @@
     "cql:schema": "tsx scripts/cql/cli.ts",
     "cql:test": "tsx scripts/cql/integration.ts",
     "cql:local": "node scripts/cql/local.mjs",
-    "identity:graph-schema": "tsx scripts/identity/profile-schema-cli.ts",
-    "identity:import-check": "tsx scripts/identity/import-check-cli.ts",
-    "identity:archive": "tsx scripts/identity/cli.ts",
-    "identity:test": "tsx scripts/identity/integration.ts",
-    "identity:bulk": "tsx scripts/identity/bulk-cli.ts"
+    "identity:graph-schema": "tsx scripts/identity/profile-schema-cli.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1090.0",

@@ -18,12 +18,10 @@ import {
 import type { ProfileSnapshot } from '../../app/server/repositories/identity/profile-model';
 import { checkIdentityProfileSchema } from './profile-schema';
 import { identityProfileContract, profileFixture } from './profile-contract';
-import { identityImportContract } from './import-contract';
 import { identitySettingsContract } from './settings-contract';
 import { identityTokensContract } from './tokens-contract';
 import { identityProviderRevocationContract } from './provider-revocation-contract';
 import { identityLoginContract } from './login-contract';
-import { identityBulkImportContract } from './bulk-contract';
 import { identityLoginAdmissionContract } from './login-admission-contract';
 const config = readCqlConfig('runtime');
 const { runtime: graphConfig, operator: operatorConfig, restricted } = graphTestConnections();
@@ -90,13 +88,11 @@ try {
     if (restricted) await identityAuthorizationContract(graphConfig, operatorConfig, trackSnapshot);
     for (const contract of [
       identityProfileContract,
-      identityImportContract,
       identitySettingsContract,
       identityTokensContract,
       identityLoginContract,
       identityProviderRevocationContract,
       identityLoginAdmissionContract,
-      identityBulkImportContract,
     ])
       await contract(
         {
@@ -167,7 +163,7 @@ try {
     );
     await assert.rejects(graph.get(corrupt.userId, corrupt.snapshotId), /digest mismatch/);
     process.stdout.write(
-      'PASS: immutable graph profiles, physical-write recovery, publication CAS/receipts, recoverable BSON account import, preference writes/media allocation, token clear fencing/recovery, login selection/coordination/recovery, provider attempt receipts/local recovery and OAuth admission barriers (synthetic HTTP), private bound bulk imports, delayed writers, target reads, scope/privacy, schema checksum and corruption refusal\n'
+      'PASS: immutable graph profiles, physical-write recovery, publication CAS/receipts, recoverable account creation, preference writes/media allocation, token clear fencing/recovery, login selection/coordination/recovery, provider attempt receipts/local recovery and OAuth admission barriers (synthetic HTTP), delayed writers, target reads, scope/privacy, schema checksum and corruption refusal\n'
     );
     contractsPassed = true;
   }

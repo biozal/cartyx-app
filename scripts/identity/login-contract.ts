@@ -22,8 +22,7 @@ import { createTargetIdentitySettings } from '../../app/server/repositories/iden
 import { createTargetIdentityTokens } from '../../app/server/repositories/identity/target-tokens';
 import type { RecordIdentityLogin } from '../../app/server/repositories/identity/types';
 import { createIdentityImporter } from './import-account';
-import { importSourceFixture } from './import-contract';
-import { mapIdentitySource } from './import-source';
+import { accountPlanFixture } from './account-fixture';
 
 export function loginFixture(): RecordIdentityLogin {
   const id = randomBytes(12).toString('hex');
@@ -55,14 +54,7 @@ export async function identityLoginContract(
   const tokens = createTargetIdentityTokens(state);
   const reservations = createIdentityReservations(state);
   const fixture = async (bound = true) => {
-    const source = mongoose.mongo.BSON.deserialize(importSourceFixture());
-    delete source.audioStoragePrefix;
-    if (!bound) {
-      delete source.providerId;
-      delete source.provider;
-      delete source.oauthTokens;
-    }
-    const plan = mapIdentitySource(mongoose.mongo.BSON.serialize(source));
+    const plan = accountPlanFixture({ bound, audioStoragePrefix: false });
     await createIdentityImporter(state, graph).apply(plan);
     const request = {
       ...loginFixture(),
