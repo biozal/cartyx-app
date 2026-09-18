@@ -426,10 +426,18 @@ export function entityStoreContract(makeStore: () => Promise<EntityStore>) {
   - `.github/workflows/ci.yml` e2e job: add infra checkout at the pinned revision, `npm ci --prefix <infra>/deploy/data`, `npm run db:up`, schema apply, and the GREMLIN_/CQL_ env pointing at the loopback stack. Keep the mongo service until Task 3.15.
   - `deploy/local/deploy-kind.sh`, `deploy/local/e2e-container.sh`, `scripts/dev-all.mjs`: start the data stack, apply the schema, then seed.
 
-- [ ] **Step 1:** Add a failing test `tests/scripts/seed-guards.test.ts` for the three refusal rules. Expected: FAIL.
-- [ ] **Step 2:** Implement the CLI with the registry. During the transition, subsystems not yet migrated delegate to the existing Python/CJS seed scripts, which keeps today's behavior.
-- [ ] **Step 3:** Run the test. Expected: PASS. Run `npm run dev:clear -- --force && npm run dev:seed` locally; the output matches today's summary.
-- [ ] **Step 4:** Commit. Push, and confirm that the CI e2e job starts the graph stack and passes (it's still Mongo-backed for data).
+- [x] **Step 1:** Add a failing test `tests/scripts/seed-guards.test.ts` for the three refusal rules. Expected: FAIL.
+- [x] **Step 2:** Implement the CLI with the registry. During the transition, subsystems not yet migrated delegate to the existing Python/CJS seed scripts, which keeps today's behavior.
+- [x] **Step 3:** Run the test. Expected: PASS. Run `npm run dev:clear -- --force && npm run dev:seed` locally; the output matches today's summary.
+- [x] **Step 4:** Commit. Push, and confirm that the CI e2e job starts the graph stack and passes (it's still Mongo-backed for data).
+
+**Done (2026-09-18, app `dc29fd0f`).** Two changes the plan did not anticipate:
+Cassandra publishes no host port, so an application outside the Compose network could
+not reach the state store at all — infrastructure PR #25 adds a loopback forwarder on
+`127.0.0.1:19042`, and CI must re-pin to it. Schema installation became one entry
+point, `npm run db:schema`, rather than three call sites per environment. A real-server
+run also exposed a `mutate` defect: retries without backoff needed 24 attempts for ten
+concurrent appenders; with full jitter it needs 11, and the default budget is now 12.
 
 **Checkpoint C1 (user):** approve merging PR #557 (foundation plus trimmed identity code) into `dev`, with `dev`→`main` promotions held. Slices then proceed as separate PRs to `dev`.
 
