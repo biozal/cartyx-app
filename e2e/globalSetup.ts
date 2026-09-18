@@ -544,4 +544,8 @@ export default async function globalSetup(): Promise<void> {
   writeFileSync(SEED_DATA_PATH, JSON.stringify(seedData, null, 2));
 
   await mongoose.disconnect();
+  // The Cassandra driver keeps the event loop alive, so setup releases what it opened
+  // rather than leaving the runner holding a pool for the length of the whole run.
+  const { closeData } = await import('../app/server/db/data-runtime');
+  await closeData();
 }

@@ -93,6 +93,21 @@ export async function checkDataReadiness(): Promise<{ graph: boolean; cql: boole
   return { graph, cql };
 }
 
+/**
+ * Releases the Cassandra connection pools this process opened.
+ *
+ * A server never calls this: it holds its clients for its lifetime. A script must,
+ * because the driver keeps the event loop alive, so a command that has finished its
+ * work would otherwise sit there looking like it had hung rather than exiting.
+ */
+export async function closeData(): Promise<void> {
+  const open = [cqlClient, stateStore];
+  cqlClient = undefined;
+  stateStore = undefined;
+  graphClient = undefined; // The graph transport opens and closes a connection per request.
+  await Promise.all(open.map((client) => client?.close()));
+}
+
 export async function requireDataAvailable(): Promise<void> {
   const readiness = await checkDataReadiness();
   if (!readiness.graph || !readiness.cql) throw new DataUnavailableError();
