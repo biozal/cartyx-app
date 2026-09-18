@@ -1,3 +1,5 @@
+import { users } from './users';
+
 /**
  * Seeders are registered per subsystem as each one moves to the graph. Order is
  * dependency order: a seeder may rely on everything registered before it, so clearing
@@ -10,7 +12,7 @@ export interface Seeder {
   clear(): Promise<void>;
 }
 
-export const seeders: Seeder[] = [];
+export const seeders: Seeder[] = [users];
 
 export async function runSeeders(list: Seeder[], action: 'seed' | 'clear'): Promise<string[]> {
   const ordered = action === 'seed' ? list : [...list].reverse();

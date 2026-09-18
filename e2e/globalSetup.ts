@@ -26,6 +26,8 @@ import { SignJWT } from 'jose';
 import mongoose from 'mongoose';
 import { AUDIO_FIXTURE_TITLES } from './fixtures/audio-fixtures';
 import { assertGraphReady } from './fixtures/data';
+import { identityRepository } from '../app/server/repositories/identity';
+import { GM_PROVIDER_ID } from '../scripts/seed/users';
 import {
   FOREIGN_ASSET_SOURCE_KEY,
   FOREIGN_OWNER_ID,
@@ -345,13 +347,21 @@ export default async function globalSetup(): Promise<void> {
   const db = mongoose.connection.db;
   if (!db) throw new Error('Mongo connection has no db handle');
 
-  const user = await db.collection('users').findOne({ role: 'gm' });
-  if (!user) {
-    throw new Error(
-      'No GM user found. Run `npm run dev:seed` (which requires a logged-in GM) before running E2E.'
-    );
+  // The game master's identity lives in the graph. Campaigns are still MongoDB and
+  // reference that same id, which the seeder is what keeps consistent.
+  const profile = await identityRepository.findProfile(GM_PROVIDER_ID);
+  if (!profile) {
+    throw new Error('No seeded game master found. Run `npm run dev:seed` before running E2E.');
   }
-  if (!user.providerId) throw new Error('GM user has no providerId — cannot mint session JWT');
+  const user = {
+    _id: new mongoose.Types.ObjectId(profile.id),
+    providerId: GM_PROVIDER_ID,
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    email: profile.email,
+    avatarUrl: profile.avatarUrl,
+    role: profile.role,
+  };
 
   const campaign = await db
     .collection('campaigns')

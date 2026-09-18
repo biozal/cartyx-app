@@ -1722,16 +1722,19 @@ def main() -> None:
                 "or set MONGODB_DB=cartyx in your .env file."
             )
 
-    # Find the GM user
-    user = db.users.find_one({"role": "gm"})
-    if not user:
+    # The game master's identity lives in the graph, so the id is handed in by
+    # `scripts/seed/cli.ts`, which creates the account before delegating here. It is a
+    # 24-character hex string, which is what campaign documents already store.
+    gm_id_hex = os.environ.get("CARTYX_SEED_GM_ID", "").strip()
+    if not re.fullmatch(r"[0-9a-f]{24}", gm_id_hex):
         sys.exit(
-            "No GM user found. Run `node scripts/seed-gm.cjs` first, "
-            "then log in to create a User doc."
+            "No game master id. Run `npm run dev:seed`, which creates the account "
+            "and passes CARTYX_SEED_GM_ID, rather than calling this script directly."
         )
-
-    gm_id = user["_id"]
-    print(f"Using GM: {user.get('firstName') or user.get('email')} ({gm_id})\n")
+    # Stored as an ObjectId, which is what every campaign document already holds and
+    # what the application compares against after stringifying it.
+    gm_id = ObjectId(gm_id_hex)
+    print(f"Using GM: {gm_id}\n")
 
     now = datetime.now(timezone.utc)
     campaign_ids = []

@@ -12,6 +12,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertSeedTargetIsNotProduction } from './guards';
 import { runSeeders, seeders } from './registry';
+import { seedGameMaster } from './users';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const action = process.argv[2];
@@ -42,10 +43,11 @@ const MONGO_SUBSYSTEMS = [
   'audio',
 ];
 
-const python = (script: string, args: string[] = []) =>
+const python = (script: string, args: string[] = [], env: Record<string, string> = {}) =>
   execFileSync(process.execPath, [resolve(root, 'scripts/run-python.cjs'), script, ...args], {
     cwd: root,
     stdio: 'inherit',
+    env: { ...process.env, ...env },
   });
 
 const ran = await runSeeders(seeders, action);
@@ -56,7 +58,9 @@ if (MONGO_SUBSYSTEMS.length) {
     // dev_clear keeps user accounts and empties everything else, including media.
     python('dev_clear.py', process.argv.includes('--force') ? ['--force'] : []);
   } else {
-    python('dev_seed.py');
+    // The game master's account is in the graph; the subsystems still on MongoDB need
+    // its id to attach their campaigns to the same person the application sees.
+    python('dev_seed.py', [], { CARTYX_SEED_GM_ID: await seedGameMaster() });
   }
   process.stdout.write(
     `MongoDB ${action} still covers: ${MONGO_SUBSYSTEMS.join(', ')}\n` +

@@ -288,11 +288,9 @@ jobs:
         run: npm run db:schema
 
       - name: Seed database
-        # globalSetup.ts looks up a GM user + seeded campaign/location/screen.
-        # seed-gm.cjs bootstraps the GM user, then dev:seed populates campaigns.
-        run: |
-          node scripts/seed-gm.cjs
-          npm run dev:seed
+        # globalSetup.ts looks up the seeded game master plus a campaign, location and
+        # screen. dev:seed creates the account in the graph, then populates the rest.
+        run: npm run dev:seed
 
       - name: Run Playwright tests
         # Retries (2) and webServer timeout are configured in playwright.config.ts
