@@ -25,6 +25,7 @@ import { join } from 'node:path';
 import { SignJWT } from 'jose';
 import mongoose from 'mongoose';
 import { AUDIO_FIXTURE_TITLES } from './fixtures/audio-fixtures';
+import { assertGraphReady } from './fixtures/data';
 import {
   FOREIGN_ASSET_SOURCE_KEY,
   FOREIGN_OWNER_ID,
@@ -335,6 +336,10 @@ export default async function globalSetup(): Promise<void> {
   if (!sessionSecret) throw new Error('SESSION_SECRET not set — needed to mint test JWT');
   if (!mongoUri) throw new Error('MONGODB_URI not set — needed to find seeded user');
   if (/prod/i.test(mongoUri)) throw new Error('Refusing to use a production-looking MONGODB_URI');
+
+  // Both stores are in use during the migration. Check the graph first: a missing
+  // stack otherwise surfaces as an unexplained empty page in whichever spec runs first.
+  await assertGraphReady();
 
   await mongoose.connect(mongoUri, { dbName: process.env.MONGODB_DB });
   const db = mongoose.connection.db;

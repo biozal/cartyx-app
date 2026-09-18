@@ -231,9 +231,31 @@ jobs:
       # code path throws on a missing BASE_URL even though e2e uses a pre-minted
       # session cookie rather than the live OAuth flow.
       BASE_URL: http://localhost:3000
+      # Graph/Cassandra for the subsystems that have migrated. Both stores run during
+      # the transition; the Mongo service above disappears with the last subsystem.
+      CARTYX_INFRASTRUCTURE_DIR: ${{ github.workspace }}/.local/e2e-infrastructure
+      GREMLIN_URL: wss://localhost:18182/gremlin
+      GREMLIN_USERNAME: cartyx_app
+      GREMLIN_PASSWORD_FILE: ${{ github.workspace }}/.local/e2e-infrastructure/.local/data/local/gremlin-app-password
+      GREMLIN_CA_FILE: ${{ github.workspace }}/.local/e2e-infrastructure/.local/data/local/tls.crt
+      CQL_CONTACT_POINT: 127.0.0.1
+      CQL_PORT: '19042'
+      CQL_TLS_SERVER_NAME: localhost
+      CQL_DATACENTER: dc1
+      CQL_STATE_KEYSPACE: cartyx_state
+      CQL_CA_FILE: ${{ github.workspace }}/.local/e2e-infrastructure/.local/data/local/tls.crt
+      CQL_PASSWORD_FILE: ${{ github.workspace }}/.local/e2e-infrastructure/.local/data/local/cassandra-state-password
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+
+      - name: Check out the pinned database infrastructure
+        uses: actions/checkout@v7
+        with:
+          repository: biozal/cartyx-infrastructure
+          ref: 3fb939c790e9275775e6f791057edec27c201409
+          path: .local/e2e-infrastructure
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -256,6 +278,14 @@ jobs:
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
+
+      - name: Start the pinned TLS databases
+        run: npm run db:up
+
+      - name: Install the graph and state schemas
+        # The same step local development runs; it supplies the operator credentials,
+        # which the application principal in this job's environment does not hold.
+        run: npm run db:schema
 
       - name: Seed database
         # globalSetup.ts looks up a GM user + seeded campaign/location/screen.

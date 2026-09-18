@@ -15,9 +15,14 @@ import { existsSync } from 'node:fs';
 
 // Database containers remain running when the host processes stop; db:down is
 // explicit and never deletes their data volume.
-const data = spawnSync(process.execPath, ['scripts/dev-data.mjs', 'up'], { stdio: 'inherit' });
-if (data.error) throw data.error;
-if (data.status !== 0) process.exit(data.status ?? 1);
+const step = (command, args, env) => {
+  const result = spawnSync(command, args, { stdio: 'inherit', env: { ...process.env, ...env } });
+  if (result.error) throw result.error;
+  if (result.status !== 0) process.exit(result.status ?? 1);
+};
+step(process.execPath, ['scripts/dev-data.mjs', 'up']);
+
+step(process.execPath, ['scripts/dev-schema.mjs']);
 
 // Load .env into process.env so the realtime service gets SESSION_SECRET /
 // MONGODB_URI. Vite loads .env on its own, so this is harmless for the web app.

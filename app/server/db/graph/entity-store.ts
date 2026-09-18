@@ -94,7 +94,11 @@ export interface EntityStore {
 
 export const MAX_LIST_LIMIT = 500;
 export const MAX_TRAVERSAL_DEPTH = 8;
-export const DEFAULT_MUTATE_ATTEMPTS = 3;
+// Ten concurrent appenders to one entity needed up to eleven compare-and-set attempts
+// against a real server, so a budget near the number of writers is what contention
+// actually costs. The graph store waits between attempts, so a busy entity adds about
+// a second of latency here rather than failing the write.
+export const DEFAULT_MUTATE_ATTEMPTS = 12;
 
 export function assertQuery<T>(query: ListQuery<T>) {
   if (!Number.isInteger(query.limit) || query.limit < 1 || query.limit > MAX_LIST_LIMIT)

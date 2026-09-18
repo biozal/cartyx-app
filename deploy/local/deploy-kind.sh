@@ -64,6 +64,36 @@ down() {
   fi
 }
 
+# The chart creates keyspaces and roles; the application's own tables, property keys
+# and indexes come from its migrations. Neither service is published outside the
+# cluster, so schema work forwards both for the length of this one step.
+apply_schemas() {
+  local infra kubeconfig gremlin_pf cql_pf
+  infra=${CARTYX_INFRASTRUCTURE_DIR:-$(cd "$REPO_ROOT/../cartyx-infrastructure" && pwd)}
+  kubeconfig="$infra/.local/data/$CLUSTER.kubeconfig"
+  [ -f "$kubeconfig" ] || die "No data kubeconfig at $kubeconfig; data-kind.sh should have written one."
+
+  log "Forwarding the data services to apply schemas..."
+  kubectl --kubeconfig "$kubeconfig" -n "$NAMESPACE" port-forward svc/cartyx-data-janusgraph 18182:8182 >/dev/null &
+  gremlin_pf=$!
+  kubectl --kubeconfig "$kubeconfig" -n "$NAMESPACE" port-forward svc/cartyx-data-cassandra 19042:9042 >/dev/null &
+  cql_pf=$!
+  # shellcheck disable=SC2064 # expand the PIDs now, not when the trap fires.
+  trap "kill $gremlin_pf $cql_pf 2>/dev/null || true" RETURN
+  local attempt
+  for attempt in $(seq 1 30); do
+    if nc -z localhost 18182 2>/dev/null && nc -z localhost 19042 2>/dev/null; then break; fi
+    [ "$attempt" -lt 30 ] || die "The data services never accepted a forwarded connection."
+    sleep 1
+  done
+
+  CARTYX_INFRASTRUCTURE_DIR="$infra" \
+    GREMLIN_URL=wss://localhost:18182/gremlin \
+    CQL_CONTACT_POINT=127.0.0.1 CQL_PORT=19042 CQL_TLS_SERVER_NAME=localhost \
+    CQL_DATACENTER=dc1 CQL_STATE_KEYSPACE=cartyx_state \
+    node "$REPO_ROOT/scripts/dev-schema.mjs"
+}
+
 verify_endpoint() {
   local url=$1 name=$2 attempt
   log "Verifying $name at $url ..."
@@ -99,6 +129,8 @@ up() {
 
   log "Deploying persistent Cassandra and JanusGraph infrastructure..."
   DATA_KIND_CLUSTER="$CLUSTER" bash "$SCRIPT_DIR/data-kind.sh"
+
+  apply_schemas
 
   log "Building realtime image $REALTIME_IMAGE..."
   docker build -t "$REALTIME_IMAGE" "$REPO_ROOT/realtime"

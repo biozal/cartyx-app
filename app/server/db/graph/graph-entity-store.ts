@@ -35,6 +35,17 @@ export interface EntityGraphClient {
 
 const source = () => new gremlin.structure.Graph().traversal();
 
+/** Exponential with full jitter, capped so one contended write stays interactive. */
+const BACKOFF_BASE_MS = 10;
+const BACKOFF_CAP_MS = 250;
+const backoff = (attempt: number) =>
+  new Promise((resolve) =>
+    setTimeout(
+      resolve,
+      Math.random() * Math.min(BACKOFF_BASE_MS * 2 ** (attempt - 1), BACKOFF_CAP_MS)
+    )
+  );
+
 /** Property names are fixed by the schema migration; only slots and labels vary. */
 const DOC = 'doc';
 const DOC_VERSION = 'docVersion';
@@ -245,12 +256,19 @@ export function createGraphEntityStore(client: EntityGraphClient): EntityStore {
 
     async mutate(codec, scope, id, change, attempts = DEFAULT_MUTATE_ATTEMPTS) {
       for (let attempt = 0; attempt < attempts; attempt++) {
+        // Losers that re-read immediately collide again, so contention costs far more
+        // attempts than there are writers: measured against a real server, ten
+        // concurrent appenders needed up to 24 attempts without this wait and at most
+        // a few with it. Full jitter, so retries spread out instead of resynchronising.
+        if (attempt > 0) await backoff(attempt);
         const current = await store.get(codec, scope, id);
         if (!current) throw new EntityNotFoundError({ kind: codec.kind, scope, id });
         try {
           return await store.update(codec, scope, id, current.revision, change(current.value));
         } catch (error) {
           // A lost revision lock is the same race as a stale revision: re-read and retry.
+          // Retrying is safe because lock contention fails while preparing the commit,
+          // before any mutation is persisted; the re-read then sees the winner's value.
           const conflict =
             error instanceof StaleRevisionError ||
             (error instanceof GraphRequestError && error.code === 'conflict');

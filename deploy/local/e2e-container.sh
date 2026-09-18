@@ -13,4 +13,6 @@ cleanup() { "${COMPOSE[@]}" down; }
 trap cleanup EXIT
 
 "${COMPOSE[@]}" up --build --wait
+# The containers hold data but no schema; installing it is idempotent.
+node scripts/dev-schema.mjs
 E2E_BASE_URL=http://localhost:3100 npx playwright test "$@"

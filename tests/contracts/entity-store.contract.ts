@@ -122,7 +122,10 @@ export async function entityStoreContract(
       )
     );
     const merged = await store.get(contractThing, scope, shared.ref.id);
-    assert.equal(new Set(merged?.value.tags).size, 10, 'every concurrent append survives');
+    // Counted, not de-duplicated: a retry that re-applied an already-committed change
+    // would append a second copy, which a set would hide. The revision below pins it too.
+    assert.equal(merged?.value.tags.length, 10, 'every append lands exactly once');
+    assert.equal(new Set(merged?.value.tags).size, 10, 'no append is lost');
     assert.equal(merged?.revision, 11);
 
     // Filtering, ordering and paging use the indexed projection.
