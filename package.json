@@ -53,7 +53,8 @@
     "cql:schema": "tsx scripts/cql/cli.ts",
     "cql:test": "tsx scripts/cql/integration.ts",
     "cql:local": "node scripts/cql/local.mjs",
-    "identity:graph-schema": "tsx scripts/identity/profile-schema-cli.ts"
+    "identity:graph-schema": "tsx scripts/identity/profile-schema-cli.ts",
+    "identity:resolve-revocation": "tsx scripts/identity/resolve-revocation.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1090.0",
