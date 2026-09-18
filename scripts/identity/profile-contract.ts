@@ -67,7 +67,8 @@ export async function identityProfileContract(
     contenders.map((input) => profiles.resume(input.operationId))
   );
   for (const attempt of attempts)
-    if (attempt.status === 'rejected') assert.match(String(attempt.reason), /Graph request failed/);
+    if (attempt.status === 'rejected')
+      assert.match(String(attempt.reason), /Graph request (failed|conflict)/);
   // A JanusGraph lock conflict is uncertain; an explicit subsequent resume resolves it.
   const results = [];
   for (const input of contenders) results.push(await profiles.resume(input.operationId));

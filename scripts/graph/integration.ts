@@ -99,7 +99,8 @@ try {
     ),
     []
   );
-  await assert.rejects(client.execute(insert(left)), /Graph request failed/);
+  // A duplicate identity loses the unique index: a conflict, not an unknown fault.
+  await assert.rejects(client.execute(insert(left)), /Graph request (failed|conflict)/);
   const attempts = await Promise.allSettled(
     Array.from({ length: 4 }, () => client.execute(insert(race)))
   );

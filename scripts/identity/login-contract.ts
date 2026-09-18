@@ -215,7 +215,8 @@ export async function identityLoginContract(
     )
   );
   for (const attempt of parallel) {
-    if (attempt.status === 'rejected') assert.match(String(attempt.reason), /Graph request failed/);
+    if (attempt.status === 'rejected')
+      assert.match(String(attempt.reason), /Graph request (failed|conflict)/);
     else assert.equal(attempt.value, 'applied');
   }
   // Wait for every worker before recovery/cleanup. Graph lock contention is an
@@ -230,7 +231,7 @@ export async function identityLoginContract(
     );
     for (const attempt of attempts)
       if (attempt.status === 'rejected')
-        assert.match(String(attempt.reason), /Graph request failed/);
+        assert.match(String(attempt.reason), /Graph request (failed|conflict)/);
     const outcomes = [];
     for (const plan of plans) outcomes.push(await coordinator.resume(plan.operationId));
     assert.equal(outcomes.filter((outcome) => outcome === 'applied').length, 1);

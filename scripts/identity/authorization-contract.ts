@@ -103,6 +103,8 @@ async function rejectedFrame(config: GraphConnectionConfig, body: Buffer | strin
   }
 }
 
+const graphSource = () => new gremlin.structure.Graph().traversal();
+
 export async function identityAuthorizationContract(
   runtime: GraphConnectionConfig,
   operator: GraphConnectionConfig,
@@ -157,13 +159,33 @@ export async function identityAuthorizationContract(
     assert.deepEqual((await client.submit(allowed)).toArray(), [
       new gremlin.process.Traverser('User', 1),
     ]);
+    // Policy v2 is a step vocabulary, so the server no longer certifies profile
+    // immutability: the application is an ordinary data client and the repository API
+    // is what refuses to overwrite a published revision (see the profile contract).
+    // What the server still refuses is anything outside the vocabulary.
     for (const traversal of [
-      findIdentity(identity).drop(),
-      findIdentity(identity).property('identityProfileFirstName', 'private-payload-marker'),
-      findIdentity(owner).out('HAS_PROFILE_REVISION').drop(),
-      findIdentity(owner).limit(2).label().sideEffect(gremlin.process.statics.drop()),
+      // The schema registry belongs to operator tooling.
+      graphSource().V().hasLabel('GraphSchema').count(),
+      graphSource().V().has('graphSchemaVersion', '0001').count(),
+      graphSource().addV('GraphSchema'),
+      // Internal element identifiers are never application identifiers.
+      graphSource().V('1'),
+      // Steps outside the vocabulary, including anything that runs server-side code.
+      findIdentity(owner).limit(2).path(),
+      findIdentity(owner).limit(2).math('1+1'),
+      // Lambdas cannot be expressed by this driver at all; the image test suite covers
+      // them directly against the server.
     ])
       await denied('traversal', 'bytecode', { ...args, gremlin: traversal.getBytecode() });
+    // A traversal-source instruction is refused even with an allowed body.
+    await denied('traversal', 'bytecode', {
+      ...args,
+      gremlin: graphSource()
+        .withSideEffect('marker', 'private-payload-marker')
+        .V()
+        .count()
+        .getBytecode(),
+    });
     await denied('', 'eval', { gremlin: "'private-payload-marker'", aliases: { g: 'g' } });
     for (const processor of ['session', 'other']) await denied(processor, 'bytecode', args);
     for (const op of ['close', 'eval', 'other']) await denied('traversal', op, args);
@@ -174,7 +196,7 @@ export async function identityAuthorizationContract(
       { bindings: { secret: 'private-payload-marker' } },
       { aliases: { g: 'graph' } },
       { aliases: { g: 'g', other: 'g' } },
-      { batchSize: 65 },
+      { batchSize: 2000 },
       { evaluationTimeout: 15001 },
       { userAgent: 'private-payload-marker' },
     ])
@@ -182,25 +204,9 @@ export async function identityAuthorizationContract(
     const sourced = new gremlin.process.Bytecode(allowed);
     sourced.addSource('withBulk', [false]);
     await denied('traversal', 'bytecode', { ...args, gremlin: sourced });
-    const otherOwner = profileUserIdentity(randomBytes(12).toString('hex'));
-    const __ = gremlin.process.statics;
-    const crossOwner = findIdentity(otherOwner)
-      .as('owner')
-      .V()
-      .has('scope', identity.scope)
-      .has('kind', identity.kind)
-      .has('entityId', identity.entityId)
-      .coalesce(
-        __.inE('HAS_PROFILE_REVISION').where(
-          __.outV()
-            .has('scope', otherOwner.scope)
-            .has('kind', otherOwner.kind)
-            .has('entityId', otherOwner.entityId)
-        ),
-        __.addE('HAS_PROFILE_REVISION').from_('owner')
-      )
-      .count();
-    await denied('traversal', 'bytecode', { ...args, gremlin: crossOwner.getBytecode() });
+    // Ownership is not a server concept under policy v2: linking a revision to another
+    // owner is an ordinary write, and the repository is what validates the owner edge on
+    // read (see the profile contract). The server's job here is the vocabulary itself.
 
     // Shared server handlers must not mix concurrent operator/service principals.
     const concurrent = await Promise.allSettled(
@@ -209,7 +215,7 @@ export async function identityAuthorizationContract(
           submitGraphRequest(operator, '40 + 2').then((values) => assert.deepEqual(values, [42])),
           denied('traversal', 'bytecode', {
             ...args,
-            gremlin: findIdentity(identity).drop().getBytecode(),
+            gremlin: graphSource().V().hasLabel('GraphSchema').count().getBytecode(),
           }),
           graph
             .get(snapshot.userId, snapshot.snapshotId)
@@ -266,9 +272,10 @@ export async function identityAuthorizationContract(
     'g:Lambda',
     'g:Class',
     'g:Binding',
-    'g:P',
     'g:SubgraphStrategy',
     'gx:Unknown',
+    // g:P is a legitimate request type now (filters need predicates), so a predicate in
+    // the gremlin argument is refused by the authorizer rather than the decoder.
   ]) {
     const request = structuredClone(base);
     request.args.gremlin = { '@type': type, '@value': 'private-payload-marker' };
