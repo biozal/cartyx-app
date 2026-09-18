@@ -5,6 +5,8 @@ import {
   IdentityStorageUnavailableError,
 } from '~/server/repositories/identity/availability';
 import type { IdentityRepository, RecordIdentityLogin } from '~/server/repositories/identity/types';
+import { DataUnavailableError } from '~/server/db/data-unavailable';
+import { GraphRequestError } from '~/server/db/graph/transport';
 import { isInfrastructureFailure } from '~/utils/error-classification';
 
 const login = (): RecordIdentityLogin => ({
@@ -31,7 +33,7 @@ const calls = {
 } satisfies Record<keyof IdentityRepository, (repo: IdentityRepository) => Promise<unknown>>;
 
 it.each(Object.entries(calls))(
-  'refuses %s before storage on failed availability and never caches a prior success',
+  'reports %s as unavailable only when the store could not be reached',
   async (_name, invoke) => {
     const operation = vi.fn(async () => null);
     const repository = Object.fromEntries(
@@ -40,31 +42,46 @@ it.each(Object.entries(calls))(
     const connect = vi.fn(async () => true);
     const storage = createIdentityStorage(repository, connect);
     expect(await storage.ensureAvailable()).toBe(true);
-    connect.mockResolvedValue(false);
+
+    // An unreachable store is an outage the caller should see as one.
+    operation.mockRejectedValueOnce(new DataUnavailableError());
     await expect(invoke(storage.repository)).rejects.toBeInstanceOf(
       IdentityStorageUnavailableError
     );
-    expect(operation).not.toHaveBeenCalled();
-    const cause = new Error('connection setup failed');
-    connect.mockRejectedValue(cause);
-    await expect(invoke(storage.repository)).rejects.toBe(cause);
-    expect(operation).not.toHaveBeenCalled();
-    // Only an explicitly successful later check permits this later operation.
-    connect.mockResolvedValue(true);
+    operation.mockRejectedValueOnce(new GraphRequestError('timeout'));
+    await expect(invoke(storage.repository)).rejects.toBeInstanceOf(
+      IdentityStorageUnavailableError
+    );
+
+    // A refused traversal is a fault in this code, and reporting it as an outage would
+    // hide it. So is a lost race, which the caller must reconcile rather than retry.
+    const refused = new GraphRequestError('failed');
+    operation.mockRejectedValueOnce(refused);
+    await expect(invoke(storage.repository)).rejects.toBe(refused);
+    const contended = new GraphRequestError('conflict');
+    operation.mockRejectedValueOnce(contended);
+    await expect(invoke(storage.repository)).rejects.toBe(contended);
+
+    // Operations are not preceded by a probe: the request itself is the check.
     await invoke(storage.repository);
-    expect(operation).toHaveBeenCalledOnce();
-    expect(connect).toHaveBeenCalledTimes(4);
+    expect(connect).toHaveBeenCalledOnce();
   }
 );
 
-it('captures login fields, dates and token fences before awaiting availability', async () => {
-  let release!: (value: boolean) => void;
-  const connect = () =>
-    new Promise<boolean>((resolve) => {
-      release = resolve;
-    });
-  const recordLogin = vi.fn(async () => ({ id: 'stored' }));
-  const clearTokens = vi.fn(async () => 'cleared' as const);
+it('captures login fields, dates and token fences when the command is issued', async () => {
+  let release!: (value: unknown) => void;
+  const pending = new Promise((resolve) => {
+    release = resolve;
+  });
+  const connect = async () => true;
+  const recordLogin = vi.fn(async () => {
+    await pending;
+    return { id: 'stored' };
+  });
+  const clearTokens = vi.fn(async () => {
+    await pending;
+    return 'cleared' as const;
+  });
   const delegate = Object.fromEntries(
     Object.keys(calls).map((name) => [name, vi.fn()])
   ) as unknown as IdentityRepository;
@@ -88,7 +105,7 @@ it('captures login fields, dates and token fences before awaiting availability',
   expect(clearTokens).toHaveBeenCalledWith(fence);
 });
 
-it('propagates an uncertain write without a second availability check or automatic replay', async () => {
+it('propagates an uncertain write without an availability check or automatic replay', async () => {
   const uncertain = new Error('write acknowledgement lost');
   const operation = vi.fn(async () => {
     throw uncertain;
@@ -100,7 +117,7 @@ it('propagates an uncertain write without a second availability check or automat
   const storage = createIdentityStorage(delegate, connect);
   await expect(storage.repository.recordLogin(login())).rejects.toBe(uncertain);
   expect(operation).toHaveBeenCalledOnce();
-  expect(connect).toHaveBeenCalledOnce();
+  expect(connect).not.toHaveBeenCalled();
 });
 
 it('recognizes unavailable storage after serialization without including backend details', () => {

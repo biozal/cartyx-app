@@ -8,7 +8,7 @@ vi.mock('@tanstack/react-start', () => ({
 }));
 vi.mock('~/server/session', () => ({ getSession: vi.fn() }));
 vi.mock('~/server/db/connection', () => ({ connectDB: vi.fn(), isDBConnected: vi.fn(() => true) }));
-vi.mock('~/server/db/models/User', () => ({ User: { findOne: vi.fn() } }));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
 vi.mock('~/server/db/models/Campaign', () => ({ Campaign: { findById: vi.fn() } }));
 vi.mock('~/server/db/models/Calendar', () => ({ Calendar: { findOne: vi.fn() } }));
 vi.mock('~/server/db/models/Event', () => ({
@@ -28,7 +28,7 @@ vi.mock('~/server/db/models/Race', () => ({ Race: { findById: vi.fn() } }));
 vi.mock('~/server/db/models/Lore', () => ({ Lore: { findById: vi.fn() } }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
+import { resetIdentityDouble } from './identityTestDouble';
 import { Campaign } from '~/server/db/models/Campaign';
 import { Calendar } from '~/server/db/models/Calendar';
 import { Event } from '~/server/db/models/Event';
@@ -87,7 +87,7 @@ function mockEventFind(docs: unknown[]) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue({ id: 'sess-1' } as never);
-  vi.mocked(User.findOne).mockResolvedValue({ _id: 'user-1' } as never);
+  resetIdentityDouble({ id: 'user-1' });
   vi.mocked(Campaign.findById).mockResolvedValue(gmCampaign as never);
   vi.mocked(Calendar.findOne).mockReturnValue({ lean: vi.fn().mockResolvedValue(calDoc) } as never);
 });

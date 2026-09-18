@@ -5,7 +5,7 @@ vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
   isDBConnected: vi.fn(() => true),
 }));
-vi.mock('~/server/db/models/User', () => ({ User: { findOne: vi.fn() } }));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
 vi.mock('~/server/db/models/Campaign', () => ({ Campaign: { findById: vi.fn() } }));
 vi.mock('~/server/db/models/Spell', () => ({
   Spell: {
@@ -22,7 +22,7 @@ vi.mock('~/server/utils/telemetry', () => ({
 }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
+import { resetIdentityDouble } from './identityTestDouble';
 import { Campaign } from '~/server/db/models/Campaign';
 import { Spell } from '~/server/db/models/Spell';
 import {
@@ -45,7 +45,7 @@ const mockSession = {
   refreshToken: null,
   tokenIssuedAt: 0,
 };
-const mockDbUser = { _id: 'dbuser-1' };
+const mockDbUser = { id: 'dbuser-1' };
 const mockGMCampaign = {
   _id: 'camp-1',
   gameMasterId: 'dbuser-1',
@@ -123,7 +123,7 @@ function findChain(rows: unknown[]) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession as never);
-  vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
+  resetIdentityDouble(mockDbUser);
   vi.mocked(Campaign.findById).mockResolvedValue(mockGMCampaign as never);
 });
 

@@ -380,6 +380,9 @@ export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
       lastLoginAt: new Date(),
     });
 
+    // A repository that answers with nothing has not claimed the account, and minting a
+    // session from that would log the user into an unpersisted, role-less identity.
+    if (!stored) throw new Error('Identity was not persisted');
     return toSessionUser(profile, stored.role ?? 'unknown', stored);
   } catch (e) {
     // A write failure here (lost connection, duplicate-key from the unique email

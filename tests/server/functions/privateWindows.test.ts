@@ -37,9 +37,7 @@ vi.mock('~/server/utils/telemetry', () => ({
   serverCaptureException: vi.fn(),
   serverCaptureEvent: vi.fn(),
 }));
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
 vi.mock('~/server/db/models/Campaign', () => ({
   Campaign: { findById: vi.fn() },
 }));
@@ -78,7 +76,7 @@ vi.mock('mongoose', async () => {
 
 import mongoose from 'mongoose';
 import { getSession, createPartyBroadcastToken } from '~/server/session';
-import { User } from '~/server/db/models/User';
+import { resetIdentityDouble } from './identityTestDouble';
 import { Campaign } from '~/server/db/models/Campaign';
 import { TabletopScreen } from '~/server/db/models/TabletopScreen';
 import { GMScreen } from '~/server/db/models/GMScreen';
@@ -121,7 +119,7 @@ const mockSession = {
   tokenIssuedAt: 0,
 };
 
-const mockDbUser = { _id: CALLER_DB_ID, firstName: 'Player', lastName: 'One' };
+const mockDbUser = { id: CALLER_DB_ID, firstName: 'Player', lastName: 'One' };
 
 /** Caller is a member with role 'player'; someone else is the GM. */
 const mockCampaign = {
@@ -219,7 +217,7 @@ function pushCall() {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
-  vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
+  resetIdentityDouble(mockDbUser);
   vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign as never);
   vi.mocked(TabletopPlayerState.updateOne).mockResolvedValue(PUSH_APPLIED as never);
 

@@ -26,21 +26,17 @@ vi.mock('~/server/session', () => ({
   getSession: vi.fn(),
 }));
 
-// `requireUserId()` resolves `SessionUser.id` (the OAuth provider's subject
-// id) to this app's Mongo `_id` via `User.findOne({ providerId })` before
-// handing it to `~/server/functions/audio` — `AudioAsset.ownerId` is a
-// Mongoose `ObjectId`, and a provider id like `'user-1'`/`'google_...'`
-// doesn't cast to one. Per this repo's "unit tests mock mongoose" convention
-// (no in-memory Mongo), `User.findOne` is mocked per-test rather than hit
-// for real.
+// `requireUserId()` resolves `SessionUser.id` (the OAuth provider's subject id) to this
+// app's own user id before handing it to `~/server/functions/audio` — `AudioAsset.ownerId`
+// is a Mongoose `ObjectId`, and a provider id like `'user-1'`/`'google_...'` doesn't cast
+// to one. Identity is served from the graph, so the identity module is stood in for here
+// rather than a Mongo model.
 vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
   isDBConnected: vi.fn(() => true),
 }));
 
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('../server/functions/identityTestDouble'));
 
 vi.mock('~/server/functions/audio', () => ({
   createAudioUpload: vi.fn(),
@@ -52,8 +48,11 @@ vi.mock('~/server/functions/audio', () => ({
 }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
-import { isDBConnected } from '~/server/db/connection';
+import {
+  identityDouble,
+  identityRepository,
+  resetIdentityDouble,
+} from '../server/functions/identityTestDouble';
 import {
   createAudioUpload,
   confirmAudioUpload,
@@ -95,9 +94,9 @@ const SESSION_USER = {
  */
 const DB_USER_ID = 'mongo-user-1';
 
-/** Stubs the identity repository's Mongo provider-ID lookup. */
+/** Stubs the identity repository's provider-id lookup. */
 function mockDbUser(id: string | null) {
-  vi.mocked(User.findOne).mockResolvedValue(id ? ({ _id: id } as never) : null);
+  resetIdentityDouble(id ? { id } : null);
 }
 
 const FAKE_ASSET = {
@@ -126,11 +125,11 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-it('stops an authenticated audio request before resolving an actor or writing domain data when identity is unavailable', async () => {
+it('stops an authenticated audio request before writing domain data when identity is unavailable', async () => {
   vi.mocked(getSession).mockResolvedValue(SESSION_USER);
-  vi.mocked(isDBConnected).mockReturnValueOnce(false);
+  identityDouble.profile = null;
+  identityRepository.findUserId.mockRejectedValueOnce(new Error('Database not connected'));
   await expect(listAudioAssetsFn({ data: {} })).rejects.toThrow('Database not connected');
-  expect(User.findOne).not.toHaveBeenCalled();
   expect(listAudioAssets).not.toHaveBeenCalled();
 });
 

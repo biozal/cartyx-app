@@ -31,7 +31,7 @@ vi.mock('~/server/utils/telemetry', () => ({
   serverCaptureEvent: vi.fn(),
 }));
 
-vi.mock('~/server/db/models/User', () => ({ User: { findOne: vi.fn() } }));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
 vi.mock('~/server/db/models/Campaign', () => ({
   Campaign: { findById: vi.fn(), find: vi.fn() },
 }));
@@ -41,7 +41,7 @@ vi.mock('~/server/db/models/Player', () => ({ Player: { find: vi.fn() } }));
 vi.mock('~/server/db/models/AudioAsset', () => ({ AudioAsset: { find: vi.fn() } }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
+import { resetIdentityDouble } from './identityTestDouble';
 import { Campaign } from '~/server/db/models/Campaign';
 import { Location } from '~/server/db/models/Location';
 import { Character } from '~/server/db/models/Character';
@@ -109,7 +109,7 @@ beforeEach(() => {
   process.env.CDN_URL = 'https://cdn.example.com';
 
   vi.mocked(getSession).mockResolvedValue(mockSession);
-  vi.mocked(User.findOne).mockResolvedValue({ _id: 'dbuser1' } as never);
+  resetIdentityDouble({ id: 'dbuser1' });
   vi.mocked(Campaign.findById).mockResolvedValue({
     _id: 'c1',
     gameMasterId: 'dbuser1',

@@ -5,9 +5,7 @@ vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
   isDBConnected: vi.fn(() => true),
 }));
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn(), findById: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
 vi.mock('~/server/db/models/Campaign', () => ({
   Campaign: { findById: vi.fn() },
 }));
@@ -29,7 +27,7 @@ vi.mock('~/server/utils/telemetry', () => ({
 }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
+import { identityDouble, resetIdentityDouble } from './identityTestDouble';
 import { Campaign } from '~/server/db/models/Campaign';
 import { MapAoE } from '~/server/db/models/MapAoE';
 import { Map as MapModel } from '~/server/db/models/Map';
@@ -52,7 +50,7 @@ const mockSession = {
   refreshToken: null,
   tokenIssuedAt: 0,
 };
-const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
+const mockDbUser = { id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
 const mockGMCampaign = {
   _id: 'camp-1',
   gameMasterId: 'dbuser-1',
@@ -113,9 +111,8 @@ const _moveMapAoE = moveMapAoE as unknown as (args: {
 }) => Promise<{ aoe: Record<string, unknown> }>;
 
 function mockUserFindById(user: Record<string, unknown> | null) {
-  vi.mocked(User.findById).mockReturnValue({
-    select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(user) }),
-  } as never);
+  // The placer's name, which is read for someone other than the acting user.
+  identityDouble.displayName = user as never;
 }
 
 function mockMapBounds(imageWidth = 1000, imageHeight = 1000) {
@@ -127,7 +124,7 @@ function mockMapBounds(imageWidth = 1000, imageHeight = 1000) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
-  vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
+  resetIdentityDouble(mockDbUser);
   vi.mocked(Campaign.findById).mockResolvedValue(mockGMCampaign);
   mockUserFindById({ firstName: 'Ada', lastName: 'Lovelace' });
   mockMapBounds();

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
-import { identityRepository, identityMembershipMirror } from '../repositories/identity';
+import { identityRepository } from '../repositories/identity';
 import { Campaign } from '../db/models/Campaign';
 import { requireCampaignMember } from '../utils/requireCampaignMember';
 import { Player } from '../db/models/Player';
@@ -669,13 +669,6 @@ export const completeJoinWizard = async ({
     if (!updatedCampaign) {
       throw new Error('Campaign is full');
     }
-
-    // 2. Update User.campaigns
-    await identityMembershipMirror.addCampaignLink(dbUser.id, {
-      campaignId: String(updatedCampaign._id),
-      status: 'active',
-      joinedAt: now,
-    });
 
     // 3. Guard against duplicate player (race condition / double-submit)
     const existingPlayer = await Player.findOne({

@@ -8,7 +8,7 @@ vi.mock('@tanstack/react-start', () => ({
 }));
 vi.mock('~/server/session', () => ({ getSession: vi.fn() }));
 vi.mock('~/server/db/connection', () => ({ connectDB: vi.fn(), isDBConnected: vi.fn(() => true) }));
-vi.mock('~/server/db/models/User', () => ({ User: { findOne: vi.fn() } }));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
 vi.mock('~/server/db/models/Campaign', () => ({ Campaign: { findById: vi.fn() } }));
 vi.mock('~/server/db/models/Lore', () => ({
   Lore: {
@@ -31,14 +31,14 @@ vi.mock('~/server/db/models/Race', () => ({ Race: { findById: vi.fn() } }));
 vi.mock('~/server/db/models/Event', () => ({ Event: { updateMany: vi.fn() } }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
+import { resetIdentityDouble } from './identityTestDouble';
 import { Campaign } from '~/server/db/models/Campaign';
 import { Lore } from '~/server/db/models/Lore';
 import { removeDocumentRefsFromScreens } from '~/server/functions/gmscreens-helpers';
 import { listLore, getLore, createLore, updateLore, deleteLore } from '~/server/functions/lore';
 
 const session = { id: 'sess-1' } as never;
-const dbUser = { _id: 'user-1' };
+const dbUser = { id: 'user-1' };
 const gmCampaign = {
   _id: 'camp-1',
   gameMasterId: 'user-1',
@@ -67,7 +67,7 @@ function mockFindReturning(docs: unknown[]) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(session);
-  vi.mocked(User.findOne).mockResolvedValue(dbUser as never);
+  resetIdentityDouble(dbUser);
   vi.mocked(Campaign.findById).mockResolvedValue(gmCampaign as never);
 });
 

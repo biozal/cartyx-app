@@ -14,9 +14,7 @@ vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
   isDBConnected: vi.fn(() => true),
 }));
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
 vi.mock('~/server/db/models/Campaign', () => ({
   Campaign: { findById: vi.fn() },
 }));
@@ -69,7 +67,7 @@ vi.mock('mongoose', () => ({
 }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
+import { resetIdentityDouble } from './identityTestDouble';
 import { Campaign } from '~/server/db/models/Campaign';
 import { GMScreen } from '~/server/db/models/GMScreen';
 import { Note } from '~/server/db/models/Note';
@@ -132,7 +130,7 @@ const mockSession = {
   refreshToken: null,
   tokenIssuedAt: 0,
 };
-const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
+const mockDbUser = { id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
 const mockCampaign = {
   _id: 'camp-1',
   gameMasterId: 'dbuser-1',
@@ -204,7 +202,7 @@ const _removeStackItem = removeStackItem as unknown as (args: {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
-  vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
+  resetIdentityDouble(mockDbUser);
   vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign);
   mockMongoSession.withTransaction.mockImplementation(async (fn: () => Promise<unknown>) => fn());
   mockMongoSession.endSession.mockReset();
@@ -224,7 +222,7 @@ describe('GM-only access', () => {
   });
 
   it('throws when user is not found', async () => {
-    vi.mocked(User.findOne).mockResolvedValue(null);
+    resetIdentityDouble(null);
 
     await expect(_listGMScreens({ data: { campaignId: 'camp-1' } })).rejects.toThrow(
       'User not found'

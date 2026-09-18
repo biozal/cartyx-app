@@ -14,9 +14,7 @@ vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
   isDBConnected: vi.fn(() => true),
 }));
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
 vi.mock('~/server/db/models/Session', () => ({
   Session: { findById: vi.fn() },
 }));
@@ -31,7 +29,7 @@ vi.mock('~/server/db/models/DiceRoll', () => ({
 }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
+import { resetIdentityDouble } from './identityTestDouble';
 import { Session as DbSession } from '~/server/db/models/Session';
 import { Campaign } from '~/server/db/models/Campaign';
 import { DiceRoll } from '~/server/db/models/DiceRoll';
@@ -48,7 +46,7 @@ const mockSession = {
   refreshToken: null,
   tokenIssuedAt: 0,
 };
-const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
+const mockDbUser = { id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
 const mockDbSession = { campaignId: 'camp-1' };
 const mockCampaign = {
   _id: 'camp-1',
@@ -59,7 +57,7 @@ const mockCampaign = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
-  vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
+  resetIdentityDouble(mockDbUser);
   vi.mocked(DbSession.findById).mockReturnValue({
     select: vi.fn().mockReturnValue({
       lean: vi.fn().mockResolvedValue(mockDbSession),

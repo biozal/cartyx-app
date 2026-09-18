@@ -2,9 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { parseIdentityTokenFence } from './token-fence';
 import type { ClientSession, Model } from 'mongoose';
 import type { IUser } from '../../db/models/User';
-import type { ICampaign } from '../../db/models/Campaign';
 import type {
-  CampaignAccessRepository,
   IdentityProfile,
   IdentityRepository,
   IdentityMembershipMirrorRepository,
@@ -192,24 +190,6 @@ export function createMongoMembershipMirror(
       };
       if (session) await users.updateOne({ _id: userId }, update, { session });
       else await users.updateOne({ _id: userId }, update);
-    },
-  };
-}
-
-export function createMongoCampaignAccessRepository(
-  campaigns: Model<ICampaign>
-): CampaignAccessRepository {
-  return {
-    async findAccess(campaignId) {
-      const campaign = await campaigns.findById(campaignId);
-      if (!campaign) return null;
-      return {
-        gameMasterId: campaign.gameMasterId == null ? null : String(campaign.gameMasterId),
-        members: (campaign.members ?? []).map((member) => ({
-          userId: String(member.userId),
-          role: member.role,
-        })),
-      };
     },
   };
 }

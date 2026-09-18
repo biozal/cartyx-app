@@ -5,16 +5,14 @@ vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
   isDBConnected: vi.fn(() => true),
 }));
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('../functions/identityTestDouble'));
 vi.mock('~/server/db/models/Campaign', () => ({
   Campaign: { findById: vi.fn() },
 }));
 
 import { getSession } from '~/server/session';
 import { connectDB, isDBConnected } from '~/server/db/connection';
-import { User } from '~/server/db/models/User';
+import { resetIdentityDouble } from '../functions/identityTestDouble';
 import { Campaign } from '~/server/db/models/Campaign';
 import { requireCampaignMember, CampaignAccessError } from '~/server/utils/requireCampaignMember';
 
@@ -29,18 +27,18 @@ const mockSession = {
   refreshToken: null,
   tokenIssuedAt: 0,
 };
-const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
+const mockDbUser = { id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
   vi.mocked(isDBConnected).mockReturnValue(true);
-  vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
+  resetIdentityDouble(mockDbUser);
 });
 
 describe('requireCampaignMember', () => {
   it('never grants ownership by stringifying an absent owner', async () => {
-    vi.mocked(User.findOne).mockResolvedValue({ _id: 'null' } as never);
+    resetIdentityDouble({ id: 'null' });
     vi.mocked(Campaign.findById).mockResolvedValue({ members: [] } as never);
     await expect(requireCampaignMember('camp-A')).rejects.toBeInstanceOf(CampaignAccessError);
   });
@@ -150,7 +148,7 @@ describe('requireCampaignMember', () => {
   });
 
   it('throws when the DB user is not found', async () => {
-    vi.mocked(User.findOne).mockResolvedValue(null);
+    resetIdentityDouble(null);
 
     await expect(requireCampaignMember('camp-A')).rejects.toThrow('User not found');
   });

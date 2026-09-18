@@ -2,8 +2,7 @@ import { z } from 'zod';
 import mongoose from 'mongoose';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
-import { identityRepository, identityMembershipMirror } from '../repositories/identity';
-import { membershipMirrorForMongoTransaction } from '../repositories/identity/mongo-transaction';
+import { identityRepository } from '../repositories/identity';
 import { Campaign } from '../db/models/Campaign';
 import { Player } from '../db/models/Player';
 import { Session } from '../db/models/Session';
@@ -475,13 +474,6 @@ This is the **Catch Up** section. Your players will see this on their Dashboard 
           });
         }
 
-        // Sync User.campaigns array
-        await membershipMirrorForMongoTransaction(mongoSession).appendCampaignLink(dbUser.id, {
-          campaignId: String(campaign._id),
-          joinedAt: new Date(),
-          status: 'active',
-        });
-
         return campaign;
       })) as CampaignResult;
     } finally {
@@ -646,12 +638,6 @@ export const joinCampaign = async ({ data }: { data: z.infer<typeof joinCampaign
     if (!updatedCampaign) {
       throw new Error('Campaign is full');
     }
-
-    await identityMembershipMirror.addCampaignLink(dbUser.id, {
-      campaignId: String(updatedCampaign._id),
-      status: 'active',
-      joinedAt: now,
-    });
 
     // Create placeholder Player document (can be edited later)
     const displayName = [

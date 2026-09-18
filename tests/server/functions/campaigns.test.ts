@@ -75,9 +75,7 @@ vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
   isDBConnected: vi.fn(() => true),
 }));
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn(), updateOne: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
 vi.mock('~/server/db/models/Campaign', () => ({
   Campaign: {
     find: vi.fn(),
@@ -128,7 +126,7 @@ vi.mock('mongoose', async () => {
 import mongoose from 'mongoose';
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
+import { resetIdentityDouble } from './identityTestDouble';
 import { Campaign } from '~/server/db/models/Campaign';
 import { Player } from '~/server/db/models/Player';
 import { Session } from '~/server/db/models/Session';
@@ -155,7 +153,7 @@ const mockSession = {
   refreshToken: null,
   tokenIssuedAt: 0,
 };
-const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
+const mockDbUser = { id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
 
 function makeCampaign(overrides: Record<string, unknown> = {}) {
   return {
@@ -177,8 +175,7 @@ function makeCampaign(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
-  vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
-  vi.mocked(User.updateOne).mockResolvedValue({} as never);
+  resetIdentityDouble(mockDbUser);
   vi.mocked(Player.find).mockReturnValue({ lean: vi.fn().mockResolvedValue([]) } as never);
   vi.mocked(Player.create).mockResolvedValue({} as never);
   vi.mocked(Player.updateOne).mockResolvedValue({} as never);
@@ -234,7 +231,7 @@ describe('listCampaigns', () => {
   });
 
   it('returns empty array when user is not found in DB', async () => {
-    vi.mocked(User.findOne).mockResolvedValue(null);
+    resetIdentityDouble(null);
 
     const result = await _listCampaigns();
 
@@ -589,20 +586,6 @@ describe('createCampaign', () => {
     expect(importSrdContent).not.toHaveBeenCalled();
   });
 
-  it('syncs User.campaigns after creation', async () => {
-    vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never);
-
-    await _createCampaign({ data: { name: 'My Campaign', description: '' } });
-
-    expect(User.updateOne).toHaveBeenCalledWith(
-      { _id: 'dbuser-1' },
-      expect.objectContaining({
-        $push: expect.objectContaining({ campaigns: expect.any(Object) }),
-      }),
-      expect.objectContaining({ session: expect.anything() })
-    );
-  });
-
   it('throws when not authenticated', async () => {
     vi.mocked(getSession).mockResolvedValue(null);
 
@@ -685,32 +668,27 @@ describe('createCampaign', () => {
     ).rejects.toThrow('Session write failed');
 
     expect(Session.create).toHaveBeenCalled();
-    expect(User.updateOne).not.toHaveBeenCalled();
     expect(mockMongoSession.endSession).toHaveBeenCalled();
   });
 
-  it('rolls back all writes when User.updateOne fails inside transaction', async () => {
+  it('rolls back all writes when the GM screen fails inside transaction', async () => {
     vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never);
-    vi.mocked(User.updateOne).mockRejectedValue(new Error('User update failed'));
+    vi.mocked(GMScreen.create).mockRejectedValue(new Error('GM screen write failed'));
 
     await expect(
       _createCampaign({ data: { name: 'My Campaign', description: '' } })
-    ).rejects.toThrow('User update failed');
+    ).rejects.toThrow('GM screen write failed');
 
     expect(Campaign.create).toHaveBeenCalled();
     expect(Session.create).toHaveBeenCalled();
     expect(GMScreen.create).toHaveBeenCalled();
-    expect(User.updateOne).toHaveBeenCalled();
     expect(mockMongoSession.endSession).toHaveBeenCalled();
   });
 });
 
 describe('joinCampaign', () => {
   beforeEach(() => {
-    vi.mocked(User.findOne).mockResolvedValue({
-      ...mockDbUser,
-      _id: '507f1f77bcf86cd799439011',
-    } as never);
+    resetIdentityDouble({ ...mockDbUser, id: '507f1f77bcf86cd799439011' });
   });
   it('adds user as player member with a valid invite code', async () => {
     const campaignDoc = makeCampaign({
@@ -728,7 +706,6 @@ describe('joinCampaign', () => {
 
     expect(result).toMatchObject({ success: true, campaignId: 'camp-1' });
     expect(Campaign.findOneAndUpdate).toHaveBeenCalled();
-    expect(User.updateOne).toHaveBeenCalled();
   });
 
   it('creates a Player document with placeholder info on join', async () => {

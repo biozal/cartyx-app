@@ -1,19 +1,13 @@
 import { readCqlConfig } from './cql/config';
+/** Request paths refuse rather than queue when a store is unavailable. */
+export { DataUnavailableError } from './data-unavailable';
+import { DataUnavailableError } from './data-unavailable';
 import { createCqlClient } from './cql/client';
 import { createControlStateStore } from './cql/control-state';
 import { readGraphConfig } from './graph/config';
 import { createGraphClient } from './graph/client';
 import { findIdentity, graphIdentity } from './graph/identity';
 import { submitGraphRequest } from './graph/transport';
-
-/** Request paths refuse rather than queue when a store is unavailable. */
-export class DataUnavailableError extends Error {
-  readonly status = 503;
-  constructor() {
-    super('Database not connected');
-    this.name = 'DataUnavailableError';
-  }
-}
 
 const PROBE_TIMEOUT_MS = 2_000;
 
