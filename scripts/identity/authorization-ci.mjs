@@ -121,17 +121,15 @@ try {
     'PASS: configured identity policy and application recovery after actual Cassandra/JanusGraph restart'
   );
 
-  // Retain the exact pending plans/package for recovery in both independent
-  // database copies. No replacement IDs, hashes or endpoint bindings are minted.
+  // Retain the exact pending operations for recovery in both independent database
+  // copies. No replacement IDs, hashes or endpoint bindings are minted.
   fixture('identity-graph-seed');
   const witnessPath = resolve(root, '.local/cql/identity-graph-persistence.json');
   const witness = JSON.parse(readFileSync(witnessPath, 'utf8'));
-  assert.match(witness.bulkWitness.directory, /^\.local\/cql\/identity-bulk-[0-9a-f-]{36}$/);
-  const packageDirectory = resolve(root, witness.bulkWitness.directory);
+  assert.equal(witness.keyspace, 'cartyx_state');
   const retained = resolve(root, '.local/identity-policy-retained');
   mkdirSync(retained, { mode: 0o700 });
   copyPrivate(witnessPath, resolve(retained, 'witness.json'));
-  copyPrivate(packageDirectory, resolve(retained, 'bulk'), true);
   run(process.execPath, ['deploy/data/smoke.mjs', 'seed'], infra, operatorEnv);
   run(process.execPath, ['deploy/data/backup.mjs', 'local-backup'], infra, operatorEnv);
   fixture('identity-graph-verify'); // Exact source cleanup before changing routes.
@@ -167,7 +165,6 @@ try {
   writeFileSync(restoreOverride, override.replace('127.0.0.1:18183:8182', '127.0.0.1:18182:8182'));
   docker([...restoreCompose, 'up', '-d', '--wait', '--wait-timeout', '600', 'janusgraph']);
   copyPrivate(resolve(retained, 'witness.json'), witnessPath);
-  copyPrivate(resolve(retained, 'bulk'), packageDirectory, true);
   const restoreEnv = { ...restrictedEnv, IDENTITY_GRAPH_FIXTURE_PROJECT: 'cartyx-restore' };
   fixture('identity-graph-verify', restoreEnv);
   fixture('identity-graph-test', restoreEnv);
