@@ -3,7 +3,6 @@ import org.janusgraph.core.Multiplicity
 import org.janusgraph.core.schema.ConsistencyModifier
 import org.janusgraph.core.schema.SchemaAction
 import org.janusgraph.core.schema.SchemaStatus
-import org.janusgraph.graphdb.database.management.ManagementSystem
 import org.apache.tinkerpop.gremlin.structure.Vertex
 
 // Additive component schema for generic domain entities. The foundation identity tuple
@@ -99,7 +98,10 @@ synchronized (graph) {
         return 'entities:labels'
     }
 
-    if (step == 'index') {
+    // Index creation is split further: registering an index whose keys already exist
+    // waits for every graph instance to acknowledge, which outlasts one request. The
+    // caller creates, polls, enables and polls again, each in its own bounded request.
+    if (step == 'index-create') {
         if (!indexKeys.containsKey(indexName)) throw new IllegalStateException('Unknown index ' + indexName)
         def extra = indexKeys[indexName]
         def expected = extra == null ? ['scope', 'kind'] : ['scope', 'kind', extra]
@@ -119,28 +121,29 @@ synchronized (graph) {
             }
             if (applySchema) m.commit() else m.rollback()
         } catch (Exception e) { m.rollback(); throw e }
+        return 'entities:index-create:' + indexName
+    }
 
-        if (applySchema) {
-            ManagementSystem.awaitGraphIndexStatus(graph, indexName)
-                .status(SchemaStatus.ENABLED, SchemaStatus.REGISTERED).call()
-            def enable = graph.openManagement()
-            try {
-                def index = enable.getGraphIndex(indexName)
-                if (index.getFieldKeys().any { index.getIndexStatus(it) == SchemaStatus.REGISTERED })
-                    enable.updateIndex(index, SchemaAction.ENABLE_INDEX)
-                enable.commit()
-            } catch (Exception e) { enable.rollback(); throw e }
-            ManagementSystem.awaitGraphIndexStatus(graph, indexName).status(SchemaStatus.ENABLED).call()
-        }
-
-        def verify = graph.openManagement()
+    if (step == 'index-status') {
+        def m = graph.openManagement()
         try {
-            def index = verify.getGraphIndex(indexName)
+            def index = m.getGraphIndex(indexName)
+            if (index == null) return 'entities:index-status:MISSING'
+            def statuses = index.getFieldKeys().collect { index.getIndexStatus(it).toString() }.toSet()
+            return 'entities:index-status:' + (statuses.size() == 1 ? statuses.iterator().next() : 'MIXED')
+        } finally { m.rollback() }
+    }
+
+    if (step == 'index-enable') {
+        def m = graph.openManagement()
+        try {
+            def index = m.getGraphIndex(indexName)
             if (index == null) throw new IllegalStateException('Missing entity index ' + indexName)
-            if (!index.getFieldKeys().every { index.getIndexStatus(it) == SchemaStatus.ENABLED })
-                throw new IllegalStateException('Entity index not ENABLED: ' + indexName)
-        } finally { verify.rollback() }
-        return 'entities:index:' + indexName
+            if (index.getFieldKeys().any { index.getIndexStatus(it) == SchemaStatus.REGISTERED })
+                m.updateIndex(index, SchemaAction.ENABLE_INDEX)
+            m.commit()
+        } catch (Exception e) { m.rollback(); throw e }
+        return 'entities:index-enable:' + indexName
     }
 
     if (step == 'record') {
