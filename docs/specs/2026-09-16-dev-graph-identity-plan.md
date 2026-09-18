@@ -75,7 +75,7 @@
 
 ---
 
-## Task 1: Per-user revocation barrier
+## Task 1: Per-user revocation barrier — DONE (`dac2527f`)
 
 **Files:**
 
@@ -114,7 +114,7 @@ export class IdentityRevocationError extends Error {}
 
 The row key is `{ scope: 'global', type: 'identity_revocation', id: sha256(JSON.stringify({ domain, userId })) }`, where `domain` is `{ provider, id }` exactly as `login-admission.ts` computes it today (Google uses `projectId`, others use `clientId`). Binding the domain into the row means a client-id rotation cannot silently inherit another domain's state, and every read re-checks the stored domain, as the old barrier did.
 
-- [ ] **Step 1: Write the failing contract**
+- [x] **Step 1: Write the failing contract**
 
 Create `scripts/identity/revocation-admission-contract.ts`:
 
@@ -165,21 +165,21 @@ export async function revocationAdmissionContract(make: () => Promise<Revocation
 }
 ```
 
-- [ ] **Step 2: Run it to watch it fail**
+- [x] **Step 2: Run it to watch it fail**
 
 Run: `npx vitest run tests/server/db/identity-revocation-admission.test.ts`
 Expected: FAIL — `revocation-admission` does not exist.
 
-- [ ] **Step 3: Implement the barrier**
+- [x] **Step 3: Implement the barrier**
 
 `revocation-admission.ts` mirrors `login-admission.ts`'s structure: a Zod row schema, a `read()` that refuses a missing row and a mismatched domain, and a `sanitized()` wrapper so no driver text escapes. Every transition is a `state.replace` against the observed revision, followed by a re-read that confirms the new status, exactly as `block()` does today. `settle` and `strand` reject unless the current status is `revoking`, so a stranded row can only be reopened by the operator command in Task 5.
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 Run: `npx vitest run tests/server/db/identity-revocation-admission.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/server/repositories/identity/revocation-admission.ts tests/
@@ -188,7 +188,7 @@ git commit -m "feat(identity): block one user's logins during revocation, not a 
 
 ---
 
-## Task 2: Compose the target adapters on data-runtime
+## Task 2: Compose the target adapters on data-runtime — DONE (`c103bdb7`)
 
 **Files:**
 
@@ -245,7 +245,7 @@ export const campaignAccessRepository = createMongoCampaignAccessRepository(Camp
 
 ---
 
-## Task 4: Seeding and fixtures
+## Task 4: Seeding and fixtures — DONE (`d650a8b5`)
 
 **Files:**
 
@@ -260,6 +260,31 @@ export const campaignAccessRepository = createMongoCampaignAccessRepository(Camp
 - [ ] **Step 5:** Commit.
 
 ---
+
+### What Task 2 changed beyond the plan
+
+The plan assumed the composition could be swapped behind the existing availability
+guard. It could not, for two reasons found by running it:
+
+- The guard probed the store before every operation. Against a pooled Mongo connection
+  that was nearly free; against the graph and CQL it is two authenticated connections
+  per call, on a path that runs for practically every request. Operations now report
+  what happened instead: an unreachable store is an outage, and a refused traversal or
+  a lost race is reported as itself rather than disguised as one.
+- `data-runtime` validates its credentials as it loads, which is what stops a
+  misconfigured deployment from serving. That made importing any server function require
+  a configured environment, so it is imported on first use.
+
+Twenty-four test files set their actor up by mocking `User.findOne`. They use a shared
+double (`tests/server/functions/identityTestDouble.ts`) instead. Two traps worth knowing:
+`vi.mock` factory results are cached across `vi.resetModules()`, so a test that resets
+modules must reach the double through the mocked path or it inspects a second copy; and
+the double resets its implementations, not just its state, or an override leaks into the
+next test.
+
+The `Identity was not persisted` guard lived inside the Mongo adapter. It moved to
+`upsertUser`, where the property actually belongs: never mint a session from a
+repository that answered with nothing.
 
 ## Task 5: Operator recovery and Mongo exit
 

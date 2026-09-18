@@ -1,5 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { identityRepository, ensureIdentityAvailable } from '../repositories/identity';
+import {
+  ensureIdentityAvailable,
+  identityRepository,
+  revocationAdmissionFor,
+} from '../repositories/identity';
 import type { IdentityProfile } from '../repositories/identity/types';
 import type { SessionUser } from '../session';
 import { providerConfigured } from './helpers';
@@ -367,6 +371,13 @@ export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
       accessToken: profile.accessToken ? encryptToken(profile.accessToken) : null,
       refreshToken: profile.refreshToken ? encryptToken(profile.refreshToken) : null,
     };
+    // An account whose provider grant is being withdrawn must not be logged back in
+    // while that is unresolved. A first login has no account yet, so there is nothing
+    // to be closed; its row is opened once the account exists.
+    const admission = await revocationAdmissionFor(profile.provider);
+    const existing = await identityRepository.findUserId(profile.id);
+    if (admission && existing) await admission.assertOpen(existing);
+
     const stored = await identityRepository.recordLogin({
       provider: profile.provider,
       providerId: profile.id,
@@ -383,6 +394,7 @@ export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
     // A repository that answers with nothing has not claimed the account, and minting a
     // session from that would log the user into an unpersisted, role-less identity.
     if (!stored) throw new Error('Identity was not persisted');
+    if (admission) await admission.ensureRow(stored.id);
     return toSessionUser(profile, stored.role ?? 'unknown', stored);
   } catch (e) {
     // A write failure here (lost connection, duplicate-key from the unique email
@@ -408,6 +420,8 @@ export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
  * GitHub token delete; Apple has no revoke path).
  */
 export async function revokeToken(user: SessionUser): Promise<void> {
+  let admission: Awaited<ReturnType<typeof revocationAdmissionFor>> = null;
+  let fence: { userId: string; providerId: string; tokenRevision: string } | null = null;
   try {
     if (!(await ensureIdentityAvailable())) return;
 
@@ -415,11 +429,30 @@ export async function revokeToken(user: SessionUser): Promise<void> {
     const enc = observed?.accessToken;
     if (!observed || !enc || !enc.ciphertext || !enc.iv || !enc.authTag) return;
 
+    // Decrypt before closing anything: a token this server can no longer read (a
+    // rotated SESSION_SECRET) is not a revocation in progress.
     const accessToken = decryptToken({
       ciphertext: enc.ciphertext,
       iv: enc.iv,
       authTag: enc.authTag,
     });
+
+    // Apple has no revoke endpoint, so its logout is local and opens no barrier.
+    admission = user.provider === 'apple' ? null : await revocationAdmissionFor(user.provider);
+    const observedFence = {
+      userId: observed.userId,
+      providerId: observed.providerId,
+      tokenRevision: observed.tokenRevision,
+    };
+    if (admission) {
+      // Closed before anything is dispatched, so a logout whose outcome is never
+      // learned cannot leave the account quietly loginable. A second logout finds the
+      // row already held and does not send a second request.
+      fence = await admission.beginRevocation(observed.userId, observedFence);
+      if (!fence) return;
+    } else {
+      fence = observedFence;
+    }
 
     if (user.provider === 'google') {
       await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(accessToken)}`, {
@@ -445,14 +478,24 @@ export async function revokeToken(user: SessionUser): Promise<void> {
       });
     }
 
-    // The HTTP request cannot be undone by this database fence. Preserve the
-    // existing ordering, but never erase a generation installed during that request.
-    await identityRepository.clearTokens({
-      userId: observed.userId,
-      providerId: observed.providerId,
-      tokenRevision: observed.tokenRevision,
-    });
+    // A response arrived, so the outcome is known even if the provider refused. The
+    // HTTP request cannot be undone by this database fence; never erase a generation
+    // installed during that request.
+    await identityRepository.clearTokens(fence);
+    await admission?.settle(fence.userId);
+    fence = null;
   } catch (e) {
     serverCaptureException(e, user.id, { action: 'revokeToken', provider: user.provider });
+  } finally {
+    // Reached with a fence still held only when the attempt did not finish: the
+    // outcome is unknown, so this one account stays closed until an operator resolves
+    // it. Every other account is unaffected.
+    if (admission && fence) {
+      try {
+        await admission.strand(fence.userId);
+      } catch (e) {
+        serverCaptureException(e, user.id, { action: 'revokeToken', provider: user.provider });
+      }
+    }
   }
 }

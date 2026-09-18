@@ -2,6 +2,7 @@ import { Campaign } from '../../db/models/Campaign';
 import { createIdentityStorage } from './availability';
 import { createGraphProfileStore } from './graph-profiles';
 import { createMongoCampaignAccessRepository } from './mongo-campaign-access';
+import { createRevocationAdmission } from './revocation-admission';
 import { createTargetIdentityRepository } from './target-repository';
 import type { IdentityRepository } from './types';
 
@@ -48,5 +49,25 @@ export const identityRepository: IdentityRepository = {
 
 /** Explicit caller decisions use the same selected adapter as operations. */
 export const ensureIdentityAvailable = async () => (await identityStorage()).ensureAvailable();
+
+/**
+ * The barrier that keeps a user's account closed while their provider grant is being
+ * withdrawn. It is per client, because that is the scope each provider's revocation
+ * actually has; a client with no configured id has no barrier to offer and says so
+ * rather than inventing a domain.
+ */
+export async function revocationAdmissionFor(provider: string) {
+  const clientId = {
+    google: process.env.GOOGLE_CLIENT_ID,
+    github: process.env.GITHUB_CLIENT_ID,
+    apple: process.env.APPLE_CLIENT_ID,
+  }[provider];
+  if (!clientId?.trim()) return null;
+  const { getStateStore } = await import('../../db/data-runtime');
+  return createRevocationAdmission(getStateStore(), {
+    provider: provider as 'google' | 'github' | 'apple',
+    clientId: clientId.trim(),
+  });
+}
 
 export const campaignAccessRepository = createMongoCampaignAccessRepository(Campaign);

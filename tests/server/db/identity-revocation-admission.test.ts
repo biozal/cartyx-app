@@ -30,11 +30,7 @@ function memoryStore(): ReservationStateStore {
   };
 }
 
-const application = {
-  provider: 'google',
-  clientId: 'test-client',
-  projectId: 'test-project',
-} as const;
+const application = { provider: 'google', clientId: 'test-client' } as const;
 const user = 'a'.repeat(24);
 
 it('admits, closes and reopens one user at a time', async () => {

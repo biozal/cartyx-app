@@ -29,12 +29,15 @@ export const identityDouble: {
   displayName: DisplayName | null | undefined;
   /** The user's media namespace. Null means they have never been allocated one. */
   audioPrefix: string | null;
+  /** Providers with a configured client, and therefore a barrier. */
+  revocationConfigured: string[];
 } = {
   profile: null,
   userId: null,
   available: true,
   displayName: undefined,
   audioPrefix: MINTED_PREFIX,
+  revocationConfigured: ['google', 'github'],
 };
 
 /**
@@ -48,6 +51,14 @@ export function resetIdentityDouble(profile: IdentityProfile | null = null) {
   identityDouble.available = true;
   identityDouble.displayName = undefined;
   identityDouble.audioPrefix = MINTED_PREFIX;
+  identityDouble.revocationConfigured = ['google', 'github'];
+  for (const mock of Object.values(revocationAdmission)) mock.mockReset();
+  revocationAdmission.beginRevocation.mockImplementation(async (_userId, fence) => fence);
+  revocationAdmission.inspect.mockImplementation(async () => ({ status: 'open' as const }));
+  revocationAdmissionFor.mockReset();
+  revocationAdmissionFor.mockImplementation(async (provider: string) =>
+    identityDouble.revocationConfigured.includes(provider) ? revocationAdmission : null
+  );
   for (const [name, implementation] of Object.entries(defaults)) {
     const mock = identityRepository[name as keyof typeof defaults];
     mock.mockReset();
@@ -95,6 +106,24 @@ export const identityRepository = {
 };
 
 export const ensureIdentityAvailable = vi.fn(async () => identityDouble.available);
+
+/**
+ * The per-user revocation barrier. `null` stands for a provider with no configured
+ * client, which is how Apple and an unconfigured environment behave.
+ */
+export const revocationAdmission = {
+  assertOpen: vi.fn(async () => undefined),
+  ensureRow: vi.fn(async () => undefined),
+  beginRevocation: vi.fn(async (_userId: string, fence: unknown) => fence),
+  settle: vi.fn(async () => undefined),
+  strand: vi.fn(async () => undefined),
+  inspect: vi.fn(async () => ({ status: 'open' as const })),
+  resolve: vi.fn(async () => undefined),
+};
+
+export const revocationAdmissionFor = vi.fn(async (provider: string) =>
+  identityDouble.revocationConfigured.includes(provider) ? revocationAdmission : null
+);
 
 // Campaigns are still MongoDB and still read through the real adapter, so a test that
 // mocks the Campaign model keeps exactly the membership behaviour it had before.

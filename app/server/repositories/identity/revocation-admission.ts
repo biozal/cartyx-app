@@ -12,11 +12,9 @@ const identifier = z
   .max(1024)
   .regex(/^[a-zA-Z0-9._-]+$/);
 const userIdSchema = z.string().regex(/^[0-9a-f]{24}$/);
-const applicationSchema = z.discriminatedUnion('provider', [
-  z.object({ provider: z.literal('google'), clientId: identifier, projectId: identifier }).strict(),
-  z.object({ provider: z.literal('github'), clientId: identifier }).strict(),
-  z.object({ provider: z.literal('apple'), clientId: identifier }).strict(),
-]);
+const applicationSchema = z
+  .object({ provider: z.enum(['google', 'github', 'apple']), clientId: identifier })
+  .strict();
 export type IdentityRevocationApplication = z.infer<typeof applicationSchema>;
 
 const domainSchema = z
@@ -40,12 +38,13 @@ const rowSchema = z.discriminatedUnion('status', [
   z.object({ ...base, status: z.literal('blocked-unresolved'), fence: fenceSchema }).strict(),
 ]);
 
-/** Google clients that share a project share a domain; others are per client. */
+/**
+ * One client. Both providers revoke the grant for the client the token was issued to —
+ * Google's revoke endpoint and GitHub's token delete are each scoped that way — so a
+ * row belongs to the client whose grant is being withdrawn.
+ */
 function domainFor(application: IdentityRevocationApplication) {
-  return {
-    provider: application.provider,
-    id: application.provider === 'google' ? application.projectId : application.clientId,
-  };
+  return { provider: application.provider, id: application.clientId };
 }
 
 export function identityRevocationKey(

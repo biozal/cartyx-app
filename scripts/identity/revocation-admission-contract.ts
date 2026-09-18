@@ -6,11 +6,7 @@ import {
 } from '../../app/server/repositories/identity/revocation-admission';
 import type { ReservationStateStore } from '../../app/server/repositories/identity/reservations';
 
-const APPLICATION = {
-  provider: 'google',
-  clientId: 'contract-client',
-  projectId: 'contract-project',
-} as const;
+const APPLICATION = { provider: 'google', clientId: 'contract-client' } as const;
 
 const userId = () => randomBytes(12).toString('hex');
 const fence = (id: string) => ({
@@ -76,12 +72,12 @@ export async function revocationAdmissionContract(state: ReservationStateStore) 
 
   // A row written for one application is never read as another's: rotating a client
   // must not inherit the previous domain's state.
-  const rotated = createRevocationAdmission(state, { ...APPLICATION, projectId: 'other-project' });
+  const rotated = createRevocationAdmission(state, { ...APPLICATION, clientId: 'other-client' });
   await assert.rejects(rotated.assertOpen(user), IdentityRevocationError);
 
   // Errors carry no subject, client or driver text.
   const failure = await admission.assertOpen(userId()).catch((error: unknown) => error);
   assert.ok(failure instanceof IdentityRevocationError);
-  for (const secret of [APPLICATION.clientId, APPLICATION.projectId, user])
+  for (const secret of [APPLICATION.clientId, user])
     assert.ok(!failure.message.includes(secret), 'the message names no identifier');
 }

@@ -260,6 +260,48 @@ describe('upsertUser', () => {
     expect(identity.identityRepository.recordLogin).not.toHaveBeenCalled();
   });
 
+  it('refuses a login while the account is closed pending revocation', async () => {
+    const refusal = new Error('Identity login is closed pending revocation');
+    identity.revocationAdmission.assertOpen.mockRejectedValue(refusal);
+    identity.identityRepository.findUserId.mockResolvedValue('1'.repeat(24));
+
+    const { upsertUser } = await import('~/server/utils/oauth');
+    await expect(
+      upsertUser({
+        id: 'google_123',
+        provider: 'google' as const,
+        name: 'Test User',
+        email: 'test@example.com',
+        avatar: null,
+        accessToken: 'tok',
+        refreshToken: null,
+        tokenIssuedAt: Date.now(),
+      })
+    ).rejects.toThrow(refusal);
+    // The login must not be recorded either: a refused account stays as it was.
+    expect(identity.identityRepository.recordLogin).not.toHaveBeenCalled();
+  });
+
+  it('opens a barrier row for an account that has just been created', async () => {
+    identity.identityRepository.findUserId.mockResolvedValue(null);
+    identity.identityRepository.recordLogin.mockResolvedValue({ id: '1'.repeat(24), role: 'gm' });
+
+    const { upsertUser } = await import('~/server/utils/oauth');
+    await upsertUser({
+      id: 'google_new',
+      provider: 'google' as const,
+      name: 'New User',
+      email: 'new@example.com',
+      avatar: null,
+      accessToken: null,
+      refreshToken: null,
+      tokenIssuedAt: Date.now(),
+    });
+
+    expect(identity.revocationAdmission.assertOpen).not.toHaveBeenCalled();
+    expect(identity.revocationAdmission.ensureRow).toHaveBeenCalledWith('1'.repeat(24));
+  });
+
   it('refuses to mint a session when the repository answers with no account', async () => {
     identity.identityRepository.recordLogin.mockResolvedValue(null as never);
     const { upsertUser } = await import('~/server/utils/oauth');
@@ -471,6 +513,66 @@ describe('revokeToken (reads from encrypted server-side store)', () => {
     await revokeToken(sessionUser('google'));
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('closes the account before dispatching and reopens it once the provider answers', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
+    storedAccessToken({ providerId: 'google_1', accessToken: await storedToken('access') });
+
+    const { revokeToken } = await import('~/server/utils/oauth');
+    await revokeToken(sessionUser('google'));
+
+    const barrier = identity.revocationAdmission;
+    expect(barrier.beginRevocation).toHaveBeenCalledTimes(1);
+    expect(barrier.settle).toHaveBeenCalledWith('1'.repeat(24));
+    expect(barrier.strand).not.toHaveBeenCalled();
+    // Closing must happen before the request, or a lost outcome leaves the account open.
+    expect(barrier.beginRevocation.mock.invocationCallOrder[0]).toBeLessThan(
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]
+    );
+  });
+
+  it('leaves the account closed when the outcome is never learned', async () => {
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('Synthetic network interruption'));
+    storedAccessToken({ providerId: 'google_1', accessToken: await storedToken('access') });
+
+    const { revokeToken } = await import('~/server/utils/oauth');
+    await revokeToken(sessionUser('google'));
+
+    const barrier = identity.revocationAdmission;
+    expect(barrier.strand).toHaveBeenCalledWith('1'.repeat(24));
+    expect(barrier.settle).not.toHaveBeenCalled();
+    // The grant may or may not be gone, so the tokens are not cleared either.
+    expect(identity.identityRepository.clearTokens).not.toHaveBeenCalled();
+  });
+
+  it('dispatches once when the user logs out twice', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    globalThis.fetch = fetchMock;
+    storedAccessToken({ providerId: 'google_1', accessToken: await storedToken('access') });
+    // The row is already held by the first logout's attempt.
+    identity.revocationAdmission.beginRevocation.mockResolvedValue(null);
+
+    const { revokeToken } = await import('~/server/utils/oauth');
+    await revokeToken(sessionUser('google'));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(identity.identityRepository.clearTokens).not.toHaveBeenCalled();
+    expect(identity.revocationAdmission.strand).not.toHaveBeenCalled();
+  });
+
+  it('keeps an Apple logout local, opening no barrier', async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+    storedAccessToken({ providerId: 'apple_1', accessToken: await storedToken('access') });
+
+    const { revokeToken } = await import('~/server/utils/oauth');
+    await revokeToken(sessionUser('apple'));
+
+    // Apple has no revoke endpoint; the tokens are still cleared locally.
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(identity.revocationAdmission.beginRevocation).not.toHaveBeenCalled();
+    expect(identity.identityRepository.clearTokens).toHaveBeenCalled();
   });
 
   it('does not throw when the stored token cannot be decrypted (e.g. rotated SESSION_SECRET)', async () => {
