@@ -230,7 +230,7 @@ export const campaignAccessRepository = createMongoCampaignAccessRepository(Camp
 
 ---
 
-## Task 3: Login and logout through the barrier
+## Task 3: Login and logout through the barrier — DONE (`506deb1c`)
 
 **Files:**
 
@@ -261,6 +261,19 @@ export const campaignAccessRepository = createMongoCampaignAccessRepository(Camp
 
 ---
 
+### What Task 3 changed beyond the plan
+
+The barrier is keyed per OAuth client, not per Google project as the old domain-wide
+one was. Both providers revoke the grant for the client the token was issued to —
+Google's revoke endpoint and GitHub's token delete are each scoped that way — so the
+client is the right scope for a per-user row, and it needs no configuration the
+deployment does not already have. A `GOOGLE_PROJECT_ID` would have been a new required
+secret in two environments for a property neither provider actually has.
+
+Logout previously cleared the stored tokens regardless of the provider's response and
+swallowed every error. Tokens are now cleared only on a definitive outcome, so an
+uncertain attempt keeps the evidence of what was revoked.
+
 ### What Task 2 changed beyond the plan
 
 The plan assumed the composition could be swapped behind the existing availability
@@ -286,7 +299,7 @@ The `Identity was not persisted` guard lived inside the Mongo adapter. It moved 
 `upsertUser`, where the property actually belongs: never mint a session from a
 repository that answered with nothing.
 
-## Task 5: Operator recovery and Mongo exit
+## Task 5: Operator recovery and Mongo exit — recovery DONE (`94823e75`), exit outstanding
 
 **Files:**
 
@@ -294,7 +307,7 @@ repository that answered with nothing.
 - Delete: `app/server/db/models/User.ts`, `app/server/repositories/identity/{mongo.ts,mongo-transaction.ts,login-admission.ts}`, `scripts/identity/profile-schema-cli.ts`
 - Modify: `package.json`, `app/server/db/inspect.ts`
 
-- [ ] **Step 1:** Implement `identity:resolve-revocation <userId> --outcome=revoked|not-revoked`, which reads the journal, records the operator's finding and reopens the row. It uses operator credentials and refuses to run against a row that is not `blocked-unresolved`.
+- [x] **Step 1:** `npm run identity:resolve-revocation -- --user <id> --provider <p> --client <id> --outcome revoked|not-revoked`. It refuses a row that is not `blocked-unresolved`, requires the operator to state what they found at the provider, and prints what that means for the stored tokens. Verified against the local stack: a stranded row survives a process restart and still refuses a login; this reopens it; a second run refuses.
 - [ ] **Step 2:** Delete the Mongo identity adapters and the `User` model; remove the `User` branch from `app/server/db/inspect.ts`.
 - [ ] **Step 3:** Fold the profile schema into `scripts/dev-schema.mjs` and delete the separate CLI.
 - [ ] **Step 4:** `git grep -n "models/User\|seed-gm\|login-admission"` returns nothing outside history.
