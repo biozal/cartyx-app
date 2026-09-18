@@ -253,7 +253,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: biozal/cartyx-infrastructure
-          ref: 3fb939c790e9275775e6f791057edec27c201409
+          ref: 83f928ddb52ef297f34a89e7779536f66e1fe1d0
           path: .local/e2e-infrastructure
           persist-credentials: false
 

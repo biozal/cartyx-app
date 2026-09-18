@@ -55,7 +55,7 @@
 **Created**
 
 - `app/server/repositories/identity/revocation-admission.ts` — the per-user barrier replacing `login-admission.ts`'s domain rows.
-- `tests/contracts/identity-revocation.contract.ts` — the barrier's shared contract, run against memory and real Cassandra.
+- `scripts/identity/revocation-admission-contract.ts` — the barrier's shared contract, run against memory and real Cassandra, following the convention the other identity contracts already use.
 - `scripts/seed/users.ts` — the GM seeder, replacing `scripts/seed-gm.cjs`.
 - `scripts/identity/resolve-revocation.ts` — the operator recovery command.
 
@@ -79,8 +79,8 @@
 
 **Files:**
 
-- Create: `app/server/repositories/identity/revocation-admission.ts`, `tests/contracts/identity-revocation.contract.ts`
-- Test: `tests/server/repositories/identity/revocation-admission.test.ts`
+- Create: `app/server/repositories/identity/revocation-admission.ts`, `scripts/identity/revocation-admission-contract.ts`
+- Test: `tests/server/db/identity-revocation-admission.test.ts`
 
 **Interfaces:**
 
@@ -116,7 +116,7 @@ The row key is `{ scope: 'global', type: 'identity_revocation', id: sha256(JSON.
 
 - [ ] **Step 1: Write the failing contract**
 
-Create `tests/contracts/identity-revocation.contract.ts`:
+Create `scripts/identity/revocation-admission-contract.ts`:
 
 ```ts
 import assert from 'node:assert/strict';
@@ -167,7 +167,7 @@ export async function revocationAdmissionContract(make: () => Promise<Revocation
 
 - [ ] **Step 2: Run it to watch it fail**
 
-Run: `npx vitest run tests/server/repositories/identity/revocation-admission.test.ts`
+Run: `npx vitest run tests/server/db/identity-revocation-admission.test.ts`
 Expected: FAIL — `revocation-admission` does not exist.
 
 - [ ] **Step 3: Implement the barrier**
@@ -176,7 +176,7 @@ Expected: FAIL — `revocation-admission` does not exist.
 
 - [ ] **Step 4: Run the test**
 
-Run: `npx vitest run tests/server/repositories/identity/revocation-admission.test.ts`
+Run: `npx vitest run tests/server/db/identity-revocation-admission.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
