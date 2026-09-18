@@ -4,28 +4,41 @@ import type { GraphConnectionConfig } from '../../app/server/db/graph/config';
 import { submitGraphRequest } from '../../app/server/db/graph/transport';
 import { checkSchema } from './schema';
 
-/** Operator-only. Runtime credentials cannot read or write the schema registry. */
+const SLOTS = [
+  ...Array.from({ length: 8 }, (_item, index) => `ix_s${index + 1}`),
+  ...Array.from({ length: 4 }, (_item, index) => `ix_n${index + 1}`),
+  ...Array.from({ length: 4 }, (_item, index) => `ix_b${index + 1}`),
+  ...Array.from({ length: 2 }, (_item, index) => `ix_d${index + 1}`),
+];
+
+/** Must match the index set the migration knows about. */
+export const ENTITY_INDEXES = [
+  'byScopeKind',
+  'byEntityText',
+  ...SLOTS.map((slot) => `byScopeKind_${slot}`),
+];
+
+const VERSION = '0001';
+
+/**
+ * Operator-only. Runs one bounded request per step: creating every index at once
+ * outruns the server's evaluation timeout on an empty graph.
+ */
 export async function checkEntitySchema(config: GraphConnectionConfig, applySchema = false) {
   await checkSchema(config); // The foundation identity index must exist and be ENABLED first.
   const script = readFileSync(new URL('./0002-entities.groovy', import.meta.url), 'utf8');
   const checksum = createHash('sha256').update(script).digest('hex');
-  const version = '0005';
-  const result = await submitGraphRequest(config, script, { checksum, applySchema, version });
-  if (result[0] !== `entities:${version}:verified`)
-    throw new Error('Unexpected entity schema result');
-  const lifecycle = await submitGraphRequest(
-    config,
-    `
-    def m = graph.openManagement()
-    try {
-      def names = ['doc', 'docVersion', 'revision', 'createdAt', 'updatedAt', 'searchWord', 'position']
-      def keys = names.collect { m.getPropertyKey(it) }
-      if (keys.any { it == null }) throw new IllegalStateException('Entity property missing')
-      if (!keys.every { m.getTTL(it).isZero() }) throw new IllegalStateException('Entity schema TTL drift')
-      return 'entities:no-ttl'
-    } finally { m.rollback() }
-  `
-  );
-  if (lifecycle[0] !== 'entities:no-ttl') throw new Error('Unexpected entity lifecycle result');
-  return { version, checksum };
+  const bindings = { checksum, applySchema, version: VERSION };
+
+  const expect = async (step: string, outcome: string, extra: Record<string, string> = {}) => {
+    const result = await submitGraphRequest(config, script, { ...bindings, step, ...extra });
+    if (result[0] !== outcome) throw new Error(`Unexpected entity schema result for ${step}`);
+  };
+
+  await expect('properties', 'entities:properties');
+  await expect('labels', 'entities:labels');
+  for (const indexName of ENTITY_INDEXES)
+    await expect('index', `entities:index:${indexName}`, { indexName });
+  await expect('record', `entities:${VERSION}:verified`);
+  return { version: VERSION, checksum };
 }
