@@ -56,10 +56,10 @@ assert.equal(
 run(process.execPath, ['deploy/data/secrets.mjs', 'local'], infra);
 const secrets = resolve(infra, '.local/data/local');
 // The pinned infrastructure already configures the complete deployed boundary and
-// provisions the cartyx_identity credential. Verify that, then add only an
+// provisions the cartyx_app credential. Verify that, then add only an
 // authenticated-but-denied principal. Existing backup/restore helpers mount this
 // same throwaway directory, so restored servers boot through the same policy.
-assert.ok(existsSync(resolve(secrets, 'gremlin-identity-password')));
+assert.ok(existsSync(resolve(secrets, 'gremlin-app-password')));
 writeFileSync(resolve(secrets, 'gremlin-denied-password'), randomBytes(32).toString('hex') + '\n', {
   mode: 0o644,
   flag: 'wx',
@@ -70,11 +70,11 @@ for (const selected of [
   "config.channelizer = 'io.cartyx.graph.IdentityChannelizer'",
   "authorizer: 'io.cartyx.graph.IdentityProfileAuthorizer'",
   "className: 'io.cartyx.graph.IdentityGraphSONSerializer'",
-  "user('cartyx_identity', identityPassword)",
+  "user('cartyx_app', appPassword)",
 ])
   assert.ok(
     original.includes(selected),
-    'Pinned infrastructure must configure the identity policy'
+    'Pinned infrastructure must configure the application policy'
   );
 writeFileSync(
   configPath,

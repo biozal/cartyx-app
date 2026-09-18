@@ -1,7 +1,6 @@
 import org.janusgraph.core.Cardinality
 import org.janusgraph.core.Multiplicity
 import org.janusgraph.core.schema.ConsistencyModifier
-import org.janusgraph.core.schema.Mapping
 import org.janusgraph.core.schema.SchemaAction
 import org.janusgraph.core.schema.SchemaStatus
 import org.janusgraph.graphdb.database.management.ManagementSystem
@@ -19,7 +18,7 @@ synchronized (graph) {
             throw new IllegalStateException('Entity schema version/checksum mismatch')
     } finally { graph.tx().rollback() }
 
-    def stringKeys = ['doc', 'searchText']
+    def stringKeys = ['doc']
     def longKeys = ['revision']
     def integerKeys = ['docVersion', 'position']
     def dateKeys = ['createdAt', 'updatedAt']
@@ -47,6 +46,15 @@ synchronized (graph) {
             key
         }
         stringKeys.each { define(it, String.class) }
+        // Search words are multi-valued: one indexed token per word, which gives
+        // Mongo `$text` word semantics without a mixed index.
+        def searchWord = m.getPropertyKey('searchWord')
+        if (searchWord == null) {
+            if (!applySchema || installed) throw new IllegalStateException('Missing searchWord property')
+            searchWord = m.makePropertyKey('searchWord').dataType(String.class).cardinality(Cardinality.SET).make()
+        }
+        if (searchWord.dataType() != String.class || searchWord.cardinality() != Cardinality.SET)
+            throw new IllegalStateException('searchWord property drift')
         longKeys.each { define(it, Long.class) }
         integerKeys.each { define(it, Integer.class) }
         dateKeys.each { define(it, Date.class) }
@@ -68,16 +76,14 @@ synchronized (graph) {
                 throw new IllegalStateException('Entity index drift: ' + indexName)
             }
         }
-        // Mixed index for word search, scoped by an exact scope field.
+        // Composite index over the multi-valued word property, scoped like the others.
         def search = m.getGraphIndex('byEntityText')
         if (search == null) {
             if (!applySchema || installed) throw new IllegalStateException('Missing entity text index')
-            m.buildIndex('byEntityText', Vertex.class)
-                .addKey(m.getPropertyKey('searchText'), Mapping.TEXT.asParameter())
-                .addKey(scopeKey, Mapping.STRING.asParameter())
-                .buildMixedIndex('search')
-        } else if (search.isCompositeIndex()) {
-            throw new IllegalStateException('Entity text index must be a mixed index')
+            m.buildIndex('byEntityText', Vertex.class).addKey(scopeKey).addKey(kindKey)
+                .addKey(m.getPropertyKey('searchWord')).buildCompositeIndex()
+        } else if (search.isUnique() || search.getFieldKeys().collect { it.name() } != ['scope', 'kind', 'searchWord']) {
+            throw new IllegalStateException('Entity text index drift')
         }
         if (applySchema) m.commit() else m.rollback()
     } catch (Exception e) { m.rollback(); throw e }

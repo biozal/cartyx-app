@@ -5,6 +5,7 @@ import {
   encodeDocument,
   indexProjection,
   scopeKey,
+  searchWords,
   type EntityCodec,
   type IndexValue,
 } from './entity-codec';
@@ -25,7 +26,7 @@ import {
 import type { EntityScope } from './identity';
 
 const __ = gremlin.process.statics;
-const { cardinality, order, P, TextP } = gremlin.process;
+const { cardinality, order, P } = gremlin.process;
 
 export interface EntityGraphClient {
   execute(traversal: gremlin.process.GraphTraversal, signal?: AbortSignal): Promise<unknown[]>;
@@ -39,7 +40,7 @@ const DOC_VERSION = 'docVersion';
 const REVISION = 'revision';
 const CREATED_AT = 'createdAt';
 const UPDATED_AT = 'updatedAt';
-const SEARCH_TEXT = 'searchText';
+const SEARCH_WORD = 'searchWord';
 const POSITION = 'position';
 
 function parseScope(value: string): EntityScope {
@@ -103,8 +104,9 @@ function applyFilters<T>(
   }
   if (query.search) {
     if (!codec.searchText) throw new Error(`${codec.kind} has no searchable text`);
-    // One mixed-index predicate; the scope filter above keeps it campaign-scoped.
-    traversal = traversal.has(SEARCH_TEXT, TextP.containing(query.search.toLowerCase()));
+    // Word matching, like Mongo `$text`: every query word must be present. Each
+    // has() is an indexed lookup on the multi-valued word property.
+    for (const word of searchWords(query.search)) traversal = traversal.has(SEARCH_WORD, word);
   }
   return traversal;
 }
@@ -125,12 +127,13 @@ function writeProperties<T>(
   for (const [slot, item] of Object.entries(indexProjection(codec, value)))
     // A null index value is stored as an absent property so `has` cannot match it.
     traversal = item === null ? traversal : traversal.property(cardinality.single, slot, item);
-  if (codec.searchText)
-    traversal = traversal.property(
-      cardinality.single,
-      SEARCH_TEXT,
-      codec.searchText(value).toLowerCase()
-    );
+  if (codec.searchText) {
+    // The word set is multi-valued, so the previous words are dropped in the same
+    // traversal (one JanusGraph transaction) before the new ones are written.
+    traversal = traversal.sideEffect(__.properties(SEARCH_WORD).drop());
+    for (const word of searchWords(codec.searchText(value)))
+      traversal = traversal.property(cardinality.set, SEARCH_WORD, word);
+  }
   return traversal;
 }
 

@@ -4,6 +4,7 @@ import {
   encodeDocument,
   indexProjection,
   scopeKey,
+  searchWords,
   type EntityCodec,
   type IndexValue,
 } from './entity-codec';
@@ -32,7 +33,7 @@ interface Row {
   createdAt: Date;
   updatedAt: Date;
   index: Record<string, IndexValue>;
-  searchText: string;
+  searchWords: string[];
 }
 
 interface Edge {
@@ -102,9 +103,9 @@ export function createMemoryEntityStore(): EntityStore {
       }
       if (query.search) {
         if (!codec.searchText) throw new Error(`${codec.kind} has no searchable text`);
-        const words = row.searchText.toLowerCase().split(/\W+/).filter(Boolean);
-        const terms = query.search.toLowerCase().split(/\W+/).filter(Boolean);
-        if (!terms.every((term) => words.includes(term))) return false;
+        // Word matching, like Mongo `$text`: every query word must be present.
+        if (!searchWords(query.search).every((word) => row.searchWords.includes(word)))
+          return false;
       }
       return true;
     });
@@ -129,7 +130,7 @@ export function createMemoryEntityStore(): EntityStore {
         createdAt: now,
         updatedAt: now,
         index: indexProjection(codec, value),
-        searchText: codec.searchText?.(value) ?? '',
+        searchWords: codec.searchText ? searchWords(codec.searchText(value)) : [],
       });
       return read(codec, rows.get(rowKey)!);
     },
@@ -159,7 +160,7 @@ export function createMemoryEntityStore(): EntityStore {
       row.revision += 1;
       row.updatedAt = new Date();
       row.index = indexProjection(codec, next);
-      row.searchText = codec.searchText?.(next) ?? '';
+      row.searchWords = codec.searchText ? searchWords(codec.searchText(next)) : [];
       return read(codec, row);
     },
 

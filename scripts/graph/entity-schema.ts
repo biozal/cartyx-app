@@ -16,7 +16,7 @@ export async function checkEntitySchema(config: GraphConnectionConfig, applySche
     `
     def m = graph.openManagement()
     try {
-      def names = ['doc', 'docVersion', 'revision', 'createdAt', 'updatedAt', 'searchText', 'position']
+      def names = ['doc', 'docVersion', 'revision', 'createdAt', 'updatedAt', 'searchWord', 'position']
       def keys = names.collect { m.getPropertyKey(it) }
       if (keys.any { it == null }) throw new IllegalStateException('Entity property missing')
       if (!keys.every { m.getTTL(it).isZero() }) throw new IllegalStateException('Entity schema TTL drift')

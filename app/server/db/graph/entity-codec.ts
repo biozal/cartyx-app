@@ -46,7 +46,11 @@ export interface EntityCodec<T> {
   schema: z.ZodType<T>;
   /** Fields that may be filtered or ordered, mapped onto indexed slots. */
   index: Partial<Record<string, IndexSlot>>;
-  /** Text made searchable through the mixed index. */
+  /**
+   * Text made searchable. It is tokenised into words and stored as a multi-valued
+   * indexed property, which matches Mongo `$text` word semantics through ordinary
+   * composite indexes. There is no prefix, substring, fuzzy or ranked search.
+   */
   searchText?: (value: T) => string;
   upgrade?: (raw: unknown, fromVersion: number) => unknown;
 }
@@ -100,6 +104,20 @@ export function indexProjection<T>(codec: EntityCodec<T>, value: T): Record<stri
     projection[slot] = item;
   }
   return projection;
+}
+
+export const MAX_SEARCH_WORDS = 512;
+export const MAX_SEARCH_WORD_LENGTH = 64;
+
+/** Lower-cased, de-duplicated word tokens. Both writes and queries use this. */
+export function searchWords(text: string): string[] {
+  const words = new Set<string>();
+  for (const word of text.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
+    if (!word) continue;
+    words.add(word.slice(0, MAX_SEARCH_WORD_LENGTH));
+    if (words.size >= MAX_SEARCH_WORDS) break;
+  }
+  return [...words];
 }
 
 export function scopeKey(scope: EntityScope): string {

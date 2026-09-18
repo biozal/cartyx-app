@@ -108,7 +108,7 @@ export async function identityAuthorizationContract(
   operator: GraphConnectionConfig,
   track: (snapshot: ProfileSnapshot) => void
 ) {
-  assert.equal(runtime.username, 'cartyx_identity');
+  assert.equal(runtime.username, 'cartyx_app');
   const graph = createGraphProfileStore(createGraphClient(runtime));
   const snapshot = profileFixture();
   track(snapshot);

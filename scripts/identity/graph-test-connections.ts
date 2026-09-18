@@ -9,8 +9,8 @@ export function graphTestConnections() {
       throw new Error('Restricted fixtures require a separate operator credential');
     return { runtime, operator: runtime, restricted: false };
   }
-  if (runtime.username !== 'cartyx_identity')
-    throw new Error('Restricted fixtures must use the identity service principal');
+  if (runtime.username !== 'cartyx_app')
+    throw new Error('Restricted fixtures must use the application service principal');
   const operator = readGraphConfig({
     ...process.env,
     GREMLIN_USERNAME: 'cartyx_admin',

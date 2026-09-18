@@ -132,12 +132,12 @@ try {
         ...(action.startsWith('identity-graph-') && {
           GREMLIN_URL: 'wss://localhost:18182/gremlin',
           GREMLIN_USERNAME: process.env.IDENTITY_GRAPH_OPERATOR_PASSWORD_FILE
-            ? 'cartyx_identity'
+            ? 'cartyx_app'
             : 'cartyx_admin',
           GREMLIN_PASSWORD_FILE: resolve(
             secrets,
             process.env.IDENTITY_GRAPH_OPERATOR_PASSWORD_FILE
-              ? 'gremlin-identity-password'
+              ? 'gremlin-app-password'
               : 'gremlin-password'
           ),
           GREMLIN_CA_FILE: resolve(secrets, 'tls.crt'),
