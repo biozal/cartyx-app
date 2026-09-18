@@ -5,13 +5,37 @@ import { connect, type ConnectionOptions } from 'node:tls';
 import type { GraphConnectionConfig } from './config';
 
 export class GraphRequestError extends Error {
-  constructor(public readonly code: 'aborted' | 'timeout' | 'failed') {
+  constructor(public readonly code: 'aborted' | 'timeout' | 'failed' | 'conflict') {
     // Do not attach driver errors: they may contain traversal data or server script output.
     super(
       `Graph request ${code}; a submitted write may have committed. Reconcile before retrying.`
     );
     this.name = 'GraphRequestError';
   }
+}
+
+/**
+ * JanusGraph reports a lost lock on a consistency-locked key as a commit failure rather
+ * than an empty result, so a compare-and-set that loses a race is indistinguishable from
+ * a real fault unless it is classified here. Matching uses fixed phrases only; no server
+ * text, traversal data or cause is ever carried into the thrown error. A genuine
+ * persistence failure classified this way is retried and then surfaces as a conflict,
+ * which callers must treat as "re-read and decide", never as a completed write.
+ */
+const CONFLICT_MESSAGES = [
+  // JanusGraph wraps a lost lock on a consistency-locked key in this commit failure.
+  'Could not commit transaction due to exception during persistence',
+  'PermanentLockingException',
+  'TemporaryLockingException',
+  'Could not acquire lock',
+];
+
+function isConflict(error: unknown): boolean {
+  const candidate = error as { statusMessage?: unknown; message?: unknown };
+  const text = `${typeof candidate?.statusMessage === 'string' ? candidate.statusMessage : ''} ${
+    typeof candidate?.message === 'string' ? candidate.message : ''
+  }`;
+  return CONFLICT_MESSAGES.some((name) => text.includes(name));
 }
 
 /** Internal transport. Application callers use client.ts; scripts are reserved for operators. */
@@ -99,7 +123,8 @@ export async function submitGraphRequest(
     return values;
   } catch (error) {
     if (error instanceof GraphRequestError) throw error;
-    throw new GraphRequestError('failed');
+    // A lost lock is a conflict the caller may retry; everything else stays opaque.
+    throw new GraphRequestError(isConflict(error) ? 'conflict' : 'failed');
   } finally {
     stopped = true;
     clearTimeout(timer);

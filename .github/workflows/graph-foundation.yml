@@ -20,7 +20,7 @@ jobs:
         with:
           repository: biozal/cartyx-infrastructure
           # Published digest pins and the complete configured policy, as deployed to dev.
-          ref: 7f7cfdfe3bf3a5d6279b3f3994942837322f2a4b
+          ref: 3fb939c790e9275775e6f791057edec27c201409
           path: .local/identity-runtime-infrastructure
           persist-credentials: false
       - uses: actions/setup-node@v7
@@ -50,7 +50,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: biozal/cartyx-infrastructure
-          ref: 7f7cfdfe3bf3a5d6279b3f3994942837322f2a4b
+          ref: 3fb939c790e9275775e6f791057edec27c201409
           path: .local/graph-infrastructure
           persist-credentials: false
       - uses: actions/setup-node@v7
@@ -73,6 +73,12 @@ jobs:
             exit 1
           fi
           npm run identity:graph-schema -- apply
+      - name: Entity store contract through the restricted application principal
+        env:
+          GREMLIN_USERNAME: cartyx_app
+          GREMLIN_PASSWORD_FILE: ${{ github.workspace }}/.local/graph-infrastructure/.local/data/local/gremlin-app-password
+          IDENTITY_GRAPH_OPERATOR_PASSWORD_FILE: ${{ github.workspace }}/.local/graph-infrastructure/.local/data/local/gremlin-password
+        run: npx tsx scripts/graph/entity-store-integration.ts
       - name: Cassandra schema, state, permissions, and interrupted migration
         run: |
           npm run cql:local -- schema apply

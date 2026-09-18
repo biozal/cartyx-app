@@ -47,6 +47,7 @@
     "db:tools": "node scripts/dev-data.mjs tools",
     "db:chart-test": "node scripts/dev-data.mjs chart-test",
     "graph:schema": "tsx scripts/graph/cli.ts",
+    "graph:reindex": "tsx scripts/graph/reindex.ts",
     "graph:test": "tsx scripts/graph/integration.ts",
     "cql:schema": "tsx scripts/cql/cli.ts",
     "cql:test": "tsx scripts/cql/integration.ts",

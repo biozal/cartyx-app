@@ -9,8 +9,10 @@ export async function checkEntitySchema(config: GraphConnectionConfig, applySche
   await checkSchema(config); // The foundation identity index must exist and be ENABLED first.
   const script = readFileSync(new URL('./0002-entities.groovy', import.meta.url), 'utf8');
   const checksum = createHash('sha256').update(script).digest('hex');
-  const result = await submitGraphRequest(config, script, { checksum, applySchema });
-  if (result[0] !== 'entities:0001:verified') throw new Error('Unexpected entity schema result');
+  const version = '0005';
+  const result = await submitGraphRequest(config, script, { checksum, applySchema, version });
+  if (result[0] !== `entities:${version}:verified`)
+    throw new Error('Unexpected entity schema result');
   const lifecycle = await submitGraphRequest(
     config,
     `
@@ -25,5 +27,5 @@ export async function checkEntitySchema(config: GraphConnectionConfig, applySche
   `
   );
   if (lifecycle[0] !== 'entities:no-ttl') throw new Error('Unexpected entity lifecycle result');
-  return { version: '0001', checksum };
+  return { version, checksum };
 }

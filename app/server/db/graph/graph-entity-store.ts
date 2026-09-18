@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import gremlin from 'gremlin';
+import { GraphRequestError } from './transport';
 import {
   decodeDocument,
   encodeDocument,
@@ -42,6 +43,9 @@ const CREATED_AT = 'createdAt';
 const UPDATED_AT = 'updatedAt';
 const SEARCH_WORD = 'searchWord';
 const POSITION = 'position';
+// One declared label for every domain entity: the indexed `kind` property carries identity,
+// so adding a domain kind needs no schema change.
+const ENTITY_LABEL = 'Entity';
 
 function parseScope(value: string): EntityScope {
   if (value === 'global') return { type: 'global' };
@@ -49,11 +53,29 @@ function parseScope(value: string): EntityScope {
   return { type: type as 'campaign' | 'user', id };
 }
 
+/** The driver returns GraphSON maps as JS Maps, not plain objects. */
+function field(row: unknown, key: string): unknown {
+  if (row instanceof Map) return row.get(key);
+  return (row as Record<string, unknown>)[key];
+}
+
+function number(value: unknown): number {
+  // g:Int64 arrives as a number or as a driver Long depending on magnitude.
+  const parsed =
+    typeof value === 'object' && value !== null ? Number(String(value)) : Number(value);
+  return parsed;
+}
+
 function readRow<T>(codec: EntityCodec<T>, row: unknown): Stored<T> {
-  const record = row as Record<string, unknown>;
+  const record = Object.fromEntries(
+    [DOC, DOC_VERSION, REVISION, CREATED_AT, UPDATED_AT, 'scope', 'entityId'].map((key) => [
+      key,
+      field(row, key),
+    ])
+  ) as Record<string, unknown>;
   const document = record[DOC];
-  const documentVersion = Number(record[DOC_VERSION]);
-  const revision = Number(record[REVISION]);
+  const documentVersion = number(record[DOC_VERSION]);
+  const revision = number(record[REVISION]);
   const entityId = String(record.entityId);
   const scope = String(record.scope);
   if (
@@ -153,7 +175,7 @@ export function createGraphEntityStore(client: EntityGraphClient): EntityStore {
       const document = encodeDocument(codec, value);
       const ref: EntityRef = { kind: codec.kind, scope, id: entityId };
       const now = new Date();
-      let create = __.addV(codec.kind)
+      let create = __.addV(ENTITY_LABEL)
         .property(cardinality.single, 'scope', scopeKey(scope))
         .property(cardinality.single, 'kind', codec.kind)
         .property(cardinality.single, 'entityId', entityId)
@@ -211,7 +233,7 @@ export function createGraphEntityStore(client: EntityGraphClient): EntityStore {
           now
         ).count()
       );
-      if (Number(updated[0]) !== 1) {
+      if (number(updated[0]) !== 1) {
         const current = await store.get(codec, scope, id);
         if (!current) throw new EntityNotFoundError(ref);
         throw new StaleRevisionError(ref);
@@ -228,7 +250,11 @@ export function createGraphEntityStore(client: EntityGraphClient): EntityStore {
         try {
           return await store.update(codec, scope, id, current.revision, change(current.value));
         } catch (error) {
-          if (!(error instanceof StaleRevisionError) || attempt === attempts - 1) throw error;
+          // A lost revision lock is the same race as a stale revision: re-read and retry.
+          const conflict =
+            error instanceof StaleRevisionError ||
+            (error instanceof GraphRequestError && error.code === 'conflict');
+          if (!conflict || attempt === attempts - 1) throw error;
         }
       }
       throw new StaleRevisionError({ kind: codec.kind, scope, id });
@@ -236,10 +262,12 @@ export function createGraphEntityStore(client: EntityGraphClient): EntityStore {
 
     async remove(codec, scope, id) {
       // Dropping a vertex removes its incident edges.
+      // drop() emits nothing, so the marker is produced by the surviving traverser:
+      // the removal happens in a side effect and the branch still reports it.
       const removed = await client.execute(
         identity(codec.kind, scope, id)
           .fold()
-          .coalesce(__.unfold().drop().constant('removed'), __.constant('absent'))
+          .coalesce(__.unfold().sideEffect(__.drop()).constant('removed'), __.constant('absent'))
       );
       return removed[0] === 'removed';
     },
@@ -262,7 +290,7 @@ export function createGraphEntityStore(client: EntityGraphClient): EntityStore {
       const counted = await client.execute(
         applyFilters(scoped(codec.kind, scope), codec, query).count()
       );
-      return Number(counted[0] ?? 0);
+      return number(counted[0] ?? 0);
     },
 
     async setEdges(from, label, to) {
@@ -274,7 +302,7 @@ export function createGraphEntityStore(client: EntityGraphClient): EntityStore {
           .has('kind', from.kind)
           .has('entityId', from.id);
       const exists = await client.execute(self().limit(1).count());
-      if (Number(exists[0]) !== 1) throw new EntityNotFoundError(from);
+      if (number(exists[0]) !== 1) throw new EntityNotFoundError(from);
       await client.execute(self().outE(label).drop());
       for (const [position, target] of to.entries()) {
         const linked = await client.execute(
@@ -289,7 +317,7 @@ export function createGraphEntityStore(client: EntityGraphClient): EntityStore {
             .property(POSITION, position)
             .count()
         );
-        if (Number(linked[0]) !== 1) throw new EntityNotFoundError(target);
+        if (number(linked[0]) !== 1) throw new EntityNotFoundError(target);
       }
     },
 
@@ -339,11 +367,8 @@ const projectRef = (traversal: gremlin.process.GraphTraversal) =>
     .by(__.values('entityId'));
 
 const refs = (result: unknown[]): EntityRef[] =>
-  result.map((row) => {
-    const record = row as Record<string, unknown>;
-    return {
-      kind: String(record.kind),
-      scope: parseScope(String(record.scope)),
-      id: String(record.entityId),
-    };
-  });
+  result.map((row) => ({
+    kind: String(field(row, 'kind')),
+    scope: parseScope(String(field(row, 'scope'))),
+    id: String(field(row, 'entityId')),
+  }));

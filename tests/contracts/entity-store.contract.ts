@@ -54,6 +54,7 @@ export async function entityStoreContract(
   const scope: EntityScope = { type: 'campaign', id: id() };
   const otherScope: EntityScope = { type: 'campaign', id: id() };
   const created: EntityRef[] = [];
+  let cleanupFailure: unknown;
   const track = <T>(record: { ref: EntityRef } & T) => {
     created.push(record.ref);
     return record;
@@ -242,6 +243,12 @@ export async function entityStoreContract(
       /No ContractNode/
     );
   } finally {
-    await cleanup(created);
+    // A cleanup failure must not hide the contract failure that caused it, but it must
+    // still fail the run when the contract itself passed.
+    cleanupFailure = await cleanup(created).then(
+      () => undefined,
+      (error: unknown) => error
+    );
   }
+  if (cleanupFailure) throw cleanupFailure;
 }
