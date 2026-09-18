@@ -61,6 +61,9 @@ jobs:
       - name: Start pinned TLS databases
         run: npm run db:up
       - name: Verify refuses a missing schema, then install explicitly
+        env:
+          # Operator tooling only: surfaces the server's schema error in CI logs.
+          CARTYX_GRAPH_ERROR_DETAIL: '1'
         run: |
           if npm run graph:schema -- verify; then
             echo 'An empty graph must fail schema verification'

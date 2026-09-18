@@ -5,13 +5,25 @@ import { connect, type ConnectionOptions } from 'node:tls';
 import type { GraphConnectionConfig } from './config';
 
 export class GraphRequestError extends Error {
-  constructor(public readonly code: 'aborted' | 'timeout' | 'failed' | 'conflict') {
+  constructor(
+    public readonly code: 'aborted' | 'timeout' | 'failed' | 'conflict',
+    detail?: string
+  ) {
     // Do not attach driver errors: they may contain traversal data or server script output.
+    // Operator tooling (schema migrations) can opt into the server's message with
+    // CARTYX_GRAPH_ERROR_DETAIL=1; request paths never set it.
     super(
-      `Graph request ${code}; a submitted write may have committed. Reconcile before retrying.`
+      `Graph request ${code}; a submitted write may have committed. Reconcile before retrying.` +
+        (detail ? ` Server said: ${detail}` : '')
     );
     this.name = 'GraphRequestError';
   }
+}
+
+function serverDetail(error: unknown): string | undefined {
+  if (!process.env.CARTYX_GRAPH_ERROR_DETAIL) return undefined;
+  const message = (error as { statusMessage?: unknown })?.statusMessage;
+  return typeof message === 'string' ? message.slice(0, 500) : undefined;
 }
 
 /**
@@ -124,7 +136,7 @@ export async function submitGraphRequest(
   } catch (error) {
     if (error instanceof GraphRequestError) throw error;
     // A lost lock is a conflict the caller may retry; everything else stays opaque.
-    throw new GraphRequestError(isConflict(error) ? 'conflict' : 'failed');
+    throw new GraphRequestError(isConflict(error) ? 'conflict' : 'failed', serverDetail(error));
   } finally {
     stopped = true;
     clearTimeout(timer);
