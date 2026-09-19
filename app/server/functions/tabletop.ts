@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
 import { identityRepository } from '../repositories/identity';
-import { Campaign } from '../db/models/Campaign';
+import { campaigns } from '../repositories/campaigns';
 import { TabletopScreen, TABLETOP_LIMITS } from '../db/models/TabletopScreen';
 import { TabletopPlayerState } from '../db/models/TabletopPlayerState';
 import { serverCaptureException, serverCaptureEvent } from '../utils/telemetry';
@@ -207,7 +207,7 @@ async function requireCampaignMember(
   const dbUser = await identityRepository.findProfile(user.id);
   if (!dbUser) throw new Error('User not found');
 
-  const campaign = await Campaign.findById(campaignId);
+  const campaign = await campaigns.get(String(campaignId));
   if (!campaign) throw new Error('Campaign not found');
 
   const userId = String(dbUser.id);

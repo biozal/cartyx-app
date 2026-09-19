@@ -797,7 +797,19 @@ async function seed(ctx: FixtureContext): Promise<{ campaignIds: ObjectId[] }> {
     createdAt: now,
     updatedAt: now,
   };
-  const { insertedId: campaignId } = await db.collection('campaigns').insertOne(campaignDoc);
+  // The campaign lives in the graph; everything below is still MongoDB, where it is
+  // referenced by ObjectId.
+  const { campaigns, campaignDocumentSchema } =
+    await import('../../../app/server/repositories/campaigns');
+  const created = await campaigns.create(
+    campaignDocumentSchema.parse({
+      ...campaignDoc,
+      _id: new ObjectId().toHexString(),
+      gameMasterId: String(campaignDoc.gameMasterId),
+      members: campaignDoc.members.map((m) => ({ ...m, userId: String(m.userId) })),
+    })
+  );
+  const campaignId = new ObjectId(created._id);
 
   // ----- LocationTypes -----
   await db.collection('locationtype').insertMany(

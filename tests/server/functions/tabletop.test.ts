@@ -22,9 +22,7 @@ vi.mock('~/server/db/connection', () => ({
   isDBConnected: vi.fn(() => true),
 }));
 vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findById: vi.fn() },
-}));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/TabletopScreen', () => ({
   TabletopScreen: {
     find: vi.fn(),
@@ -64,7 +62,7 @@ vi.mock('~/server/db/models/GMScreen', () => ({ GMScreen: { findOne: vi.fn() } }
 
 import { getSession } from '~/server/session';
 import { resetIdentityDouble } from './identityTestDouble';
-import { Campaign } from '~/server/db/models/Campaign';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { TabletopScreen } from '~/server/db/models/TabletopScreen';
 import { TabletopPlayerState } from '~/server/db/models/TabletopPlayerState';
 import { Lore } from '~/server/db/models/Lore';
@@ -372,7 +370,7 @@ describe('openTabletopWindow (handler)', () => {
     vi.clearAllMocks();
     vi.mocked(getSession).mockResolvedValue(mockSession);
     resetIdentityDouble(mockDbUser);
-    vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign as never);
+    campaignsDouble.get.mockResolvedValue(mockCampaign as never);
   });
 
   it('creates a new window with zIndex bumped above existing', async () => {
@@ -739,7 +737,7 @@ describe('getPlayerState (handler) — private-window hydration', () => {
     };
     vi.mocked(getSession).mockResolvedValue(session);
     resetIdentityDouble(mockDbUser);
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: 'camp-1',
       gameMasterId: role === 'gm' ? 'dbuser-1' : 'someone-else',
       members: [{ userId: 'dbuser-1', role }],
@@ -1093,7 +1091,7 @@ describe('addPrivateWindow (handler) — GM-only collection guard', () => {
     };
     vi.mocked(getSession).mockResolvedValue(session);
     resetIdentityDouble(mockDbUser);
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: CAMPAIGN_ID,
       gameMasterId: role === 'gm' ? 'dbuser-1' : 'someone-else',
       members: [{ userId: 'dbuser-1', role }],

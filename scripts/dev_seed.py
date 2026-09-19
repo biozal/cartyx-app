@@ -1799,7 +1799,13 @@ def main() -> None:
 
         # Insert campaign — start with the GM as the only member, then add
         # the four player users below.
-        invite_code = secrets.token_hex(4)
+        # Same alphabet and XXXX-XXXX shape as the app's generateInviteCode: the join
+        # form uppercases what the user types, so a lowercase hex code could never be
+        # joined.
+        invite_alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        invite_code = "-".join(
+            "".join(secrets.choice(invite_alphabet) for _ in range(4)) for _ in range(2)
+        )
         members = [{"userId": gm_id, "role": "gm", "joinedAt": now}]
         for pu in player_users:
             members.append({"userId": pu["_id"], "role": "player", "joinedAt": now})
@@ -1815,8 +1821,11 @@ def main() -> None:
             "inviteCode": invite_code,
             "status": "active",
             "members": members,
-            "createdAt": now,
-            "updatedAt": now,
+            # A millisecond apart, in definition order, so "oldest first" names the
+            # stock campaign in any store. Sharing one instant left the order to how a
+            # store breaks ties — MongoDB's happened to be insertion order.
+            "createdAt": now + timedelta(milliseconds=CAMPAIGNS.index(defn)),
+            "updatedAt": now + timedelta(milliseconds=CAMPAIGNS.index(defn)),
         })
         campaign_id = result.inserted_id
         campaign_ids.append(campaign_id)

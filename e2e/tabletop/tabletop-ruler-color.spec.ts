@@ -5,6 +5,7 @@ import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
 import { closeIdentity, readRulerColor, seededGameMaster, writeRulerColor } from '../fixtures/data';
 import { DEFAULT_RULER_COLOR } from '~/types/schemas/userPreferences';
+import { campaignFixtures } from '../fixtures/campaigns';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -76,7 +77,7 @@ async function provision(database: Db): Promise<Provisioned> {
 
   const now = new Date();
   const campaignId = (
-    await database.collection('campaigns').insertOne({
+    await campaignFixtures.insertOne({
       gameMasterId: gm._id,
       name: CAMPAIGN_NAME,
       description: 'E2E ruler color test.',
@@ -190,7 +191,7 @@ test.afterAll(async () => {
     await db().collection('mapToken').deleteMany({ campaignId: cid });
     await db().collection('tabletopscreen').deleteMany({ campaignId: cid });
     await db().collection('map').deleteMany({ campaignId: cid });
-    await db().collection('campaigns').deleteMany({ _id: cid });
+    await campaignFixtures.deleteMany({ _id: cid });
   }
   // Restore the GM's original ruler color, or the default where there was none.
   if (provisioned?.providerId) {

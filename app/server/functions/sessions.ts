@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
 import { identityRepository } from '../repositories/identity';
-import { Campaign } from '../db/models/Campaign';
+import { campaigns } from '../repositories/campaigns';
 import { Session } from '../db/models/Session';
 import { requireCampaignMember } from '../utils/requireCampaignMember';
 import { serverCaptureException, serverCaptureEvent } from '../utils/telemetry';
@@ -28,7 +28,7 @@ async function requireGM(campaignId: string) {
   const dbUser = await identityRepository.findProfile(user.id);
   if (!dbUser) throw new Error('User not found');
 
-  const campaign = await Campaign.findById(campaignId);
+  const campaign = await campaigns.get(String(campaignId));
   if (!campaign) throw new Error('Campaign not found');
   if (String(campaign.gameMasterId) !== String(dbUser.id)) throw new Error('Forbidden');
 

@@ -15,9 +15,7 @@ vi.mock('~/server/db/connection', () => ({
   isDBConnected: vi.fn(() => true),
 }));
 vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findById: vi.fn() },
-}));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/Map', () => ({
   Map: { findOne: vi.fn() },
 }));
@@ -30,7 +28,7 @@ vi.mock('~/server/db/models/Monster', () => ({ Monster: { findOne: vi.fn() } }))
 
 import { getSession } from '~/server/session';
 import { resetIdentityDouble } from './identityTestDouble';
-import { Campaign } from '~/server/db/models/Campaign';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { Map as MapModel } from '~/server/db/models/Map';
 import { MapToken } from '~/server/db/models/MapToken';
 import { listMapTokens } from '~/server/functions/mapTokens';
@@ -58,7 +56,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
   resetIdentityDouble(mockDbUser);
-  vi.mocked(Campaign.findById).mockResolvedValue(campaignA);
+  campaignsDouble.get.mockResolvedValue(campaignA);
 });
 
 const _listMapTokens = listMapTokens as unknown as (args: {

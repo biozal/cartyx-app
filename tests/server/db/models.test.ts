@@ -1,19 +1,19 @@
-import { describe, it, expect } from 'vitest'
-import { Session } from '~/server/db/models/Session'
-import { GMScreen } from '~/server/db/models/GMScreen'
-import { Note } from '~/server/db/models/Note'
+import { describe, it, expect } from 'vitest';
+import { Session } from '~/server/db/models/Session';
+import { GMScreen } from '~/server/db/models/GMScreen';
+import { Note } from '~/server/db/models/Note';
 
 describe('Session model', () => {
   it('is exported and defined', () => {
-    expect(Session).toBeDefined()
-  })
-})
+    expect(Session).toBeDefined();
+  });
+});
 
 describe('GMScreen model', () => {
   it('is exported and defined', () => {
-    expect(GMScreen).toBeDefined()
-  })
-})
+    expect(GMScreen).toBeDefined();
+  });
+});
 
 /**
  * ALL_MODELS membership is validated in tests/server/db/inspect.test.ts
@@ -24,6 +24,6 @@ describe('GMScreen model', () => {
 
 describe('Note model', () => {
   it('is exported and defined', () => {
-    expect(Note).toBeDefined()
-  })
-})
+    expect(Note).toBeDefined();
+  });
+});

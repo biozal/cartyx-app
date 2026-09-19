@@ -10,6 +10,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
 import { seededGameMaster } from '../fixtures/data';
+import { campaignFixtures } from '../fixtures/campaigns';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -45,7 +46,7 @@ async function provision(database: Db): Promise<Provisioned> {
   const now = new Date();
 
   const campaignId = (
-    await database.collection('campaigns').insertOne({
+    await campaignFixtures.insertOne({
       gameMasterId: gm._id,
       name: CAMPAIGN_NAME,
       description: 'E2E tool-window system test.',
@@ -132,7 +133,7 @@ test.afterAll(async () => {
     const cid = new ObjectId(provisioned.campaignId);
     await db().collection('tabletopscreen').deleteMany({ campaignId: cid });
     await db().collection('map').deleteMany({ campaignId: cid });
-    await db().collection('campaigns').deleteMany({ _id: cid });
+    await campaignFixtures.deleteMany({ _id: cid });
   }
   await client.close();
 });

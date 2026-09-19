@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertSeedTargetIsNotProduction } from './guards';
+import { clearGraphCollections, graphCollectionRoutes } from './graph-collections';
 import { persistPlan, readPlan } from './plan';
 import { runSeeders, seeders } from './registry';
 import { seedGameMaster, seedPlayers } from './users';
@@ -27,7 +28,6 @@ assertSeedTargetIsNotProduction();
 
 /** Subsystems still on MongoDB. Remove an entry when its slice moves to the graph. */
 const MONGO_SUBSYSTEMS = [
-  'campaigns',
   'locations',
   'characters',
   'players',
@@ -59,8 +59,15 @@ async function rebuild() {
 
   if (MONGO_SUBSYSTEMS.length) {
     if (action === 'clear') {
-      // dev_clear keeps user accounts and empties everything else, including media.
+      // dev_clear empties MongoDB and media; the migrated collections are emptied here.
+      // Accounts live in the graph too, and survive a clear.
       python('dev_clear.py', process.argv.includes('--force') ? ['--force'] : []);
+      const removed = await clearGraphCollections();
+      process.stdout.write(
+        `Graph clear: ${Object.entries(removed)
+          .map(([name, count]) => `${name} ${count}`)
+          .join(', ')}\n`
+      );
     } else {
       // The Python builder produces every document with its id assigned and writes them
       // to a plan; this process persists the plan, sending each collection to the graph
@@ -73,7 +80,7 @@ async function rebuild() {
           CARTYX_SEED_PLAYERS: JSON.stringify(await seedPlayers()),
           CARTYX_SEED_PLAN: planPath,
         });
-        const summary = await persistPlan(readPlan(planPath));
+        const summary = await persistPlan(readPlan(planPath), graphCollectionRoutes);
         const line = (counts: Record<string, number>) =>
           Object.entries(counts)
             .map(([name, count]) => `${name} ${count}`)

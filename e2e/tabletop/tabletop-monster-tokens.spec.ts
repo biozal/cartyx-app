@@ -18,6 +18,7 @@ import { test, expect } from '@playwright/test';
 import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { SignJWT, decodeJwt } from 'jose';
 import { closeIdentity, seedIdentity, seededGameMaster } from '../fixtures/data';
+import { campaignFixtures } from '../fixtures/campaigns';
 
 // Serial: all tests share one provisioned campaign on a single worker. Without
 // this, fullyParallel spreads tests across workers that each re-provision and
@@ -85,8 +86,7 @@ async function provision(db: Db): Promise<Provisioned> {
   const now = new Date();
 
   // Nuke any prior e2e campaign(s) + their data, however a previous run died.
-  const stale = await db
-    .collection('campaigns')
+  const stale = await campaignFixtures
     .find({ name: CAMPAIGN_NAME }, { projection: { _id: 1 } })
     .toArray();
   if (stale.length) {
@@ -94,10 +94,10 @@ async function provision(db: Db): Promise<Provisioned> {
     await db.collection('mapToken').deleteMany({ campaignId: { $in: ids } });
     await db.collection('map').deleteMany({ campaignId: { $in: ids } });
     await db.collection('monsters').deleteMany({ campaignId: { $in: ids } });
-    await db.collection('campaigns').deleteMany({ _id: { $in: ids } });
+    await campaignFixtures.deleteMany({ _id: { $in: ids } });
   }
 
-  const campaignRes = await db.collection('campaigns').insertOne({
+  const campaignRes = await campaignFixtures.insertOne({
     gameMasterId: gm._id,
     name: CAMPAIGN_NAME,
     description: 'E2E isolated campaign for monster token drag tests.',
@@ -265,7 +265,7 @@ test.afterAll(async () => {
     await db.collection('tabletopscreen').deleteMany({ campaignId: cid });
     await db.collection('map').deleteMany({ campaignId: cid });
     await db.collection('monsters').deleteMany({ campaignId: cid });
-    await db.collection('campaigns').deleteMany({ _id: cid });
+    await campaignFixtures.deleteMany({ _id: cid });
   }
   await closeIdentity();
   await client.close();

@@ -38,9 +38,7 @@ vi.mock('~/server/utils/telemetry', () => ({
   serverCaptureEvent: vi.fn(),
 }));
 vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findById: vi.fn() },
-}));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/TabletopScreen', () => ({
   TabletopScreen: {
     find: vi.fn(),
@@ -77,7 +75,7 @@ vi.mock('mongoose', async () => {
 import mongoose from 'mongoose';
 import { getSession, createPartyBroadcastToken } from '~/server/session';
 import { resetIdentityDouble } from './identityTestDouble';
-import { Campaign } from '~/server/db/models/Campaign';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { TabletopScreen } from '~/server/db/models/TabletopScreen';
 import { GMScreen } from '~/server/db/models/GMScreen';
 import { TabletopPlayerState } from '~/server/db/models/TabletopPlayerState';
@@ -134,7 +132,7 @@ const mockCampaign = {
 
 /** Re-point the campaign so the authenticated caller IS the GM. */
 function callerIsGM() {
-  vi.mocked(Campaign.findById).mockResolvedValue({
+  campaignsDouble.get.mockResolvedValue({
     ...mockCampaign,
     gameMasterId: CALLER_DB_ID,
     members: [{ userId: CALLER_DB_ID, role: 'gm' }],
@@ -218,7 +216,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
   resetIdentityDouble(mockDbUser);
-  vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign as never);
+  campaignsDouble.get.mockResolvedValue(mockCampaign as never);
   vi.mocked(TabletopPlayerState.updateOne).mockResolvedValue(PUSH_APPLIED as never);
 
   // Screens exist by default.
@@ -260,7 +258,7 @@ describe('addPrivateWindow', () => {
 
     const result = await _addPrivateWindow({ data: { ...validAddPayload } });
 
-    expect(vi.mocked(Campaign.findById)).toHaveBeenCalledWith(CAMPAIGN_ID);
+    expect(campaignsDouble.get).toHaveBeenCalledWith(CAMPAIGN_ID);
     expect(result.privateWindows).toHaveLength(1);
     expect(result.privateWindows[0]).toMatchObject({
       id: PW_ID,
@@ -667,7 +665,7 @@ describe('updatePrivateWindow', () => {
   });
 
   it('rejects a non-member', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: CAMPAIGN_ID,
       gameMasterId: GM_DB_ID,
       members: [{ userId: GM_DB_ID, role: 'gm' }],
@@ -746,7 +744,7 @@ describe('removePrivateWindow', () => {
   });
 
   it('rejects a non-member', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: CAMPAIGN_ID,
       gameMasterId: GM_DB_ID,
       members: [{ userId: GM_DB_ID, role: 'gm' }],

@@ -1,5 +1,5 @@
 import { Session } from '../db/models/Session';
-import { Campaign } from '../db/models/Campaign';
+import { campaigns } from '../repositories/campaigns';
 import { identityRepository } from '../repositories/identity';
 import { withLogging } from '../utils/logger';
 
@@ -12,7 +12,7 @@ export const requireSessionAccess = withLogging(
     const session = await Session.findById(sessionId).select('campaignId').lean();
     if (!session) throw new Error('Session not found');
 
-    const campaign = await Campaign.findById(session.campaignId).lean();
+    const campaign = await campaigns.get(String(session.campaignId));
     if (!campaign) throw new Error('Campaign not found');
 
     const member = campaign.members?.find((m) => String(m.userId) === String(dbUser.id));

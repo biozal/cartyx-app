@@ -7,7 +7,6 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
  * tests/server/db/gmscreen.test.ts.
  */
 describe('Lore model', () => {
-   
   let RealLore: any;
 
   beforeAll(async () => {
@@ -74,7 +73,7 @@ describe('Lore model', () => {
   it('links require a kind enum and an id', () => {
     const linkPath = RealLore.schema.path('links');
     // SchemaDocumentArray exposes the sub-schema directly on .schema (not .caster.schema)
-     
+
     const sub = (linkPath as any).schema;
     expect(sub.path('kind').options.enum).toEqual(['race', 'character', 'player', 'location']);
     expect(sub.path('id').options.required).toBeTruthy();

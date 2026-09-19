@@ -6,7 +6,7 @@ vi.mock('~/server/db/connection', () => ({
   isDBConnected: vi.fn(() => true),
 }));
 vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
-vi.mock('~/server/db/models/Campaign', () => ({ Campaign: { findById: vi.fn() } }));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/Spell', () => ({
   Spell: {
     create: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock('~/server/utils/telemetry', () => ({
 
 import { getSession } from '~/server/session';
 import { resetIdentityDouble } from './identityTestDouble';
-import { Campaign } from '~/server/db/models/Campaign';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { Spell } from '~/server/db/models/Spell';
 import {
   createSpell,
@@ -124,7 +124,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession as never);
   resetIdentityDouble(mockDbUser);
-  vi.mocked(Campaign.findById).mockResolvedValue(mockGMCampaign as never);
+  campaignsDouble.get.mockResolvedValue(mockGMCampaign as never);
 });
 
 describe('createSpell', () => {
@@ -140,7 +140,7 @@ describe('createSpell', () => {
   });
 
   it('forbids a non-GM from creating', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign as never);
     await expect(createSpell({ data: validInput as never })).rejects.toThrow('Forbidden');
   });
 });
@@ -193,7 +193,7 @@ describe('duplicateSpell', () => {
   });
 
   it('forbids a non-GM from duplicating', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign as never);
     await expect(duplicateSpell({ data: { id: 'spell-1', campaignId: 'camp-1' } })).rejects.toThrow(
       'Forbidden'
     );
@@ -221,7 +221,7 @@ describe('listSpells', () => {
   });
 
   it('gives players canEdit false everywhere', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign as never);
     vi.mocked(Spell.find).mockReturnValue(findChain([makeSpell({ source: 'homebrew' })]) as never);
     const result = await listSpells({ data: { campaignId: 'camp-1' } });
     expect(result[0].canEdit).toBe(false);

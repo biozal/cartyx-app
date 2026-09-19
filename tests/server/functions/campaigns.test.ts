@@ -76,16 +76,7 @@ vi.mock('~/server/db/connection', () => ({
   isDBConnected: vi.fn(() => true),
 }));
 vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: {
-    find: vi.fn(),
-    findById: vi.fn(),
-    findOne: vi.fn(),
-    findOneAndUpdate: vi.fn(),
-    create: vi.fn(),
-    exists: vi.fn().mockReturnValue({ session: vi.fn().mockResolvedValue(null) }),
-  },
-}));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/Player', () => ({
   Player: {
     find: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
@@ -127,7 +118,12 @@ import mongoose from 'mongoose';
 
 import { getSession } from '~/server/session';
 import { resetIdentityDouble } from './identityTestDouble';
-import { Campaign } from '~/server/db/models/Campaign';
+import {
+  applyUpdatesToGet,
+  campaigns as campaignsDouble,
+  InviteCodeTakenError,
+  newObjectId,
+} from './campaignsTestDouble';
 import { Player } from '~/server/db/models/Player';
 import { Session } from '~/server/db/models/Session';
 import { GMScreen } from '~/server/db/models/GMScreen';
@@ -190,7 +186,9 @@ beforeEach(() => {
   vi.mocked(Session.updateOne).mockResolvedValue({ modifiedCount: 1 } as never);
   vi.mocked(GMScreen.find).mockReturnValue({ lean: vi.fn().mockResolvedValue([]) } as never);
   vi.mocked(GMScreen.create).mockResolvedValue([] as never);
-  vi.mocked(Campaign.exists).mockReturnValue({ session: vi.fn().mockResolvedValue(null) } as never);
+  // The function mints the campaign id; pin it so assertions can name it.
+  newObjectId.mockReturnValue('camp-1');
+  campaignsDouble.create.mockImplementation(async (document) => document);
   mockMongoSession.withTransaction.mockImplementation(async (fn: () => Promise<void>) => fn());
   mockMongoSession.endSession.mockReset();
 });
@@ -214,18 +212,14 @@ const _activateSession = activateSession as unknown as (args: {
 describe('listCampaigns', () => {
   it('returns only campaigns where the user is a member', async () => {
     const campaign = makeCampaign();
-    const mockSort = vi.fn().mockResolvedValue([campaign]);
-    vi.mocked(Campaign.find).mockReturnValue({ sort: mockSort } as never);
+    campaignsDouble.listForUser.mockResolvedValue([campaign]);
 
     const result = await _listCampaigns();
 
-    expect(Campaign.find).toHaveBeenCalledWith({
-      $or: [
-        { 'members.userId': 'dbuser-1' },
-        { gameMasterId: 'dbuser-1', members: { $in: [null, []] } },
-        { gameMasterId: 'dbuser-1' },
-      ],
-    });
+    // Which campaigns count as the user's — members, the GM of legacy campaigns with no
+    // members list, the GM of campaigns whose list omits them — is the repository's
+    // job, and is tested there against the in-memory store.
+    expect(campaignsDouble.listForUser).toHaveBeenCalledWith('dbuser-1');
     expect(result).toHaveLength(1);
     expect((result[0] as { id: string }).id).toBe('camp-1');
   });
@@ -248,9 +242,7 @@ describe('listCampaigns', () => {
 
   it('sets isMember true for returned campaigns', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.find).mockReturnValue({
-      sort: vi.fn().mockResolvedValue([campaign]),
-    } as never);
+    campaignsDouble.listForUser.mockResolvedValue([campaign]);
 
     const result = await _listCampaigns();
 
@@ -262,9 +254,7 @@ describe('listCampaigns', () => {
       gameMasterId: 'someone-else',
       members: [{ userId: 'dbuser-1', role: 'player' }],
     });
-    vi.mocked(Campaign.find).mockReturnValue({
-      sort: vi.fn().mockResolvedValue([campaign]),
-    } as never);
+    campaignsDouble.listForUser.mockResolvedValue([campaign]);
 
     const result = await _listCampaigns();
 
@@ -274,9 +264,7 @@ describe('listCampaigns', () => {
 
   it('shows invite code to owners', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.find).mockReturnValue({
-      sort: vi.fn().mockResolvedValue([campaign]),
-    } as never);
+    campaignsDouble.listForUser.mockResolvedValue([campaign]);
 
     const result = await _listCampaigns();
 
@@ -292,9 +280,7 @@ describe('listCampaigns', () => {
         { userId: 'player-2', role: 'player' },
       ],
     });
-    vi.mocked(Campaign.find).mockReturnValue({
-      sort: vi.fn().mockResolvedValue([campaign]),
-    } as never);
+    campaignsDouble.listForUser.mockResolvedValue([campaign]);
 
     const result = await _listCampaigns();
 
@@ -303,9 +289,7 @@ describe('listCampaigns', () => {
 
   it('includes partyMembers in returned campaigns', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.find).mockReturnValue({
-      sort: vi.fn().mockResolvedValue([campaign]),
-    } as never);
+    campaignsDouble.listForUser.mockResolvedValue([campaign]);
     vi.mocked(Player.find).mockReturnValue({
       lean: vi.fn().mockResolvedValue([
         {
@@ -331,9 +315,7 @@ describe('listCampaigns', () => {
 
   it('includes links in returned campaigns', async () => {
     const campaign = makeCampaign({ links: [{ name: 'Discord', url: 'https://discord.gg/test' }] });
-    vi.mocked(Campaign.find).mockReturnValue({
-      sort: vi.fn().mockResolvedValue([campaign]),
-    } as never);
+    campaignsDouble.listForUser.mockResolvedValue([campaign]);
 
     const result = await _listCampaigns();
 
@@ -344,7 +326,7 @@ describe('listCampaigns', () => {
 describe('getCampaign', () => {
   it('returns campaign for a member', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
 
     const result = await _getCampaign({ data: { id: 'camp-1' } });
 
@@ -357,7 +339,7 @@ describe('getCampaign', () => {
       gameMasterId: 'someone-else',
       members: [{ userId: 'someone-else', role: 'gm' }],
     });
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
 
     const result = await _getCampaign({ data: { id: 'camp-1' } });
 
@@ -365,7 +347,7 @@ describe('getCampaign', () => {
   });
 
   it('returns null when campaign does not exist', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(null);
+    campaignsDouble.get.mockResolvedValue(null);
 
     const result = await _getCampaign({ data: { id: 'nonexistent' } });
 
@@ -374,7 +356,7 @@ describe('getCampaign', () => {
 
   it('sets isMember true for members', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
 
     const result = await _getCampaign({ data: { id: 'camp-1' } });
 
@@ -386,7 +368,7 @@ describe('getCampaign', () => {
       gameMasterId: 'someone-else',
       members: [{ userId: 'dbuser-1', role: 'player' }],
     });
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
 
     const result = await _getCampaign({ data: { id: 'camp-1' } });
 
@@ -395,7 +377,7 @@ describe('getCampaign', () => {
 
   it('includes partyMembers from Player collection', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     vi.mocked(Player.find).mockReturnValue({
       lean: vi.fn().mockResolvedValue([
         {
@@ -422,7 +404,7 @@ describe('getCampaign', () => {
       gameMasterId: 'someone-else',
       members: [{ userId: 'dbuser-1', role: 'player' }],
     });
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     const mockSessionDocs = [
       {
         _id: 'sess-1',
@@ -450,7 +432,7 @@ describe('getCampaign', () => {
 
   it('loads gmScreens only for GM (campaign owner)', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     const mockGmScreenDocs = [{ _id: 'gms-1', name: 'Default' }];
     vi.mocked(GMScreen.find).mockReturnValue({
       lean: vi.fn().mockResolvedValue(mockGmScreenDocs),
@@ -470,7 +452,7 @@ describe('getCampaign', () => {
       gameMasterId: 'someone-else',
       members: [{ userId: 'dbuser-1', role: 'player' }],
     });
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
 
     const result = (await _getCampaign({ data: { id: 'camp-1' } })) as { gmScreens?: unknown[] };
 
@@ -482,25 +464,18 @@ describe('getCampaign', () => {
 describe('legacy campaigns (no members array)', () => {
   it('listCampaigns includes legacy campaigns where user is the GM', async () => {
     const legacyCampaign = makeCampaign({ members: undefined });
-    // The query uses $or, so legacy campaigns with gameMasterId match
-    const mockSort = vi.fn().mockResolvedValue([legacyCampaign]);
-    vi.mocked(Campaign.find).mockReturnValue({ sort: mockSort } as never);
+    // The repository includes legacy campaigns the user runs; see its tests.
+    campaignsDouble.listForUser.mockResolvedValue([legacyCampaign]);
 
     const result = await _listCampaigns();
 
-    expect(Campaign.find).toHaveBeenCalledWith({
-      $or: [
-        { 'members.userId': 'dbuser-1' },
-        { gameMasterId: 'dbuser-1', members: { $in: [null, []] } },
-        { gameMasterId: 'dbuser-1' },
-      ],
-    });
+    expect(campaignsDouble.listForUser).toHaveBeenCalledWith('dbuser-1');
     expect(result).toHaveLength(1);
   });
 
   it('getCampaign returns campaign for GM even without members array', async () => {
     const legacyCampaign = makeCampaign({ members: undefined });
-    vi.mocked(Campaign.findById).mockResolvedValue(legacyCampaign);
+    campaignsDouble.get.mockResolvedValue(legacyCampaign);
 
     const result = await _getCampaign({ data: { id: 'camp-1' } });
 
@@ -511,7 +486,7 @@ describe('legacy campaigns (no members array)', () => {
 
   it('getCampaign returns null for non-GM on legacy campaign without members', async () => {
     const legacyCampaign = makeCampaign({ gameMasterId: 'someone-else', members: undefined });
-    vi.mocked(Campaign.findById).mockResolvedValue(legacyCampaign);
+    campaignsDouble.get.mockResolvedValue(legacyCampaign);
 
     const result = await _getCampaign({ data: { id: 'camp-1' } });
 
@@ -520,7 +495,7 @@ describe('legacy campaigns (no members array)', () => {
 
   it('getCampaign returns campaign for GM on legacy campaign with empty members array', async () => {
     const legacyCampaign = makeCampaign({ members: [] });
-    vi.mocked(Campaign.findById).mockResolvedValue(legacyCampaign);
+    campaignsDouble.get.mockResolvedValue(legacyCampaign);
 
     const result = await _getCampaign({ data: { id: 'camp-1' } });
 
@@ -531,22 +506,17 @@ describe('legacy campaigns (no members array)', () => {
 
 describe('createCampaign', () => {
   it('auto-adds GM as a member with role gm', async () => {
-    const created = makeCampaign();
-    vi.mocked(Campaign.create).mockResolvedValue([created] as never);
-
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
-    expect(Campaign.create).toHaveBeenCalledTimes(1);
-    const createCall = vi.mocked(Campaign.create).mock.calls[0]![0] as Array<{
+    expect(campaignsDouble.create).toHaveBeenCalledTimes(1);
+    const createCall = campaignsDouble.create.mock.calls[0]![0] as unknown as {
       members: Array<{ role: string }>;
-    }>;
-    expect(createCall[0]!.members).toHaveLength(1);
-    expect(createCall[0]!.members[0]!.role).toBe('gm');
+    };
+    expect(createCall.members).toHaveLength(1);
+    expect(createCall.members[0]!.role).toBe('gm');
   });
 
   it('stores links on the campaign', async () => {
-    vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never);
-
     await _createCampaign({
       data: {
         name: 'My Campaign',
@@ -555,22 +525,19 @@ describe('createCampaign', () => {
       },
     });
 
-    expect(Campaign.create).toHaveBeenCalledTimes(1);
-    const createCall = vi.mocked(Campaign.create).mock.calls[0]![0] as Array<{
+    expect(campaignsDouble.create).toHaveBeenCalledTimes(1);
+    const createCall = campaignsDouble.create.mock.calls[0]![0] as unknown as {
       links: Array<{ name: string; url: string }>;
-    }>;
-    expect(createCall[0]!.links).toEqual([{ name: 'Discord', url: 'https://discord.gg/test' }]);
+    };
+    expect(createCall.links).toEqual([{ name: 'Discord', url: 'https://discord.gg/test' }]);
   });
 
   it('imports SRD content into the new campaign when loadSrdData is true', async () => {
-    const created = makeCampaign();
-    vi.mocked(Campaign.create).mockResolvedValue([created] as never);
-
     await _createCampaign({ data: { name: 'My Campaign', description: '', loadSrdData: true } });
 
     expect(importSrdContent).toHaveBeenCalledWith(
       expect.objectContaining({
-        campaignId: String(created._id),
+        campaignId: 'camp-1',
         gmId: 'dbuser-1',
         session: expect.anything(),
       })
@@ -578,8 +545,6 @@ describe('createCampaign', () => {
   });
 
   it('does not import SRD content when loadSrdData is false or omitted', async () => {
-    vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never);
-
     await _createCampaign({ data: { name: 'My Campaign', description: '', loadSrdData: false } });
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
@@ -595,9 +560,6 @@ describe('createCampaign', () => {
   });
 
   it('creates a default Session 0 document for the new campaign', async () => {
-    const created = makeCampaign();
-    vi.mocked(Campaign.create).mockResolvedValue([created] as never);
-
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
     expect(Session.create).toHaveBeenCalledWith(
@@ -615,9 +577,6 @@ describe('createCampaign', () => {
   });
 
   it('creates Session 0 with status set to active', async () => {
-    const created = makeCampaign();
-    vi.mocked(Campaign.create).mockResolvedValue([created] as never);
-
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
     expect(Session.create).toHaveBeenCalledWith(
@@ -633,9 +592,6 @@ describe('createCampaign', () => {
   });
 
   it('creates a default GMScreen document for the new campaign', async () => {
-    const created = makeCampaign();
-    vi.mocked(Campaign.create).mockResolvedValue([created] as never);
-
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
     expect(GMScreen.create).toHaveBeenCalledWith(
@@ -651,16 +607,28 @@ describe('createCampaign', () => {
     );
   });
 
-  it('ends the mongo session even when the transaction fails', async () => {
-    vi.mocked(Campaign.create).mockRejectedValue(new Error('DB write failed'));
+  it('opens no MongoDB session when the campaign itself cannot be written', async () => {
+    campaignsDouble.create.mockRejectedValue(new Error('DB write failed'));
 
     await expect(_createCampaign({ data: { name: 'Fail', description: '' } })).rejects.toThrow();
 
+    expect(mongoose.startSession).not.toHaveBeenCalled();
+    expect(campaignsDouble.remove).not.toHaveBeenCalled();
+  });
+
+  it('removes the campaign again when its Session 0 or GM screen cannot be created', async () => {
+    vi.mocked(Session.create).mockRejectedValue(new Error('Session write failed'));
+
+    await expect(
+      _createCampaign({ data: { name: 'My Campaign', description: '' } })
+    ).rejects.toThrow('Session write failed');
+
+    // Nothing may be left behind: a campaign with no Session 0 or GM screen is broken.
+    expect(campaignsDouble.remove).toHaveBeenCalledWith('camp-1');
     expect(mockMongoSession.endSession).toHaveBeenCalled();
   });
 
   it('rolls back all writes when Session.create fails inside transaction', async () => {
-    vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never);
     vi.mocked(Session.create).mockRejectedValue(new Error('Session write failed'));
 
     await expect(
@@ -672,14 +640,13 @@ describe('createCampaign', () => {
   });
 
   it('rolls back all writes when the GM screen fails inside transaction', async () => {
-    vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never);
     vi.mocked(GMScreen.create).mockRejectedValue(new Error('GM screen write failed'));
 
     await expect(
       _createCampaign({ data: { name: 'My Campaign', description: '' } })
     ).rejects.toThrow('GM screen write failed');
 
-    expect(Campaign.create).toHaveBeenCalled();
+    expect(campaignsDouble.create).toHaveBeenCalled();
     expect(Session.create).toHaveBeenCalled();
     expect(GMScreen.create).toHaveBeenCalled();
     expect(mockMongoSession.endSession).toHaveBeenCalled();
@@ -695,17 +662,24 @@ describe('joinCampaign', () => {
       gameMasterId: 'gm-user',
       members: [{ userId: 'gm-user', role: 'gm' }],
     });
-    vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc as never);
+    campaignsDouble.findByInviteCode.mockResolvedValue(campaignDoc as never);
     const updatedDoc = {
       ...campaignDoc,
       members: [...campaignDoc.members, { userId: '507f1f77bcf86cd799439011', role: 'player' }],
     };
-    vi.mocked(Campaign.findOneAndUpdate).mockResolvedValue(updatedDoc as never);
+    campaignsDouble.addPlayer.mockResolvedValue({
+      outcome: 'joined',
+      campaign: updatedDoc as never,
+    });
 
     const result = await _joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } });
 
     expect(result).toMatchObject({ success: true, campaignId: 'camp-1' });
-    expect(Campaign.findOneAndUpdate).toHaveBeenCalled();
+    expect(campaignsDouble.addPlayer).toHaveBeenCalledWith(
+      'camp-1',
+      '507f1f77bcf86cd799439011',
+      expect.any(Date)
+    );
   });
 
   it('creates a Player document with placeholder info on join', async () => {
@@ -713,12 +687,15 @@ describe('joinCampaign', () => {
       gameMasterId: 'gm-user',
       members: [{ userId: 'gm-user', role: 'gm' }],
     });
-    vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc as never);
+    campaignsDouble.findByInviteCode.mockResolvedValue(campaignDoc as never);
     const updatedDoc = {
       ...campaignDoc,
       members: [...campaignDoc.members, { userId: '507f1f77bcf86cd799439011', role: 'player' }],
     };
-    vi.mocked(Campaign.findOneAndUpdate).mockResolvedValue(updatedDoc as never);
+    campaignsDouble.addPlayer.mockResolvedValue({
+      outcome: 'joined',
+      campaign: updatedDoc as never,
+    });
 
     await _joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } });
 
@@ -736,7 +713,7 @@ describe('joinCampaign', () => {
   });
 
   it('throws for invalid invite code', async () => {
-    vi.mocked(Campaign.findOne).mockResolvedValue(null);
+    campaignsDouble.findByInviteCode.mockResolvedValue(null);
 
     await expect(_joinCampaign({ data: { inviteCode: 'XXXX-XXXX' } })).rejects.toThrow(
       'Invalid invite code'
@@ -747,14 +724,14 @@ describe('joinCampaign', () => {
     const campaignDoc = makeCampaign({
       members: [{ userId: '507f1f77bcf86cd799439011', role: 'player' }],
     });
-    vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc as never);
+    campaignsDouble.findByInviteCode.mockResolvedValue(campaignDoc as never);
 
     await expect(_joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } })).rejects.toThrow(
       'Already a member'
     );
   });
 
-  it('throws when campaign is full (findOneAndUpdate returns null)', async () => {
+  it('throws when campaign is full', async () => {
     const players = Array.from({ length: 4 }, (_, i) => ({
       userId: `player-${i}`,
       role: 'player',
@@ -764,9 +741,12 @@ describe('joinCampaign', () => {
       maxPlayers: 4,
       members: [{ userId: 'gm-user', role: 'gm' }, ...players],
     });
-    vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc as never);
-    // findOneAndUpdate returns null when capacity check fails
-    vi.mocked(Campaign.findOneAndUpdate).mockResolvedValue(null);
+    campaignsDouble.findByInviteCode.mockResolvedValue(campaignDoc as never);
+    // The compare-and-set refuses the join when there is no seat left.
+    campaignsDouble.addPlayer.mockResolvedValue({
+      outcome: 'full',
+      campaign: campaignDoc as never,
+    });
 
     await expect(_joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } })).rejects.toThrow(
       'Campaign is full'
@@ -778,7 +758,7 @@ describe('joinCampaign', () => {
       status: 'paused',
       members: [{ userId: 'gm-user', role: 'gm' }],
     });
-    vi.mocked(Campaign.findOne).mockResolvedValue(campaignDoc as never);
+    campaignsDouble.findByInviteCode.mockResolvedValue(campaignDoc as never);
 
     await expect(_joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } })).rejects.toThrow(
       'Campaign is not active'
@@ -788,10 +768,8 @@ describe('joinCampaign', () => {
 
 describe('updateCampaign', () => {
   it('stores updated links on the campaign', async () => {
-    const campaign = makeCampaign();
-    const saveMock = vi.fn().mockResolvedValue(campaign);
-    const campaignObj = { ...campaign, save: saveMock };
-    vi.mocked(Campaign.findById).mockResolvedValue(campaignObj as never);
+    campaignsDouble.get.mockResolvedValue(makeCampaign());
+    applyUpdatesToGet();
 
     await _updateCampaign({
       data: {
@@ -802,7 +780,9 @@ describe('updateCampaign', () => {
       },
     });
 
-    expect(campaignObj.links).toEqual([{ name: 'D&D Beyond', url: 'https://dndbeyond.com' }]);
+    const updated = await campaignsDouble.update.mock.results[0]!.value;
+    expect(updated.links).toEqual([{ name: 'D&D Beyond', url: 'https://dndbeyond.com' }]);
+    expect(updated.name).toBe('Updated Name');
   });
 
   it('throws when not authenticated', async () => {
@@ -814,7 +794,7 @@ describe('updateCampaign', () => {
   });
 
   it('throws when campaign not found', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(null);
+    campaignsDouble.get.mockResolvedValue(null);
 
     await expect(
       _updateCampaign({ data: { id: 'nonexistent', name: 'Test', description: '' } })
@@ -879,7 +859,6 @@ describe('createCampaign with imagePath (direct R2 upload)', () => {
 
   beforeEach(() => {
     process.env.CDN_URL = 'https://cdn.example.com';
-    vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never);
   });
 
   afterEach(() => {
@@ -895,9 +874,9 @@ describe('createCampaign with imagePath (direct R2 upload)', () => {
       },
     });
 
-    expect(Campaign.create).toHaveBeenCalledTimes(1);
-    const createCall = vi.mocked(Campaign.create).mock.calls[0]![0] as Array<{ imagePath: string }>;
-    expect(createCall[0]!.imagePath).toBe('https://cdn.example.com/uploads/campaigns/img.webp');
+    expect(campaignsDouble.create).toHaveBeenCalledTimes(1);
+    const createCall = campaignsDouble.create.mock.calls[0]![0] as unknown as { imagePath: string };
+    expect(createCall.imagePath).toBe('https://cdn.example.com/uploads/campaigns/img.webp');
   });
 
   it('throws when imagePath origin does not match CDN_URL', async () => {
@@ -936,9 +915,7 @@ describe('createCampaign with imagePath (direct R2 upload)', () => {
 // ---------------------------------------------------------------------------
 
 describe('createCampaign — default document creation regression (#302)', () => {
-  beforeEach(() => {
-    vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never);
-  });
+  beforeEach(() => {});
 
   it('creates exactly one Session 0 and exactly one GMScreen per campaign', async () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
@@ -1003,8 +980,8 @@ describe('createCampaign — default document creation regression (#302)', () =>
     expect(gmCreateCall[0]!.createdBy).toBe('dbuser-1');
   });
 
-  it('does not create Session 0 or GMScreen when Campaign.create fails', async () => {
-    vi.mocked(Campaign.create).mockRejectedValue(new Error('DB write failed'));
+  it('does not create Session 0 or GMScreen when the campaign cannot be written', async () => {
+    campaignsDouble.create.mockRejectedValue(new Error('DB write failed'));
 
     await expect(_createCampaign({ data: { name: 'Fail', description: '' } })).rejects.toThrow();
 
@@ -1012,43 +989,36 @@ describe('createCampaign — default document creation regression (#302)', () =>
     expect(GMScreen.create).not.toHaveBeenCalled();
   });
 
-  it('does not create duplicate defaults on invite-code collision retry', async () => {
-    // First attempt: invite code collision (exists returns truthy)
-    // Second attempt: succeeds
-    let callCount = 0;
-    vi.mocked(Campaign.exists).mockReturnValue({
-      session: vi.fn().mockImplementation(() => {
-        callCount++;
-        return callCount === 1 ? { _id: 'existing' } : null;
-      }),
-    } as never);
-    vi.mocked(Campaign.create).mockResolvedValue([makeCampaign()] as never);
+  it('retries with a fresh invite code when one is taken, creating defaults once', async () => {
+    campaignsDouble.create
+      .mockRejectedValueOnce(new InviteCodeTakenError())
+      .mockImplementationOnce(async (document) => document);
 
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
-    // Campaign.create is called once (after the collision check passes)
-    expect(Campaign.create).toHaveBeenCalledTimes(1);
-    // Defaults are still created exactly once
-    expect(Session.create).toHaveBeenCalledTimes(1);
-    expect(GMScreen.create).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not create duplicate defaults on duplicate-key (11000) retry', async () => {
-    // First Campaign.create throws duplicate key error, second succeeds
-    vi.mocked(Campaign.create)
-      .mockRejectedValueOnce(Object.assign(new Error('E11000 duplicate key'), { code: 11000 }))
-      .mockResolvedValueOnce([makeCampaign()] as never);
-
-    await _createCampaign({ data: { name: 'My Campaign', description: '' } });
-
-    expect(Campaign.create).toHaveBeenCalledTimes(2);
+    expect(campaignsDouble.create).toHaveBeenCalledTimes(2);
+    const [first, second] = campaignsDouble.create.mock.calls.map(
+      ([document]) => (document as { inviteCode: string }).inviteCode
+    );
+    expect(first).not.toBe(second);
     // Defaults are still created exactly once — only after the successful attempt
     expect(Session.create).toHaveBeenCalledTimes(1);
     expect(GMScreen.create).toHaveBeenCalledTimes(1);
   });
 
+  it('gives up after ten taken invite codes without creating defaults', async () => {
+    campaignsDouble.create.mockRejectedValue(new InviteCodeTakenError());
+
+    await expect(
+      _createCampaign({ data: { name: 'My Campaign', description: '' } })
+    ).rejects.toThrow('Could not generate unique invite code');
+
+    expect(campaignsDouble.create).toHaveBeenCalledTimes(10);
+    expect(Session.create).not.toHaveBeenCalled();
+  });
+
   it('both defaults use the same campaignId', async () => {
-    vi.mocked(Campaign.create).mockResolvedValue([makeCampaign({ _id: 'new-camp-id' })] as never);
+    newObjectId.mockReturnValue('new-camp-id');
 
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
@@ -1082,7 +1052,7 @@ describe('createCampaign — default document creation regression (#302)', () =>
 describe('getCampaign — enter-campaign loading regression (#302)', () => {
   it('returns multiple sessions sorted by number', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     const sessionDocs = [
       {
         _id: 'sess-0',
@@ -1128,7 +1098,7 @@ describe('getCampaign — enter-campaign loading regression (#302)', () => {
 
   it('serializes session startDate as ISO string and endDate as ISO string or null', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     const sessionDocs = [
       {
         _id: 'sess-0',
@@ -1161,7 +1131,7 @@ describe('getCampaign — enter-campaign loading regression (#302)', () => {
 
   it('includes status in serialized session data', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     const sessionDocs = [
       {
         _id: 'sess-0',
@@ -1194,7 +1164,7 @@ describe('getCampaign — enter-campaign loading regression (#302)', () => {
 
   it('returns multiple gmScreens for GM entering campaign', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     const gmScreenDocs = [
       { _id: 'gms-1', name: 'Default' },
       { _id: 'gms-2', name: 'Combat Tracker' },
@@ -1220,7 +1190,7 @@ describe('getCampaign — enter-campaign loading regression (#302)', () => {
         { userId: 'dbuser-1', role: 'player' },
       ],
     });
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     const sessionDocs = [
       {
         _id: 'sess-0',
@@ -1249,7 +1219,7 @@ describe('getCampaign — enter-campaign loading regression (#302)', () => {
 
   it('GM entering campaign sees both sessions and gmScreens', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     const sessionDocs = [
       {
         _id: 'sess-0',
@@ -1280,7 +1250,7 @@ describe('getCampaign — enter-campaign loading regression (#302)', () => {
 
   it('queries sessions with sort by number ascending', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     const mockSort = vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
     vi.mocked(Session.find).mockReturnValue({ sort: mockSort } as never);
 
@@ -1291,7 +1261,7 @@ describe('getCampaign — enter-campaign loading regression (#302)', () => {
 
   it('returns empty sessions array when campaign has no sessions yet', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
 
     const result = (await _getCampaign({ data: { id: 'camp-1' } })) as { sessions: unknown[] };
 
@@ -1311,9 +1281,8 @@ describe('updateCampaign with imagePath (direct R2 upload)', () => {
   });
 
   it('accepts imagePath and sets it on the campaign', async () => {
-    const campaign = makeCampaign();
-    const saveMock = vi.fn().mockResolvedValue(campaign);
-    vi.mocked(Campaign.findById).mockResolvedValue({ ...campaign, save: saveMock } as never);
+    campaignsDouble.get.mockResolvedValue(makeCampaign());
+    applyUpdatesToGet();
 
     await _updateCampaign({
       data: {
@@ -1324,14 +1293,12 @@ describe('updateCampaign with imagePath (direct R2 upload)', () => {
       },
     });
 
-    const savedCampaign = saveMock.mock.instances[0] as { imagePath: string };
-    expect(savedCampaign.imagePath).toBe('https://cdn.example.com/uploads/campaigns/img.webp');
+    const updated = await campaignsDouble.update.mock.results[0]!.value;
+    expect(updated.imagePath).toBe('https://cdn.example.com/uploads/campaigns/img.webp');
   });
 
   it('throws when imagePath origin does not match CDN_URL', async () => {
-    const campaign = makeCampaign();
-    const saveMock = vi.fn().mockResolvedValue(campaign);
-    vi.mocked(Campaign.findById).mockResolvedValue({ ...campaign, save: saveMock } as never);
+    campaignsDouble.get.mockResolvedValue(makeCampaign());
 
     await expect(
       _updateCampaign({
@@ -1349,7 +1316,7 @@ describe('updateCampaign with imagePath (direct R2 upload)', () => {
 describe('activateSession', () => {
   it('deactivates the current active session and activates the target session', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     const mockSessionFn = vi
       .fn()
       .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', status: 'active' })
@@ -1381,7 +1348,7 @@ describe('activateSession', () => {
 
   it('uses GM-provided endDate when supplied', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     const mockSessionFn = vi
       .fn()
       .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', status: 'active' })
@@ -1409,7 +1376,7 @@ describe('activateSession', () => {
 
   it('activates session even when no currently active session exists', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     // First findOne (active session) returns null, second (target session) returns a session
     const mockSessionFn = vi
       .fn()
@@ -1444,7 +1411,7 @@ describe('activateSession', () => {
 
   it('throws when user is not the campaign GM', async () => {
     const campaign = makeCampaign({ gameMasterId: 'someone-else' });
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
 
     await expect(
       _activateSession({ data: { campaignId: 'camp-1', sessionId: 'sess-1' } })
@@ -1453,7 +1420,7 @@ describe('activateSession', () => {
 
   it('skips deactivation when the target session is already the active session', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     vi.mocked(Session.findOne).mockReturnValue({
       session: vi.fn().mockResolvedValue({ _id: 'sess-1', campaignId: 'camp-1', status: 'active' }),
     } as never);
@@ -1467,7 +1434,7 @@ describe('activateSession', () => {
 
   it('throws when target session does not exist', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     // No active session, and target session doesn't exist
     vi.mocked(Session.findOne).mockReturnValue({
       session: vi.fn().mockResolvedValue(null),
@@ -1480,7 +1447,7 @@ describe('activateSession', () => {
 
   it('ends the mongo session even when the transaction fails', async () => {
     const campaign = makeCampaign();
-    vi.mocked(Campaign.findById).mockResolvedValue(campaign);
+    campaignsDouble.get.mockResolvedValue(campaign);
     const mockSessionFn = vi
       .fn()
       .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', status: 'active' })

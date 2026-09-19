@@ -1,15 +1,13 @@
-import { Campaign } from '../../db/models/Campaign';
+import { campaigns } from '../campaigns';
 import { createIdentityStorage } from './availability';
 import { createGraphProfileStore } from './graph-profiles';
-import { createMongoCampaignAccessRepository } from './mongo-campaign-access';
 import { createRevocationAdmission } from './revocation-admission';
 import { createTargetIdentityRepository } from './target-repository';
-import type { IdentityRepository } from './types';
+import type { CampaignAccessRepository, IdentityRepository } from './types';
 
 // Deliberately fixed: no environment flag can activate a partial cutover, and nothing
 // here falls back to another store. Identity is served by the graph and the control
-// state; campaign access is the last Mongo reader in this file and leaves with its own
-// slice.
+// state, and campaign access reads the campaign document from the graph.
 let storage: ReturnType<typeof createIdentityStorage> | undefined;
 let listening = false;
 async function identityStorage() {
@@ -79,4 +77,14 @@ export async function revocationAdmissionFor(provider: string) {
   });
 }
 
-export const campaignAccessRepository = createMongoCampaignAccessRepository(Campaign);
+/** Membership authority for access checks: the campaign document itself. */
+export const campaignAccessRepository: CampaignAccessRepository = {
+  async findAccess(campaignId) {
+    const campaign = await campaigns.get(campaignId);
+    if (!campaign) return null;
+    return {
+      gameMasterId: campaign.gameMasterId,
+      members: campaign.members.map((member) => ({ userId: member.userId, role: member.role })),
+    };
+  },
+};

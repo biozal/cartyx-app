@@ -15,9 +15,7 @@ vi.mock('~/server/db/connection', () => ({
   isDBConnected: vi.fn(() => true),
 }));
 vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findById: vi.fn() },
-}));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/Note', () => ({
   Note: {
     create: vi.fn(),
@@ -37,7 +35,7 @@ vi.mock('~/server/functions/gmscreens-helpers', () => ({
 
 import { getSession } from '~/server/session';
 import { resetIdentityDouble } from './identityTestDouble';
-import { Campaign } from '~/server/db/models/Campaign';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { Note } from '~/server/db/models/Note';
 import {
   createNote,
@@ -109,7 +107,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
   resetIdentityDouble(mockDbUser);
-  vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign);
+  campaignsDouble.get.mockResolvedValue(mockCampaign);
 });
 
 // ---------------------------------------------------------------------------
@@ -185,7 +183,7 @@ describe('createNote', () => {
   });
 
   it('throws when user is not a campaign member', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: 'camp-1',
       gameMasterId: 'someone-else',
       members: [{ userId: 'someone-else', role: 'gm' }],

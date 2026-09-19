@@ -6,14 +6,12 @@ vi.mock('~/server/db/connection', () => ({
   isDBConnected: vi.fn(() => true),
 }));
 vi.mock('~/server/repositories/identity', () => import('../functions/identityTestDouble'));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findById: vi.fn() },
-}));
+vi.mock('~/server/repositories/campaigns', () => import('../functions/campaignsTestDouble'));
 
 import { getSession } from '~/server/session';
 import { connectDB, isDBConnected } from '~/server/db/connection';
 import { resetIdentityDouble } from '../functions/identityTestDouble';
-import { Campaign } from '~/server/db/models/Campaign';
+import { campaigns as campaignsDouble } from '../functions/campaignsTestDouble';
 import { requireCampaignMember, CampaignAccessError } from '~/server/utils/requireCampaignMember';
 
 const mockSession = {
@@ -39,11 +37,11 @@ beforeEach(() => {
 describe('requireCampaignMember', () => {
   it('never grants ownership by stringifying an absent owner', async () => {
     resetIdentityDouble({ id: 'null' });
-    vi.mocked(Campaign.findById).mockResolvedValue({ members: [] } as never);
+    campaignsDouble.get.mockResolvedValue({ members: [] } as never);
     await expect(requireCampaignMember('camp-A')).rejects.toBeInstanceOf(CampaignAccessError);
   });
   it('allows the legacy campaign owner even without a members entry', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       gameMasterId: 'dbuser-1',
       members: [],
     } as never);
@@ -51,21 +49,21 @@ describe('requireCampaignMember', () => {
   });
 
   it('rereads membership and denies a revoked member despite the session GM role', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValueOnce({
+    campaignsDouble.get.mockResolvedValueOnce({
       gameMasterId: 'another-owner',
       members: [{ userId: 'dbuser-1', role: 'gm' }],
     } as never);
     expect(await requireCampaignMember('camp-A')).toMatchObject({ isGM: true });
-    vi.mocked(Campaign.findById).mockResolvedValueOnce({
+    campaignsDouble.get.mockResolvedValueOnce({
       gameMasterId: 'another-owner',
       members: [],
     } as never);
     await expect(requireCampaignMember('camp-A')).rejects.toBeInstanceOf(CampaignAccessError);
-    expect(Campaign.findById).toHaveBeenCalledTimes(2);
+    expect(campaignsDouble.get).toHaveBeenCalledTimes(2);
   });
 
   it('allows the GM (gameMasterId match) and reports isGM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: 'camp-A',
       gameMasterId: 'dbuser-1',
       members: [{ userId: 'dbuser-1', role: 'gm' }],
@@ -81,7 +79,7 @@ describe('requireCampaignMember', () => {
   });
 
   it('allows a non-GM member and reports isGM false', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: 'camp-A',
       gameMasterId: 'someone-else',
       members: [{ userId: 'dbuser-1', role: 'player' }],
@@ -97,7 +95,7 @@ describe('requireCampaignMember', () => {
   });
 
   it('rejects a user who is not a member of the campaign, as a CampaignAccessError', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: 'camp-A',
       gameMasterId: 'someone-else',
       members: [{ userId: 'another-member', role: 'player' }],
@@ -120,14 +118,14 @@ describe('requireCampaignMember', () => {
    * error comes back — an existence oracle over every campaign in the system.
    */
   it('answers a non-member and a missing campaign with the identical message', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: 'camp-A',
       gameMasterId: 'someone-else',
       members: [{ userId: 'another-member', role: 'player' }],
     } as never);
     const nonMember = await requireCampaignMember('camp-A').catch((e: unknown) => e);
 
-    vi.mocked(Campaign.findById).mockResolvedValue(null as never);
+    campaignsDouble.get.mockResolvedValue(null as never);
     const missing = await requireCampaignMember('camp-A').catch((e: unknown) => e);
 
     expect((nonMember as Error).message).toBe((missing as Error).message);
@@ -154,7 +152,7 @@ describe('requireCampaignMember', () => {
   });
 
   it('throws a CampaignAccessError when the campaign is not found', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(null as never);
+    campaignsDouble.get.mockResolvedValue(null as never);
 
     await expect(requireCampaignMember('camp-A')).rejects.toThrow('Campaign not found');
     await expect(requireCampaignMember('camp-A')).rejects.toBeInstanceOf(CampaignAccessError);

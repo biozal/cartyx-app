@@ -1,7 +1,6 @@
 import type mongoose from 'mongoose';
 import type { IndexSeverity } from './governance';
 import { getSeverity, keySignature } from './governance';
-import { Campaign } from './models/Campaign';
 import { GMScreen } from './models/GMScreen';
 import { Player } from './models/Player';
 import { Session } from './models/Session';
@@ -18,7 +17,6 @@ import { Monster } from './models/Monster';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mongoose models have different document types
 export const ALL_MODELS: mongoose.Model<any>[] = [
-  Campaign,
   Player,
   Session,
   GMScreen,
@@ -34,9 +32,9 @@ export const ALL_MODELS: mongoose.Model<any>[] = [
 
 /** Describes one expected-vs-actual index comparison for a single model. */
 export interface IndexDiff {
-  /** Mongoose model name (e.g. "Campaign"). */
+  /** Mongoose model name (e.g. "Session"). */
   model: string;
-  /** MongoDB collection name (e.g. "campaigns"). */
+  /** MongoDB collection name (e.g. "sessions"). */
   collection: string;
   /** Indexes declared in the schema but missing from the database. */
   missing: IndexSpec[];

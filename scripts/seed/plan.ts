@@ -90,11 +90,10 @@ export function byCollection(entries: PlanEntry[]): Map<string, PlanDocument[]> 
  * collection here; everything unlisted is written to MongoDB until then.
  */
 export type GraphWriter = (documents: PlanDocument[]) => Promise<void>;
-export const GRAPH_COLLECTIONS: Record<string, GraphWriter> = {};
 
 export async function persistPlan(
   entries: PlanEntry[],
-  routes: Record<string, GraphWriter> = GRAPH_COLLECTIONS
+  routes: Record<string, GraphWriter>
 ): Promise<{ graph: Record<string, number>; mongo: Record<string, number> }> {
   const grouped = byCollection(entries);
   const summary = { graph: {} as Record<string, number>, mongo: {} as Record<string, number> };

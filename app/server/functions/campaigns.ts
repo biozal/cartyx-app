@@ -3,7 +3,12 @@ import mongoose from 'mongoose';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
 import { identityRepository } from '../repositories/identity';
-import { Campaign } from '../db/models/Campaign';
+import {
+  campaigns,
+  InviteCodeTakenError,
+  isCampaignMember,
+  newObjectId,
+} from '../repositories/campaigns';
 import { Player } from '../db/models/Player';
 import { Session } from '../db/models/Session';
 import { GMScreen } from '../db/models/GMScreen';
@@ -120,15 +125,9 @@ export const listCampaigns = async () => {
     const dbUser = await identityRepository.findProfile(user.id);
     if (!dbUser) return [];
 
-    // Include legacy campaigns (pre-members migration) where user is the GM
-    const raw = await Campaign.find({
-      $or: [
-        { 'members.userId': dbUser.id },
-        { gameMasterId: dbUser.id, members: { $in: [null, []] } },
-        // Ensure the GM always sees their campaigns, even if members is non-empty and missing the GM
-        { gameMasterId: dbUser.id },
-      ],
-    }).sort({ createdAt: -1 });
+    // Campaigns the user belongs to, plus every campaign they run — including legacy
+    // ones with no members list and ones whose list omits the GM. Newest first.
+    const raw = await campaigns.listForUser(dbUser.id);
 
     const campaignIds = raw.map((c) => c._id);
     let playersByCampaignId: Record<
@@ -210,7 +209,7 @@ export const getCampaign = async ({ data }: { data: z.infer<typeof getCampaignSc
     if (!isDBConnected()) throw new Error('Database not available');
 
     const dbUser = await identityRepository.findProfile(user.id);
-    const c = await Campaign.findById(data.id);
+    const c = await campaigns.get(data.id);
     if (!c) return null;
 
     const userId = dbUser ? String(dbUser.id) : undefined;
@@ -368,63 +367,52 @@ export const createCampaign = async ({ data }: { data: z.infer<typeof campaignIn
       imagePath = await saveUploadedFile(file, 'uploads/campaigns');
     }
 
-    interface CampaignResult {
-      _id: mongoose.Types.ObjectId;
-      name: string;
-      inviteCode: string;
+    // The campaign is written to the graph first. Its Session 0, GM screen and optional
+    // SRD content are still MongoDB, in their own transaction; if that fails the
+    // campaign is removed again, so a failure never leaves a campaign without them.
+    const campaignId = newObjectId();
+    let result: { _id: string; name: string; inviteCode: string } | null = null;
+    for (let attempt = 0; attempt < 10 && !result; attempt++) {
+      const inviteCode = generateInviteCode();
+      try {
+        const created = await campaigns.create({
+          _id: campaignId,
+          gameMasterId: dbUser.id,
+          name: name.trim(),
+          description: description.trim(),
+          imagePath,
+          schedule: {
+            frequency: schedFreq ?? null,
+            dayOfWeek: schedDay ?? null,
+            time: schedTime ?? null,
+            timezone: schedTz ?? null,
+          },
+          links: links ?? [],
+          maxPlayers: parseMaxPlayers(maxPlayers),
+          inviteCode,
+          status: 'active',
+          members: [{ userId: dbUser.id, role: 'gm', joinedAt: new Date() }],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        result = { _id: created._id, name: created.name, inviteCode };
+      } catch (e: unknown) {
+        if (e instanceof InviteCodeTakenError) continue;
+        throw e;
+      }
     }
+    if (!result) throw new Error('Could not generate unique invite code');
+
     const mongoSession = await mongoose.startSession();
-    let result: CampaignResult;
     try {
-      result = (await mongoSession.withTransaction(async () => {
-        let campaign: CampaignResult | null = null;
-        let attempts = 0;
-        while (attempts < 10 && !campaign) {
-          const inviteCode = generateInviteCode();
-          const inUse = await Campaign.exists({ inviteCode }).session(mongoSession);
-          attempts++;
-          if (inUse) continue;
-          try {
-            const created = (await Campaign.create(
-              [
-                {
-                  gameMasterId: dbUser.id,
-                  name: name.trim(),
-                  description: description.trim(),
-                  imagePath,
-                  schedule: {
-                    frequency: schedFreq ?? null,
-                    dayOfWeek: schedDay ?? null,
-                    time: schedTime ?? null,
-                    timezone: schedTz ?? null,
-                  },
-                  links: links ?? [],
-                  maxPlayers: parseMaxPlayers(maxPlayers),
-                  inviteCode,
-                  members: [{ userId: dbUser.id, role: 'gm', joinedAt: new Date() }],
-                },
-              ],
-              { session: mongoSession }
-            )) as unknown as CampaignResult[];
-            campaign = created[0] as CampaignResult;
-          } catch (e: unknown) {
-            if ((e as { code?: number })?.code === 11000) {
-              campaign = null;
-              continue;
-            }
-            throw e;
-          }
-        }
-
-        if (!campaign) throw new Error('Could not generate unique invite code');
-
+      await mongoSession.withTransaction(async () => {
         // Create default Session 0 and GM Screen for new campaign
         const now = new Date();
         await Promise.all([
           Session.create(
             [
               {
-                campaignId: campaign._id,
+                campaignId,
                 name: 'Session 0',
                 gm: dbUser.id,
                 number: 0,
@@ -453,7 +441,7 @@ This is the **Catch Up** section. Your players will see this on their Dashboard 
           GMScreen.create(
             [
               {
-                campaignId: campaign._id,
+                campaignId,
                 name: 'General',
                 tabOrder: 0,
                 createdBy: dbUser.id,
@@ -468,14 +456,20 @@ This is the **Catch Up** section. Your players will see this on their Dashboard 
         if (data.loadSrdData) {
           const { importSrdContent } = await import('./srdImport');
           await importSrdContent({
-            campaignId: String(campaign._id),
+            campaignId,
             gmId: String(dbUser.id),
             session: mongoSession,
           });
         }
-
-        return campaign;
-      })) as CampaignResult;
+      });
+    } catch (e) {
+      await campaigns.remove(campaignId).catch((cleanup: unknown) => {
+        serverCaptureException(cleanup, user.id, {
+          action: 'createCampaign',
+          step: 'removeCampaignAfterFailedSetup',
+        });
+      });
+      throw e;
     } finally {
       await mongoSession.endSession();
     }
@@ -513,7 +507,7 @@ export const updateCampaign = async ({
     const dbUser = await identityRepository.findProfile(user.id);
     if (!dbUser) throw new Error('User not found');
 
-    const campaign = await Campaign.findById(data.id);
+    const campaign = await campaigns.get(data.id);
     if (!campaign) throw new Error('Campaign not found');
     if (String(campaign.gameMasterId) !== String(dbUser.id)) throw new Error('Forbidden');
 
@@ -534,22 +528,7 @@ export const updateCampaign = async ({
 
     if (!name.trim()) throw new Error('Campaign name is required');
 
-    campaign.name = name.trim();
-    campaign.description = description.trim();
-    campaign.schedule = {
-      frequency: schedFreq ?? null,
-      dayOfWeek: schedDay ?? null,
-      time: schedTime ?? null,
-      timezone: schedTz ?? null,
-    };
-    // Mongoose casts a plain array into a DocumentArray on assignment at
-    // runtime, and unit tests mock `campaign` as a plain object (no `.set`),
-    // so this must stay a plain assignment. The DocumentArray type is a
-    // compile-time-only distinction here; this narrow cast is the boundary.
-    campaign.links = (links ?? []) as unknown as typeof campaign.links;
-    campaign.maxPlayers = parseMaxPlayers(maxPlayers);
-    campaign.updatedAt = new Date();
-
+    let imagePath: string | null | undefined;
     if (imagePathInput) {
       // Direct upload path: validate the URL origin matches our CDN
       const cdnUrl = process.env.CDN_URL;
@@ -562,7 +541,7 @@ export const updateCampaign = async ({
       } catch {
         throw new Error('Invalid image path');
       }
-      campaign.imagePath = imagePathInput;
+      imagePath = imagePathInput;
     } else if (imageData && imageMime && imageName) {
       // Local dev fallback: base64 → save via server
       if (imageData.length > MAX_IMAGE_BASE64_LENGTH) {
@@ -570,12 +549,29 @@ export const updateCampaign = async ({
       }
       const buffer = Buffer.from(imageData, 'base64');
       const file = new File([buffer], imageName, { type: imageMime });
-      campaign.imagePath = await saveUploadedFile(file, 'uploads/campaigns');
+      imagePath = await saveUploadedFile(file, 'uploads/campaigns');
     }
 
-    await campaign.save();
+    // Compare-and-set: an edit that races another writer re-applies to the newer copy
+    // instead of overwriting it.
+    const updated = await campaigns.update(data.id, (current) => ({
+      ...current,
+      name: name.trim(),
+      description: description.trim(),
+      schedule: {
+        frequency: schedFreq ?? null,
+        dayOfWeek: schedDay ?? null,
+        time: schedTime ?? null,
+        timezone: schedTz ?? null,
+      },
+      links: links ?? [],
+      maxPlayers: parseMaxPlayers(maxPlayers),
+      ...(imagePath !== undefined && { imagePath }),
+      updatedAt: new Date(),
+    }));
+    if (!updated) throw new Error('Campaign not found');
     serverCaptureEvent(user.id, 'campaign_updated', { campaign_id: data.id });
-    return { success: true, campaignId: String(campaign._id) };
+    return { success: true, campaignId: String(updated._id) };
   } catch (e) {
     serverCaptureException(e, user?.id, { action: 'updateCampaign', campaignId: data.id });
     throw e;
@@ -595,49 +591,23 @@ export const joinCampaign = async ({ data }: { data: z.infer<typeof joinCampaign
     if (!dbUser) throw new Error('User not found');
 
     const normalizedInviteCode = data.inviteCode.trim().toUpperCase();
-    const campaign = await Campaign.findOne({ inviteCode: normalizedInviteCode });
+    const campaign = await campaigns.findByInviteCode(normalizedInviteCode);
     if (!campaign) throw new Error('Invalid invite code');
     if (campaign.status !== 'active') throw new Error('Campaign is not active');
 
     // Treat GM as implicit member (consistent with getCampaign)
-    const alreadyMember =
-      (campaign.members ?? []).some((m) => String(m.userId) === String(dbUser.id)) ||
-      String(campaign.gameMasterId) === String(dbUser.id);
-    if (alreadyMember) throw new Error('Already a member of this campaign');
+    if (isCampaignMember(campaign, String(dbUser.id)))
+      throw new Error('Already a member of this campaign');
 
     const now = new Date();
 
-    const updatedCampaign = await Campaign.findOneAndUpdate(
-      {
-        _id: campaign._id,
-        status: 'active',
-        'members.userId': { $ne: dbUser.id },
-        $expr: {
-          $lt: [
-            {
-              $size: {
-                $filter: {
-                  input: { $ifNull: ['$members', []] },
-                  as: 'm',
-                  cond: { $eq: ['$$m.role', 'player'] },
-                },
-              },
-            },
-            { $ifNull: ['$maxPlayers', 4] },
-          ],
-        },
-      },
-      {
-        $addToSet: { members: { userId: dbUser.id, role: 'player', joinedAt: now } },
-      },
-      {
-        new: true,
-      }
-    );
-
-    if (!updatedCampaign) {
-      throw new Error('Campaign is full');
-    }
+    // One compare-and-set checks status, membership and the player limit together, so
+    // two joins cannot both take the last seat.
+    const joined = await campaigns.addPlayer(campaign._id, String(dbUser.id), now);
+    if (joined.outcome === 'already-member') throw new Error('Already a member of this campaign');
+    if (joined.outcome === 'inactive') throw new Error('Campaign is not active');
+    if (joined.outcome !== 'joined' || !joined.campaign) throw new Error('Campaign is full');
+    const updatedCampaign = joined.campaign;
 
     // Create placeholder Player document (can be edited later)
     const displayName = [
@@ -691,7 +661,7 @@ export const activateSession = async ({
     const dbUser = await identityRepository.findProfile(user.id);
     if (!dbUser) throw new Error('User not found');
 
-    const campaign = await Campaign.findById(data.campaignId);
+    const campaign = await campaigns.get(data.campaignId);
     if (!campaign) throw new Error('Campaign not found');
     if (String(campaign.gameMasterId) !== String(dbUser.id)) throw new Error('Forbidden');
 

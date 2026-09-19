@@ -15,9 +15,7 @@ vi.mock('~/server/db/connection', () => ({
   isDBConnected: vi.fn(() => true),
 }));
 vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findById: vi.fn() },
-}));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/GMScreen', () => ({
   GMScreen: {
     find: vi.fn(),
@@ -68,7 +66,7 @@ vi.mock('mongoose', () => ({
 
 import { getSession } from '~/server/session';
 import { resetIdentityDouble } from './identityTestDouble';
-import { Campaign } from '~/server/db/models/Campaign';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { GMScreen } from '~/server/db/models/GMScreen';
 import { Note } from '~/server/db/models/Note';
 import { Character } from '~/server/db/models/Character';
@@ -203,7 +201,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
   resetIdentityDouble(mockDbUser);
-  vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign);
+  campaignsDouble.get.mockResolvedValue(mockCampaign);
   mockMongoSession.withTransaction.mockImplementation(async (fn: () => Promise<unknown>) => fn());
   mockMongoSession.endSession.mockReset();
 });
@@ -230,7 +228,7 @@ describe('GM-only access', () => {
   });
 
   it('throws when campaign is not found', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(null);
+    campaignsDouble.get.mockResolvedValue(null);
 
     await expect(_listGMScreens({ data: { campaignId: 'camp-1' } })).rejects.toThrow(
       'Campaign not found'
@@ -238,7 +236,7 @@ describe('GM-only access', () => {
   });
 
   it('throws Forbidden when user is a player, not a GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: 'camp-1',
       gameMasterId: 'someone-else',
       members: [
@@ -251,7 +249,7 @@ describe('GM-only access', () => {
   });
 
   it('allows access when user is gameMasterId (legacy campaign)', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: 'camp-1',
       gameMasterId: 'dbuser-1',
       members: [],
@@ -265,7 +263,7 @@ describe('GM-only access', () => {
   });
 
   it('allows access when user has gm role in members array', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: 'camp-1',
       gameMasterId: 'original-gm',
       members: [

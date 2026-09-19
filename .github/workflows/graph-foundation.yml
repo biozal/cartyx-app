@@ -82,6 +82,20 @@ jobs:
           GREMLIN_PASSWORD_FILE: ${{ github.workspace }}/.local/graph-infrastructure/.local/data/local/gremlin-app-password
           IDENTITY_GRAPH_OPERATOR_PASSWORD_FILE: ${{ github.workspace }}/.local/graph-infrastructure/.local/data/local/gremlin-password
         run: npx tsx scripts/graph/entity-store-integration.ts
+      - name: Repository contracts through the restricted application principal
+        # The same contracts the unit tests run in memory, against the real store.
+        env:
+          GREMLIN_USERNAME: cartyx_app
+          GREMLIN_PASSWORD_FILE: ${{ github.workspace }}/.local/graph-infrastructure/.local/data/local/gremlin-app-password
+          CQL_CONTACT_POINT: 127.0.0.1
+          CQL_PORT: '19042'
+          CQL_TLS_SERVER_NAME: localhost
+          CQL_DATACENTER: dc1
+          CQL_STATE_KEYSPACE: cartyx_state
+          CQL_CA_FILE: ${{ github.workspace }}/.local/graph-infrastructure/.local/data/local/tls.crt
+          CQL_PASSWORD_FILE: ${{ github.workspace }}/.local/graph-infrastructure/.local/data/local/cassandra-state-password
+          CARTYX_GRAPH_ERROR_DETAIL: '1'
+        run: npx tsx scripts/graph/repositories-integration.ts
       - name: Cassandra schema, state, permissions, and interrupted migration
         run: |
           npm run cql:local -- schema apply

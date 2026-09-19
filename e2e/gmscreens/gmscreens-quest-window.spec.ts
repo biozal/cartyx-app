@@ -11,6 +11,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
 import { seededGameMaster } from '../fixtures/data';
+import { campaignFixtures } from '../fixtures/campaigns';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -40,20 +41,19 @@ async function provision(database: Db): Promise<Provisioned> {
   const gm = seededGameMaster(providerId);
 
   // Clear any leftovers from a previous run.
-  const stale = await database
-    .collection('campaigns')
+  const stale = await campaignFixtures
     .find({ name: CAMPAIGN_NAME }, { projection: { _id: 1 } })
     .toArray();
   if (stale.length) {
     const ids = stale.map((c) => c._id);
     await database.collection('gmscreen').deleteMany({ campaignId: { $in: ids } });
     await database.collection('quests').deleteMany({ campaignId: { $in: ids } });
-    await database.collection('campaigns').deleteMany({ _id: { $in: ids } });
+    await campaignFixtures.deleteMany({ _id: { $in: ids } });
   }
 
   const now = new Date();
   const campaignId = (
-    await database.collection('campaigns').insertOne({
+    await campaignFixtures.insertOne({
       gameMasterId: gm._id,
       name: CAMPAIGN_NAME,
       description: 'E2E GM-screen quest-window test.',
@@ -165,7 +165,7 @@ test.afterAll(async () => {
     const cid = new ObjectId(provisioned.campaignId);
     await db().collection('gmscreen').deleteMany({ campaignId: cid });
     await db().collection('quests').deleteMany({ campaignId: cid });
-    await db().collection('campaigns').deleteMany({ _id: cid });
+    await campaignFixtures.deleteMany({ _id: cid });
   }
   await client.close();
 });

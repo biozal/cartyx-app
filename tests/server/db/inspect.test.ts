@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const {
-  campaignMock,
   playerMock,
   sessionMock,
   gmScreenMock,
@@ -30,10 +29,6 @@ const {
   }
 
   return {
-    campaignMock: make('Campaign', 'campaigns', [
-      [{ inviteCode: 1 }, { unique: true, sparse: true }],
-      [{ 'members.userId': 1 }, {}],
-    ]),
     playerMock: make('Player', 'players', [
       [{ campaignId: 1, userId: 1 }, { unique: true }],
       [{ campaignId: 1 }, {}],
@@ -82,7 +77,6 @@ const {
   };
 });
 
-vi.mock('~/server/db/models/Campaign', () => ({ Campaign: campaignMock }));
 vi.mock('~/server/db/models/Player', () => ({ Player: playerMock }));
 vi.mock('~/server/db/models/Session', () => ({ Session: sessionMock }));
 vi.mock('~/server/db/models/GMScreen', () => ({ GMScreen: gmScreenMock }));
@@ -103,7 +97,6 @@ import {
 } from '~/server/db/inspect';
 
 const allMocks = [
-  campaignMock,
   playerMock,
   sessionMock,
   gmScreenMock,
@@ -118,12 +111,14 @@ const allMocks = [
 ];
 
 describe('ALL_MODELS', () => {
-  it('contains all twelve models', () => {
-    expect(ALL_MODELS).toHaveLength(12);
+  it('contains all eleven models', () => {
+    expect(ALL_MODELS).toHaveLength(11);
   });
 
-  it('no longer inspects users, which moved to the graph', () => {
-    expect(ALL_MODELS.map((m) => m.modelName)).not.toContain('User');
+  it('no longer inspects users or campaigns, which moved to the graph', () => {
+    const names = ALL_MODELS.map((m) => m.modelName);
+    expect(names).not.toContain('User');
+    expect(names).not.toContain('Campaign');
   });
 
   it('includes the shared map-object models for index governance', () => {
@@ -152,10 +147,13 @@ describe('inspectIndexes', () => {
   });
 
   it('reports ok when all schema indexes exist in the database with matching options', async () => {
-    campaignMock.listIndexes.mockResolvedValue([
+    mapTokenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { inviteCode: 1 }, unique: true, sparse: true },
-      { key: { 'members.userId': 1 } },
+      {
+        key: { mapId: 1, sourceCollection: 1, sourceDocumentId: 1, instanceNumber: 1 },
+        unique: true,
+      },
+      { key: { mapId: 1 } },
     ]);
     playerMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
@@ -240,32 +238,38 @@ describe('inspectIndexes', () => {
 
     expect(result.ok).toBe(false);
 
-    const campaignDiff = result.diffs.find((d) => d.model === 'Campaign')!;
-    expect(campaignDiff.missing).toHaveLength(2);
+    const mapTokenDiff = result.diffs.find((d) => d.model === 'MapToken')!;
+    expect(mapTokenDiff.missing).toHaveLength(2);
 
     const playerDiff = result.diffs.find((d) => d.model === 'Player')!;
     expect(playerDiff.missing).toHaveLength(2);
   });
 
   it('reports extra indexes not in the schema', async () => {
-    campaignMock.listIndexes.mockResolvedValue([
+    mapTokenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { inviteCode: 1 }, unique: true, sparse: true },
-      { key: { 'members.userId': 1 } },
+      {
+        key: { mapId: 1, sourceCollection: 1, sourceDocumentId: 1, instanceNumber: 1 },
+        unique: true,
+      },
+      { key: { mapId: 1 } },
       { key: { name: 1 } },
     ]);
 
     const result = await inspectIndexes();
-    const campaignDiff = result.diffs.find((d) => d.model === 'Campaign')!;
-    expect(campaignDiff.extra).toHaveLength(1);
-    expect(campaignDiff.extra[0]!.key).toEqual({ name: 1 });
+    const mapTokenDiff = result.diffs.find((d) => d.model === 'MapToken')!;
+    expect(mapTokenDiff.extra).toHaveLength(1);
+    expect(mapTokenDiff.extra[0]!.key).toEqual({ name: 1 });
   });
 
   it('reports ok=false when extra indexes exist even if none are missing', async () => {
-    campaignMock.listIndexes.mockResolvedValue([
+    mapTokenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { inviteCode: 1 }, unique: true, sparse: true },
-      { key: { 'members.userId': 1 } },
+      {
+        key: { mapId: 1, sourceCollection: 1, sourceDocumentId: 1, instanceNumber: 1 },
+        unique: true,
+      },
+      { key: { mapId: 1 } },
       { key: { name: 1 } },
     ]);
     playerMock.listIndexes.mockResolvedValue([
@@ -298,28 +302,33 @@ describe('inspectIndexes', () => {
   });
 
   it('detects option mismatches (e.g. unique expected but missing in DB)', async () => {
-    // Schema expects { inviteCode: 1 } with unique: true, sparse: true
-    // DB has { inviteCode: 1 } without unique or sparse
-    campaignMock.listIndexes.mockResolvedValue([
+    // Schema expects the token compound index with unique: true
+    // DB has it without unique
+    mapTokenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { inviteCode: 1 } },
-      { key: { 'members.userId': 1 } },
+      { key: { mapId: 1, sourceCollection: 1, sourceDocumentId: 1, instanceNumber: 1 } },
+      { key: { mapId: 1 } },
     ]);
 
     const result = await inspectIndexes();
-    const campaignDiff = result.diffs.find((d) => d.model === 'Campaign')!;
-    expect(campaignDiff.missing).toHaveLength(0);
-    expect(campaignDiff.optionMismatches).toHaveLength(1);
-    expect(campaignDiff.optionMismatches[0]!.key).toEqual({ inviteCode: 1 });
-    expect(campaignDiff.optionMismatches[0]!.expected).toEqual({ unique: true, sparse: true });
-    expect(campaignDiff.optionMismatches[0]!.actual).toEqual({});
+    const mapTokenDiff = result.diffs.find((d) => d.model === 'MapToken')!;
+    expect(mapTokenDiff.missing).toHaveLength(0);
+    expect(mapTokenDiff.optionMismatches).toHaveLength(1);
+    expect(mapTokenDiff.optionMismatches[0]!.key).toEqual({
+      mapId: 1,
+      sourceCollection: 1,
+      sourceDocumentId: 1,
+      instanceNumber: 1,
+    });
+    expect(mapTokenDiff.optionMismatches[0]!.expected).toEqual({ unique: true });
+    expect(mapTokenDiff.optionMismatches[0]!.actual).toEqual({});
   });
 
   it('reports ok=false when option mismatches exist', async () => {
-    campaignMock.listIndexes.mockResolvedValue([
+    mapTokenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { inviteCode: 1 } }, // missing unique + sparse options
-      { key: { 'members.userId': 1 } },
+      { key: { mapId: 1, sourceCollection: 1, sourceDocumentId: 1, instanceNumber: 1 } }, // missing unique + sparse options
+      { key: { mapId: 1 } },
     ]);
     playerMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
@@ -348,19 +357,19 @@ describe('inspectIndexes', () => {
 
   it('handles NamespaceNotFound (code 26) gracefully when collection does not exist', async () => {
     const nsError = Object.assign(new Error('ns not found'), { code: 26 });
-    campaignMock.listIndexes.mockRejectedValue(nsError);
+    mapTokenMock.listIndexes.mockRejectedValue(nsError);
 
     const result = await inspectIndexes();
 
-    const campaignDiff = result.diffs.find((d) => d.model === 'Campaign')!;
-    expect(campaignDiff.missing).toHaveLength(2);
-    expect(campaignDiff.extra).toHaveLength(0);
-    expect(campaignDiff.optionMismatches).toHaveLength(0);
+    const mapTokenDiff = result.diffs.find((d) => d.model === 'MapToken')!;
+    expect(mapTokenDiff.missing).toHaveLength(2);
+    expect(mapTokenDiff.extra).toHaveLength(0);
+    expect(mapTokenDiff.optionMismatches).toHaveLength(0);
   });
 
   it('rethrows non-NamespaceNotFound errors from listIndexes', async () => {
     const authError = Object.assign(new Error('not authorized'), { code: 13 });
-    campaignMock.listIndexes.mockRejectedValue(authError);
+    mapTokenMock.listIndexes.mockRejectedValue(authError);
 
     await expect(inspectIndexes()).rejects.toThrow('not authorized');
   });
@@ -368,39 +377,42 @@ describe('inspectIndexes', () => {
   it('annotates missing indexes with governance severity', async () => {
     const result = await inspectIndexes();
 
-    const campaignDiff = result.diffs.find((d) => d.model === 'Campaign')!;
-    const inviteCodeMissing = campaignDiff.missing.find((m) => 'inviteCode' in m.key);
-    expect(inviteCodeMissing?.severity).toBe('critical');
+    const mapTokenDiff = result.diffs.find((d) => d.model === 'MapToken')!;
+    const uniqueMissing = mapTokenDiff.missing.find((m) => 'instanceNumber' in m.key);
+    expect(uniqueMissing?.severity).toBe('critical');
 
-    const membersMissing = campaignDiff.missing.find((m) => 'members.userId' in m.key);
+    const membersMissing = mapTokenDiff.missing.find((m) => Object.keys(m.key).join() === 'mapId');
     expect(membersMissing?.severity).toBe('optional');
   });
 
   it('annotates option mismatches with governance severity', async () => {
-    campaignMock.listIndexes.mockResolvedValue([
+    mapTokenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { inviteCode: 1 } }, // missing unique + sparse
-      { key: { 'members.userId': 1 } },
+      { key: { mapId: 1, sourceCollection: 1, sourceDocumentId: 1, instanceNumber: 1 } }, // missing unique + sparse
+      { key: { mapId: 1 } },
     ]);
 
     const result = await inspectIndexes();
-    const campaignDiff = result.diffs.find((d) => d.model === 'Campaign')!;
-    const inviteCodeMismatch = campaignDiff.optionMismatches.find((m) => 'inviteCode' in m.key);
-    expect(inviteCodeMismatch?.severity).toBe('critical');
+    const mapTokenDiff = result.diffs.find((d) => d.model === 'MapToken')!;
+    const uniqueMismatch = mapTokenDiff.optionMismatches.find((m) => 'instanceNumber' in m.key);
+    expect(uniqueMismatch?.severity).toBe('critical');
   });
 
   it('sets hasCriticalDrift=true when a critical index is missing', async () => {
-    // All mocks default to only _id, so Campaign inviteCode (critical) is missing
+    // All mocks default to only _id, so the MapToken unique index (critical) is missing
     const result = await inspectIndexes();
     expect(result.hasCriticalDrift).toBe(true);
   });
 
   it('sets hasCriticalDrift=false when only optional indexes have drift', async () => {
     // Provide all critical indexes, but leave some optional ones missing
-    campaignMock.listIndexes.mockResolvedValue([
+    mapTokenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { inviteCode: 1 }, unique: true, sparse: true },
-      // members.userId (optional) is missing
+      {
+        key: { mapId: 1, sourceCollection: 1, sourceDocumentId: 1, instanceNumber: 1 },
+        unique: true,
+      },
+      // mapId (optional) is missing
     ]);
     playerMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
@@ -436,10 +448,10 @@ describe('inspectIndexes', () => {
   });
 
   it('sets hasCriticalDrift=true when a critical index has option mismatch', async () => {
-    campaignMock.listIndexes.mockResolvedValue([
+    mapTokenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { inviteCode: 1 } }, // missing unique+sparse = critical option mismatch
-      { key: { 'members.userId': 1 } },
+      { key: { mapId: 1, sourceCollection: 1, sourceDocumentId: 1, instanceNumber: 1 } }, // missing unique+sparse = critical option mismatch
+      { key: { mapId: 1 } },
     ]);
     playerMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
@@ -503,7 +515,7 @@ describe('syncCollectionsAndIndexes', () => {
   });
 
   it('propagates errors from createCollection', async () => {
-    campaignMock.createCollection.mockRejectedValueOnce(new Error('create failed'));
+    mapTokenMock.createCollection.mockRejectedValueOnce(new Error('create failed'));
     await expect(syncCollectionsAndIndexes()).rejects.toThrow('create failed');
   });
 

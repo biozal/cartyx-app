@@ -162,19 +162,26 @@ export async function destroyCampaigns(
   const db = conn.db!;
   const cdnUrl = process.env.CDN_URL?.replace(/\/+$/, '') ?? null;
 
-  const mongoFilter: Record<string, unknown> = {};
-  if (filter.campaignId) {
-    mongoFilter._id = new ObjectId(filter.campaignId);
-  } else if (filter.fixtureName) {
-    mongoFilter['metadata.managedBy'] = FIXTURE_MARKER.managedBy;
-    mongoFilter['metadata.fixtureName'] = filter.fixtureName;
-  } else if (filter.allFixtures) {
-    mongoFilter['metadata.managedBy'] = FIXTURE_MARKER.managedBy;
-  } else {
+  if (!filter.campaignId && !filter.fixtureName && !filter.allFixtures)
     throw new Error('destroyCampaigns: provide fixtureName, campaignId, or allFixtures.');
-  }
 
-  const campaigns = await db.collection('campaigns').find(mongoFilter).toArray();
+  // Campaigns live in the graph. The fixture marker is not indexed, and a dev tool reads
+  // few enough campaigns that filtering them here is fine.
+  const { campaigns: campaignRepository } = await import('../../app/server/repositories/campaigns');
+  const candidates = filter.campaignId
+    ? [await campaignRepository.get(filter.campaignId)].filter((c) => c !== null)
+    : await campaignRepository.listAll();
+  const campaigns = candidates
+    .filter((campaign) => {
+      if (filter.campaignId) return true;
+      const metadata = (campaign.metadata ?? {}) as { managedBy?: string; fixtureName?: string };
+      return (
+        metadata.managedBy === FIXTURE_MARKER.managedBy &&
+        (!filter.fixtureName || metadata.fixtureName === filter.fixtureName)
+      );
+    })
+    // Dependent data is still MongoDB, where the campaign id is an ObjectId.
+    .map((campaign) => ({ ...campaign, _id: new ObjectId(campaign._id) }));
 
   // Safety: if a single campaign was named by id but isn't fixture-managed,
   // refuse unless force is set.
@@ -253,8 +260,9 @@ export async function destroyCampaigns(
   }
 
   // ----- Delete campaigns -----
-  const campRes = await db.collection('campaigns').deleteMany({ _id: { $in: campaignIds } });
-  result.campaignsDeleted = campRes.deletedCount ?? 0;
+  result.campaignsDeleted = 0;
+  for (const id of campaignIds)
+    if (await campaignRepository.remove(String(id))) result.campaignsDeleted++;
 
   // ----- Best-effort R2 cleanup -----
   if (r2 && r2KeysToDelete.size > 0) {
@@ -401,8 +409,12 @@ export async function sweepOrphanR2Keys(conn: Connection): Promise<OrphanSweepRe
   const urlSources: Array<[string, string]> = [
     ['characters', 'picture'],
     ['players', 'picture'],
-    ['campaigns', 'imagePath'],
   ];
+  const { campaigns: campaignRepository } = await import('../../app/server/repositories/campaigns');
+  for (const campaign of await campaignRepository.listAll()) {
+    const url = campaign.imagePath ?? undefined;
+    if (url && cdnUrl && url.startsWith(cdnUrl + '/')) inUse.add(url.slice(cdnUrl.length + 1));
+  }
   for (const [coll, field] of urlSources) {
     for await (const doc of db
       .collection(coll)

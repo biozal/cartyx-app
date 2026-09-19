@@ -1,6 +1,5 @@
 import { vi } from 'vitest';
-import { Campaign } from '~/server/db/models/Campaign';
-import { createMongoCampaignAccessRepository } from '~/server/repositories/identity/mongo-campaign-access';
+import { campaigns } from '~/server/repositories/campaigns';
 import type { IdentityProfile, IdentityRepository } from '~/server/repositories/identity/types';
 
 /** Well-formed, so the real prefix validation runs rather than being bypassed. */
@@ -125,6 +124,18 @@ export const revocationAdmissionFor = vi.fn(async (provider: string) =>
   identityDouble.revocationConfigured.includes(provider) ? revocationAdmission : null
 );
 
-// Campaigns are still MongoDB and still read through the real adapter, so a test that
-// mocks the Campaign model keeps exactly the membership behaviour it had before.
-export const campaignAccessRepository = createMongoCampaignAccessRepository(Campaign);
+// Membership is read from the campaign document, exactly as the real composition does.
+// A test stubs that document through the campaigns double (`campaignsTestDouble`).
+export const campaignAccessRepository = {
+  async findAccess(campaignId: string) {
+    const campaign = await campaigns.get(campaignId);
+    if (!campaign) return null;
+    return {
+      gameMasterId: campaign.gameMasterId == null ? null : String(campaign.gameMasterId),
+      members: (campaign.members ?? []).map((member) => ({
+        userId: String(member.userId),
+        role: member.role,
+      })),
+    };
+  },
+};

@@ -49,6 +49,7 @@ import { SignJWT } from 'jose';
 import { test, expect, openWikiTab, openTabletopTab } from '../fixtures/tabletop-fixtures';
 import { closeIdentity, seedIdentity } from '../fixtures/data';
 import type { Page, BrowserContext, Browser } from '@playwright/test';
+import { campaignFixtures } from '../fixtures/campaigns';
 
 /** Stable name so re-running the suite reuses one quest instead of piling up. */
 const E2E_QUEST_NAME = 'E2E Overflow Menu Quest';
@@ -263,7 +264,7 @@ test.describe('wiki card overflow menu', () => {
     try {
       const db = mongoose.connection.db;
       if (!db) throw new Error('Mongo connection has no db handle');
-      const campaign = await db.collection('campaigns').findOne({ _id: campaignId });
+      const campaign = await campaignFixtures.findOne({ _id: campaignId });
       if (!campaign) throw new Error('Seeded campaign not found — run `npm run dev:seed`');
       gmUserId = String(campaign.gameMasterId);
 
@@ -289,12 +290,7 @@ test.describe('wiki card overflow menu', () => {
         (m: { userId?: unknown }) => String(m.userId) === playerUserId
       );
       if (!alreadyMember) {
-        await db
-          .collection('campaigns')
-          .updateOne(
-            { _id: campaignId },
-            { $push: { members: { userId: playerUser._id, role: 'player', joinedAt: new Date() } } }
-          );
+        await campaignFixtures.addPlayer(campaignId, playerUser._id);
       }
       // The campaign's member entry is what grants access; the user-side mirror that
       // used to be written here is gone, because nothing read it.

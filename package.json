@@ -34,7 +34,7 @@
     "db:sync": "tsx scripts/mongo-admin.ts sync",
     "dev:clear": "tsx scripts/seed/cli.ts clear",
     "dev:seed": "tsx scripts/seed/cli.ts seed && node scripts/gen_seed_avatars.mjs && node scripts/gen_seed_lore_images.mjs && node scripts/gen_seed_org_images.mjs && node scripts/gen_seed_quest_images.mjs",
-    "dev:repair-images": "node scripts/run-python.cjs repair_seed_images.py && node scripts/gen_seed_avatars.mjs",
+    "dev:repair-images": "tsx scripts/repair-images.ts && node scripts/gen_seed_avatars.mjs",
     "dev:gen-avatars": "node scripts/gen_seed_avatars.mjs",
     "fixture": "tsx scripts/dev-fixtures/cli.ts",
     "srd:lint": "tsx scripts/srd/lint.ts",

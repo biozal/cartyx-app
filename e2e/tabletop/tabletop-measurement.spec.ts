@@ -16,6 +16,7 @@ import { test, expect } from '@playwright/test';
 import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
 import { seededGameMaster } from '../fixtures/data';
+import { campaignFixtures } from '../fixtures/campaigns';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -75,8 +76,7 @@ async function provision(db: Db): Promise<Provisioned> {
   const providerId = (decodeJwt(cookie.value) as { user?: { id?: string } }).user?.id;
   const gm = seededGameMaster(providerId);
 
-  const stale = await db
-    .collection('campaigns')
+  const stale = await campaignFixtures
     .find({ name: CAMPAIGN_NAME }, { projection: { _id: 1 } })
     .toArray();
   if (stale.length) {
@@ -84,12 +84,12 @@ async function provision(db: Db): Promise<Provisioned> {
     await db.collection('mapToken').deleteMany({ campaignId: { $in: ids } });
     await db.collection('tabletopscreen').deleteMany({ campaignId: { $in: ids } });
     await db.collection('map').deleteMany({ campaignId: { $in: ids } });
-    await db.collection('campaigns').deleteMany({ _id: { $in: ids } });
+    await campaignFixtures.deleteMany({ _id: { $in: ids } });
   }
 
   const now = new Date();
   const campaignId = (
-    await db.collection('campaigns').insertOne({
+    await campaignFixtures.insertOne({
       gameMasterId: gm._id,
       name: CAMPAIGN_NAME,
       description: 'E2E measurement tool test.',
@@ -193,7 +193,7 @@ test.afterAll(async () => {
     await db.collection('mapToken').deleteMany({ campaignId: cid });
     await db.collection('tabletopscreen').deleteMany({ campaignId: cid });
     await db.collection('map').deleteMany({ campaignId: cid });
-    await db.collection('campaigns').deleteMany({ _id: cid });
+    await campaignFixtures.deleteMany({ _id: cid });
   }
   await client.close();
 });

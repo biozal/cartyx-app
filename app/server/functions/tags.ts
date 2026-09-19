@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
 import { identityRepository } from '../repositories/identity';
-import { Campaign } from '../db/models/Campaign';
+import { campaigns } from '../repositories/campaigns';
 import { Tag } from '../db/models/Tag';
 import { serverCaptureException } from '../utils/telemetry';
 import { normalizeTags } from '../utils/helpers';
@@ -21,7 +21,7 @@ async function requireCampaignMember(
   const dbUser = await identityRepository.findProfile(user.id);
   if (!dbUser) throw new Error('User not found');
 
-  const campaign = await Campaign.findById(campaignId);
+  const campaign = await campaigns.get(String(campaignId));
   if (!campaign) throw new Error('Campaign not found');
 
   const userId = String(dbUser.id);

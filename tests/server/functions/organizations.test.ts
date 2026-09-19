@@ -9,7 +9,7 @@ vi.mock('@tanstack/react-start', () => ({
 vi.mock('~/server/session', () => ({ getSession: vi.fn() }));
 vi.mock('~/server/db/connection', () => ({ connectDB: vi.fn(), isDBConnected: vi.fn(() => true) }));
 vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
-vi.mock('~/server/db/models/Campaign', () => ({ Campaign: { findById: vi.fn() } }));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/Organization', () => {
   // `createOrganization` does `new Organization(doc); await doc.save()` — model
   // the mock as a constructor (carrying the static query methods as properties)
@@ -48,7 +48,7 @@ vi.mock('~/server/functions/tags', () => ({ ensureTags: vi.fn() }));
 
 import { getSession } from '~/server/session';
 import { resetIdentityDouble } from './identityTestDouble';
-import { Campaign } from '~/server/db/models/Campaign';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { Organization } from '~/server/db/models/Organization';
 import { OrganizationMembership } from '~/server/db/models/OrganizationMembership';
 import { Character } from '~/server/db/models/Character';
@@ -83,12 +83,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(session);
   resetIdentityDouble(dbUser);
-  vi.mocked(Campaign.findById).mockResolvedValue(gmCampaign as never);
+  campaignsDouble.get.mockResolvedValue(gmCampaign as never);
 });
 
 describe('listOrganizations', () => {
   it('restricts non-GM to public or own orgs', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(Organization.find).mockReturnValue({
       select: vi.fn().mockReturnValue({
         sort: vi.fn().mockReturnValue({
@@ -123,7 +123,7 @@ describe('listOrganizations', () => {
 
 describe('getOrganization', () => {
   it('strips privateInfo for non-GM viewers', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(Organization.findById).mockReturnValue({
       lean: vi.fn().mockResolvedValue({
         _id: 'o1',
@@ -143,7 +143,7 @@ describe('getOrganization', () => {
   });
 
   it('returns null for non-GM on a private org they did not create', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(Organization.findById).mockReturnValue({
       lean: vi.fn().mockResolvedValue({
         _id: 'o1',
@@ -159,7 +159,7 @@ describe('getOrganization', () => {
   });
 
   it('returns images for a non-GM viewer — images are public, not GM-gated', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(Organization.findById).mockReturnValue({
       lean: vi.fn().mockResolvedValue({
         _id: 'o1',
@@ -216,7 +216,7 @@ describe('deleteOrganization', () => {
 
 describe('listMembershipsForMember', () => {
   it('excludes memberships to private orgs for non-GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(OrganizationMembership.find).mockReturnValue({
       limit: vi.fn().mockReturnValue({
         lean: vi.fn().mockResolvedValue([
@@ -262,7 +262,7 @@ describe('listMembershipsForMember', () => {
 
 describe('updateOrganization', () => {
   it('preserves GM private data on a non-GM (creator) update', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(Organization.findOne).mockReturnValue({
       lean: vi.fn().mockResolvedValue({
         _id: 'o1',
@@ -311,7 +311,7 @@ describe('updateOrganization', () => {
   });
 
   it('writes privateInfo when the caller is a GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(gmCampaign as never);
+    campaignsDouble.get.mockResolvedValue(gmCampaign as never);
     vi.mocked(Organization.findOne).mockReturnValue({
       lean: vi.fn().mockResolvedValue({
         _id: 'o1',
@@ -359,7 +359,7 @@ describe('updateOrganization', () => {
   });
 
   it('round-trips images through update', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(gmCampaign as never);
+    campaignsDouble.get.mockResolvedValue(gmCampaign as never);
     const images = [{ url: 'https://cdn.example/updated-org.png', caption: 'Updated', crop: null }];
     vi.mocked(Organization.findOne).mockReturnValue({
       lean: vi.fn().mockResolvedValue({
@@ -414,7 +414,7 @@ describe('updateOrganization', () => {
 
 describe('addMembership', () => {
   it('stores privateNotes for a GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(gmCampaign as never);
+    campaignsDouble.get.mockResolvedValue(gmCampaign as never);
     vi.mocked(Organization.findOne).mockReturnValue({
       lean: vi.fn().mockResolvedValue({
         _id: 'o1',
@@ -458,7 +458,7 @@ describe('addMembership', () => {
   });
 
   it('stores empty privateNotes for a non-GM creator', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(Organization.findOne).mockReturnValue({
       lean: vi.fn().mockResolvedValue({
         _id: 'o1',
@@ -502,7 +502,7 @@ describe('addMembership', () => {
   });
 
   it('rejects a member that does not belong to the campaign', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(gmCampaign as never);
+    campaignsDouble.get.mockResolvedValue(gmCampaign as never);
     vi.mocked(Organization.findOne).mockReturnValue({
       lean: vi.fn().mockResolvedValue({ _id: 'o1', createdBy: 'x', name: 'Guild', isPublic: true }),
     } as never);
@@ -528,7 +528,7 @@ describe('addMembership', () => {
 
 describe('listMembershipsForOrg', () => {
   it('batch-resolves member labels without a per-member findById', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(gmCampaign as never);
+    campaignsDouble.get.mockResolvedValue(gmCampaign as never);
     vi.mocked(Organization.findOne).mockReturnValue({
       lean: vi
         .fn()
@@ -578,7 +578,7 @@ describe('listMembershipsForOrg', () => {
   });
 
   it('returns [] for a non-GM non-creator on a private org', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(Organization.findOne).mockReturnValue({
       lean: vi
         .fn()

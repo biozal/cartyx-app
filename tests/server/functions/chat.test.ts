@@ -18,9 +18,7 @@ vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
 vi.mock('~/server/db/models/Session', () => ({
   Session: { findById: vi.fn() },
 }));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findById: vi.fn() },
-}));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/Message', () => ({
   Message: {
     find: vi.fn(),
@@ -31,7 +29,7 @@ vi.mock('~/server/db/models/Message', () => ({
 import { getSession } from '~/server/session';
 import { resetIdentityDouble } from './identityTestDouble';
 import { Session as DbSession } from '~/server/db/models/Session';
-import { Campaign } from '~/server/db/models/Campaign';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { Message } from '~/server/db/models/Message';
 import { listMessages, saveMessage } from '~/server/functions/chat';
 
@@ -63,9 +61,7 @@ beforeEach(() => {
       lean: vi.fn().mockResolvedValue(mockDbSession),
     }),
   } as never);
-  vi.mocked(Campaign.findById).mockReturnValue({
-    lean: vi.fn().mockResolvedValue(mockCampaign),
-  } as never);
+  campaignsDouble.get.mockResolvedValue(mockCampaign);
 });
 
 const _listMessages = listMessages as unknown as (args: {
@@ -144,9 +140,7 @@ describe('listMessages — GM channel filtering', () => {
       gameMasterId: 'other-user',
       members: [{ userId: 'dbuser-1', role: 'player' }],
     };
-    vi.mocked(Campaign.findById).mockReturnValue({
-      lean: vi.fn().mockResolvedValue(playerCampaign),
-    } as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign);
 
     const mockSort = vi.fn().mockReturnValue({
       limit: vi.fn().mockReturnValue({
@@ -183,9 +177,7 @@ describe('saveMessage', () => {
       gameMasterId: 'other-user',
       members: [{ userId: 'dbuser-1', role: 'player' }],
     };
-    vi.mocked(Campaign.findById).mockReturnValue({
-      lean: vi.fn().mockResolvedValue(playerCampaign),
-    } as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign);
 
     await expect(
       _saveMessage({

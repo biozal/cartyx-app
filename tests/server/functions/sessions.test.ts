@@ -25,9 +25,7 @@ vi.mock('~/server/db/connection', () => ({
   isDBConnected: vi.fn(() => true),
 }));
 vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findById: vi.fn() },
-}));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/Session', () => ({
   Session: {
     find: vi.fn(),
@@ -39,7 +37,7 @@ vi.mock('~/server/db/models/Session', () => ({
 
 import { getSession } from '~/server/session';
 import { resetIdentityDouble } from './identityTestDouble';
-import { Campaign } from '~/server/db/models/Campaign';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { Session } from '~/server/db/models/Session';
 import {
   listSessions,
@@ -70,7 +68,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
   resetIdentityDouble(mockDbUser);
-  vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign);
+  campaignsDouble.get.mockResolvedValue(mockCampaign);
 });
 
 // Cast server functions to callable handler signatures
@@ -179,7 +177,7 @@ describe('listSessions', () => {
   });
 
   it('throws when user is not the GM of the campaign', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       ...mockCampaign,
       gameMasterId: 'other-user-id',
     });
@@ -209,7 +207,7 @@ describe('getSessionCatchUp', () => {
   });
 
   it('is readable by a non-GM player member', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: 'camp-1',
       gameMasterId: 'other-gm',
       members: [{ userId: 'dbuser-1', role: 'player' }],
@@ -244,7 +242,7 @@ describe('getSessionCatchUp', () => {
   });
 
   it('throws when the user is not a member of the campaign', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: 'camp-1',
       gameMasterId: 'other-gm',
       members: [{ userId: 'someone-else', role: 'player' }],
@@ -314,7 +312,7 @@ describe('createSession', () => {
   });
 
   it('throws when user is not the GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       ...mockCampaign,
       gameMasterId: 'other-user-id',
     });

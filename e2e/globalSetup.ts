@@ -33,6 +33,7 @@ import {
   FOREIGN_OWNER_ID,
   SOUNDBOARD_FIXTURES,
 } from './fixtures/soundboard-fixtures';
+import { campaignFixtures } from './fixtures/campaigns';
 
 /**
  * Local, not imported from `~/server/utils/helpers`'s own `escapeRegExp` —
@@ -363,9 +364,10 @@ export default async function globalSetup(): Promise<void> {
     role: profile.role,
   };
 
-  const campaign = await db
-    .collection('campaigns')
-    .findOne({ gameMasterId: user._id }, { sort: { createdAt: 1 } });
+  const campaign = await campaignFixtures.findOne(
+    { gameMasterId: user._id },
+    { sort: { createdAt: 1 } }
+  );
   if (!campaign) throw new Error('No seeded campaigns found for GM. Run `npm run dev:seed`.');
 
   const location = await db

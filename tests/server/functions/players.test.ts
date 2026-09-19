@@ -9,9 +9,7 @@ vi.mock('@tanstack/react-start', () => ({
 vi.mock('~/server/session', () => ({ getSession: vi.fn() }));
 vi.mock('~/server/db/connection', () => ({ connectDB: vi.fn(), isDBConnected: vi.fn(() => true) }));
 vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findOneAndUpdate: vi.fn() },
-}));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/Player', () => ({
   Player: {
     findOne: vi.fn(),
@@ -41,7 +39,7 @@ vi.mock('~/server/functions/organizations', () => ({
 
 import { getSession } from '~/server/session';
 import { resetIdentityDouble } from './identityTestDouble';
-import { Campaign } from '~/server/db/models/Campaign';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { Player } from '~/server/db/models/Player';
 import { Character } from '~/server/db/models/Character';
 import { Lore } from '~/server/db/models/Lore';
@@ -60,7 +58,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession as never);
   resetIdentityDouble(mockDbUser);
-  vi.mocked(Campaign.findOneAndUpdate).mockResolvedValue(mockCampaign as never);
+  campaignsDouble.addPlayer.mockResolvedValue({
+    outcome: 'joined',
+    campaign: mockCampaign as never,
+  });
   vi.mocked(Player.findOne).mockResolvedValue(null); // no existing player
   vi.mocked(Player.create).mockResolvedValue(mockPlayerDoc as never);
   vi.mocked(Player.updateOne).mockResolvedValue({} as never);
@@ -146,7 +147,7 @@ describe('completeJoinWizard', () => {
   });
 
   it('throws when campaign is full', async () => {
-    vi.mocked(Campaign.findOneAndUpdate).mockResolvedValue(null);
+    campaignsDouble.addPlayer.mockResolvedValue({ outcome: 'full', campaign: null });
     await expect(
       _completeJoinWizard({
         data: { campaignId: 'camp-1', player: basePlayerInput, characters: [] },

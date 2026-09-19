@@ -14,6 +14,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { SignJWT, decodeJwt } from 'jose';
 import { closeIdentity, seedIdentity, seededGameMaster } from '../fixtures/data';
+import { campaignFixtures } from '../fixtures/campaigns';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -65,7 +66,7 @@ async function provision(database: Db): Promise<Provisioned> {
   });
 
   const campaignId = (
-    await database.collection('campaigns').insertOne({
+    await campaignFixtures.insertOne({
       gameMasterId: gm._id,
       name: CAMPAIGN_NAME,
       description: 'E2E drawing permissions test.',
@@ -203,7 +204,7 @@ test.afterAll(async () => {
     await drawings().deleteMany({ campaignId: cid });
     await db().collection('tabletopscreen').deleteMany({ campaignId: cid });
     await db().collection('map').deleteMany({ campaignId: cid });
-    await db().collection('campaigns').deleteMany({ _id: cid });
+    await campaignFixtures.deleteMany({ _id: cid });
   }
   // The player's account stays: identities survive a clear, and seeding one is
   // idempotent, so the next run resolves the same person.

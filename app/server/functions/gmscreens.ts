@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
 import { identityRepository } from '../repositories/identity';
-import { Campaign } from '../db/models/Campaign';
+import { campaigns } from '../repositories/campaigns';
 import { GMScreen, GMSCREEN_LIMITS } from '../db/models/GMScreen';
 import { Note } from '../db/models/Note';
 import { Character } from '../db/models/Character';
@@ -412,7 +412,7 @@ async function requireCampaignGM(
   const dbUser = await identityRepository.findProfile(user.id);
   if (!dbUser) throw new Error('User not found');
 
-  const campaign = await Campaign.findById(campaignId);
+  const campaign = await campaigns.get(String(campaignId));
   if (!campaign) throw new Error('Campaign not found');
 
   const userId = String(dbUser.id);

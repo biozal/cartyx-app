@@ -8,6 +8,7 @@ import { test, expect } from '@playwright/test';
 import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
 import { seededGameMaster } from '../fixtures/data';
+import { campaignFixtures } from '../fixtures/campaigns';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -32,20 +33,19 @@ async function provision(db: Db): Promise<Provisioned> {
   const providerId = (decodeJwt(cookie.value) as { user?: { id?: string } }).user?.id;
   const gm = seededGameMaster(providerId);
 
-  const stale = await db
-    .collection('campaigns')
+  const stale = await campaignFixtures
     .find({ name: CAMPAIGN_NAME }, { projection: { _id: 1 } })
     .toArray();
   if (stale.length) {
     const ids = stale.map((c) => c._id);
     await db.collection('tabletopscreen').deleteMany({ campaignId: { $in: ids } });
     await db.collection('monsters').deleteMany({ campaignId: { $in: ids } });
-    await db.collection('campaigns').deleteMany({ _id: { $in: ids } });
+    await campaignFixtures.deleteMany({ _id: { $in: ids } });
   }
 
   const now = new Date();
   const campaignId = (
-    await db.collection('campaigns').insertOne({
+    await campaignFixtures.insertOne({
       gameMasterId: gm._id,
       name: CAMPAIGN_NAME,
       description: 'E2E monster-window test.',
@@ -149,7 +149,7 @@ test.afterAll(async () => {
     const cid = new ObjectId(provisioned.campaignId);
     await db.collection('tabletopscreen').deleteMany({ campaignId: cid });
     await db.collection('monsters').deleteMany({ campaignId: cid });
-    await db.collection('campaigns').deleteMany({ _id: cid });
+    await campaignFixtures.deleteMany({ _id: cid });
   }
   await client.close();
 });
