@@ -188,11 +188,19 @@ export function createMemoryEntityStore(): EntityStore {
     async list(codec, scope, query) {
       assertQuery(query);
       const selected = select(codec, scope, query);
+      const byId = (left: Row, right: Row) =>
+        left.entityId < right.entityId ? -1 : left.entityId > right.entityId ? 1 : 0;
       if (query.orderBy) {
         const slot = codec.index[query.orderBy.field];
         if (!slot) throw new Error(`${query.orderBy.field} is not an indexed field`);
         const direction = query.orderBy.direction === 'desc' ? -1 : 1;
-        selected.sort((left, right) => direction * compare(left.index[slot], right.index[slot]));
+        // A missing value sorts first ascending and last descending, as in MongoDB.
+        selected.sort(
+          (left, right) =>
+            direction * compare(left.index[slot], right.index[slot]) || byId(left, right)
+        );
+      } else {
+        selected.sort(byId);
       }
       return selected
         .slice(query.offset ?? 0, (query.offset ?? 0) + query.limit)

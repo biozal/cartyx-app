@@ -158,8 +158,13 @@ function writeProperties<T>(
     .property(cardinality.single, DOC_VERSION, codec.version)
     .property(cardinality.single, UPDATED_AT, timestamp);
   for (const [slot, item] of Object.entries(indexProjection(codec, value)))
-    // A null index value is stored as an absent property so `has` cannot match it.
-    traversal = item === null ? traversal : traversal.property(cardinality.single, slot, item);
+    // A null index value is stored as an absent property so `has` cannot match it. On
+    // an update that means removing the previous value, or a filter on what the field
+    // used to hold would keep matching.
+    traversal =
+      item === null
+        ? traversal.sideEffect(__.properties(slot).drop())
+        : traversal.property(cardinality.single, slot, item);
   if (codec.searchText) {
     // The word set is multi-valued, so the previous words are dropped in the same
     // traversal (one JanusGraph transaction) before the new ones are written.
@@ -292,14 +297,23 @@ export function createGraphEntityStore(client: EntityGraphClient): EntityStore {
 
     async list(codec, scope, query) {
       assertQuery(query);
-      let traversal = applyFilters(scoped(codec.kind, scope), codec, query);
+      let traversal = applyFilters(scoped(codec.kind, scope), codec, query).order();
       if (query.orderBy) {
         const slot = codec.index[query.orderBy.field];
         if (!slot) throw new Error(`${query.orderBy.field} is not an indexed field`);
+        const direction = query.orderBy.direction === 'desc' ? order.desc : order.asc;
+        // MongoDB sorts a missing value first when ascending and last when descending,
+        // and the application was written against that. Ordering by a property an
+        // element lacks drops the element, so both keys must always produce a value:
+        // first "has a value", then the value — whose placeholder for a missing one is
+        // only ever compared with another missing one, because the first key differs.
         traversal = traversal
-          .order()
-          .by(slot, query.orderBy.direction === 'desc' ? order.desc : order.asc);
+          .by(__.coalesce(__.values(slot).constant(1), __.constant(0)), direction)
+          .by(__.coalesce(__.values(slot), __.constant(0)), direction);
       }
+      // Equal keys, and unordered listings, fall back to the id: paging with offsets
+      // must neither skip nor repeat a document between requests.
+      traversal = traversal.by('entityId', order.asc);
       const offset = query.offset ?? 0;
       return rows(codec, projectRow(traversal.range(offset, offset + query.limit)));
     },

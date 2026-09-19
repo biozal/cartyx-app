@@ -165,6 +165,85 @@ export async function entityStoreContract(
       page.map((item) => item.value.name),
       ['charlie', 'delta']
     );
+    // Ordering on a field some documents lack keeps them, first when ascending. Graph
+    // ordering by a missing property drops the element instead, which would make a
+    // listing sorted on a nullable field silently lose documents.
+    const datedScope: EntityScope = { type: 'campaign', id: id() };
+    for (const [name, notedAt] of [
+      ['undated', null],
+      ['later', new Date('2026-02-01T00:00:00.000Z')],
+      ['earlier', new Date('2026-01-01T00:00:00.000Z')],
+    ] as const)
+      track(await store.create(contractThing, datedScope, thing({ name, notedAt })));
+    assert.deepEqual(
+      (
+        await store.list(contractThing, datedScope, {
+          orderBy: { field: 'notedAt', direction: 'asc' },
+          limit: 10,
+        })
+      ).map((item) => item.value.name),
+      ['undated', 'earlier', 'later']
+    );
+    assert.deepEqual(
+      (
+        await store.list(contractThing, datedScope, {
+          orderBy: { field: 'notedAt', direction: 'desc' },
+          limit: 10,
+        })
+      ).map((item) => item.value.name),
+      ['later', 'earlier', 'undated']
+    );
+
+    // Clearing an indexed field removes it from the index: a filter on the value it
+    // used to have must stop matching, and ordering must treat it as missing.
+    const [dated] = await store.list(contractThing, datedScope, {
+      where: { name: 'earlier' },
+      limit: 1,
+    });
+    await store.update(contractThing, datedScope, dated!.ref.id, dated!.revision, {
+      ...dated!.value,
+      notedAt: null,
+    });
+    assert.deepEqual(
+      await store.list(contractThing, datedScope, {
+        where: { notedAt: new Date('2026-01-01T00:00:00.000Z') },
+        limit: 10,
+      }),
+      [],
+      'a cleared index value no longer matches'
+    );
+    assert.equal(
+      (
+        await store.list(contractThing, datedScope, {
+          orderBy: { field: 'notedAt', direction: 'desc' },
+          limit: 10,
+        })
+      ).at(0)?.value.name,
+      'later'
+    );
+
+    // Unordered listings are still deterministic, so paging with offsets neither skips
+    // nor repeats a document — equal sort keys are broken by id.
+    const pagedScope: EntityScope = { type: 'campaign', id: id() };
+    const paged = [];
+    for (let n = 0; n < 7; n++)
+      paged.push(track(await store.create(contractThing, pagedScope, thing({ rank: 1 }))));
+    for (const orderBy of [undefined, { field: 'rank' as const, direction: 'asc' as const }]) {
+      const seen: string[] = [];
+      for (let offset = 0; offset < 7; offset += 3)
+        for (const item of await store.list(contractThing, pagedScope, {
+          orderBy,
+          limit: 3,
+          offset,
+        }))
+          seen.push(item.ref.id);
+      assert.deepEqual(
+        [...seen].sort(),
+        paged.map((item) => item.ref.id).sort(),
+        'every document exactly once across pages'
+      );
+    }
+
     assert.equal(await store.count(contractThing, listScope), 4);
     assert.equal(await store.count(contractThing, listScope, { where: { isPublic: true } }), 2);
 
