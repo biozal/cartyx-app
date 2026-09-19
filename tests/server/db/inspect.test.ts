@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const {
-  userMock,
   campaignMock,
   playerMock,
   sessionMock,
@@ -31,11 +30,10 @@ const {
   }
 
   return {
-    userMock: make('User', 'users', [
-      [{ email: 1 }, { unique: true, sparse: true }],
-      [{ role: 1 }, {}],
+    campaignMock: make('Campaign', 'campaigns', [
+      [{ inviteCode: 1 }, { unique: true, sparse: true }],
+      [{ 'members.userId': 1 }, {}],
     ]),
-    campaignMock: make('Campaign', 'campaigns', [[{ 'members.userId': 1 }, {}]]),
     playerMock: make('Player', 'players', [
       [{ campaignId: 1, userId: 1 }, { unique: true }],
       [{ campaignId: 1 }, {}],
@@ -84,7 +82,6 @@ const {
   };
 });
 
-vi.mock('~/server/db/models/User', () => ({ User: userMock }));
 vi.mock('~/server/db/models/Campaign', () => ({ Campaign: campaignMock }));
 vi.mock('~/server/db/models/Player', () => ({ Player: playerMock }));
 vi.mock('~/server/db/models/Session', () => ({ Session: sessionMock }));
@@ -106,7 +103,6 @@ import {
 } from '~/server/db/inspect';
 
 const allMocks = [
-  userMock,
   campaignMock,
   playerMock,
   sessionMock,
@@ -122,8 +118,12 @@ const allMocks = [
 ];
 
 describe('ALL_MODELS', () => {
-  it('contains all thirteen models', () => {
-    expect(ALL_MODELS).toHaveLength(13);
+  it('contains all twelve models', () => {
+    expect(ALL_MODELS).toHaveLength(12);
+  });
+
+  it('no longer inspects users, which moved to the graph', () => {
+    expect(ALL_MODELS.map((m) => m.modelName)).not.toContain('User');
   });
 
   it('includes the shared map-object models for index governance', () => {
@@ -152,13 +152,9 @@ describe('inspectIndexes', () => {
   });
 
   it('reports ok when all schema indexes exist in the database with matching options', async () => {
-    userMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { email: 1 }, unique: true, sparse: true },
-      { key: { role: 1 } },
-    ]);
     campaignMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
+      { key: { inviteCode: 1 }, unique: true, sparse: true },
       { key: { 'members.userId': 1 } },
     ]);
     playerMock.listIndexes.mockResolvedValue([
@@ -244,37 +240,33 @@ describe('inspectIndexes', () => {
 
     expect(result.ok).toBe(false);
 
-    const userDiff = result.diffs.find((d) => d.model === 'User')!;
-    expect(userDiff.missing).toHaveLength(2);
+    const campaignDiff = result.diffs.find((d) => d.model === 'Campaign')!;
+    expect(campaignDiff.missing).toHaveLength(2);
 
     const playerDiff = result.diffs.find((d) => d.model === 'Player')!;
     expect(playerDiff.missing).toHaveLength(2);
   });
 
   it('reports extra indexes not in the schema', async () => {
-    userMock.listIndexes.mockResolvedValue([
+    campaignMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { email: 1 }, unique: true, sparse: true },
-      { key: { role: 1 } },
-      { key: { firstName: 1 } },
+      { key: { inviteCode: 1 }, unique: true, sparse: true },
+      { key: { 'members.userId': 1 } },
+      { key: { name: 1 } },
     ]);
 
     const result = await inspectIndexes();
-    const userDiff = result.diffs.find((d) => d.model === 'User')!;
-    expect(userDiff.extra).toHaveLength(1);
-    expect(userDiff.extra[0]!.key).toEqual({ firstName: 1 });
+    const campaignDiff = result.diffs.find((d) => d.model === 'Campaign')!;
+    expect(campaignDiff.extra).toHaveLength(1);
+    expect(campaignDiff.extra[0]!.key).toEqual({ name: 1 });
   });
 
   it('reports ok=false when extra indexes exist even if none are missing', async () => {
-    userMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { email: 1 }, unique: true, sparse: true },
-      { key: { role: 1 } },
-      { key: { firstName: 1 } },
-    ]);
     campaignMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
+      { key: { inviteCode: 1 }, unique: true, sparse: true },
       { key: { 'members.userId': 1 } },
+      { key: { name: 1 } },
     ]);
     playerMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
@@ -306,31 +298,27 @@ describe('inspectIndexes', () => {
   });
 
   it('detects option mismatches (e.g. unique expected but missing in DB)', async () => {
-    // Schema expects { email: 1 } with unique: true, sparse: true
-    // DB has { email: 1 } without unique or sparse
-    userMock.listIndexes.mockResolvedValue([
+    // Schema expects { inviteCode: 1 } with unique: true, sparse: true
+    // DB has { inviteCode: 1 } without unique or sparse
+    campaignMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { email: 1 } },
-      { key: { role: 1 } },
+      { key: { inviteCode: 1 } },
+      { key: { 'members.userId': 1 } },
     ]);
 
     const result = await inspectIndexes();
-    const userDiff = result.diffs.find((d) => d.model === 'User')!;
-    expect(userDiff.missing).toHaveLength(0);
-    expect(userDiff.optionMismatches).toHaveLength(1);
-    expect(userDiff.optionMismatches[0]!.key).toEqual({ email: 1 });
-    expect(userDiff.optionMismatches[0]!.expected).toEqual({ unique: true, sparse: true });
-    expect(userDiff.optionMismatches[0]!.actual).toEqual({});
+    const campaignDiff = result.diffs.find((d) => d.model === 'Campaign')!;
+    expect(campaignDiff.missing).toHaveLength(0);
+    expect(campaignDiff.optionMismatches).toHaveLength(1);
+    expect(campaignDiff.optionMismatches[0]!.key).toEqual({ inviteCode: 1 });
+    expect(campaignDiff.optionMismatches[0]!.expected).toEqual({ unique: true, sparse: true });
+    expect(campaignDiff.optionMismatches[0]!.actual).toEqual({});
   });
 
   it('reports ok=false when option mismatches exist', async () => {
-    userMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { email: 1 } }, // missing unique + sparse options
-      { key: { role: 1 } },
-    ]);
     campaignMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
+      { key: { inviteCode: 1 } }, // missing unique + sparse options
       { key: { 'members.userId': 1 } },
     ]);
     playerMock.listIndexes.mockResolvedValue([
@@ -360,19 +348,19 @@ describe('inspectIndexes', () => {
 
   it('handles NamespaceNotFound (code 26) gracefully when collection does not exist', async () => {
     const nsError = Object.assign(new Error('ns not found'), { code: 26 });
-    userMock.listIndexes.mockRejectedValue(nsError);
+    campaignMock.listIndexes.mockRejectedValue(nsError);
 
     const result = await inspectIndexes();
 
-    const userDiff = result.diffs.find((d) => d.model === 'User')!;
-    expect(userDiff.missing).toHaveLength(2);
-    expect(userDiff.extra).toHaveLength(0);
-    expect(userDiff.optionMismatches).toHaveLength(0);
+    const campaignDiff = result.diffs.find((d) => d.model === 'Campaign')!;
+    expect(campaignDiff.missing).toHaveLength(2);
+    expect(campaignDiff.extra).toHaveLength(0);
+    expect(campaignDiff.optionMismatches).toHaveLength(0);
   });
 
   it('rethrows non-NamespaceNotFound errors from listIndexes', async () => {
     const authError = Object.assign(new Error('not authorized'), { code: 13 });
-    userMock.listIndexes.mockRejectedValue(authError);
+    campaignMock.listIndexes.mockRejectedValue(authError);
 
     await expect(inspectIndexes()).rejects.toThrow('not authorized');
   });
@@ -380,42 +368,38 @@ describe('inspectIndexes', () => {
   it('annotates missing indexes with governance severity', async () => {
     const result = await inspectIndexes();
 
-    const userDiff = result.diffs.find((d) => d.model === 'User')!;
-    const emailMissing = userDiff.missing.find((m) => 'email' in m.key);
-    expect(emailMissing?.severity).toBe('critical');
+    const campaignDiff = result.diffs.find((d) => d.model === 'Campaign')!;
+    const inviteCodeMissing = campaignDiff.missing.find((m) => 'inviteCode' in m.key);
+    expect(inviteCodeMissing?.severity).toBe('critical');
 
-    const roleMissing = userDiff.missing.find((m) => 'role' in m.key);
-    expect(roleMissing?.severity).toBe('optional');
+    const membersMissing = campaignDiff.missing.find((m) => 'members.userId' in m.key);
+    expect(membersMissing?.severity).toBe('optional');
   });
 
   it('annotates option mismatches with governance severity', async () => {
-    userMock.listIndexes.mockResolvedValue([
+    campaignMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
-      { key: { email: 1 } }, // missing unique + sparse
-      { key: { role: 1 } },
+      { key: { inviteCode: 1 } }, // missing unique + sparse
+      { key: { 'members.userId': 1 } },
     ]);
 
     const result = await inspectIndexes();
-    const userDiff = result.diffs.find((d) => d.model === 'User')!;
-    const emailMismatch = userDiff.optionMismatches.find((m) => 'email' in m.key);
-    expect(emailMismatch?.severity).toBe('critical');
+    const campaignDiff = result.diffs.find((d) => d.model === 'Campaign')!;
+    const inviteCodeMismatch = campaignDiff.optionMismatches.find((m) => 'inviteCode' in m.key);
+    expect(inviteCodeMismatch?.severity).toBe('critical');
   });
 
   it('sets hasCriticalDrift=true when a critical index is missing', async () => {
-    // All mocks default to only _id, so User email (critical) is missing
+    // All mocks default to only _id, so Campaign inviteCode (critical) is missing
     const result = await inspectIndexes();
     expect(result.hasCriticalDrift).toBe(true);
   });
 
   it('sets hasCriticalDrift=false when only optional indexes have drift', async () => {
     // Provide all critical indexes, but leave some optional ones missing
-    userMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { email: 1 }, unique: true, sparse: true },
-      // role (optional) is missing
-    ]);
     campaignMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
+      { key: { inviteCode: 1 }, unique: true, sparse: true },
       // members.userId (optional) is missing
     ]);
     playerMock.listIndexes.mockResolvedValue([
@@ -452,13 +436,9 @@ describe('inspectIndexes', () => {
   });
 
   it('sets hasCriticalDrift=true when a critical index has option mismatch', async () => {
-    userMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { email: 1 } }, // missing unique+sparse = critical option mismatch
-      { key: { role: 1 } },
-    ]);
     campaignMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
+      { key: { inviteCode: 1 } }, // missing unique+sparse = critical option mismatch
       { key: { 'members.userId': 1 } },
     ]);
     playerMock.listIndexes.mockResolvedValue([
@@ -523,7 +503,7 @@ describe('syncCollectionsAndIndexes', () => {
   });
 
   it('propagates errors from createCollection', async () => {
-    userMock.createCollection.mockRejectedValueOnce(new Error('create failed'));
+    campaignMock.createCollection.mockRejectedValueOnce(new Error('create failed'));
     await expect(syncCollectionsAndIndexes()).rejects.toThrow('create failed');
   });
 

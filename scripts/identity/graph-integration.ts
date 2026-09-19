@@ -22,7 +22,7 @@ import { identitySettingsContract } from './settings-contract';
 import { identityTokensContract } from './tokens-contract';
 import { identityProviderRevocationContract } from './provider-revocation-contract';
 import { identityLoginContract } from './login-contract';
-import { identityLoginAdmissionContract } from './login-admission-contract';
+import { revocationAdmissionContract } from './revocation-admission-contract';
 const config = readCqlConfig('runtime');
 const { runtime: graphConfig, operator: operatorConfig, restricted } = graphTestConnections();
 const state = createControlStateStore(config);
@@ -92,7 +92,7 @@ try {
       identityTokensContract,
       identityLoginContract,
       identityProviderRevocationContract,
-      identityLoginAdmissionContract,
+      revocationAdmissionContract,
     ])
       await contract(
         {
@@ -163,7 +163,7 @@ try {
     );
     await assert.rejects(graph.get(corrupt.userId, corrupt.snapshotId), /digest mismatch/);
     process.stdout.write(
-      'PASS: immutable graph profiles, physical-write recovery, publication CAS/receipts, recoverable account creation, preference writes/media allocation, token clear fencing/recovery, login selection/coordination/recovery, provider attempt receipts/local recovery and OAuth admission barriers (synthetic HTTP), delayed writers, target reads, scope/privacy, schema checksum and corruption refusal\n'
+      'PASS: immutable graph profiles, physical-write recovery, publication CAS/receipts, recoverable account creation, preference writes/media allocation, token clear fencing/recovery, login selection/coordination/recovery, provider attempt receipts/local recovery and per-user revocation barriers (synthetic HTTP), delayed writers, target reads, scope/privacy, schema checksum and corruption refusal\n'
     );
     contractsPassed = true;
   }

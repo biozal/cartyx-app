@@ -64,18 +64,21 @@ export async function connectMongo(): Promise<Connection> {
 
 export async function disconnectMongo(): Promise<void> {
   await mongoose.disconnect();
+  // Identity is read from the graph, whose driver would otherwise hold the process open.
+  const { closeData } = await import('../../app/server/db/data-runtime');
+  await closeData();
 }
 
-/** Find the GM user — fixture campaigns will be owned by this account. */
-export async function findGm(conn: Connection): Promise<{ _id: ObjectId; providerId?: string }> {
-  const db = conn.db!;
-  const gm = await db.collection('users').findOne({ role: 'gm' });
-  if (!gm) {
-    throw new Error(
-      'No GM user found. Run `node scripts/seed-gm.cjs` then log in once to create the User doc.'
-    );
-  }
-  return { _id: gm._id as ObjectId, providerId: gm.providerId };
+/**
+ * Find the seeded game master — fixture campaigns will be owned by this account.
+ * Accounts live in the graph; campaigns still store the id as an ObjectId.
+ */
+export async function findGm(): Promise<{ _id: ObjectId; providerId?: string }> {
+  const { identityRepository } = await import('../../app/server/repositories/identity');
+  const { GM_PROVIDER_ID } = await import('../seed/users');
+  const gm = await identityRepository.findProfile(GM_PROVIDER_ID);
+  if (!gm) throw new Error('No seeded game master found. Run `npm run dev:seed` first.');
+  return { _id: new ObjectId(gm.id), providerId: GM_PROVIDER_ID };
 }
 
 // ---------------------------------------------------------------------------
@@ -252,15 +255,6 @@ export async function destroyCampaigns(
   // ----- Delete campaigns -----
   const campRes = await db.collection('campaigns').deleteMany({ _id: { $in: campaignIds } });
   result.campaignsDeleted = campRes.deletedCount ?? 0;
-
-  // ----- Pull campaign refs from user.campaigns arrays -----
-  // Cast the update to `any` — MongoDB driver's PullOperator type is overly
-  // strict about nested-array selectors which Mongo itself fully supports.
-  await db.collection('users').updateMany(
-    { 'campaigns.campaignId': { $in: campaignIds } },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    { $pull: { campaigns: { campaignId: { $in: campaignIds } } } } as any
-  );
 
   // ----- Best-effort R2 cleanup -----
   if (r2 && r2KeysToDelete.size > 0) {

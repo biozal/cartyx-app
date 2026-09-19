@@ -268,11 +268,9 @@ test.describe('wiki card overflow menu', () => {
       gmUserId = String(campaign.gameMasterId);
 
       // Self-provision a real, non-GM player identity rather than depending on
-      // a seeded player having a providerId. The dev seed never sets providerId
-      // (only seed-gm.cjs does, for the GM), so in CI no seeded player can hold
-      // a session — this test used to pass locally only because a dev DB
-      // happens to accumulate providerIds from real logins. Upsert a dedicated
-      // e2e player user + campaign membership; idempotent across runs.
+      // a seeded player. Seeded players have no provider until someone signs in
+      // as them, so none can hold a session in CI. Create a dedicated e2e player
+      // (idempotent across runs) and add its campaign membership.
       const PLAYER_PROVIDER_ID = 'e2e-overflow-player';
       const playerUser = await seedIdentity({
         provider: 'test',

@@ -3,11 +3,10 @@
 Reset the dev environment to a clean slate.
 
 Wipes EVERYTHING tied to the previous environment so tests start fresh:
-  - every MongoDB collection except `users` — chat messages, dice rolls,
-    campaigns, sessions, characters, monsters, maps, tokens, GM screens, notes,
-    and anything else. User accounts are PRESERVED (and their campaign
-    references reset) because the seed requires a GM user to exist and you need
-    to stay logged in.
+  - every MongoDB collection — chat messages, dice rolls, campaigns, sessions,
+    characters, monsters, maps, tokens, GM screens, notes, and anything else.
+    User accounts are PRESERVED because they live in the graph, which this script
+    does not touch: the seed needs them to exist and you need to stay logged in.
   - all locally-served upload files under public/uploads/.
   - all objects in the R2 (S3) object store.
 
@@ -43,9 +42,14 @@ load_dotenv()
 # Repo root anchored to this script's location (scripts/ is one level down)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Collections we never wipe. Users are identity, not test data: the seed needs
-# a GM user to exist and you need to stay logged in across a reset.
-PRESERVE_COLLECTIONS = {"users"}
+# Collections we never wipe. None any more: accounts moved to the graph, which this
+# script does not touch, so they survive a reset and you stay logged in. A `users`
+# collection left over from before is stale placeholder data and is cleared.
+PRESERVE_COLLECTIONS: set[str] = set()
+
+# Collections no application model uses any more. Emptying would leave a shell that
+# looks like live data, so they are dropped.
+RETIRED_COLLECTIONS = {"users"}
 
 
 # ---------------------------------------------------------------------------
@@ -89,12 +93,13 @@ def clear_database(db) -> int:
         if name in PRESERVE_COLLECTIONS or name.startswith("system."):
             print(f"  keep  {name}")
             continue
+        if name in RETIRED_COLLECTIONS:
+            db.drop_collection(name)
+            print(f"  drop  {name} — retired; its data lives in the graph now")
+            continue
         result = db[name].delete_many({})
         total += result.deleted_count
         print(f"  clear {name} — {result.deleted_count} documents removed")
-    # Reset campaign references on the preserved users (don't delete users).
-    user_result = db.users.update_many({}, {"$set": {"campaigns": []}})
-    print(f"  patch users — cleared campaign refs from {user_result.modified_count} user(s)")
     return total
 
 
@@ -149,7 +154,7 @@ def main() -> None:
 
     if not force:
         print("\nThis will PERMANENTLY DELETE, for a clean test environment:")
-        print("  - every MongoDB collection except `users`")
+        print("  - every MongoDB collection (accounts live in the graph and are kept)")
         print("  - all files under public/uploads/")
         print(f"  - all objects in the R2 bucket '{bucket}'")
         masked = re.sub(r"//[^@]+@", "//<credentials>@", uri)

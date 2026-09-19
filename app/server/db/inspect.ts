@@ -7,7 +7,6 @@ import { Player } from './models/Player';
 import { Session } from './models/Session';
 import { Note } from './models/Note';
 import { Race } from './models/Race';
-import { User } from './models/User';
 import { Map as MapModel } from './models/Map';
 import { MapToken } from './models/MapToken';
 import { MapText } from './models/MapText';
@@ -19,7 +18,6 @@ import { Monster } from './models/Monster';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mongoose models have different document types
 export const ALL_MODELS: mongoose.Model<any>[] = [
-  User,
   Campaign,
   Player,
   Session,
@@ -36,9 +34,9 @@ export const ALL_MODELS: mongoose.Model<any>[] = [
 
 /** Describes one expected-vs-actual index comparison for a single model. */
 export interface IndexDiff {
-  /** Mongoose model name (e.g. "User"). */
+  /** Mongoose model name (e.g. "Campaign"). */
   model: string;
-  /** MongoDB collection name (e.g. "users"). */
+  /** MongoDB collection name (e.g. "campaigns"). */
   collection: string;
   /** Indexes declared in the schema but missing from the database. */
   missing: IndexSpec[];

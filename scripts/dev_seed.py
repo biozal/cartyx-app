@@ -11,12 +11,15 @@ Shortcut:
 
 Prerequisites:
     - MONGODB_URI must be set (via .env or shell export)
-    - A User document with role "gm" must exist
+    - Run through `npm run dev:seed`, which creates the game master and player
+      accounts in the graph and passes their ids (CARTYX_SEED_GM_ID,
+      CARTYX_SEED_PLAYERS)
 
 Safety: refuses to run if NODE_ENV is "production" or MONGODB_URI contains "prod".
 """
 
 import hashlib
+import json
 import os
 import random
 import re
@@ -35,7 +38,7 @@ from pymongo.errors import ConfigurationError
 
 # Sibling modules for reference data — kept out of this file to keep it
 # focused on insertion logic.
-from seed_player_data import PLAYER_EMAILS, PLAYER_IMAGES, random_pc
+from seed_player_data import PLAYER_IMAGES, random_pc
 from seed_monster_data import build_monster_docs
 from seed_calendar_data import HARPTOS, to_ordinal
 
@@ -140,31 +143,25 @@ def bulk_npc_specs(rng: random.Random, count: int) -> list[dict]:
     return out
 
 
-def ensure_player_users(db, now) -> list[dict]:
-    """Find-or-create the 4 player User accounts referenced by email.
+def seeded_player_users() -> list[dict]:
+    """The player accounts `scripts/seed/cli.ts` created in the graph, in order.
 
-    New users get role='unknown' and no provider info — they claim those
-    fields on first OAuth login.  Returns the list of user docs (each with
-    `_id` and `email`) in the order defined by PLAYER_EMAILS so the seed's
-    Player insertion can rely on stable ordering.
+    Each is an account with an email and no provider, so the first real Google login
+    with that address claims it. The seed assigns characters and portraits by position,
+    so the order is the order the CLI sends.
     """
+    raw = os.environ.get("CARTYX_SEED_PLAYERS", "").strip()
+    if not raw:
+        sys.exit(
+            "No player accounts. Run `npm run dev:seed`, which creates them and passes "
+            "CARTYX_SEED_PLAYERS, rather than calling this script directly."
+        )
+    players = json.loads(raw)
     out = []
-    for email in PLAYER_EMAILS:
-        existing = db.users.find_one({"email": email})
-        if existing:
-            out.append({"_id": existing["_id"], "email": email})
-            continue
-        result = db.users.insert_one({
-            "email": email,
-            "role": "unknown",
-            "firstName": "",
-            "lastName": "",
-            "avatarUrl": "",
-            "campaigns": [],
-            "createdAt": now,
-            "updatedAt": now,
-        })
-        out.append({"_id": result.inserted_id, "email": email})
+    for player in players:
+        if not re.fullmatch(r"[0-9a-f]{24}", player.get("id", "")):
+            sys.exit(f"Invalid player account id for {player.get('email')!r}")
+        out.append({"_id": ObjectId(player["id"]), "email": player["email"]})
     return out
 
 
@@ -1742,7 +1739,7 @@ def main() -> None:
     # Find-or-create the four player user accounts up front so each campaign
     # can reference them by `_id` consistently. New accounts start with
     # role='unknown' — they'll claim it via OAuth on first login.
-    player_users = ensure_player_users(db, now)
+    player_users = seeded_player_users()
     print(f"Player accounts: {', '.join(p['email'] for p in player_users)}\n")
 
     # Publish the committed portraits to the web-served path the player docs
@@ -2176,37 +2173,6 @@ def main() -> None:
 
         print()
 
-    # Update GM user's campaign list.
-    db.users.update_one(
-        {"_id": gm_id},
-        {"$push": {
-            "campaigns": {
-                "$each": [
-                    {"campaignId": cid, "joinedAt": now, "status": "active"}
-                    for cid in campaign_ids
-                ],
-            },
-        }},
-    )
-    # Mirror campaign references onto each player user too, so their
-    # campaign list shows them on first login.
-    for pu in player_users:
-        db.users.update_one(
-            {"_id": pu["_id"]},
-            {"$push": {
-                "campaigns": {
-                    "$each": [
-                        {"campaignId": cid, "joinedAt": now, "status": "active"}
-                        for cid in campaign_ids
-                    ],
-                },
-            }},
-        )
-
-    print(
-        f"Updated {1 + len(player_users)} users with "
-        f"{len(campaign_ids)} campaign reference(s) each."
-    )
     print(
         f"\nDone. {len(campaign_ids)} test campaigns seeded with sessions, characters, "
         f"4 players each, and SRD monsters in the stock test campaign."

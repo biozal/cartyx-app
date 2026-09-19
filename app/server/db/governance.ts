@@ -44,11 +44,6 @@ export interface GovernanceEntry {
  * declaration. `inspectIndexes()` uses this to annotate drift results.
  */
 export const INDEX_GOVERNANCE: Record<string, GovernanceEntry[]> = {
-  User: [
-    { key: { email: 1 }, severity: 'critical' },
-    { key: { role: 1 }, severity: 'optional' },
-    { key: { providerId: 1 }, severity: 'critical' },
-  ],
   Campaign: [
     { key: { 'members.userId': 1 }, severity: 'optional' },
     { key: { inviteCode: 1 }, severity: 'critical' },

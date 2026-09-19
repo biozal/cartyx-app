@@ -1080,17 +1080,6 @@ async function seed(ctx: FixtureContext): Promise<{ campaignIds: ObjectId[] }> {
   }));
   await db.collection('gmscreen').insertMany(gmScreenDocs);
 
-  // ----- Update User.campaigns array -----
-  await db.collection('users').updateOne(
-    { _id: gm._id },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    {
-      $push: {
-        campaigns: { campaignId, joinedAt: now, status: 'active' },
-      },
-    } as any
-  );
-
   console.log(`[fixture:crowded]`);
   console.log(`  campaign:    ${CAMPAIGN_NAME}`);
   console.log(`  locations:   ${LOCATIONS.length} (with images)`);

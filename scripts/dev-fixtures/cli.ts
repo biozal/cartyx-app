@@ -97,7 +97,7 @@ async function cmdReset(name: string): Promise<void> {
     logDestroy(destroyed);
 
     console.log(`[fixture:reset ${name}] seeding fresh data...`);
-    const gm = await findGm(conn);
+    const gm = await findGm();
     const { campaignIds } = await fixture.seed({ conn, gm, marker: makeMarker });
     console.log(`[fixture:reset ${name}] ✓ created ${campaignIds.length} campaign(s):`);
     for (const id of campaignIds) console.log(`    ${id.toString()}`);
@@ -130,7 +130,7 @@ async function cmdDestroy(args: {
     // outside the campaign-scoped collection walk.
     const toTearDown: Fixture[] = args.all ? FIXTURES : args.name ? [findFixture(args.name)] : [];
     if (toTearDown.length > 0) {
-      const gm = await findGm(conn);
+      const gm = await findGm();
       for (const fixture of toTearDown) {
         if (!fixture.teardown) continue;
         console.log(`[destroy] running ${fixture.name}.teardown()`);

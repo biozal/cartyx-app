@@ -12,7 +12,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertSeedTargetIsNotProduction } from './guards';
 import { runSeeders, seeders } from './registry';
-import { seedGameMaster } from './users';
+import { seedGameMaster, seedPlayers } from './users';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const requested = process.argv[2];
@@ -24,7 +24,6 @@ assertSeedTargetIsNotProduction();
 
 /** Subsystems still on MongoDB. Remove an entry when its slice moves to the graph. */
 const MONGO_SUBSYSTEMS = [
-  'users',
   'campaigns',
   'locations',
   'characters',
@@ -60,9 +59,12 @@ async function rebuild() {
       // dev_clear keeps user accounts and empties everything else, including media.
       python('dev_clear.py', process.argv.includes('--force') ? ['--force'] : []);
     } else {
-      // The game master's account is in the graph; the subsystems still on MongoDB need
-      // its id to attach their campaigns to the same person the application sees.
-      python('dev_seed.py', [], { CARTYX_SEED_GM_ID: await seedGameMaster() });
+      // Accounts are in the graph; the subsystems still on MongoDB need their ids to
+      // attach campaigns and characters to the same people the application sees.
+      python('dev_seed.py', [], {
+        CARTYX_SEED_GM_ID: await seedGameMaster(),
+        CARTYX_SEED_PLAYERS: JSON.stringify(await seedPlayers()),
+      });
     }
     process.stdout.write(
       `MongoDB ${action} still covers: ${MONGO_SUBSYSTEMS.join(', ')}\n` +

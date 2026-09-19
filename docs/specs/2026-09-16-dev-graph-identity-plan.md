@@ -299,7 +299,7 @@ The `Identity was not persisted` guard lived inside the Mongo adapter. It moved 
 `upsertUser`, where the property actually belongs: never mint a session from a
 repository that answered with nothing.
 
-## Task 5: Operator recovery and Mongo exit — recovery DONE (`94823e75`), exit outstanding
+## Task 5: Operator recovery and Mongo exit — DONE (recovery `94823e75`, exit in the commit that records this)
 
 **Files:**
 
@@ -308,9 +308,22 @@ repository that answered with nothing.
 - Modify: `package.json`, `app/server/db/inspect.ts`
 
 - [x] **Step 1:** `npm run identity:resolve-revocation -- --user <id> --provider <p> --client <id> --outcome revoked|not-revoked`. It refuses a row that is not `blocked-unresolved`, requires the operator to state what they found at the provider, and prints what that means for the stored tokens. Verified against the local stack: a stranded row survives a process restart and still refuses a login; this reopens it; a second run refuses.
-- [ ] **Step 2:** Delete the Mongo identity adapters and the `User` model; remove the `User` branch from `app/server/db/inspect.ts`.
+- [x] **Step 2:** Deleted `models/User.ts`, `repositories/identity/mongo.ts`, `login-admission.ts` and its contract; removed `User` from the index inspector and governance registry.
+
+  Beyond the plan: the seed's four player accounts were also Mongo rows. They are now
+  graph accounts with an email and no provider (created through the importer), so the
+  first real Google login with that address claims the account — the same behaviour the
+  Mongo placeholders had. Verified on the real stack: seeding is idempotent, a login with
+  the email claims the seeded account, and reseeding after the claim keeps it. The
+  restart witness and integration suite were ported to the per-user barrier rather than
+  losing their real-database coverage; both pass locally across a database restart.
+  `dev_clear.py` drops the retired `users` collection instead of preserving it.
+
+  Left in place deliberately: `ref: 'User'` on other Mongo models. Nothing calls
+  `.populate()`, so they are inert, and each disappears with its own model's slice.
+
 - [ ] **Step 3:** Fold the profile schema into `scripts/dev-schema.mjs` and delete the separate CLI.
-- [ ] **Step 4:** `git grep -n "models/User\|seed-gm\|login-admission"` returns nothing outside history.
+- [x] **Step 4:** `git grep -n "models/User\|seed-gm\|login-admission"` returns nothing outside docs.
 - [ ] **Step 5:** Full verification: `npm test`, `npm run typecheck`, `npm run lint`, the graph contracts against Docker, `npm run e2e`, then push and require every CI job green.
 - [ ] **Step 6:** Commit.
 

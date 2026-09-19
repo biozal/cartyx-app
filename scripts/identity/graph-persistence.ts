@@ -62,19 +62,15 @@ import {
   type ProviderRevocationPlan,
 } from '../../app/server/repositories/identity/provider-revocation';
 import {
-  createIdentityLoginAdmission,
-  createAdmissionBoundProviderRevocations,
-  IdentityLoginAdmissionError,
-  type IdentityAdmissionApplication,
-  type IdentityAdmissionTicket,
-} from '../../app/server/repositories/identity/login-admission';
-import { admissionApplicationFixture } from './login-admission-contract';
+  createRevocationAdmission,
+  IdentityRevocationError,
+  type IdentityRevocationApplication,
+} from '../../app/server/repositories/identity/revocation-admission';
 type RevocationWitness = {
   keys: StateKey[];
   vertices: GraphIdentity[];
   plan?: ProviderRevocationPlan;
-  application?: IdentityAdmissionApplication;
-  admissionTicket?: IdentityAdmissionTicket;
+  application?: IdentityRevocationApplication;
 };
 type LoginWitness = { keys: StateKey[]; vertices: GraphIdentity[]; plan?: IdentityLoginPlan };
 type SettingsWitness = {
@@ -324,17 +320,15 @@ try {
     );
     for (const [index, witness] of revocationWitnesses.entries()) {
       const tracked = tracking(witness, save);
-      witness.application = admissionApplicationFixture();
-      save();
-      const admission = createIdentityLoginAdmission(tracked.trackedState, witness.application);
-      await admission.initialize();
-      witness.admissionTicket = await admission.issue();
+      witness.application = { provider: 'google', clientId: `fixture.${randomUUID()}` };
       save();
       const login = createIdentityLoginCoordinator(tracked.trackedState, tracked.trackedGraph);
       await login.recordLogin({ ...loginFixture(), provider: 'google' });
       // The synthetic login's account key was recorded before its first mutation.
       const key = witness.keys.find((key) => key.type === 'identity_account')!;
       const account = (await createIdentityAccountState(state).readAccount(key.scope.slice(5)))!;
+      const barrier = createRevocationAdmission(tracked.trackedState, witness.application);
+      await barrier.ensureRow(account.userId);
       const revocations = createIdentityProviderRevocations(tracked.trackedState);
       witness.plan = await revocations.prepare(
         {
@@ -345,9 +339,10 @@ try {
         witness.application.clientId
       );
       save();
-      // Commit the closure but lose its acknowledgement before the revocation journal.
+      // Commit this account's closure but lose its acknowledgement before the
+      // revocation journal. The row must read as closed regardless.
       await assert.rejects(
-        createIdentityLoginAdmission(
+        createRevocationAdmission(
           {
             ...tracked.trackedState,
             replace: async (...args) => {
@@ -356,14 +351,13 @@ try {
             },
           },
           witness.application
-        ).block(),
-        IdentityLoginAdmissionError
+        ).beginRevocation(account.userId, witness.plan.fence),
+        IdentityRevocationError
       );
-      await assert.rejects(admission.assert(witness.admissionTicket), IdentityLoginAdmissionError);
-      await createAdmissionBoundProviderRevocations(
-        tracked.trackedState,
-        witness.application
-      ).begin(witness.plan);
+      await assert.rejects(barrier.assertOpen(account.userId), IdentityRevocationError);
+      // A retried logout finds the row already held and starts nothing new.
+      assert.equal(await barrier.beginRevocation(account.userId, witness.plan.fence), null);
+      await revocations.begin(witness.plan);
       if (index === 0) {
         await revocations.dispatch(witness.plan.fence, {
           ...witness.plan,
@@ -395,7 +389,7 @@ try {
       }
     }
     process.stdout.write(
-      'Seeded graph publication, pending account import, preference/media allocation, token clear, login, provider attempt/local-clear and closed OAuth admission restart witnesses\n'
+      'Seeded graph publication, pending account import, preference/media allocation, token clear, login, provider attempt/local-clear and closed per-user revocation barrier restart witnesses\n'
     );
   } else {
     const manifest = JSON.parse(readFileSync(path, 'utf8'));
@@ -480,22 +474,24 @@ try {
     for (const [index, witness] of revocationWitnesses.entries()) {
       assert.ok(witness.plan);
       const revocations = createIdentityProviderRevocations(state);
-      if (witness.application) {
-        assert.ok(witness.admissionTicket);
-        const admission = createIdentityLoginAdmission(state, witness.application);
-        assert.deepEqual(await admission.inspect(), { status: 'blocked' });
-        await assert.rejects(
-          admission.assert(witness.admissionTicket),
-          IdentityLoginAdmissionError
-        );
-        await assert.rejects(admission.issue(), IdentityLoginAdmissionError);
-        await assert.rejects(admission.initialize(), IdentityLoginAdmissionError);
-        await createAdmissionBoundProviderRevocations(state, witness.application).resume(
-          witness.plan
-        );
-        await assert.rejects(admission.issue(), IdentityLoginAdmissionError);
+      const barrier = witness.application
+        ? createRevocationAdmission(state, witness.application)
+        : null;
+      if (barrier) {
+        // The closure survived the restart: this account stays closed, and a retried
+        // logout still finds the row held.
+        const userId = witness.plan.fence.userId;
+        assert.deepEqual(await barrier.inspect(userId), { status: 'revoking' });
+        await assert.rejects(barrier.assertOpen(userId), IdentityRevocationError);
+        assert.equal(await barrier.beginRevocation(userId, witness.plan.fence), null);
       }
       const result = await revocations.resume(witness.plan.fence);
+      // Recovery has no transport and admits no login; nothing here reopens the account.
+      if (barrier)
+        await assert.rejects(
+          barrier.assertOpen(witness.plan.fence.userId),
+          IdentityRevocationError
+        );
       assert.equal(result.status, index === 0 ? 'settled' : 'attempting');
       if (index === 0) {
         assert.equal(result.localOutcome, 'cleared');
@@ -557,7 +553,7 @@ try {
     }
     unlinkSync(path);
     process.stdout.write(
-      'Verified graph publication, account import, preference/media allocation, token clear, login, provider attempt/local-clear recovery without HTTP replay and durable OAuth admission refusal; removed exact restart witnesses\n'
+      'Verified graph publication, account import, preference/media allocation, token clear, login, provider attempt/local-clear recovery without HTTP replay and a per-user revocation barrier that stays closed; removed exact restart witnesses\n'
     );
   }
 } finally {

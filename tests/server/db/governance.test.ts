@@ -4,15 +4,7 @@ import { INDEX_GOVERNANCE, getSeverity, normalizeIndexKey } from '~/server/db/go
 describe('INDEX_GOVERNANCE registry', () => {
   it('contains entries for all models', () => {
     expect(Object.keys(INDEX_GOVERNANCE)).toEqual(
-      expect.arrayContaining([
-        'User',
-        'Campaign',
-        'Session',
-        'Player',
-        'GMScreen',
-        'Note',
-        'Character',
-      ])
+      expect.arrayContaining(['Campaign', 'Session', 'Player', 'GMScreen', 'Note', 'Character'])
     );
   });
 
@@ -27,12 +19,16 @@ describe('INDEX_GOVERNANCE registry', () => {
 });
 
 describe('getSeverity', () => {
-  it('returns critical for User email index', () => {
-    expect(getSeverity('User', { email: 1 })).toBe('critical');
+  it('returns critical for Campaign inviteCode index', () => {
+    expect(getSeverity('Campaign', { inviteCode: 1 })).toBe('critical');
   });
 
-  it('returns optional for User role index', () => {
-    expect(getSeverity('User', { role: 1 })).toBe('optional');
+  it('returns optional for Campaign members.userId index', () => {
+    expect(getSeverity('Campaign', { 'members.userId': 1 })).toBe('optional');
+  });
+
+  it('has no entry for users, which moved to the graph', () => {
+    expect(INDEX_GOVERNANCE.User).toBeUndefined();
   });
 
   it('returns optional for Player campaignId index', () => {
@@ -52,7 +48,7 @@ describe('getSeverity', () => {
   });
 
   it('returns undefined for unregistered index key', () => {
-    expect(getSeverity('User', { firstName: 1 })).toBeUndefined();
+    expect(getSeverity('Campaign', { name: 1 })).toBeUndefined();
   });
 
   it('returns optional for Note campaignId+updatedAt compound index', () => {

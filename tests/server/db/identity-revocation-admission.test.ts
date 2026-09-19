@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { revocationAdmissionContract } from '../../../scripts/identity/revocation-admission-contract';
 import {
   createRevocationAdmission,
@@ -55,4 +55,19 @@ it('refuses an identifier that is not a user id before it touches the store', as
   const admission = createRevocationAdmission(store, application);
   for (const invalid of ['', 'not-hex', 'A'.repeat(24), 'a'.repeat(23), 'a'.repeat(25)])
     await expect(admission.ensureRow(invalid)).rejects.toThrow(IdentityRevocationError);
+});
+
+it('refuses a malformed application before it touches the store', async () => {
+  const touched = vi.fn(async () => {
+    throw new Error('private driver details');
+  });
+  const store = { get: touched, create: touched, replace: touched };
+  for (const invalid of [
+    { provider: 'unsupported', clientId: 'fixture' },
+    { provider: 'google', clientId: '../client' },
+    { provider: 'google', clientId: '' },
+    { provider: 'google', clientId: 'fixture', projectId: 'no longer part of the domain' },
+  ])
+    expect(() => createRevocationAdmission(store, invalid as never)).toThrow();
+  expect(touched).not.toHaveBeenCalled();
 });

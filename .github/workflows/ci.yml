@@ -219,7 +219,7 @@ jobs:
       # The db name must be in the URI path: the app's connectDB() calls
       # mongoose.connect(uri) WITHOUT a dbName option, so a bare host URI
       # sends the app to mongoose's default `test` database while globalSetup,
-      # seed-gm.cjs, dev_seed.py, and the specs all honor MONGODB_DB — a
+      # dev_seed.py and the specs all honor MONGODB_DB — a
       # split-brain where the app can't see any seeded/provisioned data.
       # MONGODB_DB stays for the tooling that reads it; both resolve to the
       # same database.
