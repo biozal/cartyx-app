@@ -10,11 +10,13 @@ export interface SeedTarget {
   CQL_STATE_KEYSPACE?: string;
   CQL_CONTACT_POINT?: string;
   R2_BUCKET?: string;
+  /** Checked while subsystems are still on MongoDB; the seeder writes their documents. */
+  MONGODB_URI?: string;
 }
 
 const REQUIRED: (keyof SeedTarget)[] = ['GREMLIN_URL', 'CQL_STATE_KEYSPACE', 'CQL_CONTACT_POINT'];
 // The media bucket is optional: seeding writes no media unless image generation runs.
-const CHECKED: (keyof SeedTarget)[] = [...REQUIRED, 'R2_BUCKET'];
+const CHECKED: (keyof SeedTarget)[] = [...REQUIRED, 'R2_BUCKET', 'MONGODB_URI'];
 
 export function assertSeedTargetIsNotProduction(target: SeedTarget = process.env): void {
   if (target.NODE_ENV === 'production')

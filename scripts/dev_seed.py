@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """
-Seed the dev database with 3 test campaigns, each with sessions,
-characters, and a generated placeholder SVG image.
+Build the dev seed: 3 test campaigns, each with sessions, characters, and a
+generated placeholder SVG image.
 
-Usage:
-    scripts/.venv/bin/python scripts/dev_seed.py
+This script builds documents; it does not write to a database. It records every
+document, in order and with its id already assigned, into a plan file that
+`scripts/seed/cli.ts` persists — routing each collection to the graph, or to
+MongoDB for subsystems that have not moved yet. Keeping persistence in one place
+means each subsystem's move changes a route, not this file.
 
-Shortcut:
-    npm run dev:seed
+Run through `npm run dev:seed`, which creates the game master and player accounts
+in the graph and passes their ids (CARTYX_SEED_GM_ID, CARTYX_SEED_PLAYERS) and the
+plan path (CARTYX_SEED_PLAN).
 
-Prerequisites:
-    - MONGODB_URI must be set (via .env or shell export)
-    - Run through `npm run dev:seed`, which creates the game master and player
-      accounts in the graph and passes their ids (CARTYX_SEED_GM_ID,
-      CARTYX_SEED_PLAYERS)
+Images are still produced here (local public/uploads/, or R2 when the CDN is
+configured), because that is file handling rather than persistence.
 
-Safety: refuses to run if NODE_ENV is "production" or MONGODB_URI contains "prod".
+Safety: refuses to run if NODE_ENV is "production"; the CLI guards the targets.
 """
 
 import hashlib
@@ -33,8 +34,6 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from bson import ObjectId
-from pymongo import MongoClient
-from pymongo.errors import ConfigurationError
 
 # Sibling modules for reference data — kept out of this file to keep it
 # focused on insertion logic.
@@ -188,21 +187,6 @@ load_dotenv()
 
 # Repo root anchored to this script's location (scripts/ is one level down)
 REPO_ROOT = Path(__file__).resolve().parent.parent
-
-# ---------------------------------------------------------------------------
-# Safety
-# ---------------------------------------------------------------------------
-
-def require_mongo_uri() -> str:
-    if os.environ.get("NODE_ENV") == "production":
-        sys.exit("Refusing to run in production.")
-    uri = os.environ.get("MONGODB_URI")
-    if not uri:
-        sys.exit("MONGODB_URI is not set.")
-    if re.search(r"prod", uri, re.IGNORECASE):
-        sys.exit("MONGODB_URI looks like a production connection string. Aborting.")
-    return uri
-
 
 # ---------------------------------------------------------------------------
 # CDN / R2 uploads
@@ -1703,21 +1687,74 @@ def build_dice_log(*, session_id, campaign_id, party, start_ts, end_ts, rng,
 # Main
 # ---------------------------------------------------------------------------
 
+class _Inserted:
+    def __init__(self, inserted_id=None, inserted_ids=None):
+        self.inserted_id = inserted_id
+        self.inserted_ids = inserted_ids
+
+
+class _PlannedCollection:
+    """Accepts the pymongo insert/find calls this seeder makes and records them."""
+
+    def __init__(self, plan, name):
+        self._plan = plan
+        self._name = name
+
+    def insert_one(self, doc):
+        # pymongo assigns `_id` on the caller's dict; later code relies on that.
+        doc.setdefault("_id", ObjectId())
+        self._plan.append({"collection": self._name, "document": doc})
+        return _Inserted(inserted_id=doc["_id"])
+
+    def insert_many(self, docs):
+        return _Inserted(inserted_ids=[self.insert_one(d).inserted_id for d in docs])
+
+    def find(self, filter, projection=None):
+        """Only equality and `$in`, which is all this seeder reads back."""
+        def matches(doc):
+            for key, want in filter.items():
+                have = doc.get(key)
+                if isinstance(want, dict) and "$in" in want:
+                    if have not in want["$in"]:
+                        return False
+                elif have != want:
+                    return False
+            return True
+        return [e["document"] for e in self._plan
+                if e["collection"] == self._name and matches(e["document"])]
+
+
+class SeedPlan:
+    """Stands in for the Mongo database handle.
+
+    The seeder no longer writes to a database itself. It builds every document exactly
+    as before and records it here, in order; `scripts/seed/cli.ts` then persists the plan,
+    routing each collection to the graph or, until its slice lands, to MongoDB. Ids are
+    assigned here, so references between documents survive whichever store holds them.
+    """
+
+    def __init__(self):
+        self.entries = []
+
+    def __getattr__(self, name):
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return _PlannedCollection(self.entries, name)
+
+    def __getitem__(self, name):
+        return _PlannedCollection(self.entries, name)
+
+
 def main() -> None:
-    uri = require_mongo_uri()
-    client: MongoClient = MongoClient(uri)
-    db_name = os.environ.get("MONGODB_DB")
-    if db_name:
-        db = client[db_name]
-    else:
-        try:
-            db = client.get_default_database()
-        except ConfigurationError:
-            sys.exit(
-                "MONGODB_URI does not include a database name and MONGODB_DB is not set.\n"
-                "Either add a database name to the URI (e.g. mongodb+srv://…/cartyx) "
-                "or set MONGODB_DB=cartyx in your .env file."
-            )
+    if os.environ.get("NODE_ENV") == "production":
+        sys.exit("Refusing to run in production.")
+    plan_path = os.environ.get("CARTYX_SEED_PLAN", "").strip()
+    if not plan_path:
+        sys.exit(
+            "No plan path. Run `npm run dev:seed`, which reads the plan this script "
+            "writes (CARTYX_SEED_PLAN) and persists it."
+        )
+    db = SeedPlan()
 
     # The game master's identity lives in the graph, so the id is handed in by
     # `scripts/seed/cli.ts`, which creates the account before delegating here. It is a
@@ -2178,7 +2215,12 @@ def main() -> None:
         f"4 players each, and SRD monsters in the stock test campaign."
     )
 
-    client.close()
+    from bson import json_util
+    Path(plan_path).write_text(
+        json_util.dumps(db.entries, json_options=json_util.RELAXED_JSON_OPTIONS),
+        encoding="utf-8",
+    )
+    print(f"Seed plan: {len(db.entries)} documents → {plan_path}")
 
 
 if __name__ == "__main__":

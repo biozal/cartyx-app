@@ -8,9 +8,12 @@
  * Reset means clear THEN seed, in that order. Seeding alone accumulates.
  */
 import { execFileSync } from 'node:child_process';
-import { resolve, dirname } from 'node:path';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertSeedTargetIsNotProduction } from './guards';
+import { persistPlan, readPlan } from './plan';
 import { runSeeders, seeders } from './registry';
 import { seedGameMaster, seedPlayers } from './users';
 
@@ -59,12 +62,29 @@ async function rebuild() {
       // dev_clear keeps user accounts and empties everything else, including media.
       python('dev_clear.py', process.argv.includes('--force') ? ['--force'] : []);
     } else {
-      // Accounts are in the graph; the subsystems still on MongoDB need their ids to
-      // attach campaigns and characters to the same people the application sees.
-      python('dev_seed.py', [], {
-        CARTYX_SEED_GM_ID: await seedGameMaster(),
-        CARTYX_SEED_PLAYERS: JSON.stringify(await seedPlayers()),
-      });
+      // The Python builder produces every document with its id assigned and writes them
+      // to a plan; this process persists the plan, sending each collection to the graph
+      // or to MongoDB. Accounts are already in the graph, so their ids are passed in.
+      const planDir = mkdtempSync(join(tmpdir(), 'cartyx-seed-'));
+      const planPath = join(planDir, 'plan.json');
+      try {
+        python('dev_seed.py', [], {
+          CARTYX_SEED_GM_ID: await seedGameMaster(),
+          CARTYX_SEED_PLAYERS: JSON.stringify(await seedPlayers()),
+          CARTYX_SEED_PLAN: planPath,
+        });
+        const summary = await persistPlan(readPlan(planPath));
+        const line = (counts: Record<string, number>) =>
+          Object.entries(counts)
+            .map(([name, count]) => `${name} ${count}`)
+            .join(', ') || 'nothing';
+        process.stdout.write(`Seed persisted — graph: ${line(summary.graph)}
+`);
+        process.stdout.write(`Seed persisted — MongoDB: ${line(summary.mongo)}
+`);
+      } finally {
+        rmSync(planDir, { recursive: true, force: true });
+      }
     }
     process.stdout.write(
       `MongoDB ${action} still covers: ${MONGO_SUBSYSTEMS.join(', ')}\n` +
