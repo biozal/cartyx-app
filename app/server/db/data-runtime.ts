@@ -105,7 +105,18 @@ export async function closeData(): Promise<void> {
   cqlClient = undefined;
   stateStore = undefined;
   graphClient = undefined; // The graph transport opens and closes a connection per request.
+  // Anything composed on the old clients must be rebuilt too. Otherwise the next use
+  // reaches a pool that has been shut down, which is what made the E2E specs that
+  // provision identities fail whenever an earlier spec in the same worker had closed.
+  for (const listener of closeListeners) listener();
   await Promise.all(open.map((client) => client?.close()));
+}
+
+const closeListeners = new Set<() => void>();
+
+/** For modules that cache something built on these clients: drop it when they close. */
+export function onDataClose(listener: () => void): void {
+  closeListeners.add(listener);
 }
 
 export async function requireDataAvailable(): Promise<void> {

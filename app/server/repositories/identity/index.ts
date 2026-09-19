@@ -11,13 +11,22 @@ import type { IdentityRepository } from './types';
 // state; campaign access is the last Mongo reader in this file and leaves with its own
 // slice.
 let storage: ReturnType<typeof createIdentityStorage> | undefined;
+let listening = false;
 async function identityStorage() {
   // Composed on first use, and imported on first use too: `data-runtime` validates its
   // credentials as it loads, so that a misconfigured deployment cannot start serving.
   // Importing a server function must not be what triggers that.
   if (!storage) {
-    const { checkDataReadiness, getGraphClient, getStateStore } =
+    const { checkDataReadiness, getGraphClient, getStateStore, onDataClose } =
       await import('../../db/data-runtime');
+    // Closing the clients (a script or test finishing) must not strand this composition
+    // on a shut-down pool: forget it, and the next call composes afresh.
+    if (!listening) {
+      listening = true;
+      onDataClose(() => {
+        storage = undefined;
+      });
+    }
     storage = createIdentityStorage(
       createTargetIdentityRepository(getStateStore(), createGraphProfileStore(getGraphClient())),
       async () => {

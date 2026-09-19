@@ -100,4 +100,19 @@ describe('data runtime', () => {
     cqlExecute.mockResolvedValue({ rows: [] });
     await expect(requireDataAvailable()).resolves.toBeUndefined();
   });
+
+  it('releases its pools on close, and rebuilds what was composed on them', async () => {
+    const { closeData, getStateStore, onDataClose } = await load();
+    const first = getStateStore();
+    const forget = vi.fn();
+    onDataClose(forget);
+
+    await closeData();
+    // A script must be able to exit, so the pool is actually shut down.
+    expect(cqlClose).toHaveBeenCalled();
+    // Anything built on the old store is told to drop it; a later call must not reach
+    // a pool that has been shut down.
+    expect(forget).toHaveBeenCalledOnce();
+    expect(getStateStore()).not.toBe(first);
+  });
 });
