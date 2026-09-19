@@ -292,15 +292,30 @@ export function createGraphEntityStore(client: EntityGraphClient): EntityStore {
     },
 
     async remove(codec, scope, id) {
-      // Dropping a vertex removes its incident edges.
-      // drop() emits nothing, so the marker is produced by the surviving traverser:
-      // the removal happens in a side effect and the branch still reports it.
-      const removed = await client.execute(
-        identity(codec.kind, scope, id)
-          .fold()
-          .coalesce(__.unfold().sideEffect(__.drop()).constant('removed'), __.constant('absent'))
-      );
-      return removed[0] === 'removed';
+      // Dropping a vertex removes its incident edges, and its revision too, whose LOCK
+      // consistency makes a drop racing any update of the same entity a lock conflict
+      // for one of them. A conflicted drop may or may not have committed, so it is
+      // settled by reading back: gone means removed, still there means try again.
+      for (let attempt = 0; attempt < DEFAULT_MUTATE_ATTEMPTS; attempt++) {
+        if (attempt > 0) await backoff(attempt);
+        try {
+          // drop() emits nothing, so the marker is produced by the surviving traverser:
+          // the removal happens in a side effect and the branch still reports it.
+          const removed = await client.execute(
+            identity(codec.kind, scope, id)
+              .fold()
+              .coalesce(
+                __.unfold().sideEffect(__.drop()).constant('removed'),
+                __.constant('absent')
+              )
+          );
+          return removed[0] === 'removed';
+        } catch (error) {
+          if (!(error instanceof GraphRequestError && error.code === 'conflict')) throw error;
+          if (!(await store.get(codec, scope, id))) return true;
+        }
+      }
+      throw new StaleRevisionError({ kind: codec.kind, scope, id });
     },
 
     async list(codec, scope, query) {

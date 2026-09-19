@@ -5,6 +5,7 @@ import { defineEntity } from '~/server/db/graph/entity-codec';
 import {
   EntityExistsError,
   StaleRevisionError,
+  EntityNotFoundError,
   type EntityRef,
   type EntityStore,
 } from '~/server/db/graph/entity-store';
@@ -127,6 +128,32 @@ export async function entityStoreContract(
     assert.equal(merged?.value.tags.length, 10, 'every append lands exactly once');
     assert.equal(new Set(merged?.value.tags).size, 10, 'no append is lost');
     assert.equal(merged?.revision, 11);
+
+    // A removal racing writers of the same entity still removes it. Writers that lose
+    // may fail (the entity is gone), but the removal must neither fail nor be undone:
+    // JanusGraph reports a lost revision lock on a drop as a conflict.
+    for (let round = 0; round < 3; round++) {
+      const doomedId: string = (await store.create(contractThing, scope, thing({ tags: [] }))).ref
+        .id;
+      const writers: Promise<unknown>[] = Array.from({ length: 4 }, (_item, index) =>
+        store
+          .mutate(
+            contractThing,
+            scope,
+            doomedId,
+            (current) => ({ ...current, tags: [...current.tags, `w${index}`] }),
+            20
+          )
+          .catch((error: unknown): void => {
+            if (!(error instanceof EntityNotFoundError)) throw error;
+          })
+      );
+      const removal: Promise<boolean> = store.remove(contractThing, scope, doomedId);
+      await Promise.all([removal, ...writers]);
+      const removed: boolean = await removal;
+      assert.equal(removed, true, 'a removal racing writers reports the removal');
+      assert.equal(await store.get(contractThing, scope, doomedId), null);
+    }
 
     // Filtering, ordering and paging use the indexed projection.
     const listScope: EntityScope = { type: 'campaign', id: id() };
