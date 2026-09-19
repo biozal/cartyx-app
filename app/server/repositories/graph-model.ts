@@ -176,6 +176,7 @@ export interface DocumentMethods<T> {
   get(path: string): unknown;
   set(path: string | Plain, value?: unknown): Doc<T>;
   markModified(path: string): void;
+  deleteOne(): Promise<DeleteResult>;
   isNew: boolean;
   readonly id: string;
 }
@@ -368,6 +369,10 @@ export function defineGraphModel<T extends { _id: string }>(definition: GraphMod
       return document;
     });
     define('markModified', () => {});
+    define('deleteOne', async () => ({
+      acknowledged: true,
+      deletedCount: (await collection.remove(document._id)) ? 1 : 0,
+    }));
     define('save', async () => {
       const current = plain();
       let saved: T;

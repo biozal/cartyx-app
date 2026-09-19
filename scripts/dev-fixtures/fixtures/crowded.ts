@@ -17,6 +17,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { ObjectId } from 'mongodb';
 import type { Fixture, FixtureContext } from '../cli';
+import { graphDb } from '../../graph-db';
 
 const FIXTURE_NAME = 'crowded';
 const CAMPAIGN_NAME = '[Fixture: crowded] Continental Crisis';
@@ -771,7 +772,7 @@ const SCREEN_LAYOUTS: Array<{ name: string; tabOrder: number; openWindows: numbe
 
 async function seed(ctx: FixtureContext): Promise<{ campaignIds: ObjectId[] }> {
   const { conn, gm, marker } = ctx;
-  const db = conn.db!;
+  const db = graphDb(conn.db);
   const now = new Date();
 
   // ----- Campaign -----

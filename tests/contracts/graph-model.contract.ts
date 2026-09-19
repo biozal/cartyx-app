@@ -231,6 +231,10 @@ export async function graphModelContract() {
     await fresh.save();
     assert.equal((await Widget.findById(fresh._id).lean())?.name, 'Built');
     assert.equal(fresh.toObject().name, 'Built');
+    assert.equal((await (await Widget.findById(fresh._id))!.deleteOne()).deletedCount, 1);
+    // Like Mongoose, saving a document that was deleted meanwhile fails.
+    await assert.rejects(fresh.save());
+    await Widget.create({ campaignId, name: 'Built' });
 
     // updateMany, bulkWrite, deletes.
     const many = await Widget.updateMany({ campaignId, kind: 'door' }, { $set: { count: 0 } });

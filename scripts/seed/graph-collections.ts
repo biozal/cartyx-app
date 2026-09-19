@@ -42,6 +42,24 @@ export const graphCollections: GraphCollection[] = [
       return removed;
     },
   },
+  // Models on the graph: written through their schema, like a Mongoose insert.
+  ...(
+    Object.keys(
+      (await import('../../app/server/db/models/graph-models')).graphModels
+    ) as import('../../app/server/db/models/graph-models').GraphModelName[]
+  ).map((name): GraphCollection => ({
+    name,
+    async write(documents) {
+      const { graphModels } = await import('../../app/server/db/models/graph-models');
+      await graphModels[name].insertMany(
+        documents.map((document) => toGraphDocument(document) as Record<string, unknown>)
+      );
+    },
+    async clear() {
+      const { graphModels } = await import('../../app/server/db/models/graph-models');
+      return (await graphModels[name].deleteMany({})).deletedCount;
+    },
+  })),
 ];
 
 export const graphCollectionRoutes = Object.fromEntries(

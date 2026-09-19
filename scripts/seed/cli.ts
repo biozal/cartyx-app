@@ -28,7 +28,6 @@ assertSeedTargetIsNotProduction();
 
 /** Subsystems still on MongoDB. Remove an entry when its slice moves to the graph. */
 const MONGO_SUBSYSTEMS = [
-  'locations',
   'characters',
   'players',
   'sessions',

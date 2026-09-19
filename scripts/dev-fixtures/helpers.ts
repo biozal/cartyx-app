@@ -17,6 +17,7 @@ import {
 } from '@aws-sdk/client-s3';
 import mongoose, { type Connection } from 'mongoose';
 import { ObjectId } from 'mongodb';
+import { graphDb } from '../graph-db';
 
 // Load .env into process.env so MONGODB_URI / R2 creds are picked up.
 // Node 20.6+ has this built-in; ignored if .env doesn't exist.
@@ -159,7 +160,7 @@ export async function destroyCampaigns(
   conn: Connection,
   filter: { fixtureName?: string; campaignId?: string; allFixtures?: boolean; force?: boolean }
 ): Promise<DestroyResult> {
-  const db = conn.db!;
+  const db = graphDb(conn.db);
   const cdnUrl = process.env.CDN_URL?.replace(/\/+$/, '') ?? null;
 
   if (!filter.campaignId && !filter.fixtureName && !filter.allFixtures)
@@ -241,7 +242,7 @@ export async function destroyCampaigns(
     .collection('sessions')
     .find({ campaignId: { $in: campaignIds } }, { projection: { _id: 1 } })
     .toArray();
-  const sessionIds = sessions.map((s) => s._id);
+  const sessionIds = sessions.map((s: { _id: unknown }) => s._id);
 
   // ----- Delete session-scoped data -----
   if (sessionIds.length > 0) {
@@ -306,7 +307,7 @@ export interface CleanE2eResult {
 }
 
 export async function cleanE2eArtifacts(conn: Connection): Promise<CleanE2eResult> {
-  const db = conn.db!;
+  const db = graphDb(conn.db);
 
   // 1. tabletopscreens named "E2E Test Screen"
   const screenRes = await db.collection('tabletopscreen').deleteMany({ name: 'E2E Test Screen' });
@@ -393,7 +394,7 @@ export async function sweepOrphanR2Keys(conn: Connection): Promise<OrphanSweepRe
   }
 
   const cdnUrl = process.env.CDN_URL?.replace(/\/+$/, '') ?? null;
-  const db = conn.db!;
+  const db = graphDb(conn.db);
 
   // Build the set of in-use R2 keys across every campaign-scoped doc.
   const inUse = new Set<string>();

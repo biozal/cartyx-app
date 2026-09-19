@@ -34,6 +34,7 @@ import {
   SOUNDBOARD_FIXTURES,
 } from './fixtures/soundboard-fixtures';
 import { campaignFixtures } from './fixtures/campaigns';
+import { graphDb } from '../scripts/graph-db';
 
 /**
  * Local, not imported from `~/server/utils/helpers`'s own `escapeRegExp` —
@@ -345,7 +346,7 @@ export default async function globalSetup(): Promise<void> {
   await assertGraphReady();
 
   await mongoose.connect(mongoUri, { dbName: process.env.MONGODB_DB });
-  const db = mongoose.connection.db;
+  const db = graphDb(mongoose.connection.db);
   if (!db) throw new Error('Mongo connection has no db handle');
 
   // The game master's identity lives in the graph. Campaigns are still MongoDB and
