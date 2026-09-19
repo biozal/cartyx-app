@@ -65,15 +65,45 @@ export function defineEntity<T>(codec: EntityCodec<T>): EntityCodec<T> {
   return codec;
 }
 
+/**
+ * Dates are stored tagged, so that only a value written as a date is read back as one.
+ * Recognising dates by their shape instead would turn text that happens to look like a
+ * timestamp — a note whose whole content is one — into a Date on the way back.
+ */
+const DATE_TAG = '$cartyxDate';
+
+function tagDates(value: unknown): unknown {
+  if (value instanceof Date) {
+    if (!Number.isFinite(value.getTime())) throw new Error('Cannot store an invalid date');
+    return { [DATE_TAG]: value.toISOString() };
+  }
+  if (Array.isArray(value)) return value.map(tagDates);
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value);
+    // A caller-supplied key equal to the tag would be read back as a date.
+    if (entries.some(([key]) => key === DATE_TAG)) throw new Error(`${DATE_TAG} is a reserved key`);
+    return Object.fromEntries(entries.map(([key, item]) => [key, tagDates(item)]));
+  }
+  return value;
+}
+
+function reviveDates(_key: string, value: unknown): unknown {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const keys = Object.keys(value);
+    if (keys.length === 1 && keys[0] === DATE_TAG) {
+      const date = new Date((value as Record<string, unknown>)[DATE_TAG] as string);
+      if (!Number.isFinite(date.getTime())) throw new Error('Corrupt stored date');
+      return date;
+    }
+  }
+  return value;
+}
+
 /** Parse a stored document, applying the codec's upgrade when it predates the current version. */
 export function decodeDocument<T>(codec: EntityCodec<T>, raw: string, version: number): T {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw, (_key, value) =>
-      typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(value)
-        ? new Date(value)
-        : value
-    );
+    parsed = JSON.parse(raw, reviveDates);
   } catch {
     throw new Error(`Corrupt ${codec.kind} document`);
   }
@@ -90,7 +120,7 @@ export function decodeDocument<T>(codec: EntityCodec<T>, raw: string, version: n
 export function encodeDocument<T>(codec: EntityCodec<T>, value: T): string {
   const result = codec.schema.safeParse(value);
   if (!result.success) throw new Error(`Invalid ${codec.kind} value`);
-  return JSON.stringify(result.data);
+  return JSON.stringify(tagDates(result.data));
 }
 
 /** Project the indexed fields of a validated value onto their slots. */
