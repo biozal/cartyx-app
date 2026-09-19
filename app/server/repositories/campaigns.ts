@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { EntityExistsError } from '../db/graph/entity-store';
 import { defineCollection, objectIdString, UniqueConstraintError } from './collection';
@@ -83,7 +83,7 @@ const derivedId = (...parts: string[]) =>
 const membershipId = (campaignId: string, userId: string) =>
   derivedId('membership', campaignId, userId);
 
-export const newObjectId = () => randomBytes(12).toString('hex');
+export { newObjectId } from './collection';
 
 /** GMs are implicit members of campaigns they run, including ones with no members list. */
 export function isCampaignMember(campaign: CampaignDocument, userId: string): boolean {

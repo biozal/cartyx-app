@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { defineEntity, type IndexSlot } from '../db/graph/entity-codec';
 import {
@@ -28,6 +28,20 @@ import { entityStore } from './entity-store';
  * must be enough to find a document.
  */
 export const objectIdString = z.string().regex(/^[0-9a-f]{24}$/, 'Expected a 24-hex id');
+
+/**
+ * A new id laid out like a MongoDB ObjectId — creation second, a per-process value and a
+ * counter — so ids sort in creation order, as MongoDB's natural order did.
+ */
+const PROCESS_VALUE = randomBytes(5).toString('hex');
+let counter = randomBytes(3).readUIntBE(0, 3);
+export function newObjectId(): string {
+  counter = (counter + 1) % 0x1000000;
+  const seconds = Math.floor(Date.now() / 1000)
+    .toString(16)
+    .padStart(8, '0');
+  return seconds + PROCESS_VALUE + counter.toString(16).padStart(6, '0');
+}
 
 const GLOBAL: EntityScope = { type: 'global' };
 
