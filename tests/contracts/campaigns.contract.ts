@@ -74,6 +74,15 @@ export async function campaignsContract() {
       'newest first'
     );
 
+    // Four campaigns racing for one fresh code: exactly one gets it.
+    const code = `CONTRACT-${id()}`;
+    const racers = await Promise.allSettled(
+      Array.from({ length: 4 }, () => create(campaign({ inviteCode: code })))
+    );
+    assert.equal(racers.filter((r) => r.status === 'fulfilled').length, 1);
+    for (const r of racers)
+      if (r.status === 'rejected' && !(r.reason instanceof InviteCodeTakenError)) throw r.reason;
+
     // Five concurrent joins for the two seats of a fresh campaign: exactly two win.
     const contested = await create(campaign({ maxPlayers: 2 }));
     const outcomes = await Promise.all(

@@ -4,7 +4,13 @@ import { z } from 'zod';
 
 vi.mock('~/server/repositories/entity-store', () => import('../functions/entityStoreDouble'));
 import { resetEntityStore } from '../functions/entityStoreDouble';
-import { defineCollection, objectIdString } from '~/server/repositories/collection';
+import {
+  defineCollection,
+  objectIdString,
+  UniqueConstraintError,
+} from '~/server/repositories/collection';
+import { uniqueKeysContract } from '../../contracts/unique-keys.contract';
+import { currentEntityStore } from '../functions/entityStoreDouble';
 import { EntityExistsError } from '~/server/db/graph/entity-store';
 
 const hex = (n: number) => n.toString(16).padStart(24, '0');
@@ -111,5 +117,69 @@ describe('collection', () => {
     expect(await things.remove(hex(1))).toBe(false);
     expect(await things.removeWhere({ campaignId: hex(1001) })).toBe(1);
     expect((await things.findAll()).map((d) => d._id)).toEqual([hex(3)]);
+  });
+
+  describe('unique keys', () => {
+    const named = defineCollection({
+      name: 'nameds',
+      kind: 'CollectionNamed',
+      schema: z.object({ _id: objectIdString, campaignId: objectIdString, name: z.string() }),
+      index: { campaignId: 'ix_s1' },
+      unique: { campaignId_name: (d) => [d.campaignId, d.name] },
+    });
+    const named1 = { _id: hex(1), campaignId: hex(900), name: 'Tavern' };
+
+    it('satisfies the shared unique-keys contract in memory', async () => {
+      await uniqueKeysContract();
+    });
+
+    it('reports a clash the way MongoDB did, with code 11000', async () => {
+      await named.insert(named1);
+      const clash = named.insert({ ...named1, _id: hex(2) });
+      await expect(clash).rejects.toBeInstanceOf(UniqueConstraintError);
+      await expect(clash).rejects.toMatchObject({ code: 11000 });
+    });
+
+    /** Makes the next write of a CollectionNamed document fail, as a crash would. */
+    function failNextDocumentWrite(message: string) {
+      const store = currentEntityStore();
+      const original = store.create.bind(store);
+      let armed = true;
+      vi.spyOn(store, 'create').mockImplementation(async (codec, ...rest) => {
+        if (armed && codec.kind === 'CollectionNamed') {
+          armed = false;
+          throw new Error(message);
+        }
+        return original(codec, ...rest);
+      });
+      return store;
+    }
+
+    it('releases what it claimed when the document itself cannot be written', async () => {
+      failNextDocumentWrite('write failed');
+      await expect(named.insert(named1)).rejects.toThrow('write failed');
+      await named.insert({ ...named1, _id: hex(2) });
+    });
+
+    it('reclaims a reservation abandoned by a writer that died, but only after a grace period', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        // A process claims the key, fails to write, and dies before releasing it.
+        const store = failNextDocumentWrite('process died');
+        vi.spyOn(store, 'remove').mockResolvedValueOnce(false);
+        await expect(named.insert(named1)).rejects.toThrow('process died');
+        vi.mocked(store.remove).mockRestore();
+
+        // Young, it may be an insert still in flight, so it blocks.
+        await expect(named.insert({ ...named1, _id: hex(2) })).rejects.toBeInstanceOf(
+          UniqueConstraintError
+        );
+        vi.setSystemTime(Date.now() + 61_000);
+        await named.insert({ ...named1, _id: hex(2) });
+        expect((await named.get(hex(2)))?.name).toBe('Tavern');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

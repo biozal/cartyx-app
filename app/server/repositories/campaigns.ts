@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { EntityExistsError } from '../db/graph/entity-store';
-import { defineCollection, objectIdString } from './collection';
+import { defineCollection, objectIdString, UniqueConstraintError } from './collection';
 
 /**
  * Campaigns, in the graph.
@@ -62,6 +62,7 @@ export const campaignCollection = defineCollection<CampaignDocument>({
   kind: 'Campaign',
   schema: campaignDocumentSchema,
   index: { gameMasterId: 'ix_s1', inviteCode: 'ix_s2', status: 'ix_s3', createdAt: 'ix_d1' },
+  unique: { inviteCode: (campaign) => (campaign.inviteCode ? [campaign.inviteCode] : null) },
 });
 
 const membershipSchema = z.object({
@@ -76,24 +77,11 @@ const membershipCollection = defineCollection<z.infer<typeof membershipSchema>>(
   index: { campaignId: 'ix_s1', userId: 'ix_s2' },
 });
 
-const inviteCodeSchema = z.object({
-  _id: objectIdString,
-  code: z.string(),
-  campaignId: objectIdString,
-});
-const inviteCodeCollection = defineCollection<z.infer<typeof inviteCodeSchema>>({
-  name: 'campaigninvitecodes',
-  kind: 'CampaignInviteCode',
-  schema: inviteCodeSchema,
-  index: { campaignId: 'ix_s1' },
-});
-
 /** A 24-hex id derived from its parts, so the same parts always name the same entity. */
 const derivedId = (...parts: string[]) =>
   createHash('sha256').update(parts.join('\u0000')).digest('hex').slice(0, 24);
 const membershipId = (campaignId: string, userId: string) =>
   derivedId('membership', campaignId, userId);
-const inviteCodeId = (code: string) => derivedId('invite', code);
 
 export const newObjectId = () => randomBytes(12).toString('hex');
 
@@ -112,8 +100,11 @@ async function indexMembership(campaignId: string, userId: string): Promise<void
       userId,
     });
   } catch (error) {
-    // Already indexed: the index is idempotent by construction.
-    if (!(error instanceof EntityExistsError)) throw error;
+    // Already indexed: the index is idempotent by construction. A conflict is a
+    // concurrent insert of this same entry; it counts once the entry is there.
+    if (error instanceof EntityExistsError) return;
+    if (await membershipCollection.get(membershipId(campaignId, userId))) return;
+    throw error;
   }
 }
 
@@ -135,8 +126,7 @@ export const campaigns = {
   listAll: () => campaignCollection.findAll(),
 
   async findByInviteCode(code: string): Promise<CampaignDocument | null> {
-    const reservation = await inviteCodeCollection.get(inviteCodeId(code));
-    return reservation ? campaignCollection.get(reservation.campaignId) : null;
+    return campaignCollection.findOne({ where: { inviteCode: code } });
   },
 
   /** Campaigns the user runs or belongs to, newest first. */
@@ -152,29 +142,13 @@ export const campaigns = {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   },
 
-  /**
-   * Reserves the invite code first, so two campaigns can never share one. If the campaign
-   * itself then fails to be written, the reservation is released.
-   */
+  /** Invite codes are unique across campaigns, as MongoDB's unique index made them. */
   async create(document: CampaignDocument): Promise<CampaignDocument> {
-    const parsed = campaignDocumentSchema.parse(document);
-    if (parsed.inviteCode) {
-      try {
-        await inviteCodeCollection.insert({
-          _id: inviteCodeId(parsed.inviteCode),
-          code: parsed.inviteCode,
-          campaignId: parsed._id,
-        });
-      } catch (error) {
-        if (error instanceof EntityExistsError) throw new InviteCodeTakenError();
-        throw error;
-      }
-    }
     let created: CampaignDocument;
     try {
-      created = await campaignCollection.insert(parsed);
+      created = await campaignCollection.insert(campaignDocumentSchema.parse(document));
     } catch (error) {
-      if (parsed.inviteCode) await inviteCodeCollection.remove(inviteCodeId(parsed.inviteCode));
+      if (error instanceof UniqueConstraintError) throw new InviteCodeTakenError();
       throw error;
     }
     for (const member of created.members) await indexMembership(created._id, member.userId);
@@ -244,7 +218,6 @@ export const campaigns = {
     const campaign = await campaignCollection.get(id);
     if (!campaign) return false;
     await membershipCollection.removeWhere({ campaignId: id });
-    await inviteCodeCollection.removeWhere({ campaignId: id });
     return campaignCollection.remove(id);
   },
 };
@@ -255,4 +228,3 @@ export async function insertCampaignDocuments(documents: CampaignDocument[]): Pr
 }
 
 export { membershipCollection as campaignMembershipCollection };
-export { inviteCodeCollection as campaignInviteCodeCollection };

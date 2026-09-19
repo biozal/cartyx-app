@@ -1,11 +1,16 @@
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { defineEntity, type IndexSlot } from '../db/graph/entity-codec';
 import {
+  EntityExistsError,
   EntityNotFoundError,
   MAX_LIST_LIMIT,
+  StaleRevisionError,
+  type EntityStore,
   type Filter,
   type ListQuery,
 } from '../db/graph/entity-store';
+import { GraphRequestError } from '../db/graph/transport';
 import type { EntityScope } from '../db/graph/identity';
 import { entityStore } from './entity-store';
 
@@ -35,12 +40,61 @@ export interface CollectionDefinition<T extends { _id: string }> {
   /** Fields that may be filtered or ordered on, mapped to indexed slots. */
   index: Partial<Record<keyof T & string, IndexSlot>>;
   searchText?: (document: T) => string;
+  /** Replacements for MongoDB unique indexes, by name. */
+  unique?: Record<string, UniqueKey<T>>;
   /** Bump with an `upgrade` whenever the stored shape changes. */
   version?: number;
   upgrade?: (raw: unknown, fromVersion: number) => unknown;
 }
 
 export type Where<T> = Partial<Record<keyof T & string, Filter>>;
+
+/** The parts that must be unique together, or null when the document takes no part. */
+export type UniqueKey<T> = (document: T) => Array<string | number | boolean | null> | null;
+
+/**
+ * A MongoDB unique index's duplicate-key error, by another name. It carries code 11000
+ * so code written against MongoDB's error keeps recognising it.
+ */
+export class UniqueConstraintError extends Error {
+  readonly code = 11000;
+  constructor(
+    readonly collection: string,
+    readonly key: string
+  ) {
+    super(`E11000 duplicate key: ${collection}.${key}`);
+    this.name = 'UniqueConstraintError';
+  }
+}
+
+/**
+ * One entity per claimed unique value, whose id is derived from the collection, key
+ * name and value. Creating an entity whose id is taken fails atomically, which is the
+ * whole guarantee a MongoDB unique index gave.
+ */
+const reservationSchema = z.object({
+  _id: objectIdString,
+  collection: z.string(),
+  key: z.string(),
+  owner: objectIdString,
+});
+type Reservation = z.infer<typeof reservationSchema>;
+const reservationCodec = defineEntity<Reservation>({
+  kind: 'UniqueKey',
+  version: 1,
+  schema: reservationSchema,
+  index: { owner: 'ix_s1' },
+});
+
+const reservationId = (collection: string, key: string, parts: unknown[]) =>
+  createHash('sha256')
+    .update(JSON.stringify([collection, key, parts]))
+    .digest('hex')
+    .slice(0, 24);
+
+const isConflict = (error: unknown) =>
+  error instanceof StaleRevisionError ||
+  (error instanceof GraphRequestError && error.code === 'conflict');
 
 export interface FindOptions<T> {
   where?: Where<T>;
@@ -67,6 +121,88 @@ export function defineCollection<T extends { _id: string }>(definition: Collecti
     limit,
     offset,
   });
+
+  const uniqueKeys = Object.entries(definition.unique ?? {});
+  const claims = (document: T) =>
+    uniqueKeys.flatMap(([key, parts]) => {
+      const value = parts(document);
+      return value ? [{ key, id: reservationId(definition.name, key, value) }] : [];
+    });
+
+  /**
+   * Claims each key for the document, or releases what it claimed and throws.
+   *
+   * A reservation whose owner no longer holds the key was left by a process that died
+   * between claiming and writing, and is reclaimed rather than blocking the value for
+   * good — but only once it is older than a grace period. A younger one may belong to
+   * an insert still in flight whose document is not written yet; taking it over would
+   * let two documents hold the same key, which is the one thing this must prevent.
+   */
+  async function claim(
+    store: EntityStore,
+    document: T,
+    wanted: { key: string; id: string }[]
+  ): Promise<string[]> {
+    const taken: string[] = [];
+    try {
+      for (const { key, id } of wanted) {
+        const reservation = { _id: id, collection: definition.name, key, owner: document._id };
+        const outcome = await reserve(store, reservation);
+        if (outcome === 'already-ours') continue;
+        if (outcome === 'taken') throw new UniqueConstraintError(definition.name, key);
+        taken.push(id);
+      }
+      return taken;
+    } catch (error) {
+      await release(store, document._id, taken);
+      throw error;
+    }
+  }
+
+  /**
+   * Creates one reservation. JanusGraph reports a create that lost a race for the id as
+   * a conflict that may or may not have committed, so every uncertain outcome is
+   * settled by reading back who holds the reservation.
+   */
+  async function reserve(
+    store: EntityStore,
+    reservation: Reservation
+  ): Promise<'created' | 'already-ours' | 'taken'> {
+    const { _id: id, owner } = reservation;
+    for (let attempt = 0; attempt < DEFAULT_ATTEMPTS; attempt++) {
+      let existed = false;
+      try {
+        await store.create(reservationCodec, GLOBAL, reservation, id);
+        return 'created';
+      } catch (error) {
+        existed = error instanceof EntityExistsError;
+        if (!existed && !isConflict(error)) throw error;
+      }
+      const held = await store.get(reservationCodec, GLOBAL, id);
+      // Ours after a conflict means our own create committed after all. Ours before we
+      // tried belongs to a document already stored under this id: not ours to release.
+      if (held?.value.owner === owner) return existed ? 'already-ours' : 'created';
+      if (!held) continue; // Released between the attempt and the read: try again.
+      const holder = await store.get(codec, GLOBAL, held.value.owner);
+      const stillHeld = holder && claims(holder.value).some((c) => c.id === id);
+      const abandoned = !stillHeld && Date.now() - held.updatedAt.getTime() > RESERVATION_GRACE_MS;
+      if (!abandoned) return 'taken';
+      try {
+        await store.update(reservationCodec, GLOBAL, id, held.revision, reservation);
+        return 'created';
+      } catch (error) {
+        if (!isConflict(error)) throw error;
+      }
+    }
+    throw new StaleRevisionError({ kind: reservationCodec.kind, scope: GLOBAL, id });
+  }
+
+  async function release(store: EntityStore, owner: string, ids: string[]) {
+    for (const id of ids) {
+      const held = await store.get(reservationCodec, GLOBAL, id);
+      if (held?.value.owner === owner) await store.remove(reservationCodec, GLOBAL, id);
+    }
+  }
 
   const collection = {
     name: definition.name,
@@ -122,11 +258,20 @@ export function defineCollection<T extends { _id: string }>(definition: Collecti
       return (await entityStore()).count(codec, GLOBAL, { where, search });
     },
 
-    /** Creation fails if the id is taken, which is what makes a derived id a guarantee. */
+    /**
+     * Creation fails if the id is taken, which is what makes a derived id a guarantee,
+     * or if a unique key is already claimed by another document.
+     */
     async insert(document: T): Promise<T> {
       const value = codec.schema.parse(document);
-      const created = await (await entityStore()).create(codec, GLOBAL, value, value._id);
-      return created.value;
+      const store = await entityStore();
+      const claimed = await claim(store, value, claims(value));
+      try {
+        return (await store.create(codec, GLOBAL, value, value._id)).value;
+      } catch (error) {
+        await release(store, value._id, claimed);
+        throw error;
+      }
     },
 
     async insertMany(documents: T[]): Promise<T[]> {
@@ -141,6 +286,7 @@ export function defineCollection<T extends { _id: string }>(definition: Collecti
      */
     async update(id: string, change: (current: T) => T): Promise<T | null> {
       if (!objectIdString.safeParse(id).success) return null;
+      if (uniqueKeys.length) return updateClaimingKeys(id, change);
       try {
         const stored = await (
           await entityStore()
@@ -158,7 +304,16 @@ export function defineCollection<T extends { _id: string }>(definition: Collecti
 
     async remove(id: string): Promise<boolean> {
       if (!objectIdString.safeParse(id).success) return false;
-      return (await entityStore()).remove(codec, GLOBAL, id);
+      const store = await entityStore();
+      const current = uniqueKeys.length ? await store.get(codec, GLOBAL, id) : null;
+      const removed = await store.remove(codec, GLOBAL, id);
+      if (current)
+        await release(
+          store,
+          id,
+          claims(current.value).map((c) => c.id)
+        );
+      return removed;
     },
 
     /** Removes every match and reports how many were removed. */
@@ -169,7 +324,51 @@ export function defineCollection<T extends { _id: string }>(definition: Collecti
       return removed;
     },
   };
+  /**
+   * An update that may change a unique key claims the new value before writing and
+   * releases the old one only after the write lands. A lost race releases what it
+   * claimed and re-applies the change to the newer document.
+   */
+  async function updateClaimingKeys(id: string, change: (current: T) => T): Promise<T | null> {
+    const store = await entityStore();
+    for (let attempt = 0; attempt < DEFAULT_ATTEMPTS; attempt++) {
+      const current = await store.get(codec, GLOBAL, id);
+      if (!current) return null;
+      const next = codec.schema.parse(change(current.value));
+      if (next._id !== id) throw new Error(`${definition.kind} _id cannot change`);
+      const before = claims(current.value).map((c) => c.id);
+      const after = claims(next);
+      const added = await claim(
+        store,
+        next,
+        after.filter((c) => !before.includes(c.id))
+      );
+      try {
+        const stored = await store.update(codec, GLOBAL, id, current.revision, next);
+        const kept = new Set(after.map((c) => c.id));
+        await release(
+          store,
+          id,
+          before.filter((c) => !kept.has(c))
+        );
+        return stored.value;
+      } catch (error) {
+        await release(store, id, added);
+        if (!isConflict(error)) throw error;
+        // Losers that retry at once collide again; spread them out.
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.random() * Math.min(10 * 2 ** attempt, 250))
+        );
+      }
+    }
+    throw new StaleRevisionError({ kind: definition.kind, scope: GLOBAL, id });
+  }
+
   return collection;
 }
+
+const DEFAULT_ATTEMPTS = 12;
+/** How long a claim may wait for its document before it counts as abandoned. */
+const RESERVATION_GRACE_MS = 60_000;
 
 export type Collection<T extends { _id: string }> = ReturnType<typeof defineCollection<T>>;
