@@ -1,55 +1,41 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { identityRepository } from '../../app/server/repositories/identity';
 import type { Seeder } from './registry';
 
 /**
- * The game master every other seeder and E2E spec hangs off.
+ * The game master every other seeder and E2E spec hangs off, and the campaigns' owner.
  *
- * The account is created by recording a login, which is exactly what the product does,
- * so the seeded identity is reachable by the same provider id the E2E session cookie
- * carries. Roles are deliberately not login-owned — a login cannot promote anybody — so
- * the role is published separately, through the profile head.
+ * Seeded as an account with an email and NO provider binding, exactly like the players
+ * below, so the first real Google login with that address CLAIMS it and gets the
+ * campaigns with it. Recording a login here instead would bind a made-up provider id,
+ * and the real login would then be refused as a different person with the same email
+ * ("Identity login reservation cannot select this account") — which is what happened
+ * until 2026-09-19. E2E does the claiming itself, with GM_PROVIDER_ID, because its
+ * session cookie carries a provider id (see e2e/globalSetup.ts).
  *
- * Seeding is idempotent: recording the same login twice resolves to the same account.
- * Clearing leaves accounts alone, which is what `dev_clear.py` has always done; an
- * environment is rebuilt by recreating its data, not its people.
+ * The role is published here rather than by a login, because nothing in the product
+ * assigns roles: a login cannot promote anybody.
+ *
+ * Idempotent: an address that already has an account resolves to it, bound or not.
  */
 export const GM_PROVIDER = 'google';
 export const GM_PROVIDER_ID = 'seed-gm-alabeau';
 export const GM_EMAIL = 'alabeau@gmail.com';
 
 export async function seedGameMaster(): Promise<string> {
-  const existing = await identityRepository.findUserId(GM_PROVIDER_ID);
-  const profile = await identityRepository.recordLogin({
-    provider: GM_PROVIDER,
-    providerId: GM_PROVIDER_ID,
+  const { id, created } = await seedAccount({
     email: GM_EMAIL,
     firstName: 'Aaron',
     lastName: 'LaBeau',
-    oauthTokens: { accessToken: null, refreshToken: null },
-    lastLoginAt: new Date(),
+    role: 'gm',
   });
-  if (existing && existing !== profile.id)
-    throw new Error('The seeded game master resolved to a different account');
-  if (profile.role !== 'gm') await promoteToGameMaster(profile.id);
-  return profile.id;
+  // An account seeded before the role existed, or claimed by a login, still needs the role.
+  if (!created) await ensureGameMaster(id);
+  return id;
 }
 
-/**
- * Operator-shaped, because nothing in the product assigns a role. It reads the current
- * published profile and republishes it with the role set, against the revision it read,
- * so a concurrent publication is rejected rather than silently overwritten.
- */
-async function promoteToGameMaster(userId: string): Promise<void> {
-  const { getGraphClient, getStateStore } = await import('../../app/server/db/data-runtime');
-  const { createGraphProfileStore } =
-    await import('../../app/server/repositories/identity/graph-profiles');
-  const { createIdentityProfiles } =
-    await import('../../app/server/repositories/identity/profile-head');
-  const profiles = createIdentityProfiles(
-    getStateStore(),
-    createGraphProfileStore(getGraphClient())
-  );
+/** Publishes the `gm` role on an account that does not already carry it. */
+async function ensureGameMaster(userId: string): Promise<void> {
+  const profiles = await identityProfiles();
   const current = await profiles.read(userId);
   if (!current) throw new Error('The seeded game master has no published profile');
   if (current.snapshot.content.role === 'gm') return;
@@ -65,6 +51,75 @@ async function promoteToGameMaster(userId: string): Promise<void> {
   });
   if ((await profiles.resume(operationId)) !== 'applied')
     throw new Error('Publishing the seeded game master role was rejected');
+}
+
+async function identityProfiles() {
+  const { getGraphClient, getStateStore } = await import('../../app/server/db/data-runtime');
+  const { createGraphProfileStore } =
+    await import('../../app/server/repositories/identity/graph-profiles');
+  const { createIdentityProfiles } =
+    await import('../../app/server/repositories/identity/profile-head');
+  return createIdentityProfiles(getStateStore(), createGraphProfileStore(getGraphClient()));
+}
+
+/**
+ * One placeholder account: an email reservation, an unbound account and a published
+ * profile, created the way the operator importer creates an account. Returns the
+ * existing account's id when the address already has one.
+ */
+async function seedAccount(person: {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  role: 'gm' | 'player' | 'unknown';
+}): Promise<{ id: string; created: boolean }> {
+  const { getGraphClient, getStateStore } = await import('../../app/server/db/data-runtime');
+  const { createGraphProfileStore } =
+    await import('../../app/server/repositories/identity/graph-profiles');
+  const { createIdentityReservations } =
+    await import('../../app/server/repositories/identity/reservations');
+  const { createIdentityImporter, parseIdentityImportPlan } =
+    await import('../identity/import-account');
+  const state = getStateStore();
+  const existing = await createIdentityReservations(state).findOwner({
+    kind: 'email',
+    value: person.email,
+  });
+  if (existing) return { id: existing, created: false };
+
+  const userId = randomBytes(12).toString('hex');
+  await createIdentityImporter(state, createGraphProfileStore(getGraphClient())).apply(
+    parseIdentityImportPlan({
+      version: 1,
+      // Nothing is imported from a source; the digest only identifies this plan.
+      sourceSha256: createHash('sha256').update(`seed:${person.email}`).digest('hex'),
+      reservationOperationId: randomUUID(),
+      profileOperationId: randomUUID(),
+      account: {
+        kind: 'import',
+        operationId: randomUUID(),
+        userId,
+        binding: null,
+        email: person.email,
+        audioStoragePrefix: null,
+        tokens: null,
+      },
+      snapshot: {
+        userId,
+        snapshotId: randomBytes(12).toString('hex'),
+        content: {
+          firstName: person.firstName ?? null,
+          lastName: person.lastName ?? null,
+          avatarUrl: null,
+          role: person.role,
+          rulerColor: null,
+          createdAt: new Date().toISOString(),
+          lastLoginAt: null,
+        },
+      },
+    })
+  );
+  return { id: userId, created: true };
 }
 
 /**
@@ -88,58 +143,9 @@ export const PLAYER_EMAILS = [
  * Idempotent: an address that already has an account resolves to it, bound or not.
  */
 export async function seedPlayers(): Promise<{ email: string; id: string }[]> {
-  const { getGraphClient, getStateStore } = await import('../../app/server/db/data-runtime');
-  const { createGraphProfileStore } =
-    await import('../../app/server/repositories/identity/graph-profiles');
-  const { createIdentityReservations } =
-    await import('../../app/server/repositories/identity/reservations');
-  const { createIdentityImporter, parseIdentityImportPlan } =
-    await import('../identity/import-account');
-  const state = getStateStore();
-  const reservations = createIdentityReservations(state);
-  const importer = createIdentityImporter(state, createGraphProfileStore(getGraphClient()));
-
   const players = [];
-  for (const email of PLAYER_EMAILS) {
-    const existing = await reservations.findOwner({ kind: 'email', value: email });
-    if (existing) {
-      players.push({ email, id: existing });
-      continue;
-    }
-    const userId = randomBytes(12).toString('hex');
-    await importer.apply(
-      parseIdentityImportPlan({
-        version: 1,
-        // Nothing is imported from a source; the digest only identifies this plan.
-        sourceSha256: createHash('sha256').update(`seed:${email}`).digest('hex'),
-        reservationOperationId: randomUUID(),
-        profileOperationId: randomUUID(),
-        account: {
-          kind: 'import',
-          operationId: randomUUID(),
-          userId,
-          binding: null,
-          email,
-          audioStoragePrefix: null,
-          tokens: null,
-        },
-        snapshot: {
-          userId,
-          snapshotId: randomBytes(12).toString('hex'),
-          content: {
-            firstName: null,
-            lastName: null,
-            avatarUrl: null,
-            role: 'unknown',
-            rulerColor: null,
-            createdAt: new Date().toISOString(),
-            lastLoginAt: null,
-          },
-        },
-      })
-    );
-    players.push({ email, id: userId });
-  }
+  for (const email of PLAYER_EMAILS)
+    players.push({ email, id: (await seedAccount({ email, role: 'unknown' })).id });
   return players;
 }
 

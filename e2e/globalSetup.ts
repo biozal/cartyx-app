@@ -26,7 +26,7 @@ import { SignJWT } from 'jose';
 import { AUDIO_FIXTURE_TITLES } from './fixtures/audio-fixtures';
 import { assertGraphReady } from './fixtures/data';
 import { identityRepository } from '../app/server/repositories/identity';
-import { GM_PROVIDER_ID } from '../scripts/seed/users';
+import { GM_EMAIL, GM_PROVIDER, GM_PROVIDER_ID } from '../scripts/seed/users';
 import {
   FOREIGN_ASSET_SOURCE_KEY,
   FOREIGN_OWNER_ID,
@@ -341,7 +341,19 @@ export default async function globalSetup(): Promise<void> {
 
   // The game master's identity lives in the graph. Campaigns are still MongoDB and
   // reference that same id, which the seeder is what keeps consistent.
-  const profile = await identityRepository.findProfile(GM_PROVIDER_ID);
+  // The seeded game master is an account with an email and no provider binding, so a
+  // real login can claim it (see scripts/seed/users.ts). The suite's session cookie
+  // carries a provider id, so the run claims it here — idempotent, and the same
+  // account every time, because the claim is by email.
+  const profile =
+    (await identityRepository.findProfile(GM_PROVIDER_ID)) ??
+    (await identityRepository.recordLogin({
+      provider: GM_PROVIDER,
+      providerId: GM_PROVIDER_ID,
+      email: GM_EMAIL,
+      oauthTokens: { accessToken: null, refreshToken: null },
+      lastLoginAt: new Date(),
+    }));
   if (!profile) {
     throw new Error('No seeded game master found. Run `npm run dev:seed` before running E2E.');
   }
