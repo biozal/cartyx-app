@@ -9,11 +9,11 @@ export default defineConfig({
   plugins: [
     tsConfigPaths(),
     nitro({
-      // mongodb >=7.2 resolves crypto/os/etc. with lazy CommonJS require()
-      // calls that throw "require is not defined" when the driver is bundled
-      // into the ESM server output. Trace the DB stack as an external CJS
-      // dependency instead of bundling it.
-      traceDeps: ['mongoose', 'mongodb', 'bson'],
+      // Bundled into the ESM server output, gremlin's requests fail (the /readyz
+      // graph probe never passes; verified on a production build 2026-09-19) while
+      // the same code works unbundled, so it is traced as an external dependency
+      // instead — as the MongoDB driver had to be.
+      traceDeps: ['gremlin'],
     }),
     tanstackStart({
       srcDirectory: 'app',

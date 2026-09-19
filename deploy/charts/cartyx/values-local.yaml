@@ -33,3 +33,8 @@ ingress:
 tls:
   certificate:
     enabled: false
+
+# The kind data stack (deploy/local/data-kind.sh) uses the data chart's default keyspace.
+data:
+  cql:
+    stateKeyspace: cartyx_state

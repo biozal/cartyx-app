@@ -1,64 +1,35 @@
-import mongoose, { type InferSchemaType, type Model } from 'mongoose';
-import { normalizeTags } from '~/server/utils/helpers';
+import { z } from 'zod';
+import { defineGraphModel } from '~/server/repositories/graph-model';
+import { imageSchema, now, objectId, tags, touchAndNormalizeTags } from './schema-parts';
 
-const linkSchema = new mongoose.Schema(
-  {
-    kind: { type: String, enum: ['race', 'character', 'player', 'location'], required: true },
-    id: { type: mongoose.Schema.Types.ObjectId, required: true },
-  },
-  { _id: false }
-);
-
-const cropSchema = new mongoose.Schema(
-  {
-    x: { type: Number, required: true },
-    y: { type: Number, required: true },
-    width: { type: Number, required: true },
-    height: { type: Number, required: true },
-  },
-  { _id: false }
-);
-
-const imageSchema = new mongoose.Schema(
-  {
-    url: { type: String, required: true },
-    caption: { type: String, default: '' },
-    crop: { type: cropSchema, default: null },
-  },
-  { _id: false }
-);
-
-const loreSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  content: { type: String, default: '' },
-  gmContent: { type: String, default: '' },
-  isPublic: { type: Boolean, default: false },
-  images: { type: [imageSchema], default: [] },
-  links: { type: [linkSchema], default: [] },
-  tags: { type: [String], default: [] },
-  campaignId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
+const linkSchema = z.object({
+  kind: z.enum(['race', 'character', 'player', 'location']),
+  id: objectId,
 });
 
-// istanbul ignore next
-if (typeof (loreSchema as { index?: unknown }).index === 'function') {
-  loreSchema.index({ campaignId: 1, updatedAt: -1 });
-  loreSchema.index({ isPublic: 1 });
-  loreSchema.index({ tags: 1 });
-  loreSchema.index({ 'links.id': 1 });
-  loreSchema.index({ title: 'text', content: 'text' });
-}
-
-loreSchema.pre('save', function () {
-  if (this.isModified('tags')) {
-    this.tags = normalizeTags(this.tags as string[]);
-  }
-  this.updatedAt = new Date();
+export const loreSchema = z.object({
+  _id: objectId,
+  title: z.string(),
+  content: z.string().default(''),
+  gmContent: z.string().default(''),
+  isPublic: z.boolean().default(false),
+  images: z.array(imageSchema).default([]),
+  links: z.array(linkSchema).default([]),
+  tags: tags(),
+  campaignId: objectId,
+  createdBy: objectId,
+  createdAt: now(),
+  updatedAt: now(),
 });
 
-export type ILore = InferSchemaType<typeof loreSchema>;
+export type ILore = z.infer<typeof loreSchema>;
 
-export const Lore: Model<ILore> =
-  (mongoose.models.Lore as Model<ILore>) || mongoose.model<ILore>('Lore', loreSchema);
+export const Lore = defineGraphModel<ILore>({
+  name: 'lores',
+  kind: 'Lore',
+  modelName: 'Lore',
+  schema: loreSchema,
+  index: { campaignId: 'ix_s1', createdBy: 'ix_s2', isPublic: 'ix_b1', updatedAt: 'ix_d1' },
+  searchText: (lore) => `${lore.title} ${lore.content}`,
+  preSave: touchAndNormalizeTags,
+});

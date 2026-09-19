@@ -9,11 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // the real telemetry helpers POST to Umami via `fetch`. Mocking it keeps that
 // assertion unambiguous.
 //
-// `mongoose.Types` is the REAL implementation: addPrivateWindow validates
-// screen ids with ObjectId.isValid and builds an ObjectId for the $expr cap
-// filter (which mongoose does not cast). A stubbed ObjectId would make those
-// tests assert against the stub instead of the behaviour, so every id fixture
-// below is a genuine 24-hex ObjectId.
+// Ids are genuine 24-hex strings, because addPrivateWindow validates screen ids.
 // ---------------------------------------------------------------------------
 
 vi.mock('@tanstack/react-start', () => ({
@@ -37,12 +33,8 @@ vi.mock('~/server/utils/telemetry', () => ({
   serverCaptureException: vi.fn(),
   serverCaptureEvent: vi.fn(),
 }));
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn() },
-}));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findById: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/TabletopScreen', () => ({
   TabletopScreen: {
     find: vi.fn(),
@@ -71,15 +63,9 @@ vi.mock('~/server/db/models/Character', () => ({ Character: { find: vi.fn() } })
 vi.mock('~/server/db/models/Race', () => ({ Race: { find: vi.fn() } }));
 vi.mock('~/server/db/models/Rule', () => ({ Rule: { find: vi.fn() } }));
 vi.mock('~/server/db/models/Lore', () => ({ Lore: { find: vi.fn() } }));
-vi.mock('mongoose', async () => {
-  const actual = await vi.importActual<typeof import('mongoose')>('mongoose');
-  return { default: { startSession: vi.fn(), Types: actual.Types } };
-});
-
-import mongoose from 'mongoose';
 import { getSession, createPartyBroadcastToken } from '~/server/session';
-import { User } from '~/server/db/models/User';
-import { Campaign } from '~/server/db/models/Campaign';
+import { resetIdentityDouble } from './identityTestDouble';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { TabletopScreen } from '~/server/db/models/TabletopScreen';
 import { GMScreen } from '~/server/db/models/GMScreen';
 import { TabletopPlayerState } from '~/server/db/models/TabletopPlayerState';
@@ -121,7 +107,7 @@ const mockSession = {
   tokenIssuedAt: 0,
 };
 
-const mockDbUser = { _id: CALLER_DB_ID, firstName: 'Player', lastName: 'One' };
+const mockDbUser = { id: CALLER_DB_ID, firstName: 'Player', lastName: 'One' };
 
 /** Caller is a member with role 'player'; someone else is the GM. */
 const mockCampaign = {
@@ -136,7 +122,7 @@ const mockCampaign = {
 
 /** Re-point the campaign so the authenticated caller IS the GM. */
 function callerIsGM() {
-  vi.mocked(Campaign.findById).mockResolvedValue({
+  campaignsDouble.get.mockResolvedValue({
     ...mockCampaign,
     gameMasterId: CALLER_DB_ID,
     members: [{ userId: CALLER_DB_ID, role: 'gm' }],
@@ -219,8 +205,8 @@ function pushCall() {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
-  vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
-  vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign as never);
+  resetIdentityDouble(mockDbUser);
+  campaignsDouble.get.mockResolvedValue(mockCampaign as never);
   vi.mocked(TabletopPlayerState.updateOne).mockResolvedValue(PUSH_APPLIED as never);
 
   // Screens exist by default.
@@ -262,7 +248,7 @@ describe('addPrivateWindow', () => {
 
     const result = await _addPrivateWindow({ data: { ...validAddPayload } });
 
-    expect(vi.mocked(Campaign.findById)).toHaveBeenCalledWith(CAMPAIGN_ID);
+    expect(campaignsDouble.get).toHaveBeenCalledWith(CAMPAIGN_ID);
     expect(result.privateWindows).toHaveLength(1);
     expect(result.privateWindows[0]).toMatchObject({
       id: PW_ID,
@@ -331,16 +317,16 @@ describe('addPrivateWindow', () => {
       },
     ]);
 
-    // $expr counts only THIS surface+screen and rejects at the cap. The screen
-    // id must be a real ObjectId: $expr is not cast by mongoose, so a string
-    // would silently never match and the cap would count zero.
+    // $expr counts only THIS surface+screen and rejects at the cap. Ids are stored
+    // as 24-hex strings, so the screen id is compared as one (the graph-model test
+    // tests/server/db/tabletopPlayerState-privateWindowFilter.test.ts proves the
+    // filter against stored documents).
     const expr = f.$expr as { $lt: [{ $size: { $filter: { cond: unknown } } }, number] };
     expect(expr.$lt[1]).toBe(MAX_PRIVATE_WINDOWS);
     const cond = expr.$lt[0].$size.$filter.cond as { $and: Array<Record<string, unknown[]>> };
     expect(cond.$and[0]).toEqual({ $eq: ['$$this.surface', 'tabletop'] });
     const screenEq = cond.$and[1]!.$eq as unknown[];
-    expect(screenEq[1]).toBeInstanceOf(mongoose.Types.ObjectId);
-    expect(String(screenEq[1])).toBe(SCREEN_ID);
+    expect(screenEq[1]).toBe(SCREEN_ID);
   });
 
   it('scopes the cap filter to the screen being targeted, not the whole document', async () => {
@@ -669,7 +655,7 @@ describe('updatePrivateWindow', () => {
   });
 
   it('rejects a non-member', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: CAMPAIGN_ID,
       gameMasterId: GM_DB_ID,
       members: [{ userId: GM_DB_ID, role: 'gm' }],
@@ -748,7 +734,7 @@ describe('removePrivateWindow', () => {
   });
 
   it('rejects a non-member', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: CAMPAIGN_ID,
       gameMasterId: GM_DB_ID,
       members: [{ userId: GM_DB_ID, role: 'gm' }],

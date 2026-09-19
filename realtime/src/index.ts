@@ -1,6 +1,5 @@
-import { MongoClient } from 'mongodb';
 import { verifyBroadcastToken } from './auth.js';
-import { MemoryHistoryStore, MongoHistoryStore, type HistoryStore } from './history.js';
+import { GraphHistoryStore, MemoryHistoryStore, type HistoryStore } from './history.js';
 import { createSessionHandler } from './parties/session.js';
 import { tabletopHandler } from './parties/tabletop.js';
 import { createTabletopMapHandler } from './parties/tabletopMap.js';
@@ -14,18 +13,18 @@ if (!SESSION_SECRET || SESSION_SECRET.trim() === '') {
   process.exit(1);
 }
 
+// The graph is configured (with the rest of the data settings) wherever the app's
+// data stores are; without it, history lives only as long as this process.
 let store: HistoryStore;
-let mongo: MongoClient | null = null;
-if (process.env.MONGODB_URI) {
-  mongo = new MongoClient(process.env.MONGODB_URI);
-  await mongo.connect();
-  const mongoStore = new MongoHistoryStore(mongo.db());
-  await mongoStore.ensureIndexes();
-  store = mongoStore;
-  log.info('chat history persisted to MongoDB');
+let closeData: (() => Promise<void>) | null = null;
+if (process.env.GREMLIN_URL) {
+  const runtime = await import('../../app/server/db/data-runtime');
+  closeData = runtime.closeData;
+  store = new GraphHistoryStore();
+  log.info('chat history persisted to the graph');
 } else {
   store = new MemoryHistoryStore();
-  log.warn('MONGODB_URI not set — chat history is in-memory only');
+  log.warn('GREMLIN_URL not set — chat history is in-memory only');
 }
 
 const server = createRealtimeServer({
@@ -45,7 +44,7 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.on(signal, () => {
     log.info({ signal }, 'shutting down');
     server.close(() => {
-      void (mongo ? mongo.close() : Promise.resolve()).finally(() => process.exit(0));
+      void (closeData ? closeData() : Promise.resolve()).finally(() => process.exit(0));
     });
     setTimeout(() => process.exit(0), 5000).unref();
   });

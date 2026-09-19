@@ -23,7 +23,7 @@
  * subscribers). The walker needs a token bucket.
  */
 import type { Fixture, FixtureContext } from '../cli';
-import type { ObjectId } from 'mongodb';
+import type { ObjectId } from '../../graph-db';
 
 const FIXTURE_NAME = 'kanka';
 

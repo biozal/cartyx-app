@@ -46,8 +46,8 @@ export default defineConfig({
         // assertions.
         //
         // `setupFiles: []` is deliberate: the root `tests/setup.ts` mocks
-        // mongoose, which is irrelevant here and pulls node-only modules into
-        // a browser bundle.
+        // server-only modules, which are irrelevant here and pull node-only
+        // modules into a browser bundle.
         extends: true,
         test: {
           name: 'browser',

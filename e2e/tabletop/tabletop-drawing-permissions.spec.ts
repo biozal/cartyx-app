@@ -11,8 +11,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
-import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { SignJWT, decodeJwt } from 'jose';
+import { closeIdentity, seedIdentity, seededGameMaster } from '../fixtures/data';
+import { campaignFixtures } from '../fixtures/campaigns';
+import { graphDb, ObjectId, type Db } from '../../scripts/graph-db';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -31,11 +33,10 @@ interface Provisioned {
   playerCookie: string;
 }
 
-let client: MongoClient;
 let provisioned: Provisioned;
 
 function db(): Db {
-  return process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+  return graphDb();
 }
 
 function drawings() {
@@ -49,32 +50,22 @@ async function provision(database: Db): Promise<Provisioned> {
   const cookie = storage.cookies.find((c) => c.name === 'cartyx_session');
   if (!cookie) throw new Error('No cartyx_session cookie — globalSetup did not run?');
   const providerId = (decodeJwt(cookie.value) as { user?: { id?: string } }).user?.id;
-  const gm = await database.collection('users').findOne({ providerId });
-  if (!gm?._id) throw new Error('Session GM user not found');
+  const gm = seededGameMaster(providerId);
 
   const now = new Date();
 
-  // A dedicated player member (stable providerId) so we can mint its session.
-  await database.collection('users').updateOne(
-    { providerId: PLAYER_PROVIDER_ID },
-    {
-      $setOnInsert: {
-        provider: 'e2e',
-        providerId: PLAYER_PROVIDER_ID,
-        role: 'player',
-        firstName: 'E2E',
-        lastName: 'Player',
-        email: 'e2e-drawing-player@test.local',
-        createdAt: now,
-      },
-    },
-    { upsert: true }
-  );
-  const player = await database.collection('users').findOne({ providerId: PLAYER_PROVIDER_ID });
-  if (!player) throw new Error('Failed to provision e2e player user');
+  // A dedicated player member (stable providerId) so we can mint its session. Identity
+  // is served from the graph, so this creates the account the way a first login does.
+  const player = await seedIdentity({
+    provider: 'e2e',
+    providerId: PLAYER_PROVIDER_ID,
+    email: 'e2e-drawing-player@test.local',
+    firstName: 'E2E',
+    lastName: 'Player',
+  });
 
   const campaignId = (
-    await database.collection('campaigns').insertOne({
+    await campaignFixtures.insertOne({
       gameMasterId: gm._id,
       name: CAMPAIGN_NAME,
       description: 'E2E drawing permissions test.',
@@ -192,10 +183,6 @@ test.beforeAll(async () => {
   } catch {
     /* env may be set externally */
   }
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error('MONGODB_URI not set');
-  client = new MongoClient(uri);
-  await client.connect();
   provisioned = await provision(db());
 });
 
@@ -206,16 +193,16 @@ test.afterEach(async () => {
 });
 
 test.afterAll(async () => {
-  if (!client) return;
   if (provisioned?.campaignId) {
     const cid = new ObjectId(provisioned.campaignId);
     await drawings().deleteMany({ campaignId: cid });
     await db().collection('tabletopscreen').deleteMany({ campaignId: cid });
     await db().collection('map').deleteMany({ campaignId: cid });
-    await db().collection('campaigns').deleteMany({ _id: cid });
+    await campaignFixtures.deleteMany({ _id: cid });
   }
-  await db().collection('users').deleteOne({ providerId: PLAYER_PROVIDER_ID });
-  await client.close();
+  // The player's account stays: identities survive a clear, and seeding one is
+  // idempotent, so the next run resolves the same person.
+  await closeIdentity();
 });
 
 test('a GM sees the drawing and has the drawing tool', async ({ page }) => {

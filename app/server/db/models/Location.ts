@@ -1,66 +1,51 @@
-import mongoose, { type InferSchemaType, type Model } from 'mongoose';
+import { z } from 'zod';
+import { objectIdString } from '~/server/repositories/collection';
+import { defineGraphModel } from '~/server/repositories/graph-model';
 
-const locationSchema = new mongoose.Schema(
-  {
-    campaignId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Campaign',
-      required: true,
-    },
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-    name: { type: String, required: true },
-    locationType: { type: String, required: true },
-    description: { type: String, default: '' },
-    gmNotes: { type: String, default: '' },
-    isPublic: { type: Boolean, default: true },
-    parentLocations: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Location' }],
-    childLocations: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Location' }],
-    mapImage: { type: String, default: null },
-    mapBounds: {
-      type: new mongoose.Schema(
-        {
-          north: { type: Number, required: true },
-          south: { type: Number, required: true },
-          east: { type: Number, required: true },
-          west: { type: Number, required: true },
-        },
-        { _id: false }
-      ),
-      default: null,
-    },
-    images: [
-      new mongoose.Schema(
-        {
-          imageKey: { type: String, required: true },
-          url: { type: String, required: true },
-          title: { type: String, required: true },
-          uploadedAt: { type: Date, default: Date.now },
-        },
-        { _id: false }
-      ),
-    ],
-    tags: { type: [String], default: [] },
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now },
+/** Mirrors the Mongoose schema it replaced: same fields, defaults and stripping. */
+export const locationSchema = z.object({
+  _id: objectIdString,
+  campaignId: objectIdString,
+  createdBy: objectIdString,
+  name: z.string(),
+  locationType: z.string(),
+  description: z.string().default(''),
+  gmNotes: z.string().default(''),
+  isPublic: z.boolean().default(true),
+  parentLocations: z.array(objectIdString).default([]),
+  childLocations: z.array(objectIdString).default([]),
+  mapImage: z.string().nullable().default(null),
+  mapBounds: z
+    .object({ north: z.number(), south: z.number(), east: z.number(), west: z.number() })
+    .nullable()
+    .default(null),
+  images: z
+    .array(
+      z.object({
+        imageKey: z.string(),
+        url: z.string(),
+        title: z.string(),
+        uploadedAt: z.coerce.date().default(() => new Date()),
+      })
+    )
+    .default([]),
+  tags: z.array(z.string()).default([]),
+  createdAt: z.coerce.date().default(() => new Date()),
+  updatedAt: z.coerce.date().default(() => new Date()),
+});
+
+export type ILocation = z.infer<typeof locationSchema>;
+
+export const Location = defineGraphModel<ILocation>({
+  name: 'location',
+  kind: 'Location',
+  modelName: 'Location',
+  schema: locationSchema,
+  index: {
+    campaignId: 'ix_s1',
+    locationType: 'ix_s2',
+    isPublic: 'ix_b1',
+    updatedAt: 'ix_d1',
   },
-  { collection: 'location' }
-);
-
-// istanbul ignore next
-if (typeof (locationSchema as { index?: unknown }).index === 'function') {
-  locationSchema.index({ campaignId: 1, updatedAt: -1 });
-  locationSchema.index({ campaignId: 1, locationType: 1 });
-  locationSchema.index({ campaignId: 1, isPublic: 1 });
-  locationSchema.index({ tags: 1 });
-  locationSchema.index({ name: 'text', description: 'text' });
-}
-
-export type ILocation = InferSchemaType<typeof locationSchema>;
-
-export const Location: Model<ILocation> =
-  (mongoose.models.Location as Model<ILocation>) ||
-  mongoose.model<ILocation>('Location', locationSchema);
+  searchText: (location) => `${location.name} ${location.description}`,
+});

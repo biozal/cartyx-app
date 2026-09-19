@@ -44,10 +44,12 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import mongoose from 'mongoose';
 import { SignJWT } from 'jose';
 import { test, expect, openWikiTab, openTabletopTab } from '../fixtures/tabletop-fixtures';
+import { closeIdentity, seedIdentity } from '../fixtures/data';
 import type { Page, BrowserContext, Browser } from '@playwright/test';
+import { campaignFixtures } from '../fixtures/campaigns';
+import { graphDb, ObjectId } from '../../scripts/graph-db';
 
 /** Stable name so re-running the suite reuses one quest instead of piling up. */
 const E2E_QUEST_NAME = 'E2E Overflow Menu Quest';
@@ -63,18 +65,15 @@ function readSeed(): SeedData {
   ) as SeedData;
 }
 
-function loadEnv(): { mongoUri: string; sessionSecret: string } {
+function loadEnv(): { sessionSecret: string } {
   try {
     process.loadEnvFile('.env');
   } catch {
     // .env optional when the vars are already in the environment (CI).
   }
-  const mongoUri = process.env.MONGODB_URI;
   const sessionSecret = process.env.SESSION_SECRET;
-  if (!mongoUri) throw new Error('MONGODB_URI not set');
   if (!sessionSecret) throw new Error('SESSION_SECRET not set');
-  if (/prod/i.test(mongoUri)) throw new Error('Refusing to use a production-looking MONGODB_URI');
-  return { mongoUri, sessionSecret };
+  return { sessionSecret };
 }
 
 interface SessionUserDoc {
@@ -148,15 +147,12 @@ let gmUserId: string;
  *     push to that screen and the player view that same screen, deterministically.
  */
 async function prepareState(): Promise<void> {
-  const { mongoUri } = loadEnv();
+  loadEnv();
   const seed = readSeed();
-  const campaignId = new mongoose.Types.ObjectId(seed.campaignId);
-  const screenId = new mongoose.Types.ObjectId(seed.screenId);
-
-  await mongoose.connect(mongoUri, { dbName: process.env.MONGODB_DB });
+  const campaignId = new ObjectId(seed.campaignId);
+  const screenId = new ObjectId(seed.screenId);
   try {
-    const db = mongoose.connection.db;
-    if (!db) throw new Error('Mongo connection has no db handle');
+    const db = graphDb();
 
     let quest = await db.collection('quests').findOne({ campaignId, name: E2E_QUEST_NAME });
     if (!quest) {
@@ -175,7 +171,7 @@ async function prepareState(): Promise<void> {
         images: [],
         tags: [],
         campaignId,
-        createdBy: new mongoose.Types.ObjectId(gmUserId),
+        createdBy: new ObjectId(gmUserId),
         createdAt: now,
         updatedAt: now,
       });
@@ -201,13 +197,13 @@ async function prepareState(): Promise<void> {
       await db
         .collection('tabletopplayerstate')
         .updateOne(
-          { campaignId, userId: new mongoose.Types.ObjectId(userId) },
+          { campaignId, userId: new ObjectId(userId) },
           { $set: { activeScreenId: screenId } },
           { upsert: true }
         );
     }
   } finally {
-    await mongoose.disconnect();
+    // Nothing to release: the graph transport opens a connection per request.
   }
 }
 
@@ -254,43 +250,27 @@ test.describe('wiki card overflow menu', () => {
   test.describe.configure({ mode: 'serial' });
 
   test.beforeAll(async () => {
-    const { mongoUri, sessionSecret } = loadEnv();
+    const { sessionSecret } = loadEnv();
     const seed = readSeed();
-    const campaignId = new mongoose.Types.ObjectId(seed.campaignId);
-
-    await mongoose.connect(mongoUri, { dbName: process.env.MONGODB_DB });
+    const campaignId = new ObjectId(seed.campaignId);
     try {
-      const db = mongoose.connection.db;
-      if (!db) throw new Error('Mongo connection has no db handle');
-      const campaign = await db.collection('campaigns').findOne({ _id: campaignId });
+      const db = graphDb();
+      const campaign = await campaignFixtures.findOne({ _id: campaignId });
       if (!campaign) throw new Error('Seeded campaign not found — run `npm run dev:seed`');
       gmUserId = String(campaign.gameMasterId);
 
       // Self-provision a real, non-GM player identity rather than depending on
-      // a seeded player having a providerId. The dev seed never sets providerId
-      // (only seed-gm.cjs does, for the GM), so in CI no seeded player can hold
-      // a session — this test used to pass locally only because a dev DB
-      // happens to accumulate providerIds from real logins. Upsert a dedicated
-      // e2e player user + campaign membership; idempotent across runs.
+      // a seeded player. Seeded players have no provider until someone signs in
+      // as them, so none can hold a session in CI. Create a dedicated e2e player
+      // (idempotent across runs) and add its campaign membership.
       const PLAYER_PROVIDER_ID = 'e2e-overflow-player';
-      await db.collection('users').updateOne(
-        { providerId: PLAYER_PROVIDER_ID },
-        {
-          $set: {
-            providerId: PLAYER_PROVIDER_ID,
-            provider: 'test',
-            email: 'e2e-overflow-player@example.com',
-            firstName: 'E2E',
-            lastName: 'Player',
-            role: 'player',
-          },
-        },
-        { upsert: true }
-      );
-      const playerUser = (await db
-        .collection('users')
-        .findOne({ providerId: PLAYER_PROVIDER_ID })) as (SessionUserDoc & { _id: unknown }) | null;
-      if (!playerUser) throw new Error('Failed to provision the e2e player user');
+      const playerUser = await seedIdentity({
+        provider: 'test',
+        providerId: PLAYER_PROVIDER_ID,
+        email: 'e2e-overflow-player@example.com',
+        firstName: 'E2E',
+        lastName: 'Player',
+      });
       playerUserId = String(playerUser._id);
 
       // Grant campaign access: membership is what getCampaign checks (by the
@@ -301,23 +281,14 @@ test.describe('wiki card overflow menu', () => {
         (m: { userId?: unknown }) => String(m.userId) === playerUserId
       );
       if (!alreadyMember) {
-        await db
-          .collection('campaigns')
-          .updateOne(
-            { _id: campaignId },
-            { $push: { members: { userId: playerUser._id, role: 'player', joinedAt: new Date() } } }
-          );
+        await campaignFixtures.addPlayer(campaignId, playerUser._id);
       }
-      await db
-        .collection('users')
-        .updateOne(
-          { _id: playerUser._id, 'campaigns.campaignId': { $ne: campaignId } },
-          { $push: { campaigns: { campaignId, joinedAt: new Date(), status: 'active' } } }
-        );
+      // The campaign's member entry is what grants access; the user-side mirror that
+      // used to be written here is gone, because nothing read it.
 
       playerStorageState = await mintStorageState(playerUser, sessionSecret);
     } finally {
-      await mongoose.disconnect();
+      await closeIdentity();
     }
   });
 
@@ -332,14 +303,11 @@ test.describe('wiki card overflow menu', () => {
   // fixture's questId exactly as `prepareState` does, so globalSetup's seeded
   // location window on the E2E screen is never touched.
   test.afterAll(async () => {
-    const { mongoUri } = loadEnv();
+    loadEnv();
     const seed = readSeed();
-    const campaignId = new mongoose.Types.ObjectId(seed.campaignId);
-
-    await mongoose.connect(mongoUri, { dbName: process.env.MONGODB_DB });
+    const campaignId = new ObjectId(seed.campaignId);
     try {
-      const db = mongoose.connection.db;
-      if (!db) throw new Error('Mongo connection has no db handle');
+      const db = graphDb();
 
       const quest = await db.collection('quests').findOne({ campaignId, name: E2E_QUEST_NAME });
       if (quest) {
@@ -364,13 +332,13 @@ test.describe('wiki card overflow menu', () => {
         {
           campaignId,
           userId: {
-            $in: [gmUserId, playerUserId].map((id) => new mongoose.Types.ObjectId(id)),
+            $in: [gmUserId, playerUserId].map((id) => new ObjectId(id)),
           },
         },
         { $unset: { activeScreenId: '' } }
       );
     } finally {
-      await mongoose.disconnect();
+      // Nothing to release: the graph transport opens a connection per request.
     }
   });
 

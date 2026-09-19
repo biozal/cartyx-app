@@ -1,0 +1,12 @@
+# Used instead of the root .dockerignore for `docker build -f realtime/Dockerfile .`:
+# only what the realtime build reads.
+*
+!tsconfig.json
+!app/
+!realtime/package.json
+!realtime/package-lock.json
+!realtime/tsconfig.json
+!realtime/src/
+**/node_modules
+**/*.test.ts
+**/*.stories.tsx

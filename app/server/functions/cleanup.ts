@@ -7,8 +7,8 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
-import { User } from '../db/models/User';
-import { Campaign } from '../db/models/Campaign';
+import { identityRepository } from '../repositories/identity';
+import { campaigns } from '../repositories/campaigns';
 import { Location } from '../db/models/Location';
 import { Character } from '../db/models/Character';
 import { Player } from '../db/models/Player';
@@ -94,7 +94,6 @@ async function collectInUseKeys(cdnUrl: string | null): Promise<Set<string>> {
   const sources = [
     [Character.find({}, 'picture').lean(), 'picture'],
     [Player.find({}, 'picture').lean(), 'picture'],
-    [Campaign.find({}, 'imagePath').lean(), 'imagePath'],
   ] as const;
   for (const [query, field] of sources) {
     const cursor = query.cursor();
@@ -103,6 +102,10 @@ async function collectInUseKeys(cdnUrl: string | null): Promise<Set<string>> {
       const key = urlToKey(url, cdnUrl);
       if (key) inUse.add(key);
     }
+  }
+  for (const campaign of await campaigns.listAll()) {
+    const key = urlToKey(campaign.imagePath ?? undefined, cdnUrl);
+    if (key) inUse.add(key);
   }
 
   // No AudioAsset walk here on purpose. Audio keys are outside TRACKED_PREFIXES
@@ -144,13 +147,13 @@ async function requireGmOfCampaign(campaignId: string): Promise<{ sessionUserId:
   await connectDB();
   if (!isDBConnected()) throw new Error('Database not available');
 
-  const dbUser = await User.findOne({ providerId: user.id });
+  const dbUser = await identityRepository.findProfile(user.id);
   if (!dbUser) throw new Error('User not found');
 
-  const campaign = await Campaign.findById(campaignId);
+  const campaign = await campaigns.get(String(campaignId));
   if (!campaign) throw new Error('Campaign not found');
 
-  const userId = String(dbUser._id);
+  const userId = String(dbUser.id);
   const members = (campaign.members ?? []) as Array<{ userId: unknown; role?: string }>;
   const member = members.find((m) => String(m.userId) === userId);
   const isGM = String(campaign.gameMasterId) === userId || member?.role === 'gm';

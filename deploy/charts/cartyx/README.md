@@ -28,8 +28,8 @@ branches.
 `VITE_PUBLIC_*` values (feature flags, the browser-facing ws host) are
 compiled into the client bundle when the image is
 built, from `deploy/build/web-<env>.args`. **Changing one = edit that file,
-merge, let the workflow rebuild.** Server-read env (`MONGODB_URI`,
-`SESSION_SECRET`, OAuth, R2, `APP_ENV`, `BASE_URL`) is live: plain values in
+merge, let the workflow rebuild.** Server-read env (`SESSION_SECRET`,
+OAuth, R2, `APP_ENV`, `BASE_URL`, the data-store settings) is live: plain values in
 `values-<env>.yaml`, secrets in the `cartyx` Secret (below).
 
 ## One-time setup
@@ -39,14 +39,16 @@ merge, let the workflow rebuild.** Server-read env (`MONGODB_URI`,
 
         kubectl -n prod create secret generic cartyx \
           --from-literal=sessionSecret='...' \
-          --from-literal=mongodbUri='...' \
           --from-literal=googleClientSecret='...' \
           --from-literal=githubClientSecret='...' \
           --from-literal=r2AccessKeyId='...' \
           --from-literal=r2SecretAccessKey='...'
 
-    Repeat with `-n dev` and the dev-site values (dev Mongo DB, dev OAuth
-    client secrets if separate). `sessionSecret` must be ≥32 chars — the app
+    Repeat with `-n dev` and the dev-site values (dev OAuth client secrets
+    if separate). The graph and Cassandra credentials are not in this Secret:
+    they come from `cartyx-app-data`, provisioned by cartyx-infrastructure
+    (`data.secretName`), and every environment must set
+    `data.cql.stateKeyspace` — rendering without the data stores fails. `sessionSecret` must be ≥32 chars — the app
     refuses to boot in production/staging otherwise.
 
 2.  **Deploy PAT**: fine-grained PAT scoped to `biozal/cartyx-infrastructure`
@@ -74,7 +76,7 @@ merge, let the workflow rebuild.** Server-read env (`MONGODB_URI`,
   recreate), then `kubectl -n <env> rollout restart deploy/cartyx-web
 deploy/cartyx-realtime deploy/cartyx-audio-worker` — the checksum auto-restart
   only covers the chart-managed (kind) Secret, not `existingSecret`. The worker
-  reads `mongodbUri` and both R2 keys, so leaving it out of the restart list
+  reads both R2 keys, so leaving it out of the restart list
   leaves it authenticating with the old credentials.
 - **Flip a client feature flag**: edit `deploy/build/web-<env>.args`, merge.
 - **Roll back**: revert the tag-bump commit in cartyx-infrastructure (Flux

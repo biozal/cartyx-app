@@ -16,7 +16,7 @@ BASE_ARGS=(
   --set=ingress.wsHost=ws.test
   --set=tls.certificate.clusterIssuer=test-issuer
   --set-string=secret.values.sessionSecret=render-test-session-secret-32-chars
-  --set-string=secret.values.mongodbUri=mongodb://render-test/db
+  --set-string=data.cql.stateKeyspace=cartyx_test_state
 )
 
 render() { helm template cartyx "$CHART_DIR" "${BASE_ARGS[@]}" "$@" 2>&1; }
@@ -72,16 +72,19 @@ assert_contains "chart renders at least one object" "^kind:"
 
 # --- Task 2: helpers + secret ---
 assert_contains "secret rendered with session key" "sessionSecret:"
-assert_contains "secret rendered with mongo key" "mongodbUri:"
+assert_not_contains "secret no longer carries a MongoDB URI" "mongodbUri:"
 assert_contains "secret carries all six keys" "r2SecretAccessKey:"
 assert_not_contains "existingSecret suppresses managed Secret" "kind: Secret" \
   --set secret.existingSecret=my-secret
 filtered_args=$(args_without secret.values.sessionSecret)
 # shellcheck disable=SC2086
 assert_fails "missing sessionSecret is a render error" "sessionSecret" $filtered_args
-filtered_args=$(args_without secret.values.mongodbUri)
-# shellcheck disable=SC2086
-assert_fails "missing mongodbUri is a render error" "mongodbUri" $filtered_args
+assert_not_contains "no workload receives MONGODB_URI" "MONGODB_URI"
+assert_fails "rendering without the data stores is an error" "data.enabled must be true" \
+  --set=web.image.tag=t --set=realtime.image.tag=t --set=audioWorker.image.tag=t \
+  --set=ingress.webHost=w --set=ingress.wsHost=s --set=tls.certificate.clusterIssuer=i \
+  --set-string=secret.values.sessionSecret=render-test-session-secret-32-chars \
+  --set=data.enabled=false
 
 # --- Task 3: realtime deployment + service ---
 assert_contains "realtime deployment exists" "name: cartyx-realtime"
@@ -101,7 +104,7 @@ assert_contains "realtime NodePort honored" "nodePort: 30199" \
 # --- Task 4: web deployment + service ---
 assert_contains "web deployment exists" "name: cartyx-web"
 assert_contains "web readiness hits /readyz" "path: /readyz"
-assert_contains "web readiness timeout above the 2s mongo bound" "timeoutSeconds: 5"
+assert_contains "web readiness timeout above the 2s data-probe bound" "timeoutSeconds: 5"
 assert_contains "web gets in-cluster realtime host" "value: \"cartyx-realtime:1999\""
 assert_contains "web APP_ENV from values" "name: APP_ENV"
 assert_not_contains "empty web env values are omitted" "name: CDN_URL"
@@ -294,6 +297,36 @@ backoff_max_ms=$(env_value RETRY_BACKOFF_MAX_MS)
 if [ "$backoff_max_ms" -ge "$backoff_ms" ] && [ "$backoff_max_ms" -le "$claim_ms" ]; then ok; else
   bad "RETRY_BACKOFF_MAX_MS ($backoff_max_ms) must sit between the base ($backoff_ms) and the claim budget ($claim_ms)"
 fi
+
+# ---- graph/Cassandra data access (the app's only data stores) ----
+DATA_ARGS=(
+  --set=data.enabled=true
+  --set=data.cql.stateKeyspace=cartyx_dev_state
+)
+# On by default: there is no other store to fall back to.
+assert_contains "data access is on by default (label)" "cartyx\.io/data-client"
+assert_contains "data access is on by default (Gremlin env)" "GREMLIN_URL"
+assert_contains "data access is on by default (credential mount)" "cartyx-app-data"
+
+# Enabled: every workload gets the label the database NetworkPolicy requires.
+label_count=$(render "${DATA_ARGS[@]}" | grep -c "cartyx\.io/data-client: 'true'")
+if [ "$label_count" -eq 3 ]; then ok; else bad "all three workloads are labelled data clients (got $label_count)"; fi
+assert_contains "graph endpoint is in-cluster TLS" "wss://cartyx-data-janusgraph:8182/gremlin" "${DATA_ARGS[@]}"
+assert_contains "CQL keyspace is set" "CQL_STATE_KEYSPACE" "${DATA_ARGS[@]}"
+assert_contains "credentials come from the app data Secret" "secretName: \"cartyx-app-data\"" "${DATA_ARGS[@]}"
+assert_contains "credential files are read-only" "readOnly: true" "${DATA_ARGS[@]}"
+
+# The operator graph password and the Cassandra admin password must never reach app pods.
+assert_not_contains "no operator graph credential" "key: gremlin-password" "${DATA_ARGS[@]}"
+assert_not_contains "no Cassandra admin credential" "cassandra-admin-password" "${DATA_ARGS[@]}"
+assert_not_contains "no schema credential" "CQL_ADMIN_PASSWORD_FILE" "${DATA_ARGS[@]}"
+
+# A keyspace is mandatory once enabled: a wrong default would write to another environment.
+assert_fails "data.enabled requires a state keyspace" "data.cql.stateKeyspace is required" \
+  --set=web.image.tag=t --set=realtime.image.tag=t --set=audioWorker.image.tag=t \
+  --set=ingress.webHost=w --set=ingress.wsHost=s --set=tls.certificate.clusterIssuer=i \
+  --set-string=secret.values.sessionSecret=render-test-session-secret-32-chars \
+  --set=data.enabled=true
 
 # ---- summary ----
 echo "render-tests: $PASS passed, $FAIL failed"

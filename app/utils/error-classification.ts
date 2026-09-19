@@ -41,7 +41,11 @@ const NETWORK_ERROR_PATTERN = /failed to fetch|load failed|networkerror/i;
  *    "database not connected" messages when the connection is down.
  *  - a mid-session Mongo disconnect surfaces as mongoose command-buffering
  *    timeouts, driver `MongoNetworkError`/`PoolClearedError` drops, or
- *    "MongoClient must be connected" guard messages;
+ *    "MongoClient must be connected" guard messages (kept for clients still
+ *    running a bundle from before the move to the graph);
+ *  - a graph or CQL request that failed at the transport ("Graph request
+ *    failed", "CQL request failed"). A graph *conflict* is a lost race, not an
+ *    outage, and is deliberately not matched;
  *  - Vercel's platform-level failures (as opposed to our own handler code)
  *    arrive as `FUNCTION_INVOCATION_FAILED`/`FUNCTION_INVOCATION_TIMEOUT`
  *    error bodies. The generic "A server error has occurred" text Vercel
@@ -49,7 +53,7 @@ const NETWORK_ERROR_PATTERN = /failed to fetch|load failed|networkerror/i;
  *    too generic and would false-positive on unrelated app copy.
  */
 const TRANSPORT_ERROR_PATTERN =
-  /502 bad gateway|503 service unavailable|504 gateway time-?out|gateway timeout|server function info not found|server selection timed out|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|getaddrinfo|socket hang up|topology .*(closed|destroyed)|database not connected|buffering timed out|connection \d+ to .* closed|pool .*(was )?cleared|client must be connected|FUNCTION_INVOCATION_FAILED|FUNCTION_INVOCATION_TIMEOUT/i;
+  /502 bad gateway|503 service unavailable|504 gateway time-?out|gateway timeout|server function info not found|server selection timed out|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|getaddrinfo|socket hang up|topology .*(closed|destroyed)|database not connected|buffering timed out|connection \d+ to .* closed|pool .*(was )?cleared|client must be connected|graph request failed|cql request failed|FUNCTION_INVOCATION_FAILED|FUNCTION_INVOCATION_TIMEOUT/i;
 
 export function isInfrastructureFailure(error: unknown): boolean {
   if (!(error instanceof Error)) return false;

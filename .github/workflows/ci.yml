@@ -76,13 +76,20 @@ jobs:
         with:
           node-version: '25'
           cache: 'npm'
-          cache-dependency-path: ${{ matrix.service }}/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            ${{ matrix.service }}/package-lock.json
 
       # ffprobe/ffmpeg are required by audio-worker's integration test, which
       # deliberately runs the real binaries — mocking them would test nothing.
       - name: Install ffmpeg
         if: matrix.service == 'audio-worker'
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      # The services bundle the app's graph modules, so type-checking them reaches
+      # app files, whose packages resolve from the root install.
+      - name: Install root dependencies
+        run: npm ci
 
       - name: Install dependencies
         run: npm ci
@@ -110,10 +117,11 @@ jobs:
       # ffprobe's presence, a libopus-enabled ffmpeg, and a real end-to-end run
       # of the exact filter chain in src/ffmpeg.ts. Those were unverified
       # assumptions that would otherwise have failed per-asset at runtime.
-      # No push and no registry credentials — this proves the build, nothing more.
+      # Both images build from the repository root, since each bundles the app's
+      # graph modules. No push and no registry credentials — this proves the
+      # build, nothing more.
       - name: Build container image
-        if: matrix.service == 'audio-worker'
-        run: docker build -t cartyx-audio-worker:ci audio-worker
+        run: docker build -f ${{ matrix.service }}/Dockerfile -t cartyx-${{ matrix.service }}:ci .
 
   build:
     name: Build
@@ -192,48 +200,47 @@ jobs:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
     needs: quality
-    # E2E is heavier than the unit suite (spins up Mongo + the dev server and
-    # drives a real browser), so we only run it on PRs — not on every branch
+    # E2E is heavier than the unit suite (spins up JanusGraph/Cassandra + the dev
+    # server and drives a real browser), so we only run it on PRs — not on every branch
     # push. The repo convention is PRs target `dev`/`main` (see the top-level
     # `on:` block), so this still gates every change before it merges.
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
-    services:
-      # Ephemeral MongoDB for the run — no external/Atlas secret required.
-      # The suite refuses any URI matching /prod/i (see e2e/globalSetup.ts),
-      # and this DB is torn down with the job.
-      mongo:
-        image: mongo:8
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     env:
       # Reuse the same throwaway value pattern as the unit-test job; this is a
       # test fixture, not a secret.
       SESSION_SECRET: ci-test-secret-at-least-32-characters-long
-      # The db name must be in the URI path: the app's connectDB() calls
-      # mongoose.connect(uri) WITHOUT a dbName option, so a bare host URI
-      # sends the app to mongoose's default `test` database while globalSetup,
-      # seed-gm.cjs, dev_seed.py, and the specs all honor MONGODB_DB — a
-      # split-brain where the app can't see any seeded/provisioned data.
-      # MONGODB_DB stays for the tooling that reads it; both resolve to the
-      # same database.
-      MONGODB_URI: mongodb://localhost:27017/cartyx_e2e
-      MONGODB_DB: cartyx_e2e
       NODE_ENV: test
       # The dev server reads BASE_URL when building OAuth redirect URIs and for
       # isOAuthConfigured(); point it at the Playwright dev-server origin so no
       # code path throws on a missing BASE_URL even though e2e uses a pre-minted
       # session cookie rather than the live OAuth flow.
       BASE_URL: http://localhost:3000
+      # The pinned JanusGraph/Cassandra stack started below.
+      CARTYX_INFRASTRUCTURE_DIR: ${{ github.workspace }}/.local/e2e-infrastructure
+      GREMLIN_URL: wss://localhost:18182/gremlin
+      GREMLIN_USERNAME: cartyx_app
+      GREMLIN_PASSWORD_FILE: ${{ github.workspace }}/.local/e2e-infrastructure/.local/data/local/gremlin-app-password
+      GREMLIN_CA_FILE: ${{ github.workspace }}/.local/e2e-infrastructure/.local/data/local/tls.crt
+      CQL_CONTACT_POINT: 127.0.0.1
+      CQL_PORT: '19042'
+      CQL_TLS_SERVER_NAME: localhost
+      CQL_DATACENTER: dc1
+      CQL_STATE_KEYSPACE: cartyx_state
+      CQL_CA_FILE: ${{ github.workspace }}/.local/e2e-infrastructure/.local/data/local/tls.crt
+      CQL_PASSWORD_FILE: ${{ github.workspace }}/.local/e2e-infrastructure/.local/data/local/cassandra-state-password
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+
+      - name: Check out the pinned database infrastructure
+        uses: actions/checkout@v7
+        with:
+          repository: biozal/cartyx-infrastructure
+          ref: 83f928ddb52ef297f34a89e7779536f66e1fe1d0
+          path: .local/e2e-infrastructure
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -257,12 +264,18 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      - name: Start the pinned TLS databases
+        run: npm run db:up
+
+      - name: Install the graph and state schemas
+        # The same step local development runs; it supplies the operator credentials,
+        # which the application principal in this job's environment does not hold.
+        run: npm run db:schema
+
       - name: Seed database
-        # globalSetup.ts looks up a GM user + seeded campaign/location/screen.
-        # seed-gm.cjs bootstraps the GM user, then dev:seed populates campaigns.
-        run: |
-          node scripts/seed-gm.cjs
-          npm run dev:seed
+        # globalSetup.ts looks up the seeded game master plus a campaign, location and
+        # screen. dev:seed creates the account in the graph, then populates the rest.
+        run: npm run dev:seed
 
       - name: Run Playwright tests
         # Retries (2) and webServer timeout are configured in playwright.config.ts

@@ -14,12 +14,8 @@ vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
   isDBConnected: vi.fn(() => true),
 }));
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn() },
-}));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findById: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/Rule', () => ({
   Rule: {
     create: vi.fn(),
@@ -38,8 +34,8 @@ vi.mock('~/server/functions/gmscreens-helpers', () => ({
 }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
-import { Campaign } from '~/server/db/models/Campaign';
+import { resetIdentityDouble } from './identityTestDouble';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { Rule } from '~/server/db/models/Rule';
 import {
   createRule,
@@ -65,7 +61,7 @@ const mockSession = {
   refreshToken: null,
   tokenIssuedAt: 0,
 };
-const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
+const mockDbUser = { id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
 const mockGMCampaign = {
   _id: 'camp-1',
   gameMasterId: 'dbuser-1',
@@ -117,8 +113,8 @@ const _getRule = getRule as unknown as (args: {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
-  vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
-  vi.mocked(Campaign.findById).mockResolvedValue(mockGMCampaign);
+  resetIdentityDouble(mockDbUser);
+  campaignsDouble.get.mockResolvedValue(mockGMCampaign);
 });
 
 // ---------------------------------------------------------------------------
@@ -181,7 +177,7 @@ describe('createRule', () => {
   });
 
   it('throws when user is not a GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
 
     await expect(
       _createRule({ data: { campaignId: 'camp-1', title: 'T', content: 'B' } })
@@ -255,7 +251,7 @@ describe('updateRule', () => {
   });
 
   it('throws when user is not a GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
 
     await expect(
       _updateRule({
@@ -293,7 +289,7 @@ describe('listRules', () => {
   });
 
   it('constrains non-GM users to public rules only', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
     mockFind([]);
 
     await _listRules({ data: { campaignId: 'camp-1' } });
@@ -392,7 +388,7 @@ describe('getRule', () => {
   });
 
   it('returns null for private rules when user is not a GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
     const rule = makeRule({ isPublic: false });
     vi.mocked(Rule.findById).mockResolvedValue(rule as never);
 
@@ -402,7 +398,7 @@ describe('getRule', () => {
   });
 
   it('returns public rules for non-GM users', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
     const rule = makeRule({ isPublic: true });
     vi.mocked(Rule.findById).mockResolvedValue(rule as never);
 
@@ -466,7 +462,7 @@ describe('deleteRule', () => {
   });
 
   it('throws when user is not a GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
 
     await expect(_deleteRule({ data: { id: 'rule-1', campaignId: 'camp-1' } })).rejects.toThrow(
       'Forbidden'

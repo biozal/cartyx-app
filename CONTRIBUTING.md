@@ -12,7 +12,7 @@ npm run dev            # http://localhost:3000
 
 ### Python Scripts Setup
 
-Dev data scripts (seed/clear) use Python with pymongo. Set up the venv once:
+The seed builder (`scripts/dev_seed.py`) and the media clear use Python. Set up the venv once:
 
 ```bash
 python3 -m venv scripts/.venv
@@ -76,7 +76,7 @@ tests/
   utils/                 # Client utility tests
 ```
 
-**Rule:** Unit tests must not require a live MongoDB connection. Mock database calls where needed.
+**Rule:** Unit tests must not require a live database. Mock the models, or run the real ones on the in-memory entity store (`tests/server/functions/entityStoreDouble.ts`).
 
 ## Project Structure
 
