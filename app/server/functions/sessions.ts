@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import mongoose from 'mongoose';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
 import { identityRepository } from '../repositories/identity';
@@ -115,35 +114,28 @@ export const createSession = async ({ data }: { data: z.infer<typeof createSessi
   try {
     const { user, dbUser } = await requireGM(data.campaignId);
 
-    const mongoSession = await mongoose.startSession();
-    let sessionId: string;
-    try {
-      sessionId = (await mongoSession.withTransaction(async () => {
-        const lastSession = (await Session.findOne({ campaignId: data.campaignId })
-          .sort({ number: -1 })
-          .select('number')
-          .session(mongoSession)
-          .lean()) as { number: number } | null;
-        const number = lastSession ? lastSession.number + 1 : 0;
-
-        const [doc] = (await Session.create(
-          [
-            {
-              campaignId: data.campaignId,
-              name: data.name,
-              gm: dbUser.id,
-              number,
-              startDate: new Date(data.startDate),
-              status: 'not_started',
-            },
-          ],
-          { session: mongoSession }
-        )) as unknown as Array<{ _id: unknown }>;
-
-        return String(doc._id);
-      })) as string;
-    } finally {
-      await mongoSession.endSession();
+    // Numbers are unique per campaign; a create that races another for the same number
+    // is refused by that key and takes the next one.
+    let sessionId: string | undefined;
+    for (let attempt = 0; !sessionId; attempt++) {
+      const lastSession = (await Session.findOne({ campaignId: data.campaignId })
+        .sort({ number: -1 })
+        .select('number')
+        .lean()) as { number: number } | null;
+      const number = lastSession ? lastSession.number + 1 : 0;
+      try {
+        const doc = await Session.create({
+          campaignId: data.campaignId,
+          name: data.name,
+          gm: dbUser.id,
+          number,
+          startDate: new Date(data.startDate),
+          status: 'not_started',
+        });
+        sessionId = String(doc._id);
+      } catch (error) {
+        if ((error as { code?: number }).code !== 11000 || attempt >= 4) throw error;
+      }
     }
 
     serverCaptureEvent(user.id, 'session_created', {

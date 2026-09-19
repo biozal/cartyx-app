@@ -169,7 +169,8 @@ export interface DeleteResult {
   deletedCount: number;
 }
 
-export interface DocumentMethods<T> {
+// A type alias, not an interface, so documents stay assignable to Record<string, unknown>.
+export type DocumentMethods<T> = {
   save(): Promise<Doc<T>>;
   toObject(options?: unknown): T;
   toJSON(options?: unknown): T;
@@ -179,7 +180,7 @@ export interface DocumentMethods<T> {
   deleteOne(): Promise<DeleteResult>;
   isNew: boolean;
   readonly id: string;
-}
+};
 export type Doc<T> = T & DocumentMethods<T>;
 
 /**
@@ -253,6 +254,22 @@ export class GraphQuery<Result, LeanResult = Result> implements PromiseLike<Resu
 export interface GraphModelDefinition<T extends { _id: string }> extends CollectionDefinition<T> {
   /** The Mongoose model name, kept for error messages and logs. */
   modelName?: string;
+  /**
+   * The schema's `pre('save')` middleware. Like Mongoose, it runs for `create()` and
+   * `doc.save()` but not for `insertMany()` or update queries.
+   */
+  preSave?: (document: T, context: SaveContext) => T;
+  /**
+   * The schema's `pre('findOneAndUpdate')` middleware. It receives the update in `$set`
+   * form (Mongoose's bare-field form already folded in) and returns the one to apply.
+   */
+  preFindOneAndUpdate?: (update: UpdateQuery) => UpdateQuery;
+}
+
+export interface SaveContext {
+  isNew: boolean;
+  /** Whether a top-level field changed in this save (every field, for a new document). */
+  isModified(path: string): boolean;
 }
 
 interface QueryOptions {
@@ -342,6 +359,16 @@ export function defineGraphModel<T extends { _id: string }>(definition: GraphMod
     return limit ? documents.slice(start, start + limit) : documents.slice(start);
   }
 
+  /** Runs the pre-save hook; `original` is null for a document being created. */
+  function beforeSave(document: T, original: T | null, changed?: string[]): T {
+    if (!definition.preSave) return document;
+    const context: SaveContext = {
+      isNew: !original,
+      isModified: (path) => !original || !!changed?.includes(path.split('.')[0]),
+    };
+    return parse(definition.preSave(clone(document), context));
+  }
+
   function hydrate(stored: T, isNew = false): Doc<T> {
     const document = clone(stored) as Doc<T>;
     let original: T | null = isNew ? null : clone(stored);
@@ -377,19 +404,22 @@ export function defineGraphModel<T extends { _id: string }>(definition: GraphMod
       const current = plain();
       let saved: T;
       if (!original) {
-        saved = await collection.insert(parse({ ...current, _id: current._id ?? newObjectId() }));
+        const created = parse({ ...current, _id: current._id ?? newObjectId() });
+        saved = await collection.insert(beforeSave(created, null));
       } else {
         // Like Mongoose, write only what this document changed, onto the stored latest.
-        const before = original;
-        const changed = Object.keys({ ...before, ...current }).filter(
-          (key) =>
-            JSON.stringify((before as Plain)[key]) !== JSON.stringify((current as Plain)[key])
-        );
+        const before = original as Plain;
+        const differs = (after: Plain) =>
+          Object.keys({ ...before, ...after }).filter(
+            (key) => JSON.stringify(before[key]) !== JSON.stringify(after[key])
+          );
+        const edited = beforeSave(parse(current), original, differs(current as Plain)) as Plain;
+        const changed = differs(edited);
         const updated = await collection.update(current._id, (latest) => {
           const next: Plain = { ...latest };
           for (const key of changed)
-            if ((current as Plain)[key] === undefined) delete next[key];
-            else next[key] = (current as Plain)[key];
+            if (edited[key] === undefined) delete next[key];
+            else next[key] = edited[key];
           return parse(next);
         });
         if (!updated) throw new Error(`No ${modelName} found for id ${current._id} to save`);
@@ -499,7 +529,8 @@ export function defineGraphModel<T extends { _id: string }>(definition: GraphMod
 
   async function createOne(input: Plain): Promise<Doc<T>> {
     const stored = toStored(input) as Plain;
-    const created = await collection.insert(parse({ ...stored, _id: stored._id ?? newObjectId() }));
+    const document = parse({ ...stored, _id: stored._id ?? newObjectId() });
+    const created = await collection.insert(beforeSave(document, null));
     return hydrate(created);
   }
 
@@ -555,9 +586,10 @@ export function defineGraphModel<T extends { _id: string }>(definition: GraphMod
       return new GraphQuery<number>(async () => (await matching(filter)).length);
     },
 
+    // The single-document form last: it is the one mocks and `Parameters<>` see.
     create: createDocuments as {
-      (input: Plain): Promise<Doc<T>>;
-      (input: Plain[]): Promise<Doc<T>[]>;
+      (input: Plain[], options?: QueryOptions): Promise<Doc<T>[]>;
+      (input: Plain | Plain[], options?: QueryOptions): Promise<Doc<T>>;
     },
 
     async insertMany(inputs: Plain[], options: QueryOptions = {}): Promise<Doc<T>[]> {
@@ -604,7 +636,12 @@ export function defineGraphModel<T extends { _id: string }>(definition: GraphMod
 
     findOneAndUpdate(filter: FilterQuery, update: UpdateQuery, options: QueryOptions = {}) {
       const query = new GraphQuery<Doc<T> | null, T | null>(async (state) => {
-        const result = await updateFirst(filter, update, options);
+        const hook = definition.preFindOneAndUpdate;
+        const result = await updateFirst(
+          filter,
+          hook ? hook(normalizeUpdate(update)) : update,
+          options
+        );
         const returnAfter =
           options.new === true ||
           options.returnDocument === 'after' ||
@@ -646,11 +683,14 @@ export function defineGraphModel<T extends { _id: string }>(definition: GraphMod
     },
 
     /** Each operation on its own, in order; there is no cross-document atomicity. */
-    async bulkWrite(operations: BulkOperation[], options: QueryOptions = {}) {
+    async bulkWrite(
+      operations: ReadonlyArray<BulkOperation | Record<string, unknown>>,
+      options: QueryOptions = {}
+    ) {
       const totals = { insertedCount: 0, matchedCount: 0, modifiedCount: 0, deletedCount: 0 };
       let upsertedCount = 0;
       let firstError: unknown;
-      for (const operation of operations) {
+      for (const operation of operations as BulkOperation[]) {
         try {
           if ('insertOne' in operation) {
             await statics.create(operation.insertOne.document);

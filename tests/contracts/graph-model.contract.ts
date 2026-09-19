@@ -35,6 +35,9 @@ const Widget = defineGraphModel({
   index: { campaignId: 'ix_s1', name: 'ix_s2', kind: 'ix_s3', count: 'ix_n1' },
   searchText: (doc) => doc.name,
   unique: { campaignId_name: (doc) => [doc.campaignId, doc.name] },
+  // Like a Mongoose pre('save') hook: tidies tags only when they changed.
+  preSave: (doc, context) =>
+    context.isModified('tags') ? { ...doc, tags: [...new Set(doc.tags)] } : doc,
 });
 
 export async function graphModelContract() {
@@ -235,6 +238,20 @@ export async function graphModelContract() {
     // Like Mongoose, saving a document that was deleted meanwhile fails.
     await assert.rejects(fresh.save());
     await Widget.create({ campaignId, name: 'Built' });
+
+    // pre-save hooks run for create() and save(), not for update queries.
+    const hooked = await Widget.create({ campaignId, name: 'Hooked', tags: ['a', 'a'] });
+    assert.deepEqual(hooked.tags, ['a']);
+    await Widget.updateOne({ _id: hooked._id }, { $push: { tags: 'a' } });
+    assert.deepEqual((await Widget.findById(hooked._id).lean())!.tags, ['a', 'a']);
+    const untouched = (await Widget.findById(hooked._id))!;
+    untouched.notes = 'no tag change';
+    await untouched.save();
+    assert.deepEqual((await Widget.findById(hooked._id).lean())!.tags, ['a', 'a']);
+    const retagged = (await Widget.findById(hooked._id))!;
+    retagged.tags = ['b', 'b', 'a'];
+    await retagged.save();
+    assert.deepEqual((await Widget.findById(hooked._id).lean())!.tags, ['b', 'a']);
 
     // updateMany, bulkWrite, deletes.
     const many = await Widget.updateMany({ campaignId, kind: 'door' }, { $set: { count: 0 } });

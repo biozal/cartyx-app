@@ -50,6 +50,7 @@ import { test, expect, openWikiTab, openTabletopTab } from '../fixtures/tabletop
 import { closeIdentity, seedIdentity } from '../fixtures/data';
 import type { Page, BrowserContext, Browser } from '@playwright/test';
 import { campaignFixtures } from '../fixtures/campaigns';
+import { graphDb } from '../../scripts/graph-db';
 
 /** Stable name so re-running the suite reuses one quest instead of piling up. */
 const E2E_QUEST_NAME = 'E2E Overflow Menu Quest';
@@ -157,7 +158,7 @@ async function prepareState(): Promise<void> {
 
   await mongoose.connect(mongoUri, { dbName: process.env.MONGODB_DB });
   try {
-    const db = mongoose.connection.db;
+    const db = graphDb(mongoose.connection.db);
     if (!db) throw new Error('Mongo connection has no db handle');
 
     let quest = await db.collection('quests').findOne({ campaignId, name: E2E_QUEST_NAME });
@@ -262,7 +263,7 @@ test.describe('wiki card overflow menu', () => {
 
     await mongoose.connect(mongoUri, { dbName: process.env.MONGODB_DB });
     try {
-      const db = mongoose.connection.db;
+      const db = graphDb(mongoose.connection.db);
       if (!db) throw new Error('Mongo connection has no db handle');
       const campaign = await campaignFixtures.findOne({ _id: campaignId });
       if (!campaign) throw new Error('Seeded campaign not found — run `npm run dev:seed`');
@@ -319,7 +320,7 @@ test.describe('wiki card overflow menu', () => {
 
     await mongoose.connect(mongoUri, { dbName: process.env.MONGODB_DB });
     try {
-      const db = mongoose.connection.db;
+      const db = graphDb(mongoose.connection.db);
       if (!db) throw new Error('Mongo connection has no db handle');
 
       const quest = await db.collection('quests').findOne({ campaignId, name: E2E_QUEST_NAME });

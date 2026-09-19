@@ -19,6 +19,7 @@ import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { SignJWT, decodeJwt } from 'jose';
 import { closeIdentity, seedIdentity, seededGameMaster } from '../fixtures/data';
 import { campaignFixtures } from '../fixtures/campaigns';
+import { graphDb } from '../../scripts/graph-db';
 
 // Serial: all tests share one provisioned campaign on a single worker. Without
 // this, fullyParallel spreads tests across workers that each re-provision and
@@ -252,14 +253,14 @@ test.beforeAll(async () => {
   if (!uri) throw new Error('MONGODB_URI not set');
   client = new MongoClient(uri);
   await client.connect();
-  const db = process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+  const db = graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
   provisioned = await provision(db);
 });
 
 test.afterAll(async () => {
   if (!client) return;
   if (provisioned?.campaignId) {
-    const db = process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+    const db = graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
     const cid = new ObjectId(provisioned.campaignId);
     await db.collection('mapToken').deleteMany({ mapId: new ObjectId(provisioned.mapId) });
     await db.collection('tabletopscreen').deleteMany({ campaignId: cid });
@@ -273,7 +274,7 @@ test.afterAll(async () => {
 
 test.beforeEach(async () => {
   // Isolate each test — start with no tokens on the shared map.
-  const db = process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+  const db = graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
   await db.collection('mapToken').deleteMany({ mapId: new ObjectId(provisioned.mapId) });
 });
 

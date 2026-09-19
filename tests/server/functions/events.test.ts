@@ -145,7 +145,7 @@ describe('createEvent', () => {
   });
   it('computes startOrdinal/endOrdinal from the calendar', async () => {
     vi.mocked(Event.create).mockImplementation(
-      async (doc: Record<string, unknown>) => ({ _id: 'e1', ...doc }) as never
+      async (doc) => ({ _id: 'e1', ...(doc as Record<string, unknown>) }) as never
     );
     await _create({
       data: {
@@ -197,10 +197,10 @@ describe('createEvent', () => {
     const tags = new FakeMongooseArray();
     tags.push('festival');
     vi.mocked(Event.create).mockImplementation(
-      async (doc: Record<string, unknown>) =>
+      async (doc) =>
         ({
           _id: 'e1',
-          ...doc,
+          ...(doc as Record<string, unknown>),
           start: new SubDoc(1, 0, 2),
           end: new SubDoc(1, 0, 3),
           tags,

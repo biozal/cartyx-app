@@ -14,6 +14,7 @@ import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
 import { seededGameMaster } from '../fixtures/data';
 import { campaignFixtures } from '../fixtures/campaigns';
+import { graphDb } from '../../scripts/graph-db';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -136,14 +137,14 @@ test.beforeAll(async () => {
   if (!uri) throw new Error('MONGODB_URI not set');
   client = new MongoClient(uri);
   await client.connect();
-  const db = process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+  const db = graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
   campaignId = await provision(db);
 });
 
 test.afterAll(async () => {
   if (!client) return;
   if (campaignId) {
-    const db = process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+    const db = graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
     const cid = new ObjectId(campaignId);
     await db.collection('mapToken').deleteMany({ campaignId: cid });
     await db.collection('tabletopscreen').deleteMany({ campaignId: cid });

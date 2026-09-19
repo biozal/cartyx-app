@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import mongoose from 'mongoose';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
 import { identityRepository } from '../repositories/identity';
@@ -314,6 +313,28 @@ export const getCampaign = async ({ data }: { data: z.infer<typeof getCampaignSc
 
 export { campaignInputSchema };
 
+/**
+ * Removes a campaign whose setup failed, with the defaults written for it so far. Every
+ * step is attempted even if one fails, and the campaign itself always goes.
+ */
+async function removeNewCampaign(campaignId: string): Promise<void> {
+  const { Spell } = await import('../db/models/Spell');
+  const { Race } = await import('../db/models/Race');
+  const { Rule } = await import('../db/models/Rule');
+  const failures: unknown[] = [];
+  for (const model of [Session, GMScreen, Spell, Race, Rule] as const) {
+    try {
+      await (model as { deleteMany(filter: object): PromiseLike<unknown> }).deleteMany({
+        campaignId,
+      });
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  await campaigns.remove(campaignId);
+  if (failures.length) throw failures[0];
+}
+
 export const createCampaign = async ({ data }: { data: z.infer<typeof campaignInputSchema> }) => {
   const user = await getSession();
   try {
@@ -403,23 +424,20 @@ export const createCampaign = async ({ data }: { data: z.infer<typeof campaignIn
     }
     if (!result) throw new Error('Could not generate unique invite code');
 
-    const mongoSession = await mongoose.startSession();
+    // A new campaign's defaults are written in order. MongoDB wrapped them in one
+    // transaction; now, if any step fails, everything carrying the new campaign's id is
+    // removed — nothing else can refer to a campaign no one has seen yet.
     try {
-      await mongoSession.withTransaction(async () => {
-        // Create default Session 0 and GM Screen for new campaign
-        const now = new Date();
-        await Promise.all([
-          Session.create(
-            [
-              {
-                campaignId,
-                name: 'Session 0',
-                gm: dbUser.id,
-                number: 0,
-                startDate: now,
-                endDate: null,
-                status: 'active',
-                summary: `## Welcome to Your Campaign!
+      const now = new Date();
+      await Session.create({
+        campaignId,
+        name: 'Session 0',
+        gm: dbUser.id,
+        number: 0,
+        startDate: now,
+        endDate: null,
+        status: 'active',
+        summary: `## Welcome to Your Campaign!
 
 This is the **Catch Up** section. Your players will see this on their Dashboard to stay up to date on the story.
 
@@ -434,44 +452,27 @@ This is the **Catch Up** section. Your players will see this on their Dashboard 
 - **Session notes:** Use the session editor to keep notes during and after each session
 
 *Replace this text with your Session 0 recap once you're ready!*`,
-              },
-            ],
-            { session: mongoSession }
-          ),
-          GMScreen.create(
-            [
-              {
-                campaignId,
-                name: 'General',
-                tabOrder: 0,
-                createdBy: dbUser.id,
-              },
-            ],
-            { session: mongoSession }
-          ),
-        ]);
-
-        // Optionally seed SRD 5.2.1 content (spells + races + rules) into the
-        // new campaign, inside the same transaction so it commits atomically.
-        if (data.loadSrdData) {
-          const { importSrdContent } = await import('./srdImport');
-          await importSrdContent({
-            campaignId,
-            gmId: String(dbUser.id),
-            session: mongoSession,
-          });
-        }
       });
+      await GMScreen.create({
+        campaignId,
+        name: 'General',
+        tabOrder: 0,
+        createdBy: dbUser.id,
+      });
+
+      // Optionally seed SRD 5.2.1 content (spells + races + rules) into the new campaign.
+      if (data.loadSrdData) {
+        const { importSrdContent } = await import('./srdImport');
+        await importSrdContent({ campaignId, gmId: String(dbUser.id) });
+      }
     } catch (e) {
-      await campaigns.remove(campaignId).catch((cleanup: unknown) => {
+      await removeNewCampaign(campaignId).catch((cleanup: unknown) => {
         serverCaptureException(cleanup, user.id, {
           action: 'createCampaign',
           step: 'removeCampaignAfterFailedSetup',
         });
       });
       throw e;
-    } finally {
-      await mongoSession.endSession();
     }
 
     serverCaptureEvent(user.id, 'campaign_created', {
@@ -617,21 +618,21 @@ export const joinCampaign = async ({ data }: { data: z.infer<typeof joinCampaign
       .filter(Boolean)
       .join(' ')
       .trim();
-    // This legacy Player.userId field is not in the current schema, so Mongoose
-    // will not cast its filter. Preserve the BSON reference used before extraction.
-    const mongoUserId = new mongoose.Types.ObjectId(dbUser.id);
+    // A placeholder the player edits later, keyed by who it belongs to — `createdBy` is
+    // what the party list reads as the member's user id. It used to be written with
+    // fields the schema does not have (userId, characterName), which Mongoose dropped
+    // and so stored a nameless row; it now carries the schema's own fields.
     await Player.updateOne(
-      {
-        campaignId: updatedCampaign._id,
-        userId: mongoUserId,
-      },
+      { campaignId: updatedCampaign._id, createdBy: dbUser.id },
       {
         $setOnInsert: {
-          campaignId: updatedCampaign._id,
-          userId: mongoUserId,
-          characterName: displayName || 'Adventurer',
+          firstName: displayName || 'Adventurer',
+          lastName: '',
+          race: '',
           characterClass: 'Adventurer',
-          joinedAt: now,
+          age: 0,
+          createdAt: now,
+          updatedAt: now,
         },
       },
       { upsert: true }
@@ -665,47 +666,42 @@ export const activateSession = async ({
     if (!campaign) throw new Error('Campaign not found');
     if (String(campaign.gameMasterId) !== String(dbUser.id)) throw new Error('Forbidden');
 
-    const mongoSession = await mongoose.startSession();
-    try {
-      await mongoSession.withTransaction(async () => {
-        const currentActive = await Session.findOne({
-          campaignId: data.campaignId,
-          status: 'active',
-        }).session(mongoSession);
+    // At most one session per campaign is active — a unique key enforces it — so
+    // activation completes the current one first. If another activation wins the race
+    // in between, this one looks again.
+    for (let attempt = 0; ; attempt++) {
+      const currentActive = await Session.findOne({
+        campaignId: data.campaignId,
+        status: 'active',
+      });
 
-        // If the target is already the active session, no-op
-        if (currentActive && String(currentActive._id) === data.sessionId) {
-          return;
-        }
+      // If the target is already the active session, no-op
+      if (currentActive && String(currentActive._id) === data.sessionId) break;
 
-        // Verify target session exists and belongs to this campaign
-        const targetSession = await Session.findOne({
-          _id: data.sessionId,
-          campaignId: data.campaignId,
-        }).session(mongoSession);
-        if (!targetSession) throw new Error('Session not found');
+      // Verify target session exists and belongs to this campaign
+      const targetSession = await Session.findOne({
+        _id: data.sessionId,
+        campaignId: data.campaignId,
+      });
+      if (!targetSession) throw new Error('Session not found');
 
-        const now = new Date();
-
-        // Deactivate the currently active session
-        if (currentActive) {
-          const endDate = data.endDate ? new Date(data.endDate) : now;
-          await Session.updateOne(
-            { _id: currentActive._id },
-            { $set: { status: 'completed', endDate, updatedAt: now } },
-            { session: mongoSession }
-          );
-        }
-
-        // Activate the target session
+      const now = new Date();
+      if (currentActive) {
+        const endDate = data.endDate ? new Date(data.endDate) : now;
+        await Session.updateOne(
+          { _id: currentActive._id, status: 'active' },
+          { $set: { status: 'completed', endDate, updatedAt: now } }
+        );
+      }
+      try {
         await Session.updateOne(
           { _id: data.sessionId, campaignId: data.campaignId },
-          { $set: { status: 'active', updatedAt: now } },
-          { session: mongoSession }
+          { $set: { status: 'active', updatedAt: now } }
         );
-      });
-    } finally {
-      await mongoSession.endSession();
+        break;
+      } catch (error) {
+        if ((error as { code?: number }).code !== 11000 || attempt >= 4) throw error;
+      }
     }
 
     return { success: true };

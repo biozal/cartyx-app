@@ -52,9 +52,21 @@ export class ObjectId {
   }
 }
 
+/**
+ * While collections still on MongoDB exist, ids handed to specs are the driver's own
+ * ObjectIds, so a spec can use one in a MongoDB filter; bson does not serialize any other
+ * class as an id. Once the driver is gone, the local class stands in.
+ */
+const DriverObjectId = await import('mongodb').then(
+  (driver) => driver.ObjectId,
+  () => null
+);
+const toObjectId = (hex: string): ObjectId =>
+  (DriverObjectId ? new DriverObjectId(hex) : new ObjectId(hex)) as ObjectId;
+
 const withObjectId = <D>(document: D): D =>
   document && typeof (document as Plain)._id === 'string'
-    ? ({ ...document, _id: new ObjectId((document as Plain)._id as string) } as D)
+    ? ({ ...document, _id: toObjectId((document as Plain)._id as string) } as D)
     : document;
 
 interface FindOptions {
@@ -105,18 +117,18 @@ function cursor(model: Model, filter: Plain, options: FindOptions = {}) {
 }
 
 export function graphCollection(model: Model) {
-  const upsertedId = (id: string | null) => (id ? new ObjectId(id) : null);
+  const upsertedId = (id: string | null) => (id ? toObjectId(id) : null);
   return {
     async insertOne(document: Plain) {
       const created = (await model.create(document)) as { _id: string };
-      return { acknowledged: true, insertedId: new ObjectId(created._id) };
+      return { acknowledged: true, insertedId: toObjectId(created._id) };
     },
     async insertMany(documents: Plain[], options: { ordered?: boolean } = {}) {
       const created = (await model.insertMany(documents, options)) as { _id: string }[];
       return {
         acknowledged: true,
         insertedCount: created.length,
-        insertedIds: Object.fromEntries(created.map((d, i) => [i, new ObjectId(d._id)])),
+        insertedIds: Object.fromEntries(created.map((d, i) => [i, toObjectId(d._id)])),
       };
     },
     find(filter: Plain = {}, options: FindOptions = {}) {
@@ -162,16 +174,21 @@ interface DriverDb {
 }
 
 /**
- * `db.collection(name)`, answered by the graph for migrated collections and by the given
- * MongoDB handle for the rest. With no handle, an unmigrated name is an error.
+ * Wraps a MongoDB `Db` (or stands in for one) so `collection(name)` is answered by the
+ * graph for migrated collections and by MongoDB for the rest. It keeps the wrapped
+ * handle's type, so code written against the driver needs no other change. With no
+ * handle, an unmigrated name is an error.
  */
-export function graphDb(mongo?: DriverDb | null) {
-  return {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    collection(name: string): any {
-      if (name in graphModels) return graphCollection(graphModels[name as GraphModelName]);
-      if (mongo) return mongo.collection(name);
-      throw new Error(`${name} is not on the graph and no MongoDB handle was given`);
+export function graphDb<D extends DriverDb | null | undefined>(mongo: D): NonNullable<D> {
+  const target = (mongo ?? {}) as object;
+  return new Proxy(target, {
+    get(object, property, receiver) {
+      if (property !== 'collection') return Reflect.get(object, property, receiver);
+      return (name: string, ...rest: unknown[]) => {
+        if (name in graphModels) return graphCollection(graphModels[name as GraphModelName]);
+        if (mongo) return (mongo.collection as (...args: unknown[]) => unknown)(name, ...rest);
+        throw new Error(`${name} is not on the graph and no MongoDB handle was given`);
+      };
     },
-  };
+  }) as NonNullable<D>;
 }

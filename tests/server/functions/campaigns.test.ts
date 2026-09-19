@@ -92,29 +92,29 @@ vi.mock('~/server/db/models/Session', () => ({
     findOne: vi.fn().mockReturnValue({ session: vi.fn().mockReturnValue(null) }),
     updateOne: vi.fn().mockResolvedValue({ modifiedCount: 1 }),
     create: vi.fn(),
+    deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0 }),
   },
 }));
 vi.mock('~/server/db/models/GMScreen', () => ({
   GMScreen: {
     find: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
     create: vi.fn(),
+    deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0 }),
   },
 }));
 
+vi.mock('~/server/db/models/Spell', () => ({
+  Spell: { deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0 }) },
+}));
+vi.mock('~/server/db/models/Race', () => ({
+  Race: { deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0 }) },
+}));
+vi.mock('~/server/db/models/Rule', () => ({
+  Rule: { deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0 }) },
+}));
 vi.mock('~/server/functions/srdImport', () => ({
   importSrdContent: vi.fn().mockResolvedValue({ spells: 339, races: 9, rules: 104 }),
 }));
-
-const mockMongoSession = {
-  withTransaction: vi.fn(async (fn: () => Promise<void>) => fn()),
-  endSession: vi.fn(),
-};
-vi.mock('mongoose', async () => {
-  const actual = await vi.importActual<typeof import('mongoose')>('mongoose');
-  return { default: { startSession: vi.fn(() => mockMongoSession), Types: actual.default.Types } };
-});
-
-import mongoose from 'mongoose';
 
 import { getSession } from '~/server/session';
 import { resetIdentityDouble } from './identityTestDouble';
@@ -189,8 +189,6 @@ beforeEach(() => {
   // The function mints the campaign id; pin it so assertions can name it.
   newObjectId.mockReturnValue('camp-1');
   campaignsDouble.create.mockImplementation(async (document) => document);
-  mockMongoSession.withTransaction.mockImplementation(async (fn: () => Promise<void>) => fn());
-  mockMongoSession.endSession.mockReset();
 });
 
 // Cast server functions to callable handler signatures
@@ -539,7 +537,6 @@ describe('createCampaign', () => {
       expect.objectContaining({
         campaignId: 'camp-1',
         gmId: 'dbuser-1',
-        session: expect.anything(),
       })
     );
   });
@@ -563,16 +560,13 @@ describe('createCampaign', () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
     expect(Session.create).toHaveBeenCalledWith(
-      [
-        expect.objectContaining({
-          campaignId: 'camp-1',
-          name: 'Session 0',
-          gm: 'dbuser-1',
-          number: 0,
-          endDate: null,
-        }),
-      ],
-      expect.objectContaining({ session: expect.anything() })
+      expect.objectContaining({
+        campaignId: 'camp-1',
+        name: 'Session 0',
+        gm: 'dbuser-1',
+        number: 0,
+        endDate: null,
+      })
     );
   });
 
@@ -580,14 +574,11 @@ describe('createCampaign', () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
     expect(Session.create).toHaveBeenCalledWith(
-      [
-        expect.objectContaining({
-          campaignId: 'camp-1',
-          name: 'Session 0',
-          status: 'active',
-        }),
-      ],
-      expect.objectContaining({ session: expect.anything() })
+      expect.objectContaining({
+        campaignId: 'camp-1',
+        name: 'Session 0',
+        status: 'active',
+      })
     );
   });
 
@@ -595,24 +586,21 @@ describe('createCampaign', () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
     expect(GMScreen.create).toHaveBeenCalledWith(
-      [
-        expect.objectContaining({
-          campaignId: 'camp-1',
-          name: 'General',
-          tabOrder: 0,
-          createdBy: 'dbuser-1',
-        }),
-      ],
-      expect.objectContaining({ session: expect.anything() })
+      expect.objectContaining({
+        campaignId: 'camp-1',
+        name: 'General',
+        tabOrder: 0,
+        createdBy: 'dbuser-1',
+      })
     );
   });
 
-  it('opens no MongoDB session when the campaign itself cannot be written', async () => {
+  it('writes no defaults when the campaign itself cannot be written', async () => {
     campaignsDouble.create.mockRejectedValue(new Error('DB write failed'));
 
     await expect(_createCampaign({ data: { name: 'Fail', description: '' } })).rejects.toThrow();
 
-    expect(mongoose.startSession).not.toHaveBeenCalled();
+    expect(Session.create).not.toHaveBeenCalled();
     expect(campaignsDouble.remove).not.toHaveBeenCalled();
   });
 
@@ -625,21 +613,11 @@ describe('createCampaign', () => {
 
     // Nothing may be left behind: a campaign with no Session 0 or GM screen is broken.
     expect(campaignsDouble.remove).toHaveBeenCalledWith('camp-1');
-    expect(mockMongoSession.endSession).toHaveBeenCalled();
+    expect(Session.deleteMany).toHaveBeenCalledWith({ campaignId: 'camp-1' });
+    expect(GMScreen.deleteMany).toHaveBeenCalledWith({ campaignId: 'camp-1' });
   });
 
-  it('rolls back all writes when Session.create fails inside transaction', async () => {
-    vi.mocked(Session.create).mockRejectedValue(new Error('Session write failed'));
-
-    await expect(
-      _createCampaign({ data: { name: 'My Campaign', description: '' } })
-    ).rejects.toThrow('Session write failed');
-
-    expect(Session.create).toHaveBeenCalled();
-    expect(mockMongoSession.endSession).toHaveBeenCalled();
-  });
-
-  it('rolls back all writes when the GM screen fails inside transaction', async () => {
+  it('removes what was written when the GM screen cannot be created', async () => {
     vi.mocked(GMScreen.create).mockRejectedValue(new Error('GM screen write failed'));
 
     await expect(
@@ -649,7 +627,9 @@ describe('createCampaign', () => {
     expect(campaignsDouble.create).toHaveBeenCalled();
     expect(Session.create).toHaveBeenCalled();
     expect(GMScreen.create).toHaveBeenCalled();
-    expect(mockMongoSession.endSession).toHaveBeenCalled();
+    // Session 0 was written before the failure, so it is removed with the campaign.
+    expect(Session.deleteMany).toHaveBeenCalledWith({ campaignId: 'camp-1' });
+    expect(campaignsDouble.remove).toHaveBeenCalledWith('camp-1');
   });
 });
 
@@ -700,12 +680,13 @@ describe('joinCampaign', () => {
     await _joinCampaign({ data: { inviteCode: 'ABCD-EFGH' } });
 
     expect(Player.updateOne).toHaveBeenCalledWith(
-      { campaignId: 'camp-1', userId: new mongoose.Types.ObjectId('507f1f77bcf86cd799439011') },
+      { campaignId: 'camp-1', createdBy: '507f1f77bcf86cd799439011' },
       {
         $setOnInsert: expect.objectContaining({
-          campaignId: 'camp-1',
-          userId: new mongoose.Types.ObjectId('507f1f77bcf86cd799439011'),
           characterClass: 'Adventurer',
+          lastName: '',
+          race: '',
+          age: 0,
         }),
       },
       { upsert: true }
@@ -927,57 +908,57 @@ describe('createCampaign — default document creation regression (#302)', () =>
   it('Session 0 has name "Session 0" and gm set to the campaign owner', async () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
-    const sessionCreateCall = vi.mocked(Session.create).mock.calls[0]![0] as Array<{
+    const sessionCreateCall = vi.mocked(Session.create).mock.calls[0]![0] as {
       name: string;
       gm: string;
-    }>;
-    expect(sessionCreateCall[0]!.name).toBe('Session 0');
-    expect(sessionCreateCall[0]!.gm).toBe('dbuser-1');
+    };
+    expect(sessionCreateCall.name).toBe('Session 0');
+    expect(sessionCreateCall.gm).toBe('dbuser-1');
   });
 
   it('Session 0 has a startDate set to a Date value', async () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
     expect(Session.create).toHaveBeenCalledTimes(1);
-    const sessionCreateCall = vi.mocked(Session.create).mock.calls[0]![0] as Array<{
+    const sessionCreateCall = vi.mocked(Session.create).mock.calls[0]![0] as {
       startDate: unknown;
       endDate: unknown;
-    }>;
-    expect(sessionCreateCall[0]!.startDate).toBeInstanceOf(Date);
+    };
+    expect(sessionCreateCall.startDate).toBeInstanceOf(Date);
   });
 
   it('Session 0 has endDate explicitly set to null', async () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
     expect(Session.create).toHaveBeenCalledTimes(1);
-    const sessionCreateCall = vi.mocked(Session.create).mock.calls[0]![0] as Array<{
+    const sessionCreateCall = vi.mocked(Session.create).mock.calls[0]![0] as {
       endDate: unknown;
-    }>;
-    expect(sessionCreateCall[0]!.endDate).toBeNull();
+    };
+    expect(sessionCreateCall.endDate).toBeNull();
   });
 
   it('Session 0 has number 0, not 1', async () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
     expect(Session.create).toHaveBeenCalledTimes(1);
-    const sessionCreateCall = vi.mocked(Session.create).mock.calls[0]![0] as Array<{
+    const sessionCreateCall = vi.mocked(Session.create).mock.calls[0]![0] as {
       number: number;
-    }>;
-    expect(sessionCreateCall[0]!.number).toBe(0);
+    };
+    expect(sessionCreateCall.number).toBe(0);
   });
 
   it('GMScreen default name is "General" with createdBy and tabOrder', async () => {
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
     expect(GMScreen.create).toHaveBeenCalledTimes(1);
-    const gmCreateCall = vi.mocked(GMScreen.create).mock.calls[0]![0] as Array<{
+    const gmCreateCall = vi.mocked(GMScreen.create).mock.calls[0]![0] as {
       name: string;
       tabOrder: number;
       createdBy: string;
-    }>;
-    expect(gmCreateCall[0]!.name).toBe('General');
-    expect(gmCreateCall[0]!.tabOrder).toBe(0);
-    expect(gmCreateCall[0]!.createdBy).toBe('dbuser-1');
+    };
+    expect(gmCreateCall.name).toBe('General');
+    expect(gmCreateCall.tabOrder).toBe(0);
+    expect(gmCreateCall.createdBy).toBe('dbuser-1');
   });
 
   it('does not create Session 0 or GMScreen when the campaign cannot be written', async () => {
@@ -1024,24 +1005,22 @@ describe('createCampaign — default document creation regression (#302)', () =>
 
     expect(Session.create).toHaveBeenCalledTimes(1);
     expect(GMScreen.create).toHaveBeenCalledTimes(1);
-    const sessionCall = vi.mocked(Session.create).mock.calls[0]![0] as Array<{
+    const sessionCall = vi.mocked(Session.create).mock.calls[0]![0] as {
       campaignId: string;
-    }>;
-    const gmCall = vi.mocked(GMScreen.create).mock.calls[0]![0] as Array<{ campaignId: string }>;
-    expect(sessionCall[0]!.campaignId).toBe('new-camp-id');
-    expect(gmCall[0]!.campaignId).toBe('new-camp-id');
+    };
+    const gmCall = vi.mocked(GMScreen.create).mock.calls[0]![0] as { campaignId: string };
+    expect(sessionCall.campaignId).toBe('new-camp-id');
+    expect(gmCall.campaignId).toBe('new-camp-id');
   });
 
-  it('both defaults are created within the same mongo transaction session', async () => {
+  it('writes Session 0 before the GM screen, so a failure leaves nothing half-made', async () => {
+    const order: string[] = [];
+    vi.mocked(Session.create).mockImplementation((async () => order.push('session')) as never);
+    vi.mocked(GMScreen.create).mockImplementation((async () => order.push('gmscreen')) as never);
+
     await _createCampaign({ data: { name: 'My Campaign', description: '' } });
 
-    expect(Session.create).toHaveBeenCalledTimes(1);
-    expect(GMScreen.create).toHaveBeenCalledTimes(1);
-    const sessionOpts = vi.mocked(Session.create).mock.calls[0]![1] as { session: unknown };
-    const gmOpts = vi.mocked(GMScreen.create).mock.calls[0]![1] as { session: unknown };
-    expect(sessionOpts.session).toBeDefined();
-    expect(gmOpts.session).toBeDefined();
-    expect(sessionOpts.session).toBe(gmOpts.session);
+    expect(order).toEqual(['session', 'gmscreen']);
   });
 });
 
@@ -1321,9 +1300,7 @@ describe('activateSession', () => {
       .fn()
       .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', status: 'active' })
       .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', status: 'not_started' });
-    vi.mocked(Session.findOne).mockReturnValue({
-      session: mockSessionFn,
-    } as never);
+    vi.mocked(Session.findOne).mockImplementation(mockSessionFn as never);
 
     const result = await _activateSession({
       data: { campaignId: 'camp-1', sessionId: 'sess-new' },
@@ -1333,16 +1310,14 @@ describe('activateSession', () => {
 
     // Should deactivate old session
     expect(Session.updateOne).toHaveBeenCalledWith(
-      { _id: 'sess-old' },
-      { $set: { status: 'completed', endDate: expect.any(Date), updatedAt: expect.any(Date) } },
-      expect.objectContaining({ session: expect.anything() })
+      { _id: 'sess-old', status: 'active' },
+      { $set: { status: 'completed', endDate: expect.any(Date), updatedAt: expect.any(Date) } }
     );
 
     // Should activate new session
     expect(Session.updateOne).toHaveBeenCalledWith(
       { _id: 'sess-new', campaignId: 'camp-1' },
-      { $set: { status: 'active', updatedAt: expect.any(Date) } },
-      expect.objectContaining({ session: expect.anything() })
+      { $set: { status: 'active', updatedAt: expect.any(Date) } }
     );
   });
 
@@ -1353,24 +1328,21 @@ describe('activateSession', () => {
       .fn()
       .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', status: 'active' })
       .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', status: 'not_started' });
-    vi.mocked(Session.findOne).mockReturnValue({
-      session: mockSessionFn,
-    } as never);
+    vi.mocked(Session.findOne).mockImplementation(mockSessionFn as never);
 
     await _activateSession({
       data: { campaignId: 'camp-1', sessionId: 'sess-new', endDate: '2026-03-15T22:00:00.000Z' },
     });
 
     expect(Session.updateOne).toHaveBeenCalledWith(
-      { _id: 'sess-old' },
+      { _id: 'sess-old', status: 'active' },
       {
         $set: {
           status: 'completed',
           endDate: new Date('2026-03-15T22:00:00.000Z'),
           updatedAt: expect.any(Date),
         },
-      },
-      expect.objectContaining({ session: expect.anything() })
+      }
     );
   });
 
@@ -1382,9 +1354,7 @@ describe('activateSession', () => {
       .fn()
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', status: 'not_started' });
-    vi.mocked(Session.findOne).mockReturnValue({
-      session: mockSessionFn,
-    } as never);
+    vi.mocked(Session.findOne).mockImplementation(mockSessionFn as never);
 
     const result = await _activateSession({
       data: { campaignId: 'camp-1', sessionId: 'sess-new' },
@@ -1396,8 +1366,7 @@ describe('activateSession', () => {
     expect(Session.updateOne).toHaveBeenCalledTimes(1);
     expect(Session.updateOne).toHaveBeenCalledWith(
       { _id: 'sess-new', campaignId: 'camp-1' },
-      { $set: { status: 'active', updatedAt: expect.any(Date) } },
-      expect.objectContaining({ session: expect.anything() })
+      { $set: { status: 'active', updatedAt: expect.any(Date) } }
     );
   });
 
@@ -1421,8 +1390,10 @@ describe('activateSession', () => {
   it('skips deactivation when the target session is already the active session', async () => {
     const campaign = makeCampaign();
     campaignsDouble.get.mockResolvedValue(campaign);
-    vi.mocked(Session.findOne).mockReturnValue({
-      session: vi.fn().mockResolvedValue({ _id: 'sess-1', campaignId: 'camp-1', status: 'active' }),
+    vi.mocked(Session.findOne).mockResolvedValue({
+      _id: 'sess-1',
+      campaignId: 'camp-1',
+      status: 'active',
     } as never);
 
     const result = await _activateSession({ data: { campaignId: 'camp-1', sessionId: 'sess-1' } });
@@ -1436,31 +1407,46 @@ describe('activateSession', () => {
     const campaign = makeCampaign();
     campaignsDouble.get.mockResolvedValue(campaign);
     // No active session, and target session doesn't exist
-    vi.mocked(Session.findOne).mockReturnValue({
-      session: vi.fn().mockResolvedValue(null),
-    } as never);
+    vi.mocked(Session.findOne).mockResolvedValue(null as never);
 
     await expect(
       _activateSession({ data: { campaignId: 'camp-1', sessionId: 'nonexistent' } })
     ).rejects.toThrow('Session not found');
   });
 
-  it('ends the mongo session even when the transaction fails', async () => {
-    const campaign = makeCampaign();
-    campaignsDouble.get.mockResolvedValue(campaign);
-    const mockSessionFn = vi
-      .fn()
-      .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', status: 'active' })
-      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1', status: 'not_started' });
-    vi.mocked(Session.findOne).mockReturnValue({
-      session: mockSessionFn,
-    } as never);
+  it('looks again when another activation wins the race for the active slot', async () => {
+    campaignsDouble.get.mockResolvedValue(makeCampaign());
+    vi.mocked(Session.findOne)
+      .mockResolvedValueOnce(null as never) // no active session
+      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1' } as never)
+      .mockResolvedValueOnce({ _id: 'sess-rival', campaignId: 'camp-1', status: 'active' } as never)
+      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1' } as never);
+    vi.mocked(Session.updateOne)
+      .mockRejectedValueOnce(Object.assign(new Error('E11000'), { code: 11000 }) as never)
+      .mockResolvedValue({ modifiedCount: 1 } as never);
+
+    await _activateSession({ data: { campaignId: 'camp-1', sessionId: 'sess-new' } });
+
+    // The rival that won is completed, then the target is activated.
+    expect(Session.updateOne).toHaveBeenCalledWith(
+      { _id: 'sess-rival', status: 'active' },
+      { $set: { status: 'completed', endDate: expect.any(Date), updatedAt: expect.any(Date) } }
+    );
+    expect(Session.updateOne).toHaveBeenLastCalledWith(
+      { _id: 'sess-new', campaignId: 'camp-1' },
+      { $set: { status: 'active', updatedAt: expect.any(Date) } }
+    );
+  });
+
+  it('propagates a write failure', async () => {
+    campaignsDouble.get.mockResolvedValue(makeCampaign());
+    vi.mocked(Session.findOne)
+      .mockResolvedValueOnce({ _id: 'sess-old', campaignId: 'camp-1', status: 'active' } as never)
+      .mockResolvedValueOnce({ _id: 'sess-new', campaignId: 'camp-1' } as never);
     vi.mocked(Session.updateOne).mockRejectedValue(new Error('DB write failed'));
 
     await expect(
       _activateSession({ data: { campaignId: 'camp-1', sessionId: 'sess-new' } })
-    ).rejects.toThrow();
-
-    expect(mockMongoSession.endSession).toHaveBeenCalled();
+    ).rejects.toThrow('DB write failed');
   });
 });

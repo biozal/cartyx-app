@@ -27,23 +27,7 @@ const action: 'seed' | 'clear' = requested;
 assertSeedTargetIsNotProduction();
 
 /** Subsystems still on MongoDB. Remove an entry when its slice moves to the graph. */
-const MONGO_SUBSYSTEMS = [
-  'characters',
-  'players',
-  'sessions',
-  'notes',
-  'organizations',
-  'calendars',
-  'events',
-  'lore',
-  'quests',
-  'srd',
-  'maps',
-  'gmscreens',
-  'tabletop',
-  'chat',
-  'audio',
-];
+const MONGO_SUBSYSTEMS = ['srd', 'maps', 'gmscreens', 'tabletop', 'chat', 'audio'];
 
 const python = (script: string, args: string[] = [], env: Record<string, string> = {}) =>
   execFileSync(process.execPath, [resolve(root, 'scripts/run-python.cjs'), script, ...args], {

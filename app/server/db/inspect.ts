@@ -2,9 +2,6 @@ import type mongoose from 'mongoose';
 import type { IndexSeverity } from './governance';
 import { getSeverity, keySignature } from './governance';
 import { GMScreen } from './models/GMScreen';
-import { Player } from './models/Player';
-import { Session } from './models/Session';
-import { Note } from './models/Note';
 import { Race } from './models/Race';
 import { Map as MapModel } from './models/Map';
 import { MapToken } from './models/MapToken';
@@ -17,10 +14,7 @@ import { Monster } from './models/Monster';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mongoose models have different document types
 export const ALL_MODELS: mongoose.Model<any>[] = [
-  Player,
-  Session,
   GMScreen,
-  Note,
   Race,
   MapModel,
   MapToken,

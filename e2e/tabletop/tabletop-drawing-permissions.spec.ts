@@ -15,6 +15,7 @@ import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { SignJWT, decodeJwt } from 'jose';
 import { closeIdentity, seedIdentity, seededGameMaster } from '../fixtures/data';
 import { campaignFixtures } from '../fixtures/campaigns';
+import { graphDb } from '../../scripts/graph-db';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -37,7 +38,7 @@ let client: MongoClient;
 let provisioned: Provisioned;
 
 function db(): Db {
-  return process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+  return graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
 }
 
 function drawings() {

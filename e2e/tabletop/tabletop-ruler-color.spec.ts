@@ -6,6 +6,7 @@ import { decodeJwt } from 'jose';
 import { closeIdentity, readRulerColor, seededGameMaster, writeRulerColor } from '../fixtures/data';
 import { DEFAULT_RULER_COLOR } from '~/types/schemas/userPreferences';
 import { campaignFixtures } from '../fixtures/campaigns';
+import { graphDb } from '../../scripts/graph-db';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -31,7 +32,7 @@ let provisioned: Provisioned;
 let originalRulerColor: string | undefined;
 
 function db(): Db {
-  return process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+  return graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
 }
 
 function tokenDoc(

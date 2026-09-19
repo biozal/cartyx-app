@@ -9,16 +9,6 @@ vi.mock('@tanstack/react-start', () => ({
   }),
 }));
 
-const mockMongoSessionObj = {
-  withTransaction: vi.fn(async (fn: () => Promise<unknown>) => fn()),
-  endSession: vi.fn(),
-};
-vi.mock('mongoose', () => ({
-  default: {
-    startSession: vi.fn(() => mockMongoSessionObj),
-  },
-}));
-
 vi.mock('~/server/session', () => ({ getSession: vi.fn() }));
 vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
@@ -260,26 +250,21 @@ describe('getSessionCatchUp', () => {
 // createSession
 // ---------------------------------------------------------------------------
 describe('createSession', () => {
-  it('creates an inactive session with auto-assigned number in a transaction', async () => {
-    vi.mocked(Session.findOne).mockReturnValue({
-      sort: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          session: vi.fn().mockReturnValue({
-            lean: vi.fn().mockResolvedValue({ number: 2 }),
+  const lastSessionNumber = (...numbers: number[]) => {
+    for (const number of numbers)
+      vi.mocked(Session.findOne).mockReturnValueOnce({
+        sort: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            lean: vi.fn().mockResolvedValue({ number }),
           }),
         }),
-      }),
-    } as never);
-    vi.mocked(Session.create).mockResolvedValue([
-      {
-        _id: 'new-session-1',
-        name: 'The Dragon Quest',
-        number: 3,
-        startDate: new Date('2025-06-01'),
-        endDate: null,
-        status: 'not_started',
-      },
-    ] as never);
+      } as never);
+  };
+  const created = { _id: 'new-session-1', name: 'The Dragon Quest', number: 3 };
+
+  it('creates an inactive session numbered after the last one', async () => {
+    lastSessionNumber(2);
+    vi.mocked(Session.create).mockResolvedValue(created as never);
 
     const result = await _createSession({
       data: {
@@ -290,25 +275,32 @@ describe('createSession', () => {
     });
 
     expect(Session.create).toHaveBeenCalledWith(
-      [
-        expect.objectContaining({
-          campaignId: 'camp-1',
-          name: 'The Dragon Quest',
-          gm: 'dbuser-1',
-          number: 3,
-          startDate: expect.any(Date),
-          status: 'not_started',
-        }),
-      ],
-      expect.objectContaining({ session: mockMongoSessionObj })
-    );
-    expect(mockMongoSessionObj.endSession).toHaveBeenCalled();
-    expect(result).toEqual(
       expect.objectContaining({
-        success: true,
-        sessionId: 'new-session-1',
+        campaignId: 'camp-1',
+        name: 'The Dragon Quest',
+        gm: 'dbuser-1',
+        number: 3,
+        startDate: expect.any(Date),
+        status: 'not_started',
       })
     );
+    expect(result).toEqual(expect.objectContaining({ success: true, sessionId: 'new-session-1' }));
+  });
+
+  it('takes the next number when a concurrent create claimed this one', async () => {
+    lastSessionNumber(2, 3);
+    vi.mocked(Session.create)
+      .mockRejectedValueOnce(Object.assign(new Error('E11000'), { code: 11000 }))
+      .mockResolvedValueOnce({ ...created, number: 4 } as never);
+
+    const result = await _createSession({
+      data: { campaignId: 'camp-1', name: 'The Dragon Quest', startDate: '2025-06-01' },
+    });
+
+    expect(
+      vi.mocked(Session.create).mock.calls.map(([doc]) => (doc as { number: number }).number)
+    ).toEqual([3, 4]);
+    expect((result as { sessionId: string }).sessionId).toBe('new-session-1');
   });
 
   it('throws when user is not the GM', async () => {

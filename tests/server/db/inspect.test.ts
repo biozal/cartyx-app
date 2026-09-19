@@ -1,10 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const {
-  playerMock,
-  sessionMock,
   gmScreenMock,
-  noteMock,
   raceMock,
   mapMock,
   mapTokenMock,
@@ -29,23 +26,9 @@ const {
   }
 
   return {
-    playerMock: make('Player', 'players', [
-      [{ campaignId: 1, userId: 1 }, { unique: true }],
-      [{ campaignId: 1 }, {}],
-    ]),
-    sessionMock: make('Session', 'sessions', [[{ campaignId: 1, number: -1 }, {}]]),
     gmScreenMock: make('GMScreen', 'gmscreen', [
       [{ campaignId: 1, tabOrder: 1 }, { unique: true }],
       [{ campaignId: 1, name: 1 }, { unique: true }],
-    ]),
-    noteMock: make('Note', 'notes', [
-      [{ sessionId: 1 }, {}],
-      [{ campaignId: 1 }, {}],
-      [{ campaignId: 1, updatedAt: -1 }, {}],
-      [{ createdBy: 1 }, {}],
-      [{ tags: 1 }, {}],
-      [{ isPublic: 1 }, {}],
-      [{ title: 'text', note: 'text' }, {}],
     ]),
     raceMock: make('Race', 'races', [
       [{ campaignId: 1 }, {}],
@@ -77,10 +60,7 @@ const {
   };
 });
 
-vi.mock('~/server/db/models/Player', () => ({ Player: playerMock }));
-vi.mock('~/server/db/models/Session', () => ({ Session: sessionMock }));
 vi.mock('~/server/db/models/GMScreen', () => ({ GMScreen: gmScreenMock }));
-vi.mock('~/server/db/models/Note', () => ({ Note: noteMock }));
 vi.mock('~/server/db/models/Race', () => ({ Race: raceMock }));
 vi.mock('~/server/db/models/Map', () => ({ Map: mapMock }));
 vi.mock('~/server/db/models/MapToken', () => ({ MapToken: mapTokenMock }));
@@ -97,10 +77,7 @@ import {
 } from '~/server/db/inspect';
 
 const allMocks = [
-  playerMock,
-  sessionMock,
   gmScreenMock,
-  noteMock,
   raceMock,
   mapMock,
   mapTokenMock,
@@ -111,8 +88,8 @@ const allMocks = [
 ];
 
 describe('ALL_MODELS', () => {
-  it('contains all eleven models', () => {
-    expect(ALL_MODELS).toHaveLength(11);
+  it('contains the eight models still on MongoDB', () => {
+    expect(ALL_MODELS).toHaveLength(8);
   });
 
   it('no longer inspects users or campaigns, which moved to the graph', () => {
@@ -128,9 +105,9 @@ describe('ALL_MODELS', () => {
 
   // Regression: Session and GMScreen are included in bootstrap (#302)
 
-  it('includes Session model for bootstrap collection/index sync', () => {
+  it('no longer inspects models that moved to the graph', () => {
     const names = ALL_MODELS.map((m) => m.modelName);
-    expect(names).toContain('Session');
+    for (const moved of ['Player', 'Session', 'Note']) expect(names).not.toContain(moved);
   });
 
   it('includes GMScreen model for bootstrap collection/index sync', () => {
@@ -155,29 +132,10 @@ describe('inspectIndexes', () => {
       },
       { key: { mapId: 1 } },
     ]);
-    playerMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { campaignId: 1, userId: 1 }, unique: true },
-      { key: { campaignId: 1 } },
-    ]);
-    sessionMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { campaignId: 1, number: -1 } },
-    ]);
     gmScreenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
       { key: { campaignId: 1, tabOrder: 1 }, unique: true },
       { key: { campaignId: 1, name: 1 }, unique: true },
-    ]);
-    noteMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { sessionId: 1 } },
-      { key: { campaignId: 1 } },
-      { key: { campaignId: 1, updatedAt: -1 } },
-      { key: { createdBy: 1 } },
-      { key: { tags: 1 } },
-      { key: { isPublic: 1 } },
-      { key: { _fts: 'text', _ftsx: 1 } },
     ]);
     raceMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
@@ -241,8 +199,8 @@ describe('inspectIndexes', () => {
     const mapTokenDiff = result.diffs.find((d) => d.model === 'MapToken')!;
     expect(mapTokenDiff.missing).toHaveLength(2);
 
-    const playerDiff = result.diffs.find((d) => d.model === 'Player')!;
-    expect(playerDiff.missing).toHaveLength(2);
+    const gmScreenDiff = result.diffs.find((d) => d.model === 'GMScreen')!;
+    expect(gmScreenDiff.missing).toHaveLength(2);
   });
 
   it('reports extra indexes not in the schema', async () => {
@@ -272,29 +230,10 @@ describe('inspectIndexes', () => {
       { key: { mapId: 1 } },
       { key: { name: 1 } },
     ]);
-    playerMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { campaignId: 1, userId: 1 }, unique: true },
-      { key: { campaignId: 1 } },
-    ]);
-    sessionMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { campaignId: 1, number: -1 } },
-    ]);
     gmScreenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
       { key: { campaignId: 1, tabOrder: 1 }, unique: true },
       { key: { campaignId: 1, name: 1 }, unique: true },
-    ]);
-    const noteSchemaIndexes = noteMock.schema.indexes();
-    noteMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      ...noteSchemaIndexes.map(
-        ([key, options]: [Record<string, number>, Record<string, unknown> | undefined]) => ({
-          key,
-          ...(options || {}),
-        })
-      ),
     ]);
 
     const result = await inspectIndexes();
@@ -330,25 +269,10 @@ describe('inspectIndexes', () => {
       { key: { mapId: 1, sourceCollection: 1, sourceDocumentId: 1, instanceNumber: 1 } }, // missing unique + sparse options
       { key: { mapId: 1 } },
     ]);
-    playerMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { campaignId: 1, userId: 1 }, unique: true },
-      { key: { campaignId: 1 } },
-    ]);
-    sessionMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { campaignId: 1, number: -1 } },
-    ]);
     gmScreenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
       { key: { campaignId: 1, tabOrder: 1 }, unique: true },
       { key: { campaignId: 1, name: 1 }, unique: true },
-    ]);
-    noteMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { campaignId: 1, createdAt: -1 } },
-      { key: { campaignId: 1, sessionId: 1 } },
-      { key: { _fts: 'text', _ftsx: 1 } },
     ]);
 
     const result = await inspectIndexes();
@@ -414,15 +338,6 @@ describe('inspectIndexes', () => {
       },
       // mapId (optional) is missing
     ]);
-    playerMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { campaignId: 1, userId: 1 }, unique: true },
-      // campaignId (optional) is missing
-    ]);
-    sessionMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      // both session indexes are optional and missing
-    ]);
     gmScreenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
       { key: { campaignId: 1, tabOrder: 1 }, unique: true },
@@ -453,25 +368,10 @@ describe('inspectIndexes', () => {
       { key: { mapId: 1, sourceCollection: 1, sourceDocumentId: 1, instanceNumber: 1 } }, // missing unique+sparse = critical option mismatch
       { key: { mapId: 1 } },
     ]);
-    playerMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { campaignId: 1, userId: 1 }, unique: true },
-      { key: { campaignId: 1 } },
-    ]);
-    sessionMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { campaignId: 1, number: -1 } },
-    ]);
     gmScreenMock.listIndexes.mockResolvedValue([
       { key: { _id: 1 } },
       { key: { campaignId: 1, tabOrder: 1 }, unique: true },
       { key: { campaignId: 1, name: 1 }, unique: true },
-    ]);
-    noteMock.listIndexes.mockResolvedValue([
-      { key: { _id: 1 } },
-      { key: { campaignId: 1, createdAt: -1 } },
-      { key: { campaignId: 1, sessionId: 1 } },
-      { key: { _fts: 'text', _ftsx: 1 } },
     ]);
 
     const result = await inspectIndexes();
@@ -520,7 +420,7 @@ describe('syncCollectionsAndIndexes', () => {
   });
 
   it('propagates errors from createIndexes', async () => {
-    sessionMock.createIndexes.mockRejectedValueOnce(new Error('index failed'));
+    gmScreenMock.createIndexes.mockRejectedValueOnce(new Error('index failed'));
     await expect(syncCollectionsAndIndexes()).rejects.toThrow('index failed');
   });
 });

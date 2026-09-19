@@ -11,6 +11,7 @@ import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
 import { seededGameMaster } from '../fixtures/data';
 import { campaignFixtures } from '../fixtures/campaigns';
+import { graphDb } from '../../scripts/graph-db';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -28,7 +29,7 @@ let provisioned: Provisioned;
 const ability = () => ({ score: 10, mod: 0, save: 0 });
 
 function db(): Db {
-  return process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+  return graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
 }
 
 async function provision(database: Db): Promise<Provisioned> {
