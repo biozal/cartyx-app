@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-import { bootstrapDB, isBootstrapped } from './bootstrap';
 import { getBootstrapPolicy } from './policy';
 import { serverCaptureException } from '../utils/telemetry';
 
@@ -22,7 +21,6 @@ export async function connectDB(): Promise<void> {
       //
       // autoIndex is driven by the bootstrap policy: disabled in production
       // and staging so index creation is never a side-effect of app startup.
-      // Operators should use `npm run db:sync` to manage indexes explicitly.
       // In development autoIndex stays on for convenience.
       connectPromise = mongoose.connect(uri, {
         autoIndex: policy.autoIndex,
@@ -31,12 +29,6 @@ export async function connectDB(): Promise<void> {
       connectPromise = null;
     }
     // readyState 1 (connected) with no in-flight promise — nothing to do
-
-    // Always attempt bootstrap — it's idempotent and must succeed even if
-    // a previous connect succeeded but bootstrap failed partway through.
-    if (!isBootstrapped()) {
-      await bootstrapDB(policy);
-    }
   } catch (e) {
     connectPromise = null;
     serverCaptureException(e, undefined, { action: 'connectDB' });

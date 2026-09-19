@@ -9,11 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // the real telemetry helpers POST to Umami via `fetch`. Mocking it keeps that
 // assertion unambiguous.
 //
-// `mongoose.Types` is the REAL implementation: addPrivateWindow validates
-// screen ids with ObjectId.isValid and builds an ObjectId for the $expr cap
-// filter (which mongoose does not cast). A stubbed ObjectId would make those
-// tests assert against the stub instead of the behaviour, so every id fixture
-// below is a genuine 24-hex ObjectId.
+// Ids are genuine 24-hex strings, because addPrivateWindow validates screen ids.
 // ---------------------------------------------------------------------------
 
 vi.mock('@tanstack/react-start', () => ({
@@ -67,12 +63,6 @@ vi.mock('~/server/db/models/Character', () => ({ Character: { find: vi.fn() } })
 vi.mock('~/server/db/models/Race', () => ({ Race: { find: vi.fn() } }));
 vi.mock('~/server/db/models/Rule', () => ({ Rule: { find: vi.fn() } }));
 vi.mock('~/server/db/models/Lore', () => ({ Lore: { find: vi.fn() } }));
-vi.mock('mongoose', async () => {
-  const actual = await vi.importActual<typeof import('mongoose')>('mongoose');
-  return { default: { startSession: vi.fn(), Types: actual.Types } };
-});
-
-import mongoose from 'mongoose';
 import { getSession, createPartyBroadcastToken } from '~/server/session';
 import { resetIdentityDouble } from './identityTestDouble';
 import { campaigns as campaignsDouble } from './campaignsTestDouble';
@@ -327,16 +317,16 @@ describe('addPrivateWindow', () => {
       },
     ]);
 
-    // $expr counts only THIS surface+screen and rejects at the cap. The screen
-    // id must be a real ObjectId: $expr is not cast by mongoose, so a string
-    // would silently never match and the cap would count zero.
+    // $expr counts only THIS surface+screen and rejects at the cap. Ids are stored
+    // as 24-hex strings, so the screen id is compared as one (the graph-model test
+    // tests/server/db/tabletopPlayerState-privateWindowFilter.test.ts proves the
+    // filter against stored documents).
     const expr = f.$expr as { $lt: [{ $size: { $filter: { cond: unknown } } }, number] };
     expect(expr.$lt[1]).toBe(MAX_PRIVATE_WINDOWS);
     const cond = expr.$lt[0].$size.$filter.cond as { $and: Array<Record<string, unknown[]>> };
     expect(cond.$and[0]).toEqual({ $eq: ['$$this.surface', 'tabletop'] });
     const screenEq = cond.$and[1]!.$eq as unknown[];
-    expect(screenEq[1]).toBeInstanceOf(mongoose.Types.ObjectId);
-    expect(String(screenEq[1])).toBe(SCREEN_ID);
+    expect(screenEq[1]).toBe(SCREEN_ID);
   });
 
   it('scopes the cap filter to the screen being targeted, not the whole document', async () => {

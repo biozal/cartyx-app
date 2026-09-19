@@ -31,7 +31,7 @@ type Plain = Record<string, unknown>;
 export type FilterQuery = Plain;
 export type UpdateQuery = Plain;
 type SortSpec = string | Record<string, 1 | -1 | 'asc' | 'desc' | 'ascending' | 'descending'>;
-type Projection = string | Record<string, 0 | 1 | boolean> | null | undefined;
+type Projection = string | Record<string, unknown> | null | undefined;
 
 /** ObjectIds become the 24-hex strings the graph stores; everything else is kept. */
 export function toStored(value: unknown): unknown {
@@ -73,7 +73,7 @@ function normalizeSort(sort: SortSpec | undefined): Record<string, 1 | -1> | und
   );
 }
 
-function normalizeProjection(projection: Projection): Record<string, 0 | 1> | undefined {
+function normalizeProjection(projection: Projection): Record<string, unknown> | undefined {
   if (!projection) return undefined;
   if (typeof projection === 'string') {
     const spec: Record<string, 0 | 1> = {};
@@ -82,8 +82,12 @@ function normalizeProjection(projection: Projection): Record<string, 0 | 1> | un
       else spec[part.replace(/^\+/, '')] = 1;
     return Object.keys(spec).length ? spec : undefined;
   }
+  // Operators such as $elemMatch and $slice pass through; flags become 0/1.
   const spec = Object.fromEntries(
-    Object.entries(projection).map(([key, on]) => [key, on ? 1 : 0] as const)
+    Object.entries(projection).map(([key, on]) => [
+      key,
+      on !== null && typeof on === 'object' ? on : on ? 1 : 0,
+    ])
   );
   return Object.keys(spec).length ? spec : undefined;
 }
@@ -91,7 +95,7 @@ function normalizeProjection(projection: Projection): Record<string, 0 | 1> | un
 function project<V extends Plain>(documents: V[], projection: Projection): V[] {
   const spec = normalizeProjection(projection);
   if (!spec) return documents;
-  return mingoFind(documents, {}, spec).all() as V[];
+  return mingoFind(documents, {}, spec as Parameters<typeof mingoFind>[2]).all() as V[];
 }
 
 /** Mongoose treats an update without operators as `$set` of its fields. */

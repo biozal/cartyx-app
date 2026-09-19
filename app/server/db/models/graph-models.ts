@@ -1,16 +1,29 @@
 import { Calendar } from './Calendar';
 import { Character } from './Character';
 import { Event } from './Event';
+import { GMScreen } from './GMScreen';
 import { Location } from './Location';
 import { LocationType } from './LocationType';
 import { Lore } from './Lore';
+import { Map } from './Map';
+import { MapAoE } from './MapAoE';
+import { MapDrawing } from './MapDrawing';
+import { MapText } from './MapText';
+import { MapToken } from './MapToken';
+import { Monster } from './Monster';
 import { Note } from './Note';
 import { Organization } from './Organization';
 import { OrganizationMembership } from './OrganizationMembership';
 import { Player } from './Player';
 import { Quest } from './Quest';
+import { Race } from './Race';
+import { Rule } from './Rule';
 import { Session } from './Session';
 import { SessionEvent } from './SessionEvent';
+import { SoundboardState } from './SoundboardState';
+import { Spell } from './Spell';
+import { TabletopPlayerState } from './TabletopPlayerState';
+import { TabletopScreen } from './TabletopScreen';
 import { Tag } from './Tag';
 
 /**
@@ -33,6 +46,19 @@ export const graphModels = {
   sessionevent: SessionEvent,
   players: Player,
   characters: Character,
+  monsters: Monster,
+  races: Race,
+  rules: Rule,
+  spells: Spell,
+  map: Map,
+  mapToken: MapToken,
+  mapAoE: MapAoE,
+  mapDrawing: MapDrawing,
+  mapText: MapText,
+  gmscreen: GMScreen,
+  tabletopscreen: TabletopScreen,
+  tabletopplayerstate: TabletopPlayerState,
+  soundboardstates: SoundboardState,
 } as const;
 
 export type GraphModelName = keyof typeof graphModels;

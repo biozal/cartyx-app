@@ -6,11 +6,6 @@ const mongooseMock = vi.hoisted(() => ({
   models: {},
 }));
 
-const bootstrapMock = vi.hoisted(() => ({
-  bootstrapDB: vi.fn().mockResolvedValue(undefined),
-  isBootstrapped: vi.fn().mockReturnValue(false),
-}));
-
 const policyMock = vi.hoisted(() => ({
   getBootstrapPolicy: vi.fn().mockReturnValue({
     environment: 'development',
@@ -23,7 +18,6 @@ const policyMock = vi.hoisted(() => ({
 }));
 
 vi.mock('mongoose', () => ({ default: mongooseMock }));
-vi.mock('~/server/db/bootstrap', () => bootstrapMock);
 vi.mock('~/server/db/policy', () => policyMock);
 
 import { connectDB, isDBConnected, __resetConnectPromiseForTests } from '~/server/db/connection';
@@ -36,8 +30,6 @@ describe('connectDB', () => {
     __resetConnectPromiseForTests();
     mongooseMock.connect.mockResolvedValue(undefined);
     mongooseMock.connection.readyState = 0;
-    bootstrapMock.isBootstrapped.mockReturnValue(false);
-    bootstrapMock.bootstrapDB.mockResolvedValue(undefined);
     policyMock.getBootstrapPolicy.mockReturnValue({
       environment: 'development',
       syncIndexes: true,
@@ -57,13 +49,12 @@ describe('connectDB', () => {
     }
   });
 
-  it('connects and bootstraps on first call', async () => {
+  it('connects on first call', async () => {
     await connectDB();
 
     expect(mongooseMock.connect).toHaveBeenCalledWith('mongodb://localhost/test', {
       autoIndex: true,
     });
-    expect(bootstrapMock.bootstrapDB).toHaveBeenCalledTimes(1);
   });
 
   it('uses autoIndex from the resolved policy', async () => {
@@ -83,40 +74,12 @@ describe('connectDB', () => {
     });
   });
 
-  it('passes the resolved policy to bootstrapDB', async () => {
-    const policy = {
-      environment: 'staging' as const,
-      syncIndexes: false,
-      verifyCriticalIndexes: true,
-      failOnCriticalDrift: false,
-      autoIndex: false,
-      timeoutMs: 15_000,
-    };
-    policyMock.getBootstrapPolicy.mockReturnValue(policy);
-
-    await connectDB();
-
-    expect(bootstrapMock.bootstrapDB).toHaveBeenCalledWith(policy);
-  });
-
-  it('skips connect but retries bootstrap when already connected and bootstrap failed', async () => {
+  it('skips connect when already connected', async () => {
     mongooseMock.connection.readyState = 1;
-    bootstrapMock.isBootstrapped.mockReturnValue(false);
 
     await connectDB();
 
     expect(mongooseMock.connect).not.toHaveBeenCalled();
-    expect(bootstrapMock.bootstrapDB).toHaveBeenCalledTimes(1);
-  });
-
-  it('skips both connect and bootstrap when already connected and bootstrapped', async () => {
-    mongooseMock.connection.readyState = 1;
-    bootstrapMock.isBootstrapped.mockReturnValue(true);
-
-    await connectDB();
-
-    expect(mongooseMock.connect).not.toHaveBeenCalled();
-    expect(bootstrapMock.bootstrapDB).not.toHaveBeenCalled();
   });
 
   it('returns early when MONGODB_URI is not set', async () => {
@@ -125,7 +88,6 @@ describe('connectDB', () => {
     await connectDB();
 
     expect(mongooseMock.connect).not.toHaveBeenCalled();
-    expect(bootstrapMock.bootstrapDB).not.toHaveBeenCalled();
   });
 
   it('waits for in-flight connection when readyState is 2 (connecting)', async () => {
@@ -148,7 +110,6 @@ describe('connectDB', () => {
     await Promise.all([first, second]);
 
     expect(mongooseMock.connect).toHaveBeenCalledTimes(1);
-    expect(bootstrapMock.bootstrapDB).toHaveBeenCalled();
   });
 
   it('shares one connect attempt when two callers race before readyState flips', async () => {
@@ -170,13 +131,6 @@ describe('connectDB', () => {
     await Promise.all([first, second]);
 
     expect(mongooseMock.connect).toHaveBeenCalledTimes(1);
-    expect(bootstrapMock.bootstrapDB).toHaveBeenCalled();
-  });
-
-  it('rethrows errors from bootstrap', async () => {
-    bootstrapMock.bootstrapDB.mockRejectedValueOnce(new Error('bootstrap failed'));
-
-    await expect(connectDB()).rejects.toThrow('bootstrap failed');
   });
 
   it('tags a rethrown connect error with status 503 when it has no own status', async () => {

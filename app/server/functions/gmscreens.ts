@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import mongoose from 'mongoose';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
 import { identityRepository } from '../repositories/identity';
 import { campaigns } from '../repositories/campaigns';
+import { newObjectId } from '../repositories/collection';
 import { GMScreen, GMSCREEN_LIMITS } from '../db/models/GMScreen';
 import { Note } from '../db/models/Note';
 import { Character } from '../db/models/Character';
@@ -491,42 +491,30 @@ export const createGMScreen = async ({ data }: { data: z.infer<typeof createGMSc
     };
 
     for (let attempt = 0; attempt < MAX_TAB_ORDER_RETRIES; attempt++) {
-      const mongoSession = await mongoose.startSession();
+      // Tab orders are unique per campaign: a create that races another for the
+      // same order is refused by that key and takes the next one.
       try {
-        doc = (await mongoSession.withTransaction(async () => {
-          const last = (await GMScreen.findOne({ campaignId: data.campaignId })
-            .sort({ tabOrder: -1 })
-            .select('tabOrder')
-            .session(mongoSession)
-            .lean()) as { tabOrder?: number } | null;
+        const last = (await GMScreen.findOne({ campaignId: data.campaignId })
+          .sort({ tabOrder: -1 })
+          .select('tabOrder')
+          .lean()) as { tabOrder?: number } | null;
 
-          const nextOrder = (last?.tabOrder ?? -1) + 1;
+        const nextOrder = (last?.tabOrder ?? -1) + 1;
 
-          const now = new Date();
-          const createdDocs = (await GMScreen.create(
-            [
-              {
-                campaignId: data.campaignId,
-                name: data.name.trim(),
-                tabOrder: nextOrder,
-                createdBy: gm.userId,
-                createdAt: now,
-                updatedAt: now,
-              },
-            ],
-            { session: mongoSession }
-          )) as unknown as unknown[];
-          const created = createdDocs[0];
-
-          return created;
-        })) as typeof doc;
+        const now = new Date();
+        doc = (await GMScreen.create({
+          campaignId: data.campaignId,
+          name: data.name.trim(),
+          tabOrder: nextOrder,
+          createdBy: gm.userId,
+          createdAt: now,
+          updatedAt: now,
+        })) as unknown as typeof doc;
       } catch (e) {
         if (isDuplicateKeyError(e, 'tabOrder')) {
           continue;
         }
         throw e;
-      } finally {
-        await mongoSession.endSession();
       }
 
       serverCaptureEvent(sessionUserId, 'gmscreen_created', {
@@ -609,32 +597,14 @@ export const deleteGMScreen = async ({ data }: { data: z.infer<typeof deleteGMSc
     const gm = await requireCampaignGM(data.campaignId);
     sessionUserId = gm.sessionUserId;
 
-    // Use a transaction so the count-check + delete is atomic
-    const mongoSession = await mongoose.startSession();
-    let deletedTabOrder: number;
-    try {
-      deletedTabOrder = await mongoSession.withTransaction(async () => {
-        const screen = await GMScreen.findOne({
-          _id: data.id,
-          campaignId: data.campaignId,
-        }).session(mongoSession);
-        if (!screen) throw new Error('Screen not found');
+    const screen = await GMScreen.findOne({ _id: data.id, campaignId: data.campaignId });
+    if (!screen) throw new Error('Screen not found');
 
-        const count = await GMScreen.countDocuments({
-          campaignId: data.campaignId,
-        }).session(mongoSession);
-        if (count <= 1) throw new Error('Cannot delete the last screen');
+    const count = await GMScreen.countDocuments({ campaignId: data.campaignId });
+    if (count <= 1) throw new Error('Cannot delete the last screen');
 
-        const tabOrder = typeof screen.tabOrder === 'number' ? screen.tabOrder : 0;
-        await GMScreen.deleteOne({ _id: data.id, campaignId: data.campaignId }).session(
-          mongoSession
-        );
-
-        return tabOrder;
-      });
-    } finally {
-      await mongoSession.endSession();
-    }
+    const deletedTabOrder = typeof screen.tabOrder === 'number' ? screen.tabOrder : 0;
+    await GMScreen.deleteOne({ _id: data.id, campaignId: data.campaignId });
 
     // Return the remaining screens so the client can resolve the next active screen
     const remaining = await GMScreen.find(
@@ -686,59 +656,51 @@ export const reorderGMScreens = async ({
     const gm = await requireCampaignGM(data.campaignId);
     sessionUserId = gm.sessionUserId;
 
-    // Use a transaction for atomic read + bulkWrite
-    const mongoSession = await mongoose.startSession();
-    try {
-      await mongoSession.withTransaction(async () => {
-        const screens = (await GMScreen.find({ campaignId: data.campaignId }, '_id')
-          .session(mongoSession)
-          .lean()) as Array<{ _id: unknown }>;
+    const screens = (await GMScreen.find({ campaignId: data.campaignId }, '_id').lean()) as Array<{
+      _id: unknown;
+    }>;
 
-        const existingIds = new Set(screens.map((s) => String(s._id)));
+    const existingIds = new Set(screens.map((s) => String(s._id)));
 
-        // Validate input is a full permutation: no duplicates, no missing screens
-        const inputIds = new Set(data.screenIds);
-        if (inputIds.size !== data.screenIds.length) {
-          throw new Error('Duplicate screen IDs in reorder request');
-        }
-        for (const id of data.screenIds) {
-          if (!existingIds.has(id)) {
-            throw new Error(`Screen ${id} not found in this campaign`);
-          }
-        }
-        for (const id of existingIds) {
-          if (!inputIds.has(id)) {
-            throw new Error(`Missing screen ${id} in reorder request`);
-          }
-        }
-
-        // Two-phase reorder to avoid transient unique-index collisions:
-        // Phase 1 — move all screens to negative tabOrder values
-        const now = new Date();
-        await GMScreen.bulkWrite(
-          data.screenIds.map((id, index) => ({
-            updateOne: {
-              filter: { _id: id, campaignId: data.campaignId },
-              update: { $set: { tabOrder: -(index + 1), updatedAt: now } },
-            },
-          })),
-          { session: mongoSession }
-        );
-
-        // Phase 2 — assign final tabOrder values (all non-negative, no collisions)
-        await GMScreen.bulkWrite(
-          data.screenIds.map((id, index) => ({
-            updateOne: {
-              filter: { _id: id, campaignId: data.campaignId },
-              update: { $set: { tabOrder: index } },
-            },
-          })),
-          { session: mongoSession }
-        );
-      });
-    } finally {
-      await mongoSession.endSession();
+    // Validate input is a full permutation: no duplicates, no missing screens
+    const inputIds = new Set(data.screenIds);
+    if (inputIds.size !== data.screenIds.length) {
+      throw new Error('Duplicate screen IDs in reorder request');
     }
+    for (const id of data.screenIds) {
+      if (!existingIds.has(id)) {
+        throw new Error(`Screen ${id} not found in this campaign`);
+      }
+    }
+    for (const id of existingIds) {
+      if (!inputIds.has(id)) {
+        throw new Error(`Missing screen ${id} in reorder request`);
+      }
+    }
+
+    // Two-phase reorder to avoid transient unique-key collisions:
+    // Phase 1 — move all screens to negative tabOrder values, already in the new
+    // order, so the tabs read correctly even if phase 2 never runs.
+    const now = new Date();
+    const count = data.screenIds.length;
+    await GMScreen.bulkWrite(
+      data.screenIds.map((id, index) => ({
+        updateOne: {
+          filter: { _id: id, campaignId: data.campaignId },
+          update: { $set: { tabOrder: index - count, updatedAt: now } },
+        },
+      }))
+    );
+
+    // Phase 2 — assign final tabOrder values (all non-negative, no collisions)
+    await GMScreen.bulkWrite(
+      data.screenIds.map((id, index) => ({
+        updateOne: {
+          filter: { _id: id, campaignId: data.campaignId },
+          update: { $set: { tabOrder: index } },
+        },
+      }))
+    );
 
     serverCaptureEvent(sessionUserId, 'gmscreens_reordered', {
       campaign_id: data.campaignId,
@@ -1218,6 +1180,7 @@ export const createStack = async ({ data }: { data: z.infer<typeof createStackSc
     }
 
     screen.stacks.push({
+      _id: newObjectId(),
       name: data.name.trim(),
       x: null,
       y: null,

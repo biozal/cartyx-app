@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import mongoose from 'mongoose';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
 import { identityRepository } from '../repositories/identity';
@@ -183,6 +182,9 @@ class AlreadyReportedError extends Error {
   }
 }
 
+const isObjectId = (value: unknown): value is string =>
+  typeof value === 'string' && /^[0-9a-f]{24}$/i.test(value);
+
 function isDuplicateKeyError(e: unknown, field: string): boolean {
   if (typeof e !== 'object' || e === null) return false;
   const err = e as { code?: number; keyPattern?: Record<string, unknown>; message?: string };
@@ -317,42 +319,30 @@ export const createTabletopScreen = async ({
     };
 
     for (let attempt = 0; attempt < MAX_TAB_ORDER_RETRIES; attempt++) {
-      const mongoSession = await mongoose.startSession();
+      // Tab orders are unique per campaign: a create that races another for the
+      // same order is refused by that key and takes the next one.
       try {
-        doc = (await mongoSession.withTransaction(async () => {
-          const last = (await TabletopScreen.findOne({ campaignId: data.campaignId })
-            .sort({ tabOrder: -1 })
-            .select('tabOrder')
-            .session(mongoSession)
-            .lean()) as { tabOrder?: number } | null;
+        const last = (await TabletopScreen.findOne({ campaignId: data.campaignId })
+          .sort({ tabOrder: -1 })
+          .select('tabOrder')
+          .lean()) as { tabOrder?: number } | null;
 
-          const nextOrder = (last?.tabOrder ?? -1) + 1;
+        const nextOrder = (last?.tabOrder ?? -1) + 1;
 
-          const now = new Date();
-          const createdDocs = (await TabletopScreen.create(
-            [
-              {
-                campaignId: data.campaignId,
-                name: data.name.trim(),
-                tabOrder: nextOrder,
-                createdBy: gm.userId,
-                createdAt: now,
-                updatedAt: now,
-              },
-            ],
-            { session: mongoSession }
-          )) as unknown as unknown[];
-          const created = createdDocs[0];
-
-          return created;
-        })) as typeof doc;
+        const now = new Date();
+        doc = (await TabletopScreen.create({
+          campaignId: data.campaignId,
+          name: data.name.trim(),
+          tabOrder: nextOrder,
+          createdBy: gm.userId,
+          createdAt: now,
+          updatedAt: now,
+        })) as unknown as typeof doc;
       } catch (e) {
         if (isDuplicateKeyError(e, 'tabOrder')) {
           continue;
         }
         throw e;
-      } finally {
-        await mongoSession.endSession();
       }
 
       serverCaptureEvent(sessionUserId, 'tabletop_screen_created', {
@@ -521,32 +511,17 @@ export const deleteTabletopScreen = async ({
     const gm = await requireCampaignGM(data.campaignId);
     sessionUserId = gm.sessionUserId;
 
-    // Use a transaction so the count-check + delete is atomic
-    const mongoSession = await mongoose.startSession();
-    let deletedTabOrder: number;
-    try {
-      deletedTabOrder = await mongoSession.withTransaction(async () => {
-        const screen = await TabletopScreen.findOne({
-          _id: data.id,
-          campaignId: data.campaignId,
-        }).session(mongoSession);
-        if (!screen) throw new Error('Screen not found');
+    const screen = await TabletopScreen.findOne({
+      _id: data.id,
+      campaignId: data.campaignId,
+    });
+    if (!screen) throw new Error('Screen not found');
 
-        const count = await TabletopScreen.countDocuments({
-          campaignId: data.campaignId,
-        }).session(mongoSession);
-        if (count <= 1) throw new Error('Cannot delete the last screen');
+    const count = await TabletopScreen.countDocuments({ campaignId: data.campaignId });
+    if (count <= 1) throw new Error('Cannot delete the last screen');
 
-        const tabOrder = typeof screen.tabOrder === 'number' ? screen.tabOrder : 0;
-        await TabletopScreen.deleteOne({ _id: data.id, campaignId: data.campaignId }).session(
-          mongoSession
-        );
-
-        return tabOrder;
-      });
-    } finally {
-      await mongoSession.endSession();
-    }
+    const deletedTabOrder = typeof screen.tabOrder === 'number' ? screen.tabOrder : 0;
+    await TabletopScreen.deleteOne({ _id: data.id, campaignId: data.campaignId });
 
     // Return the remaining screens so the client can resolve the next active screen
     const remaining = await TabletopScreen.find(
@@ -1247,7 +1222,7 @@ async function assertPrivateWindowScreenExists(
   screenId: string,
   campaignId: string
 ): Promise<void> {
-  if (!mongoose.Types.ObjectId.isValid(screenId)) throw new Error('Screen not found');
+  if (!isObjectId(screenId)) throw new Error('Screen not found');
 
   if (surface === 'tabletop') {
     const screen = await TabletopScreen.findOne({ _id: screenId, campaignId }, '_id').lean();
@@ -1320,9 +1295,6 @@ export const addPrivateWindow = async ({
     //   $nor  — rejects the push when this exact ref is already open (dedup),
     //           which is what actually makes a double-click idempotent.
     //   $expr — rejects it when this surface+screen is already at the cap.
-    // $expr is a raw aggregation expression and is NOT cast by mongoose, so the
-    // screenId has to be compared as a real ObjectId.
-    const screenObjectId = new mongoose.Types.ObjectId(data.screenId);
     const pushResult = await TabletopPlayerState.updateOne(
       {
         campaignId: data.campaignId,
@@ -1350,7 +1322,7 @@ export const addPrivateWindow = async ({
                   cond: {
                     $and: [
                       { $eq: ['$$this.surface', data.surface] },
-                      { $eq: ['$$this.screenId', screenObjectId] },
+                      { $eq: ['$$this.screenId', data.screenId] },
                     ],
                   },
                 },
@@ -1417,7 +1389,7 @@ export const updatePrivateWindow = async ({
 
     // Malformed id is a no-op, matching removePrivateWindow: a layout write for
     // a window that isn't there must not surface as a 500.
-    if (mongoose.Types.ObjectId.isValid(data.privateWindowId)) {
+    if (isObjectId(data.privateWindowId)) {
       // Only layout fields are settable — the schema carries nothing else, so a
       // move can never re-point the window at a document the caller may not see.
       const set: Record<string, unknown> = {};
@@ -1468,7 +1440,7 @@ export const removePrivateWindow = async ({
     // A malformed id is a no-op, not a CastError: closing a window that isn't
     // there should never surface as a 500. `$pull` is already a no-op for a
     // well-formed id that matches nothing, so this just makes the two agree.
-    if (mongoose.Types.ObjectId.isValid(data.privateWindowId)) {
+    if (isObjectId(data.privateWindowId)) {
       await TabletopPlayerState.updateOne(
         { campaignId: data.campaignId, userId: member.userId },
         { $pull: { privateWindows: { _id: data.privateWindowId } } }
