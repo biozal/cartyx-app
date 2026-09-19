@@ -47,6 +47,7 @@ import { join } from 'node:path';
 import mongoose from 'mongoose';
 import { SignJWT } from 'jose';
 import { test, expect, openWikiTab, openTabletopTab } from '../fixtures/tabletop-fixtures';
+import { closeIdentity, seedIdentity } from '../fixtures/data';
 import type { Page, BrowserContext, Browser } from '@playwright/test';
 
 /** Stable name so re-running the suite reuses one quest instead of piling up. */
@@ -273,24 +274,13 @@ test.describe('wiki card overflow menu', () => {
       // happens to accumulate providerIds from real logins. Upsert a dedicated
       // e2e player user + campaign membership; idempotent across runs.
       const PLAYER_PROVIDER_ID = 'e2e-overflow-player';
-      await db.collection('users').updateOne(
-        { providerId: PLAYER_PROVIDER_ID },
-        {
-          $set: {
-            providerId: PLAYER_PROVIDER_ID,
-            provider: 'test',
-            email: 'e2e-overflow-player@example.com',
-            firstName: 'E2E',
-            lastName: 'Player',
-            role: 'player',
-          },
-        },
-        { upsert: true }
-      );
-      const playerUser = (await db
-        .collection('users')
-        .findOne({ providerId: PLAYER_PROVIDER_ID })) as (SessionUserDoc & { _id: unknown }) | null;
-      if (!playerUser) throw new Error('Failed to provision the e2e player user');
+      const playerUser = await seedIdentity({
+        provider: 'test',
+        providerId: PLAYER_PROVIDER_ID,
+        email: 'e2e-overflow-player@example.com',
+        firstName: 'E2E',
+        lastName: 'Player',
+      });
       playerUserId = String(playerUser._id);
 
       // Grant campaign access: membership is what getCampaign checks (by the
@@ -308,15 +298,12 @@ test.describe('wiki card overflow menu', () => {
             { $push: { members: { userId: playerUser._id, role: 'player', joinedAt: new Date() } } }
           );
       }
-      await db
-        .collection('users')
-        .updateOne(
-          { _id: playerUser._id, 'campaigns.campaignId': { $ne: campaignId } },
-          { $push: { campaigns: { campaignId, joinedAt: new Date(), status: 'active' } } }
-        );
+      // The campaign's member entry is what grants access; the user-side mirror that
+      // used to be written here is gone, because nothing read it.
 
       playerStorageState = await mintStorageState(playerUser, sessionSecret);
     } finally {
+      await closeIdentity();
       await mongoose.disconnect();
     }
   });

@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { test, expect } from '@playwright/test';
 import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
+import { seededGameMaster } from '../fixtures/data';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -72,8 +73,7 @@ async function provision(db: Db): Promise<Provisioned> {
   const cookie = storage.cookies.find((c) => c.name === 'cartyx_session');
   if (!cookie) throw new Error('No cartyx_session cookie — globalSetup did not run?');
   const providerId = (decodeJwt(cookie.value) as { user?: { id?: string } }).user?.id;
-  const gm = await db.collection('users').findOne({ providerId });
-  if (!gm?._id) throw new Error('Session GM user not found');
+  const gm = seededGameMaster(providerId);
 
   const stale = await db
     .collection('campaigns')

@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
 import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
+import { seededGameMaster } from '../fixtures/data';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -46,22 +47,13 @@ async function provision(database: Db): Promise<Provisioned> {
   const cookie = storage.cookies.find((c) => c.name === 'cartyx_session');
   if (!cookie) throw new Error('No cartyx_session cookie — globalSetup did not run?');
   const providerId = (decodeJwt(cookie.value) as { user?: { id?: string } }).user?.id;
-  const gm = await database.collection('users').findOne({ providerId });
-  if (!gm?._id) throw new Error('Session GM user not found');
+  const gm = seededGameMaster(providerId);
 
   const now = new Date();
 
-  // A throwaway "other author" so we can prove a GM deletes others' text.
-  const otherUserId = (
-    await database.collection('users').insertOne({
-      provider: 'e2e',
-      providerId: 'e2e-text-other-' + Math.random().toString(36).slice(2, 12),
-      role: 'player',
-      firstName: 'Other',
-      lastName: 'Author',
-      createdAt: now,
-    })
-  ).insertedId;
+  // A throwaway "other author" so we can prove a GM deletes others' work. Nothing
+  // resolves this person — it is only an id on the document — so it needs no account.
+  const otherUserId = new ObjectId();
 
   const campaignId = (
     await database.collection('campaigns').insertOne({
@@ -179,11 +171,6 @@ test.afterAll(async () => {
     await db().collection('tabletopscreen').deleteMany({ campaignId: cid });
     await db().collection('map').deleteMany({ campaignId: cid });
     await db().collection('campaigns').deleteMany({ _id: cid });
-  }
-  if (provisioned?.otherUserId) {
-    await db()
-      .collection('users')
-      .deleteOne({ _id: new ObjectId(provisioned.otherUserId) });
   }
   await client.close();
 });

@@ -533,6 +533,9 @@ export default async function globalSetup(): Promise<void> {
   writeFileSync(STORAGE_STATE_PATH, JSON.stringify(storageState, null, 2));
 
   const seedData = {
+    // Identity lives in the graph, so specs cannot look the game master up in Mongo.
+    gmUserId: profile.id,
+    gmProviderId: GM_PROVIDER_ID,
     campaignId: String(campaign._id),
     locationId: String(location._id),
     locationName: location.name,

@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
 import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
+import { closeIdentity, readRulerColor, seededGameMaster, writeRulerColor } from '../fixtures/data';
+import { DEFAULT_RULER_COLOR } from '~/types/schemas/userPreferences';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -70,8 +72,7 @@ async function provision(database: Db): Promise<Provisioned> {
   if (!cookie) throw new Error('No cartyx_session cookie — globalSetup did not run?');
   const providerId = (decodeJwt(cookie.value) as { user?: { id?: string } }).user?.id;
   if (!providerId) throw new Error('No providerId in session JWT');
-  const gm = await database.collection('users').findOne({ providerId });
-  if (!gm?._id) throw new Error('Session GM user not found');
+  const gm = seededGameMaster(providerId);
 
   const now = new Date();
   const campaignId = (
@@ -174,16 +175,12 @@ test.beforeAll(async () => {
   await client.connect();
   provisioned = await provision(db());
 
-  // Remember the GM's existing ruler color so we can restore it afterwards.
-  const gm = await db().collection('users').findOne({ providerId: provisioned.providerId });
-  originalRulerColor = (gm?.preferences as { rulerColor?: string } | undefined)?.rulerColor;
-  // Start each run from a known-clean state (no persisted color).
-  await db()
-    .collection('users')
-    .updateOne(
-      { providerId: provisioned.providerId },
-      { $unset: { 'preferences.rulerColor': '' } }
-    );
+  // Remember the GM's existing ruler color so we can restore it afterwards. Preferences
+  // live in the published profile now, which has no unset, so a run starts from the
+  // application's own default rather than from nothing — PICKED_COLOR differs from it,
+  // so the assertions below mean the same thing either way.
+  originalRulerColor = (await readRulerColor(provisioned.providerId)) ?? undefined;
+  await writeRulerColor(provisioned.providerId, DEFAULT_RULER_COLOR);
 });
 
 test.afterAll(async () => {
@@ -195,23 +192,10 @@ test.afterAll(async () => {
     await db().collection('map').deleteMany({ campaignId: cid });
     await db().collection('campaigns').deleteMany({ _id: cid });
   }
-  // Restore the GM's original ruler color (or clear it if there was none).
+  // Restore the GM's original ruler color, or the default where there was none.
   if (provisioned?.providerId) {
-    if (originalRulerColor) {
-      await db()
-        .collection('users')
-        .updateOne(
-          { providerId: provisioned.providerId },
-          { $set: { 'preferences.rulerColor': originalRulerColor } }
-        );
-    } else {
-      await db()
-        .collection('users')
-        .updateOne(
-          { providerId: provisioned.providerId },
-          { $unset: { 'preferences.rulerColor': '' } }
-        );
-    }
+    await writeRulerColor(provisioned.providerId, originalRulerColor ?? DEFAULT_RULER_COLOR);
+    await closeIdentity();
   }
   await client.close();
 });
@@ -261,8 +245,7 @@ test('the chosen color is stored on the user record', async ({ page }) => {
   await expect
     .poll(
       async () => {
-        const gm = await db().collection('users').findOne({ providerId: provisioned.providerId });
-        return (gm?.preferences as { rulerColor?: string } | undefined)?.rulerColor;
+        return await readRulerColor(provisioned.providerId);
       },
       { timeout: 10000 }
     )
