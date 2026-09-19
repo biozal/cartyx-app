@@ -64,7 +64,10 @@ describe('collection', () => {
     });
     expect(inCampaign.map((d) => d.rank)).toEqual([5, 3, 1]);
     expect(await things.count({ campaignId: hex(1000) })).toBe(2);
-    expect((await things.find({ search: 'thing 4' })).map((d) => d._id)).toEqual([hex(4)]);
+    // Any term matches, as MongoDB's `$text` does: "thing" is in every name.
+    expect(await things.count({}, 'thing')).toBe(5);
+    await things.update(hex(4), (d) => ({ ...d, name: 'Rusty Anchor' }));
+    expect((await things.find({ search: 'anchors' })).map((d) => d._id)).toEqual([hex(4)]);
     expect((await things.findOne({ where: { name: 'thing 2' } }))?._id).toBe(hex(2));
   });
 

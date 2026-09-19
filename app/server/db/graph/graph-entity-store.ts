@@ -53,6 +53,8 @@ const REVISION = 'revision';
 const CREATED_AT = 'createdAt';
 const UPDATED_AT = 'updatedAt';
 const SEARCH_WORD = 'searchWord';
+/** Never produced by `searchWords`, so matching it matches nothing. */
+const NO_TERMS = '\u0000';
 const POSITION = 'position';
 // One declared label for every domain entity: the indexed `kind` property carries identity,
 // so adding a domain kind needs no schema change.
@@ -137,9 +139,15 @@ function applyFilters<T>(
   }
   if (query.search) {
     if (!codec.searchText) throw new Error(`${codec.kind} has no searchable text`);
-    // Word matching, like Mongo `$text`: every query word must be present. Each
-    // has() is an indexed lookup on the multi-valued word property.
-    for (const word of searchWords(query.search)) traversal = traversal.has(SEARCH_WORD, word);
+    // MongoDB `$text` semantics: a document matches if it contains ANY of the query's
+    // terms. One indexed lookup on the multi-valued term property. A query made only of
+    // stop words has no terms and, as in MongoDB, matches nothing.
+    const words = searchWords(query.search);
+    // A document holding several of the terms is found once per term by the index, so
+    // de-duplicate: otherwise it would be listed, and counted, more than once.
+    traversal = traversal
+      .has(SEARCH_WORD, P.within(...(words.length ? words : [NO_TERMS])))
+      .dedup();
   }
   return traversal;
 }

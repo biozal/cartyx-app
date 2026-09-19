@@ -103,9 +103,8 @@ export function createMemoryEntityStore(): EntityStore {
       }
       if (query.search) {
         if (!codec.searchText) throw new Error(`${codec.kind} has no searchable text`);
-        // Word matching, like Mongo `$text`: every query word must be present.
-        if (!searchWords(query.search).every((word) => row.searchWords.includes(word)))
-          return false;
+        // MongoDB `$text` semantics: any of the query's terms; none at all matches nothing.
+        if (!searchWords(query.search).some((word) => row.searchWords.includes(word))) return false;
       }
       return true;
     });

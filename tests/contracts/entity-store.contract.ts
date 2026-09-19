@@ -266,6 +266,31 @@ export async function entityStoreContract(
       0
     );
 
+    // MongoDB `$text` semantics, which every search in the app relies on: any term
+    // matches, words are stemmed, case and diacritics are ignored, and stop words are
+    // not terms — so a query made only of them matches nothing rather than everything.
+    const searchScope: EntityScope = { type: 'campaign', id: id() };
+    const goblins = track(
+      await store.create(contractThing, searchScope, thing({ name: 'Goblins Ambush', tags: [] }))
+    );
+    const cafe = track(
+      await store.create(contractThing, searchScope, thing({ name: 'Café Mêlée', tags: [] }))
+    );
+    const search = async (text: string) =>
+      (await store.list(contractThing, searchScope, { search: text, limit: 10 }))
+        .map((item) => item.ref.id)
+        .sort();
+    assert.deepEqual(await search('goblin'), [goblins.ref.id], 'stemmed');
+    assert.deepEqual(await search('AMBUSHED'), [goblins.ref.id], 'case-insensitive, stemmed');
+    assert.deepEqual(await search('cafe melee'), [cafe.ref.id], 'diacritic-insensitive');
+    assert.deepEqual(
+      await search('goblin cafe'),
+      [goblins.ref.id, cafe.ref.id].sort(),
+      'any term matches'
+    );
+    assert.deepEqual(await search('the of and'), [], 'stop words alone match nothing');
+    assert.equal(await store.count(contractThing, searchScope, { search: 'the goblin' }), 1);
+
     // Rejected inputs never reach the store.
     await assert.rejects(
       store.create(contractThing, scope, { ...thing(), rank: 1.5 } as Thing),
