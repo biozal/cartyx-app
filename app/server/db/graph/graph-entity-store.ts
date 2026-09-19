@@ -79,7 +79,15 @@ function number(value: unknown): number {
   return parsed;
 }
 
-function readRow<T>(codec: EntityCodec<T>, row: unknown): Stored<T> {
+/**
+ * Reads one projected row, or null when the entity is not there to be read.
+ *
+ * A read is not isolated from a concurrent removal: dropping a vertex deletes its
+ * properties, and another transaction can see that half-applied, with the document
+ * already gone. That is an entity being removed, not a corrupt one, so it reads as
+ * absent. A document that IS there but malformed is still an integrity failure.
+ */
+function readRow<T>(codec: EntityCodec<T>, row: unknown): Stored<T> | null {
   const record = Object.fromEntries(
     [DOC, DOC_VERSION, REVISION, CREATED_AT, UPDATED_AT, 'scope', 'entityId'].map((key) => [
       key,
@@ -87,6 +95,8 @@ function readRow<T>(codec: EntityCodec<T>, row: unknown): Stored<T> {
     ])
   ) as Record<string, unknown>;
   const document = record[DOC];
+  // Mid-removal: the vertex is still there but its document cells are gone.
+  if (document === undefined) return null;
   const documentVersion = number(record[DOC_VERSION]);
   const revision = number(record[REVISION]);
   const entityId = String(record.entityId);
@@ -190,7 +200,9 @@ function writeProperties<T>(
  */
 export function createGraphEntityStore(client: EntityGraphClient): EntityStore {
   const rows = async <T>(codec: EntityCodec<T>, traversal: gremlin.process.GraphTraversal) =>
-    (await client.execute(traversal)).map((row) => readRow(codec, row));
+    (await client.execute(traversal))
+      .map((row) => readRow(codec, row))
+      .filter((stored): stored is Stored<T> => stored !== null);
 
   const store: EntityStore = {
     async create(codec, scope, value, id) {
