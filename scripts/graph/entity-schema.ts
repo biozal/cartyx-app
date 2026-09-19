@@ -18,7 +18,8 @@ export const ENTITY_INDEXES = [
   ...SLOTS.map((slot) => `byScopeKind_${slot}`),
 ];
 
-const VERSION = '0001';
+// 0002 adds the `index-register` recovery step; the schema it produces is unchanged.
+const VERSION = '0002';
 
 /**
  * Operator-only. Runs one bounded request per step: creating every index at once
@@ -63,8 +64,16 @@ export async function checkEntitySchema(config: GraphConnectionConfig, applySche
         throw new Error(`Index ${indexName} is not ENABLED`);
       continue;
     }
-    // Registration waits for every graph instance to acknowledge the new index.
-    const settled = await settle(indexName, ['REGISTERED', 'ENABLED']);
+    // Registration waits for every graph instance to acknowledge the new index. It
+    // normally takes about ten seconds; an index still INSTALLED after that has most
+    // likely lost an acknowledgement, which waiting does not fix, so resend it once.
+    let settled: string;
+    try {
+      settled = await settle(indexName, ['REGISTERED', 'ENABLED'], 45_000);
+    } catch {
+      await expect('index-register', `entities:index-register:${indexName}`, { indexName });
+      settled = await settle(indexName, ['REGISTERED', 'ENABLED']);
+    }
     if (settled === 'REGISTERED') {
       await expect('index-enable', `entities:index-enable:${indexName}`, { indexName });
       await settle(indexName, ['ENABLED']);

@@ -134,6 +134,22 @@ synchronized (graph) {
         } finally { m.rollback() }
     }
 
+    // Registration completes when every graph instance acknowledges the new index.
+    // Occasionally an acknowledgement is lost and the index sits in INSTALLED however long
+    // the caller waits; re-sending the registration is JanusGraph's remedy, and it is a
+    // no-op for an index that has already moved on.
+    if (step == 'index-register') {
+        def m = graph.openManagement()
+        try {
+            def index = m.getGraphIndex(indexName)
+            if (index == null) throw new IllegalStateException('Missing entity index ' + indexName)
+            if (index.getFieldKeys().any { index.getIndexStatus(it) == SchemaStatus.INSTALLED })
+                m.updateIndex(index, SchemaAction.REGISTER_INDEX)
+            m.commit()
+        } catch (Exception e) { m.rollback(); throw e }
+        return 'entities:index-register:' + indexName
+    }
+
     if (step == 'index-enable') {
         def m = graph.openManagement()
         try {
