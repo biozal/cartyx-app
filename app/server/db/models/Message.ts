@@ -1,49 +1,39 @@
-import mongoose, { type InferSchemaType, type Model } from 'mongoose';
+import { z } from 'zod';
+import { defineGraphModel } from '~/server/repositories/graph-model';
+import { now, objectId } from './schema-parts';
 
-const messageSchema = new mongoose.Schema({
-  id: { type: String, required: true },
-  seq: { type: Number, required: true },
-  sessionId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Session',
-    required: true,
-  },
-  campaignId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Campaign',
-    required: true,
-  },
-  channel: {
-    type: String,
-    enum: ['general', 'gm'],
-    required: true,
-  },
-  type: {
-    type: String,
-    enum: ['chat', 'spell-card', 'trait', 'item'],
-    required: true,
-  },
-  authorId: { type: String, required: true },
-  authorName: { type: String, required: true },
-  text: { type: String, default: '' },
-  beyond20Data: {
-    title: { type: String },
-    source: { type: String },
-    description: { type: String },
-    properties: { type: mongoose.Schema.Types.Mixed, default: {} },
-  },
-  timestamp: { type: Number, required: true },
-  createdAt: { type: Date, default: Date.now },
+export const messageSchema = z.object({
+  _id: objectId,
+  id: z.string(),
+  seq: z.number(),
+  sessionId: objectId,
+  campaignId: objectId,
+  channel: z.enum(['general', 'gm']),
+  type: z.enum(['chat', 'spell-card', 'trait', 'item']),
+  authorId: z.string(),
+  authorName: z.string(),
+  text: z.string().default(''),
+  // A nested path in Mongoose: present unless explicitly null (plain chat is seeded so).
+  beyond20Data: z
+    .object({
+      title: z.string().nullish(),
+      source: z.string().nullish(),
+      description: z.string().nullish(),
+      properties: z.record(z.string(), z.unknown()).default({}),
+    })
+    .nullable()
+    .prefault({}),
+  timestamp: z.number(),
+  createdAt: now(),
 });
 
-// istanbul ignore next
-if (typeof (messageSchema as { index?: unknown }).index === 'function') {
-  messageSchema.index({ sessionId: 1, seq: 1 });
-  messageSchema.index({ id: 1 }, { unique: true });
-}
+export type IMessage = z.infer<typeof messageSchema>;
 
-export type IMessage = InferSchemaType<typeof messageSchema>;
-
-export const Message: Model<IMessage> =
-  (mongoose.models.Message as Model<IMessage>) ||
-  mongoose.model<IMessage>('Message', messageSchema);
+export const Message = defineGraphModel<IMessage>({
+  name: 'messages',
+  kind: 'Message',
+  modelName: 'Message',
+  schema: messageSchema,
+  index: { sessionId: 'ix_s1', campaignId: 'ix_s2', channel: 'ix_s3', seq: 'ix_n1' },
+  unique: { id: (message) => [message.id] },
+});

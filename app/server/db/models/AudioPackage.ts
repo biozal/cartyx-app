@@ -1,91 +1,56 @@
-import mongoose, { type InferSchemaType, type Model } from 'mongoose';
+import { z } from 'zod';
+import { defineGraphModel } from '~/server/repositories/graph-model';
 import { DEFAULT_FADE_SECONDS, DEFAULT_VOLUME } from '~/types/soundboard';
+import { now, objectId, touch } from './schema-parts';
 
-// A single pad. `id` is stable WITHIN THE PACKAGE — `Mood.states[].itemId`
-// references it, never `assetId` — which is what lets one asset appear in
-// many moods at different volumes/rates without duplicating the item.
-// `_id: false`: the client-supplied `id` is the only identity this
-// subdocument needs, and Task 5's clone preserves it across the copy — a
-// Mongo-generated `_id` here would be noise a clone would have to strip.
-const packageItemSchema = new mongoose.Schema(
-  {
-    id: { type: String, required: true },
-    assetId: { type: mongoose.Schema.Types.ObjectId, ref: 'AudioAsset', required: true },
-    label: { type: String, default: null },
-    volume: { type: Number, default: DEFAULT_VOLUME },
-    fadeSeconds: { type: Number, default: DEFAULT_FADE_SECONDS },
-    loop: { type: Boolean, default: false },
-    randomIntervalMin: { type: Number, default: null },
-    randomIntervalMax: { type: Number, default: null },
-    volumeJitter: { type: Number, default: null },
-    panJitter: { type: Number, default: null },
-    sortIndex: { type: Number, default: 0 },
-  },
-  { _id: false }
-);
-
-// One item's playback state as overridden by a mood. Every override field is
-// nullable/optional with NO default value that would collide with a
-// meaningful override (`0`, `false`) — Task 8's `resolveItemState` depends on
-// `mood ?? item` being able to tell "not set, inherit" apart from "set to
-// zero/off". `itemId` is a plain String (package-scoped, not a Mongo ref) —
-// see the design doc: moods reference `item.id`, never `assetId`.
-const moodStateSchema = new mongoose.Schema(
-  {
-    itemId: { type: String, required: true },
-    playing: { type: Boolean, default: false },
-    volume: { type: Number, default: null },
-    fadeSeconds: { type: Number, default: null },
-    randomIntervalMin: { type: Number, default: null },
-    randomIntervalMax: { type: Number, default: null },
-  },
-  { _id: false }
-);
-
-// A named preset within a package. `_id: false` for the same clone-safety
-// reason as `packageItemSchema` above — `id` is the client-supplied, stable
-// identity.
-const moodSchema = new mongoose.Schema(
-  {
-    id: { type: String, required: true },
-    name: { type: String, required: true },
-    states: { type: [moodStateSchema], default: [] },
-  },
-  { _id: false }
-);
-
-const audioPackageSchema = new mongoose.Schema({
-  // Nullable, and deliberately NOT required: null is the entire mechanism
-  // that makes a package a system package (phase 3's generated catalogue),
-  // readable by everyone and editable by no one. Task 4's visibility rule
-  // ($or: [{ ownerId: userId }, { ownerId: null }]) is built directly on
-  // this field being able to hold null.
-  ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-  name: { type: String, required: true },
-  description: { type: String, default: null },
-  items: { type: [packageItemSchema], default: [] },
-  moods: { type: [moodSchema], default: [] },
-
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
+const packageItemSchema = z.object({
+  id: z.string(),
+  assetId: objectId,
+  label: z.string().nullable().default(null),
+  volume: z.number().default(DEFAULT_VOLUME),
+  fadeSeconds: z.number().default(DEFAULT_FADE_SECONDS),
+  loop: z.boolean().default(false),
+  randomIntervalMin: z.number().nullable().default(null),
+  randomIntervalMax: z.number().nullable().default(null),
+  volumeJitter: z.number().nullable().default(null),
+  panJitter: z.number().nullable().default(null),
+  sortIndex: z.number().default(0),
 });
 
-audioPackageSchema.pre('save', function () {
-  this.updatedAt = new Date();
+const moodStateSchema = z.object({
+  itemId: z.string(),
+  playing: z.boolean().default(false),
+  volume: z.number().nullable().default(null),
+  fadeSeconds: z.number().nullable().default(null),
+  randomIntervalMin: z.number().nullable().default(null),
+  randomIntervalMax: z.number().nullable().default(null),
 });
 
-// istanbul ignore next
-if (typeof (audioPackageSchema as { index?: unknown }).index === 'function') {
-  // Task 4's visibility query: `$or: [{ ownerId: userId }, { ownerId: null }]`,
-  // and the "my packages" list.
-  audioPackageSchema.index({ ownerId: 1 });
-  // A name-filtered/sorted listing within an owner's (or the system's, via
-  // ownerId: null) packages.
-  audioPackageSchema.index({ ownerId: 1, name: 1 });
-}
+const moodSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  states: z.array(moodStateSchema).default([]),
+});
 
-export type IAudioPackage = InferSchemaType<typeof audioPackageSchema>;
+export const audioPackageSchema = z.object({
+  _id: objectId,
+  // Null for system packages, which every GM can use.
+  ownerId: objectId.nullable().default(null),
+  name: z.string(),
+  description: z.string().nullable().default(null),
+  items: z.array(packageItemSchema).default([]),
+  moods: z.array(moodSchema).default([]),
+  createdAt: now(),
+  updatedAt: now(),
+});
 
-export const AudioPackage: Model<IAudioPackage> =
-  (mongoose.models.AudioPackage as Model<IAudioPackage>) ||
-  mongoose.model<IAudioPackage>('AudioPackage', audioPackageSchema);
+export type IAudioPackage = z.infer<typeof audioPackageSchema>;
+
+export const AudioPackage = defineGraphModel<IAudioPackage>({
+  name: 'audiopackages',
+  kind: 'AudioPackage',
+  modelName: 'AudioPackage',
+  schema: audioPackageSchema,
+  index: { ownerId: 'ix_s1', name: 'ix_s2' },
+  preSave: touch,
+});

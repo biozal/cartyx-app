@@ -78,11 +78,6 @@ spec:
             - name: R2_BUCKET
               value: {{ .Values.web.env.R2_BUCKET | quote }}
             {{- end }}
-            - name: MONGODB_URI
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "cartyx.secretName" . }}
-                  key: mongodbUri
             {{- include "cartyx.data.env" . | nindent 12 }}
             - name: R2_ACCESS_KEY_ID
               valueFrom:

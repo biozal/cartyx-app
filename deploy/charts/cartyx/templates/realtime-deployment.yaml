@@ -51,11 +51,6 @@ spec:
                 secretKeyRef:
                   name: {{ include "cartyx.secretName" . }}
                   key: sessionSecret
-            - name: MONGODB_URI
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "cartyx.secretName" . }}
-                  key: mongodbUri
             {{- include "cartyx.data.env" . | nindent 12 }}
           livenessProbe:
             httpGet:
