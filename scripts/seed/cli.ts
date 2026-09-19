@@ -9,7 +9,7 @@
  * Reset means clear THEN seed, in that order. Seeding alone accumulates.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,6 +20,9 @@ import { runSeeders, seeders } from './registry';
 import { seedGameMaster, seedPlayers } from './users';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+// Local runs keep the data settings in .env; CI passes them in the environment, which
+// keeps precedence (Node does not overwrite what is already set).
+if (existsSync(resolve(root, '.env'))) process.loadEnvFile(resolve(root, '.env'));
 const requested = process.argv[2];
 if (requested !== 'seed' && requested !== 'clear')
   throw new Error('Usage: tsx scripts/seed/cli.ts seed|clear [--force]');
