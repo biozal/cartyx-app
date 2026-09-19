@@ -9,11 +9,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '@playwright/test';
-import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
 import { seededGameMaster } from '../fixtures/data';
 import { campaignFixtures } from '../fixtures/campaigns';
-import { graphDb } from '../../scripts/graph-db';
+import { graphDb, ObjectId, type Db } from '../../scripts/graph-db';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -30,7 +29,6 @@ interface Provisioned {
   emptyTabId: string;
 }
 
-let client: MongoClient;
 let provisioned: Provisioned;
 
 function screenDoc(extra: Record<string, unknown>) {
@@ -142,24 +140,18 @@ test.beforeAll(async () => {
   } catch {
     /* env may be set externally */
   }
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error('MONGODB_URI not set');
-  client = new MongoClient(uri);
-  await client.connect();
-  const db = graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
+  const db = graphDb();
   provisioned = await provision(db);
 });
 
 test.afterAll(async () => {
-  if (!client) return;
   if (provisioned?.campaignId) {
-    const db = graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
+    const db = graphDb();
     const cid = new ObjectId(provisioned.campaignId);
     await db.collection('tabletopscreen').deleteMany({ campaignId: cid });
     await db.collection('map').deleteMany({ campaignId: cid });
     await campaignFixtures.deleteMany({ _id: cid });
   }
-  await client.close();
 });
 
 test('an activated map shows only on its own tab', async ({ page }) => {

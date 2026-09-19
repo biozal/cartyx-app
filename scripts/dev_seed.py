@@ -33,7 +33,7 @@ from html import escape
 from pathlib import Path
 
 from dotenv import load_dotenv
-from bson import ObjectId
+from object_id import ObjectId, dumps_extended
 
 # Sibling modules for reference data — kept out of this file to keep it
 # focused on insertion logic.
@@ -2224,11 +2224,7 @@ def main() -> None:
         f"4 players each, and SRD monsters in the stock test campaign."
     )
 
-    from bson import json_util
-    Path(plan_path).write_text(
-        json_util.dumps(db.entries, json_options=json_util.RELAXED_JSON_OPTIONS),
-        encoding="utf-8",
-    )
+    Path(plan_path).write_text(dumps_extended(db.entries), encoding="utf-8")
     print(f"Seed plan: {len(db.entries)} documents → {plan_path}")
 
 

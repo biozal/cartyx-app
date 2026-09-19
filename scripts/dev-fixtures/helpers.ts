@@ -2,7 +2,7 @@
  * Shared helpers for dev fixture scripts.
  *
  * Provides:
- *   - Safe Mongo connection (refuses prod URIs)
+ *   - Safe data connection (refuses production targets)
  *   - GM lookup
  *   - Campaign destroyer that walks every collection a campaign touches
  *     (sessions, chars, players, locations, screens, notes, rules, etc.)
@@ -15,11 +15,10 @@ import {
   type DeleteObjectCommandOutput,
   ListObjectsV2Command,
 } from '@aws-sdk/client-s3';
-import mongoose, { type Connection } from 'mongoose';
-import { ObjectId } from 'mongodb';
-import { graphDb } from '../graph-db';
+import { graphDb, ObjectId, type Db } from '../graph-db';
+import { assertSeedTargetIsNotProduction } from '../seed/guards';
 
-// Load .env into process.env so MONGODB_URI / R2 creds are picked up.
+// Load .env into process.env so the graph and R2 settings are picked up.
 // Node 20.6+ has this built-in; ignored if .env doesn't exist.
 try {
   process.loadEnvFile('.env');
@@ -40,32 +39,19 @@ export interface FixtureMetadata {
   createdAt: string;
 }
 
-/** Refuses to run if the URI looks like prod. Loads .env into process.env. */
-export function requireSafeMongoUri(): { uri: string; dbName?: string } {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Refusing to run dev fixtures in NODE_ENV=production.');
-  }
-  const uri = process.env.MONGODB_URI;
-  if (!uri) {
-    throw new Error('MONGODB_URI is not set (load via .env or shell export).');
-  }
-  if (/prod/i.test(uri)) {
-    throw new Error('MONGODB_URI looks like a production connection string. Aborting.');
-  }
-  return { uri, dbName: process.env.MONGODB_DB };
+/** A fixture run's handle on the data: the driver's `db.collection(name)` over the graph. */
+export interface Connection {
+  db: Db;
 }
 
-export async function connectMongo(): Promise<Connection> {
-  const { uri, dbName } = requireSafeMongoUri();
-  await mongoose.connect(uri, { dbName });
-  const conn = mongoose.connection;
-  if (!conn.db) throw new Error('Mongo connected but db handle missing.');
-  return conn;
+/** Refuses production targets (the seeder's own guard), then opens the graph. */
+export async function connectData(): Promise<Connection> {
+  assertSeedTargetIsNotProduction();
+  return { db: graphDb() };
 }
 
-export async function disconnectMongo(): Promise<void> {
-  await mongoose.disconnect();
-  // Identity is read from the graph, whose driver would otherwise hold the process open.
+export async function disconnectData(): Promise<void> {
+  // The Cassandra driver would otherwise hold the process open.
   const { closeData } = await import('../../app/server/db/data-runtime');
   await closeData();
 }
@@ -91,11 +77,9 @@ export async function findGm(): Promise<{ _id: ObjectId; providerId?: string }> 
  * campaign can populate. Stays in lockstep with the app models. If you add
  * a new campaign-scoped collection, add it here too.
  */
-// Mongoose collection names verified against the model files in
-// app/server/db/models/. Several use singular custom names — be careful when
-// updating: `location`, `locationtype`, `tabletopscreen`, `gmscreen`,
-// `tabletopplayerstate`, `sessionevent`. The rest follow Mongoose's default
-// (lowercased + pluralised).
+// Collection names are the graph models' names (app/server/db/models/graph-models.ts),
+// kept from MongoDB. Several are singular — be careful when updating: `location`,
+// `locationtype`, `tabletopscreen`, `gmscreen`, `tabletopplayerstate`, `sessionevent`.
 const CAMPAIGN_SCOPED_COLLECTIONS: Array<{ name: string; field: string }> = [
   { name: 'sessions', field: 'campaignId' },
   { name: 'characters', field: 'campaignId' },
@@ -160,7 +144,7 @@ export async function destroyCampaigns(
   conn: Connection,
   filter: { fixtureName?: string; campaignId?: string; allFixtures?: boolean; force?: boolean }
 ): Promise<DestroyResult> {
-  const db = graphDb(conn.db);
+  const db = conn.db;
   const cdnUrl = process.env.CDN_URL?.replace(/\/+$/, '') ?? null;
 
   if (!filter.campaignId && !filter.fixtureName && !filter.allFixtures)
@@ -181,7 +165,7 @@ export async function destroyCampaigns(
         (!filter.fixtureName || metadata.fixtureName === filter.fixtureName)
       );
     })
-    // Dependent data is still MongoDB, where the campaign id is an ObjectId.
+    // Dependent documents are addressed through the driver interface, by ObjectId.
     .map((campaign) => ({ ...campaign, _id: new ObjectId(campaign._id) }));
 
   // Safety: if a single campaign was named by id but isn't fixture-managed,
@@ -307,7 +291,7 @@ export interface CleanE2eResult {
 }
 
 export async function cleanE2eArtifacts(conn: Connection): Promise<CleanE2eResult> {
-  const db = graphDb(conn.db);
+  const db = conn.db;
 
   // 1. tabletopscreens named "E2E Test Screen"
   const screenRes = await db.collection('tabletopscreen').deleteMany({ name: 'E2E Test Screen' });
@@ -394,7 +378,7 @@ export async function sweepOrphanR2Keys(conn: Connection): Promise<OrphanSweepRe
   }
 
   const cdnUrl = process.env.CDN_URL?.replace(/\/+$/, '') ?? null;
-  const db = graphDb(conn.db);
+  const db = conn.db;
 
   // Build the set of in-use R2 keys across every campaign-scoped doc.
   const inUse = new Set<string>();

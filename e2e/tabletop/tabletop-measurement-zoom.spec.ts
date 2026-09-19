@@ -10,11 +10,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
-import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
 import { seededGameMaster } from '../fixtures/data';
 import { campaignFixtures } from '../fixtures/campaigns';
-import { graphDb } from '../../scripts/graph-db';
+import { graphDb, ObjectId, type Db } from '../../scripts/graph-db';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -25,7 +24,6 @@ const DATA_IMG =
     '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"><rect width="1024" height="1024" fill="#222"/></svg>'
   );
 
-let client: MongoClient;
 let campaignId: string;
 
 async function provision(db: Db): Promise<string> {
@@ -133,25 +131,19 @@ test.beforeAll(async () => {
   } catch {
     /* env may be set externally */
   }
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error('MONGODB_URI not set');
-  client = new MongoClient(uri);
-  await client.connect();
-  const db = graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
+  const db = graphDb();
   campaignId = await provision(db);
 });
 
 test.afterAll(async () => {
-  if (!client) return;
   if (campaignId) {
-    const db = graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
+    const db = graphDb();
     const cid = new ObjectId(campaignId);
     await db.collection('mapToken').deleteMany({ campaignId: cid });
     await db.collection('tabletopscreen').deleteMany({ campaignId: cid });
     await db.collection('map').deleteMany({ campaignId: cid });
     await campaignFixtures.deleteMany({ _id: cid });
   }
-  await client.close();
 });
 
 test('anchor dot lands under the cursor when zoomed in', async ({ page }) => {

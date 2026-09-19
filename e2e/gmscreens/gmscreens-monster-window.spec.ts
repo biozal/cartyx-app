@@ -7,11 +7,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
-import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
 import { seededGameMaster } from '../fixtures/data';
 import { campaignFixtures } from '../fixtures/campaigns';
-import { graphDb } from '../../scripts/graph-db';
+import { graphDb, ObjectId, type Db } from '../../scripts/graph-db';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -23,13 +22,12 @@ interface Provisioned {
   characterId: string;
 }
 
-let client: MongoClient;
 let provisioned: Provisioned;
 
 const ability = () => ({ score: 10, mod: 0, save: 0 });
 
 function db(): Db {
-  return graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
+  return graphDb();
 }
 
 async function provision(database: Db): Promise<Provisioned> {
@@ -103,7 +101,7 @@ async function provision(database: Db): Promise<Provisioned> {
       languages: [],
       features: [
         {
-          section: 'Actions',
+          section: 'actions',
           name: 'Multiattack',
           description: 'The owlbear makes two attacks: one with its beak and one with its claws.',
         },
@@ -202,15 +200,10 @@ test.beforeAll(async () => {
   } catch {
     /* env may be set externally */
   }
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error('MONGODB_URI not set');
-  client = new MongoClient(uri);
-  await client.connect();
   provisioned = await provision(db());
 });
 
 test.afterAll(async () => {
-  if (!client) return;
   if (provisioned?.campaignId) {
     const cid = new ObjectId(provisioned.campaignId);
     await db().collection('gmscreen').deleteMany({ campaignId: cid });
@@ -218,7 +211,6 @@ test.afterAll(async () => {
     await db().collection('characters').deleteMany({ campaignId: cid });
     await campaignFixtures.deleteMany({ _id: cid });
   }
-  await client.close();
 });
 
 test('dragging a monster onto a GM screen opens a monster window', async ({ page }) => {

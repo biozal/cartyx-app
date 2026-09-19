@@ -1,12 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
-import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
 import { closeIdentity, readRulerColor, seededGameMaster, writeRulerColor } from '../fixtures/data';
 import { DEFAULT_RULER_COLOR } from '~/types/schemas/userPreferences';
 import { campaignFixtures } from '../fixtures/campaigns';
-import { graphDb } from '../../scripts/graph-db';
+import { graphDb, ObjectId, type Db } from '../../scripts/graph-db';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -27,12 +26,11 @@ interface Provisioned {
   providerId: string;
 }
 
-let client: MongoClient;
 let provisioned: Provisioned;
 let originalRulerColor: string | undefined;
 
 function db(): Db {
-  return graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
+  return graphDb();
 }
 
 function tokenDoc(
@@ -171,10 +169,6 @@ test.beforeAll(async () => {
   } catch {
     /* env may be set externally */
   }
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error('MONGODB_URI not set');
-  client = new MongoClient(uri);
-  await client.connect();
   provisioned = await provision(db());
 
   // Remember the GM's existing ruler color so we can restore it afterwards. Preferences
@@ -186,7 +180,6 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  if (!client) return;
   if (provisioned?.campaignId) {
     const cid = new ObjectId(provisioned.campaignId);
     await db().collection('mapToken').deleteMany({ campaignId: cid });
@@ -199,7 +192,6 @@ test.afterAll(async () => {
     await writeRulerColor(provisioned.providerId, originalRulerColor ?? DEFAULT_RULER_COLOR);
     await closeIdentity();
   }
-  await client.close();
 });
 
 test('selecting the ruler tool opens the measurement settings popup', async ({ page }) => {

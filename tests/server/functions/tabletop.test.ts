@@ -52,12 +52,6 @@ vi.mock('~/server/db/models/Rule', () => ({ Rule: { find: vi.fn() } }));
 vi.mock('~/server/db/models/Lore', () => ({ Lore: { find: vi.fn() } }));
 vi.mock('~/server/db/models/Monster', () => ({ Monster: { find: vi.fn() } }));
 vi.mock('~/server/db/models/Event', () => ({ Event: { find: vi.fn() } }));
-// `Types` is the real implementation: addPrivateWindow validates screen ids
-// with ObjectId.isValid and builds a real ObjectId for its $expr cap filter.
-vi.mock('mongoose', async () => {
-  const actual = await vi.importActual<typeof import('mongoose')>('mongoose');
-  return { default: { startSession: vi.fn(), Types: actual.Types } };
-});
 vi.mock('~/server/db/models/GMScreen', () => ({ GMScreen: { findOne: vi.fn() } }));
 
 import { getSession } from '~/server/session';

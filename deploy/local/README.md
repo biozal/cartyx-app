@@ -42,8 +42,7 @@ npm run db:smoke
 ```
 
 `npm run dev` also starts/waits for the Docker database services. `npm run db:down`
-stops them without deleting data. Application subsystems still use MongoDB during
-this infrastructure phase. See the [data infrastructure runbook](https://github.com/biozal/cartyx-infrastructure/blob/main/deploy/charts/cartyx-data/README.md)
+stops them without deleting data; they hold all of the app's data. See the [data infrastructure runbook](https://github.com/biozal/cartyx-infrastructure/blob/main/deploy/charts/cartyx-data/README.md)
 for Kubernetes, credentials, backups and restore rehearsals.
 
 Application secrets come from the app repo-root `.env`; database credentials live
@@ -71,13 +70,9 @@ Both paths read the repo-root `.env`. Two variables matter:
 - **`SESSION_SECRET` (required)** — must be **identical** to the value the web app
   signs party tokens with. If it differs, every WebSocket connection is rejected
   with `401`. Copy it from the same `.env` the app uses.
-- **`MONGODB_URI`** — required for the kind path (the web app can't pass `/readyz`
-  without it) and recommended for compose. Point it at a **dedicated database in the
-  URI path** so it stays out of the app's data:
-  ```
-  MONGODB_URI=mongodb+srv://USER:PASS@cluster.mongodb.net/cartyx_local
-  ```
-  The service uses whatever database the URI names.
+- **The data settings** (`GREMLIN_*`, `CQL_*`) — the graph and Cassandra the app,
+  realtime and the audio worker all use. `npm run dev` fills them in for the local
+  stack; the kind path wires them through the chart's `data` values.
 
 ## Path A — docker-compose
 
@@ -133,7 +128,7 @@ npm run dev
 ```
 
 Open a campaign session in two browser windows and do a dice roll — it should relay
-between them, and chat history should return on reload (when `MONGODB_URI` is set).
+between them, and chat history should return on reload (it is kept in the graph).
 
 ## Verify
 

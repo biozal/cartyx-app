@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
-import mongoose from 'mongoose';
 import {
   createIdentityAccountState,
   identityAccountKey,

@@ -15,11 +15,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '@playwright/test';
-import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { SignJWT, decodeJwt } from 'jose';
 import { closeIdentity, seedIdentity, seededGameMaster } from '../fixtures/data';
 import { campaignFixtures } from '../fixtures/campaigns';
-import { graphDb } from '../../scripts/graph-db';
+import { graphDb, ObjectId, type Db } from '../../scripts/graph-db';
 
 // Serial: all tests share one provisioned campaign on a single worker. Without
 // this, fullyParallel spreads tests across workers that each re-provision and
@@ -45,7 +44,6 @@ interface Provisioned {
   playerCookie: string;
 }
 
-let client: MongoClient;
 let provisioned: Provisioned;
 
 async function provision(db: Db): Promise<Provisioned> {
@@ -71,18 +69,6 @@ async function provision(db: Db): Promise<Provisioned> {
     firstName: 'E2E',
     lastName: 'Player',
   });
-
-  // Reconcile the mapToken unique index to the multi-instance shape (the app's
-  // boot only adds indexes, never drops, so a stale unique index would block
-  // a second monster of the same type). Idempotent.
-  const tokenCol = db.collection('mapToken');
-  await tokenCol.dropIndex('mapId_1_sourceCollection_1_sourceDocumentId_1').catch(() => {});
-  await tokenCol
-    .createIndex(
-      { mapId: 1, sourceCollection: 1, sourceDocumentId: 1, instanceNumber: 1 },
-      { unique: true }
-    )
-    .catch(() => {});
 
   const now = new Date();
 
@@ -249,18 +235,13 @@ test.beforeAll(async () => {
   } catch {
     /* env may be set externally */
   }
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error('MONGODB_URI not set');
-  client = new MongoClient(uri);
-  await client.connect();
-  const db = graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
+  const db = graphDb();
   provisioned = await provision(db);
 });
 
 test.afterAll(async () => {
-  if (!client) return;
   if (provisioned?.campaignId) {
-    const db = graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
+    const db = graphDb();
     const cid = new ObjectId(provisioned.campaignId);
     await db.collection('mapToken').deleteMany({ mapId: new ObjectId(provisioned.mapId) });
     await db.collection('tabletopscreen').deleteMany({ campaignId: cid });
@@ -269,12 +250,11 @@ test.afterAll(async () => {
     await campaignFixtures.deleteMany({ _id: cid });
   }
   await closeIdentity();
-  await client.close();
 });
 
 test.beforeEach(async () => {
   // Isolate each test — start with no tokens on the shared map.
-  const db = graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
+  const db = graphDb();
   await db.collection('mapToken').deleteMany({ mapId: new ObjectId(provisioned.mapId) });
 });
 

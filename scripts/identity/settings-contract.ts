@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
-import mongoose from 'mongoose';
 import { createIdentityAccountState } from '../../app/server/repositories/identity/account-state';
 import { identityAudioAssignmentKey } from '../../app/server/repositories/identity/audio-prefix';
 import {

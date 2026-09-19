@@ -40,7 +40,6 @@ secret:
   create: false
   existingSecret: cartyx
 
-# Dev is migrating to JanusGraph/Cassandra; production stays on MongoDB for now.
 data:
   enabled: true
   cql:

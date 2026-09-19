@@ -14,11 +14,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
-import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
 import { seededGameMaster } from '../fixtures/data';
 import { campaignFixtures } from '../fixtures/campaigns';
-import { graphDb } from '../../scripts/graph-db';
+import { graphDb, ObjectId, type Db } from '../../scripts/graph-db';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -35,11 +34,10 @@ interface Provisioned {
   gmId: string;
 }
 
-let client: MongoClient;
 let provisioned: Provisioned;
 
 function db(): Db {
-  return graphDb(process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db());
+  return graphDb();
 }
 
 function tokens() {
@@ -165,10 +163,6 @@ test.beforeAll(async () => {
   } catch {
     /* env may be set externally */
   }
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error('MONGODB_URI not set');
-  client = new MongoClient(uri);
-  await client.connect();
   provisioned = await provision(db());
 });
 
@@ -179,7 +173,6 @@ test.afterEach(async () => {
 });
 
 test.afterAll(async () => {
-  if (!client) return;
   if (provisioned?.campaignId) {
     const cid = new ObjectId(provisioned.campaignId);
     await tokens().deleteMany({ campaignId: cid });
@@ -187,7 +180,6 @@ test.afterAll(async () => {
     await db().collection('map').deleteMany({ campaignId: cid });
     await campaignFixtures.deleteMany({ _id: cid });
   }
-  await client.close();
 });
 
 test('a GM shift-selects multiple tokens and drags them together', async ({ page }) => {

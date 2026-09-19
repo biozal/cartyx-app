@@ -85,59 +85,24 @@ export function byCollection(entries: PlanEntry[]): Map<string, PlanDocument[]> 
   return grouped;
 }
 
-/**
- * Where each collection's documents go. A subsystem's move to the graph registers its
- * collection here; everything unlisted is written to MongoDB until then.
- */
+/** Where each collection's documents go: every collection the seed writes has a route. */
 export type GraphWriter = (documents: PlanDocument[]) => Promise<void>;
 
 export async function persistPlan(
   entries: PlanEntry[],
   routes: Record<string, GraphWriter>
-): Promise<{ graph: Record<string, number>; mongo: Record<string, number> }> {
+): Promise<Record<string, number>> {
   const grouped = byCollection(entries);
-  const summary = { graph: {} as Record<string, number>, mongo: {} as Record<string, number> };
+  // Checked before anything is written, so an unknown collection cannot leave a
+  // half-seeded environment behind.
+  const unrouted = [...grouped.keys()].filter((name) => !routes[name]);
+  if (unrouted.length)
+    throw new Error(`No graph collection for seeded collection(s): ${unrouted.join(', ')}`);
 
+  const summary: Record<string, number> = {};
   for (const [name, documents] of grouped) {
-    const write = routes[name];
-    if (!write) continue;
-    await write(documents);
-    summary.graph[name] = documents.length;
+    await routes[name](documents);
+    summary[name] = documents.length;
   }
-
-  const mongo = [...grouped].filter(([name]) => !routes[name]);
-  if (mongo.length) await writeToMongo(mongo, summary.mongo);
   return summary;
-}
-
-/** Transitional: removed with the last subsystem that is still on MongoDB. */
-async function writeToMongo(
-  collections: [string, PlanDocument[]][],
-  summary: Record<string, number>
-) {
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error('MONGODB_URI is required while subsystems are still on MongoDB');
-  const { MongoClient, ObjectId } = await import('mongodb');
-  const toMongo = (value: PlanValue): unknown =>
-    value instanceof PlanId
-      ? new ObjectId(value.hex)
-      : Array.isArray(value)
-        ? value.map(toMongo)
-        : value && typeof value === 'object' && !(value instanceof Date)
-          ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, toMongo(v)]))
-          : value;
-  const client = new MongoClient(uri);
-  try {
-    await client.connect();
-    const db = process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
-    for (const [name, documents] of collections) {
-      await db.collection(name).insertMany(
-        documents.map((d) => toMongo(d) as Record<string, unknown>),
-        { ordered: true }
-      );
-      summary[name] = documents.length;
-    }
-  } finally {
-    await client.close();
-  }
 }

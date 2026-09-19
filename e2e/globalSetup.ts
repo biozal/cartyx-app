@@ -1,7 +1,7 @@
 /**
  * Playwright globalSetup — runs once before all specs.
  *
- * 1. Loads .env so SESSION_SECRET / MONGODB_URI are available.
+ * 1. Loads .env so SESSION_SECRET and the graph settings are available.
  * 2. Finds the seeded GM user in Mongo (run `npm run dev:seed` first).
  * 3. Mints a `cartyx_session` JWT cookie matching the shape produced by
  *    `app/server/session.ts#setSession` — no production code paths exposed.
@@ -23,7 +23,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SignJWT } from 'jose';
-import mongoose from 'mongoose';
 import { AUDIO_FIXTURE_TITLES } from './fixtures/audio-fixtures';
 import { assertGraphReady } from './fixtures/data';
 import { identityRepository } from '../app/server/repositories/identity';
@@ -34,7 +33,7 @@ import {
   SOUNDBOARD_FIXTURES,
 } from './fixtures/soundboard-fixtures';
 import { campaignFixtures } from './fixtures/campaigns';
-import { graphDb } from '../scripts/graph-db';
+import { graphDb, ObjectId, type Db } from '../scripts/graph-db';
 
 /**
  * Local, not imported from `~/server/utils/helpers`'s own `escapeRegExp` —
@@ -94,10 +93,7 @@ type AudioFixtureDef = {
  * location/screen seeding), not the Mongoose model, so globalSetup doesn't
  * need to import application server code.
  */
-async function seedAudioFixtures(
-  db: NonNullable<typeof mongoose.connection.db>,
-  ownerId: unknown
-): Promise<void> {
+async function seedAudioFixtures(db: Db, ownerId: unknown): Promise<void> {
   const defs: AudioFixtureDef[] = [
     {
       title: AUDIO_FIXTURE_TITLES.ambienceReady,
@@ -218,11 +214,11 @@ async function seedAudioFixtures(
  *   board into `board-unavailable` before the spec touches it.
  */
 async function seedSoundboardFixtures(
-  db: NonNullable<typeof mongoose.connection.db>,
-  ownerId: mongoose.Types.ObjectId,
-  campaignId: mongoose.Types.ObjectId
+  db: Db,
+  ownerId: ObjectId,
+  campaignId: ObjectId
 ): Promise<{ systemPackageId: string; foreignPackageId: string }> {
-  const foreignOwnerId = new mongoose.Types.ObjectId(FOREIGN_OWNER_ID);
+  const foreignOwnerId = new ObjectId(FOREIGN_OWNER_ID);
 
   // --- the asset the caller may NOT read ------------------------------------
   const foreignAsset = await db.collection('audioassets').findOneAndUpdate(
@@ -259,7 +255,7 @@ async function seedSoundboardFixtures(
     },
     { upsert: true, returnDocument: 'after' }
   );
-  const foreignAssetId = (foreignAsset as { _id: mongoose.Types.ObjectId })._id;
+  const foreignAssetId = (foreignAsset as { _id: ObjectId })._id;
 
   // --- the system package the spec clones ------------------------------------
   // One item, pointing at the asset above. `id` is a fixed string rather than
@@ -336,18 +332,12 @@ export default async function globalSetup(): Promise<void> {
   }
 
   const sessionSecret = process.env.SESSION_SECRET;
-  const mongoUri = process.env.MONGODB_URI;
   if (!sessionSecret) throw new Error('SESSION_SECRET not set — needed to mint test JWT');
-  if (!mongoUri) throw new Error('MONGODB_URI not set — needed to find seeded user');
-  if (/prod/i.test(mongoUri)) throw new Error('Refusing to use a production-looking MONGODB_URI');
 
-  // Both stores are in use during the migration. Check the graph first: a missing
-  // stack otherwise surfaces as an unexplained empty page in whichever spec runs first.
+  // Check the graph first: a missing stack otherwise surfaces as an unexplained empty
+  // page in whichever spec runs first.
   await assertGraphReady();
-
-  await mongoose.connect(mongoUri, { dbName: process.env.MONGODB_DB });
-  const db = graphDb(mongoose.connection.db);
-  if (!db) throw new Error('Mongo connection has no db handle');
+  const db = graphDb();
 
   // The game master's identity lives in the graph. Campaigns are still MongoDB and
   // reference that same id, which the seeder is what keeps consistent.
@@ -356,7 +346,7 @@ export default async function globalSetup(): Promise<void> {
     throw new Error('No seeded game master found. Run `npm run dev:seed` before running E2E.');
   }
   const user = {
-    _id: new mongoose.Types.ObjectId(profile.id),
+    _id: new ObjectId(profile.id),
     providerId: GM_PROVIDER_ID,
     firstName: profile.firstName,
     lastName: profile.lastName,
@@ -420,9 +410,9 @@ export default async function globalSetup(): Promise<void> {
     .collection('tabletopscreen')
     .findOne({ campaignId: campaign._id, name: E2E_SCREEN_NAME });
 
-  let screenId: mongoose.Types.ObjectId;
+  let screenId: ObjectId;
   if (existingScreen) {
-    screenId = existingScreen._id as mongoose.Types.ObjectId;
+    screenId = existingScreen._id as ObjectId;
     const hasWindow = (existingScreen.windows ?? []).some(
       (w: { collection?: string; documentId?: unknown }) =>
         w.collection === 'location' && String(w.documentId) === String(location._id)
@@ -433,7 +423,7 @@ export default async function globalSetup(): Promise<void> {
         {
           $push: {
             windows: {
-              _id: new mongoose.Types.ObjectId(),
+              _id: new ObjectId(),
               collection: 'location',
               documentId: location._id,
               state: 'open',
@@ -472,7 +462,7 @@ export default async function globalSetup(): Promise<void> {
       battleMapImage: null,
       windows: [
         {
-          _id: new mongoose.Types.ObjectId(),
+          _id: new ObjectId(),
           collection: 'location',
           documentId: location._id,
           state: 'open',
@@ -492,8 +482,8 @@ export default async function globalSetup(): Promise<void> {
   await seedAudioFixtures(db, user._id);
   const soundboard = await seedSoundboardFixtures(
     db,
-    user._id as mongoose.Types.ObjectId,
-    campaign._id as mongoose.Types.ObjectId
+    user._id as ObjectId,
+    campaign._id as ObjectId
   );
 
   // Mirror SessionUser shape from app/server/session.ts
@@ -548,8 +538,6 @@ export default async function globalSetup(): Promise<void> {
     soundboardForeignPackageId: soundboard.foreignPackageId,
   };
   writeFileSync(SEED_DATA_PATH, JSON.stringify(seedData, null, 2));
-
-  await mongoose.disconnect();
   // The Cassandra driver keeps the event loop alive, so setup releases what it opened
   // rather than leaving the runner holding a pool for the length of the whole run.
   const { closeData } = await import('../app/server/db/data-runtime');

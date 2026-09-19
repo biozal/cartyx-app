@@ -1,7 +1,8 @@
 /**
- * Rebuilds a test environment's data. Cartyx migrates one subsystem at a time, so this
- * runs the graph seeders that exist and delegates the rest to the MongoDB scripts until
- * their slice lands; those delegations disappear as each subsystem moves.
+ * Rebuilds a test environment's data in the graph. Accounts are seeded here; the rest
+ * of the world is built by the Python seed builder as a plan, which this process
+ * persists. Clearing empties every graph collection and the media stores, and keeps
+ * accounts so you stay logged in.
  *
  * Usage: tsx scripts/seed/cli.ts seed|clear [--force]
  *
@@ -26,9 +27,6 @@ const action: 'seed' | 'clear' = requested;
 
 assertSeedTargetIsNotProduction();
 
-/** Subsystems still on MongoDB. Remove an entry when its slice moves to the graph. */
-const MONGO_SUBSYSTEMS = ['audio'];
-
 const python = (script: string, args: string[] = [], env: Record<string, string> = {}) =>
   execFileSync(process.execPath, [resolve(root, 'scripts/run-python.cjs'), script, ...args], {
     cwd: root,
@@ -40,48 +38,36 @@ async function rebuild() {
   const ran = await runSeeders(seeders, action);
   if (ran.length) process.stdout.write(`Graph ${action}: ${ran.join(', ')}\n`);
 
-  if (MONGO_SUBSYSTEMS.length) {
-    if (action === 'clear') {
-      // dev_clear empties MongoDB and media; the migrated collections are emptied here.
-      // Accounts live in the graph too, and survive a clear.
-      python('dev_clear.py', process.argv.includes('--force') ? ['--force'] : []);
-      const removed = await clearGraphCollections();
-      process.stdout.write(
-        `Graph clear: ${Object.entries(removed)
-          .map(([name, count]) => `${name} ${count}`)
-          .join(', ')}\n`
-      );
-    } else {
-      // The Python builder produces every document with its id assigned and writes them
-      // to a plan; this process persists the plan, sending each collection to the graph
-      // or to MongoDB. Accounts are already in the graph, so their ids are passed in.
-      const planDir = mkdtempSync(join(tmpdir(), 'cartyx-seed-'));
-      const planPath = join(planDir, 'plan.json');
-      try {
-        python('dev_seed.py', [], {
-          CARTYX_SEED_GM_ID: await seedGameMaster(),
-          CARTYX_SEED_PLAYERS: JSON.stringify(await seedPlayers()),
-          CARTYX_SEED_PLAN: planPath,
-        });
-        const summary = await persistPlan(readPlan(planPath), graphCollectionRoutes);
-        const line = (counts: Record<string, number>) =>
-          Object.entries(counts)
-            .map(([name, count]) => `${name} ${count}`)
-            .join(', ') || 'nothing';
-        process.stdout.write(`Seed persisted — graph: ${line(summary.graph)}
-`);
-        process.stdout.write(`Seed persisted — MongoDB: ${line(summary.mongo)}
-`);
-      } finally {
-        rmSync(planDir, { recursive: true, force: true });
-      }
-    }
+  if (action === 'clear') {
+    // dev_clear empties the media stores (local uploads and R2); the graph is emptied here.
+    python('dev_clear.py', process.argv.includes('--force') ? ['--force'] : []);
+    const removed = await clearGraphCollections();
     process.stdout.write(
-      `MongoDB ${action} still covers: ${MONGO_SUBSYSTEMS.join(', ')}\n` +
-        'Each entry disappears when its subsystem moves to the graph.\n'
+      `Graph clear: ${Object.entries(removed)
+        .map(([name, count]) => `${name} ${count}`)
+        .join(', ')}\n`
     );
-  } else if (action === 'seed') {
-    process.stdout.write('Every subsystem is seeded from the graph; MongoDB is no longer used.\n');
+    return;
+  }
+  // The Python builder produces every document with its id assigned and writes them to a
+  // plan; this process persists it. Accounts are already in the graph, so their ids are
+  // passed in.
+  const planDir = mkdtempSync(join(tmpdir(), 'cartyx-seed-'));
+  const planPath = join(planDir, 'plan.json');
+  try {
+    python('dev_seed.py', [], {
+      CARTYX_SEED_GM_ID: await seedGameMaster(),
+      CARTYX_SEED_PLAYERS: JSON.stringify(await seedPlayers()),
+      CARTYX_SEED_PLAN: planPath,
+    });
+    const summary = await persistPlan(readPlan(planPath), graphCollectionRoutes);
+    process.stdout.write(
+      `Seed persisted: ${Object.entries(summary)
+        .map(([name, count]) => `${name} ${count}`)
+        .join(', ')}\n`
+    );
+  } finally {
+    rmSync(planDir, { recursive: true, force: true });
   }
 }
 

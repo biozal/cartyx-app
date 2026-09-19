@@ -1,160 +1,32 @@
-import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const mongooseMock = vi.hoisted(() => ({
-  connect: vi.fn().mockResolvedValue(undefined),
-  connection: { readyState: 0 },
-  models: {},
-}));
-
-const policyMock = vi.hoisted(() => ({
-  getBootstrapPolicy: vi.fn().mockReturnValue({
-    environment: 'development',
-    syncIndexes: true,
-    verifyCriticalIndexes: false,
-    failOnCriticalDrift: false,
-    autoIndex: true,
-    timeoutMs: 30_000,
-  }),
-}));
-
-vi.mock('mongoose', () => ({ default: mongooseMock }));
-vi.mock('~/server/db/policy', () => policyMock);
+const { mockEntityStore } = vi.hoisted(() => ({ mockEntityStore: vi.fn() }));
+vi.mock('~/server/repositories/entity-store', () => ({ entityStore: mockEntityStore }));
 
 import { connectDB, isDBConnected, __resetConnectPromiseForTests } from '~/server/db/connection';
 
-const originalMongoUri = process.env.MONGODB_URI;
-
-describe('connectDB', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    __resetConnectPromiseForTests();
-    mongooseMock.connect.mockResolvedValue(undefined);
-    mongooseMock.connection.readyState = 0;
-    policyMock.getBootstrapPolicy.mockReturnValue({
-      environment: 'development',
-      syncIndexes: true,
-      verifyCriticalIndexes: false,
-      failOnCriticalDrift: false,
-      autoIndex: true,
-      timeoutMs: 30_000,
-    });
-    process.env.MONGODB_URI = 'mongodb://localhost/test';
-  });
-
-  afterAll(() => {
-    if (originalMongoUri === undefined) {
-      delete process.env.MONGODB_URI;
-    } else {
-      process.env.MONGODB_URI = originalMongoUri;
-    }
-  });
-
-  it('connects on first call', async () => {
-    await connectDB();
-
-    expect(mongooseMock.connect).toHaveBeenCalledWith('mongodb://localhost/test', {
-      autoIndex: true,
-    });
-  });
-
-  it('uses autoIndex from the resolved policy', async () => {
-    policyMock.getBootstrapPolicy.mockReturnValue({
-      environment: 'production',
-      syncIndexes: false,
-      verifyCriticalIndexes: true,
-      failOnCriticalDrift: true,
-      autoIndex: false,
-      timeoutMs: 10_000,
-    });
-
-    await connectDB();
-
-    expect(mongooseMock.connect).toHaveBeenCalledWith('mongodb://localhost/test', {
-      autoIndex: false,
-    });
-  });
-
-  it('skips connect when already connected', async () => {
-    mongooseMock.connection.readyState = 1;
-
-    await connectDB();
-
-    expect(mongooseMock.connect).not.toHaveBeenCalled();
-  });
-
-  it('returns early when MONGODB_URI is not set', async () => {
-    delete process.env.MONGODB_URI;
-
-    await connectDB();
-
-    expect(mongooseMock.connect).not.toHaveBeenCalled();
-  });
-
-  it('waits for in-flight connection when readyState is 2 (connecting)', async () => {
-    let resolveConnect!: () => void;
-    mongooseMock.connect.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          mongooseMock.connection.readyState = 2;
-          resolveConnect = () => {
-            mongooseMock.connection.readyState = 1;
-            resolve();
-          };
-        })
-    );
-
-    const first = connectDB();
-    const second = connectDB();
-
-    resolveConnect();
-    await Promise.all([first, second]);
-
-    expect(mongooseMock.connect).toHaveBeenCalledTimes(1);
-  });
-
-  it('shares one connect attempt when two callers race before readyState flips', async () => {
-    let resolveConnect!: () => void;
-    mongooseMock.connect.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveConnect = () => {
-            mongooseMock.connection.readyState = 1;
-            resolve();
-          };
-        })
-    );
-
-    const first = connectDB();
-    const second = connectDB();
-
-    resolveConnect();
-    await Promise.all([first, second]);
-
-    expect(mongooseMock.connect).toHaveBeenCalledTimes(1);
-  });
-
-  it('tags a rethrown connect error with status 503 when it has no own status', async () => {
-    mongooseMock.connect.mockRejectedValueOnce(new Error('connect ECONNREFUSED'));
-
-    await expect(connectDB()).rejects.toMatchObject({ status: 503 });
-  });
-
-  it('does not overwrite an existing status on the rethrown error', async () => {
-    const err = Object.assign(new Error('boom'), { status: 401 });
-    mongooseMock.connect.mockRejectedValueOnce(err);
-
-    await expect(connectDB()).rejects.toMatchObject({ status: 401 });
-  });
+beforeEach(() => {
+  vi.clearAllMocks();
+  __resetConnectPromiseForTests();
+  mockEntityStore.mockResolvedValue({});
 });
 
-describe('isDBConnected', () => {
-  it('returns true when readyState is 1', () => {
-    mongooseMock.connection.readyState = 1;
+describe('connectDB', () => {
+  it('composes the graph entity store and reports connected', async () => {
+    expect(isDBConnected()).toBe(false);
+    await connectDB();
+    expect(mockEntityStore).toHaveBeenCalled();
     expect(isDBConnected()).toBe(true);
   });
 
-  it('returns false when readyState is 0', () => {
-    mongooseMock.connection.readyState = 0;
+  it('tags a composition failure with status 503 when it has no own status', async () => {
+    mockEntityStore.mockRejectedValueOnce(new Error('Missing GREMLIN_URL'));
+    await expect(connectDB()).rejects.toMatchObject({ status: 503 });
     expect(isDBConnected()).toBe(false);
+  });
+
+  it('does not overwrite an existing status on the rethrown error', async () => {
+    mockEntityStore.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 401 }));
+    await expect(connectDB()).rejects.toMatchObject({ status: 401 });
   });
 });

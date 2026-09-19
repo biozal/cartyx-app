@@ -49,17 +49,7 @@ export class ObjectId {
   }
 }
 
-/**
- * While collections still on MongoDB exist, ids handed to specs are the driver's own
- * ObjectIds, so a spec can use one in a MongoDB filter; bson does not serialize any other
- * class as an id. Once the driver is gone, the local class stands in.
- */
-const DriverObjectId = await import('mongodb').then(
-  (driver) => driver.ObjectId,
-  () => null
-);
-const toObjectId = (hex: string): ObjectId =>
-  (DriverObjectId ? new DriverObjectId(hex) : new ObjectId(hex)) as ObjectId;
+const toObjectId = (hex: string): ObjectId => new ObjectId(hex);
 
 const withObjectId = <D>(document: D): D =>
   document && typeof (document as Plain)._id === 'string'

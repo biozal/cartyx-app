@@ -49,6 +49,9 @@ app.kubernetes.io/component: audio-worker
 {{- end -}}
 {{/* Data-store environment and credential mount, shared by the three workloads. */}}
 {{- define "cartyx.data.env" -}}
+{{- if not .Values.data.enabled }}
+{{- fail "data.enabled must be true: the graph and Cassandra are the app's only data stores" }}
+{{- end }}
 {{- if .Values.data.enabled }}
 - name: GREMLIN_URL
   value: {{ printf "wss://%s:%v/gremlin" .Values.data.graph.service .Values.data.graph.port | quote }}

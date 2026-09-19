@@ -10,7 +10,6 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ObjectId } from 'mongodb';
 import { z } from 'zod';
 import { createGraphClient } from '../../app/server/db/graph/client';
 import { readGraphConfig } from '../../app/server/db/graph/config';
@@ -18,6 +17,7 @@ import { defineEntity } from '../../app/server/db/graph/entity-codec';
 import type { EntityStore } from '../../app/server/db/graph/entity-store';
 import { createGraphEntityStore } from '../../app/server/db/graph/graph-entity-store';
 import type { EntityScope } from '../../app/server/db/graph/identity';
+import { ObjectId } from '../../scripts/graph-db';
 
 export const E2E_SCOPE: EntityScope = { type: 'global' };
 

@@ -52,34 +52,30 @@ describe('seed plan', () => {
     expect(grouped.get('b')).toEqual([{ n: 2 }]);
   });
 
-  it('sends a routed collection to the graph and writes nothing to MongoDB for it', async () => {
+  it('sends each collection to its graph route', async () => {
     const write = vi.fn(async () => {});
-    const previous = process.env.MONGODB_URI;
-    delete process.env.MONGODB_URI; // proves no Mongo write is attempted
-    try {
-      const summary = await persistPlan(
-        [
-          { collection: 'campaigns', document: { n: 1 } },
-          { collection: 'campaigns', document: { n: 2 } },
-        ],
-        { campaigns: write }
-      );
-      expect(write).toHaveBeenCalledWith([{ n: 1 }, { n: 2 }]);
-      expect(summary).toEqual({ graph: { campaigns: 2 }, mongo: {} });
-    } finally {
-      if (previous !== undefined) process.env.MONGODB_URI = previous;
-    }
+    const summary = await persistPlan(
+      [
+        { collection: 'campaigns', document: { n: 1 } },
+        { collection: 'campaigns', document: { n: 2 } },
+      ],
+      { campaigns: write }
+    );
+    expect(write).toHaveBeenCalledWith([{ n: 1 }, { n: 2 }]);
+    expect(summary).toEqual({ campaigns: 2 });
   });
 
-  it('requires a MongoDB target only while an unrouted collection remains', async () => {
-    const previous = process.env.MONGODB_URI;
-    delete process.env.MONGODB_URI;
-    try {
-      await expect(
-        persistPlan([{ collection: 'sessions', document: { n: 1 } }], {})
-      ).rejects.toThrow(/MONGODB_URI/);
-    } finally {
-      if (previous !== undefined) process.env.MONGODB_URI = previous;
-    }
+  it('refuses a collection with no graph route before writing anything', async () => {
+    const write = vi.fn(async () => {});
+    await expect(
+      persistPlan(
+        [
+          { collection: 'campaigns', document: { n: 1 } },
+          { collection: 'mystery', document: { n: 2 } },
+        ],
+        { campaigns: write }
+      )
+    ).rejects.toThrow(/mystery/);
+    expect(write).not.toHaveBeenCalled();
   });
 });

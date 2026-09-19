@@ -11,15 +11,16 @@
  * Or directly:
  *   tsx scripts/dev-fixtures/cli.ts <subcommand> [args]
  *
- * Safety: refuses to run if NODE_ENV=production or MONGODB_URI looks prod.
+ * Safety: refuses to run with NODE_ENV=production or a production-looking data target.
  * Only ever destroys campaigns tagged with `metadata.managedBy`, never your
  * real campaigns. Pass `--force` to destroy by campaign id.
  */
 import {
   cleanE2eArtifacts,
-  connectMongo,
+  connectData,
+  type Connection,
   destroyCampaigns,
-  disconnectMongo,
+  disconnectData,
   findGm,
   FIXTURE_MARKER,
   sweepOrphanR2Keys,
@@ -27,8 +28,7 @@ import {
 } from './helpers';
 import { crowdedFixture } from './fixtures/crowded';
 import { kankaFixture } from './fixtures/kanka';
-import type { Connection } from 'mongoose';
-import type { ObjectId } from 'mongodb';
+import type { ObjectId } from '../graph-db';
 
 // ---------------------------------------------------------------------------
 // Fixture interface
@@ -88,7 +88,7 @@ async function cmdList(): Promise<void> {
 
 async function cmdReset(name: string): Promise<void> {
   const fixture = findFixture(name);
-  const conn = await connectMongo();
+  const conn = await connectData();
   try {
     console.log(
       `[fixture:reset ${name}] destroying existing fixture-managed campaigns of this name...`
@@ -102,7 +102,7 @@ async function cmdReset(name: string): Promise<void> {
     console.log(`[fixture:reset ${name}] ✓ created ${campaignIds.length} campaign(s):`);
     for (const id of campaignIds) console.log(`    ${id.toString()}`);
   } finally {
-    await disconnectMongo();
+    await disconnectData();
   }
 }
 
@@ -115,7 +115,7 @@ async function cmdDestroy(args: {
   if (!args.name && !args.all && !args.campaignId) {
     throw new Error('destroy requires <fixture-name>, --all, or --id=<campaignId>');
   }
-  const conn = await connectMongo();
+  const conn = await connectData();
   try {
     const result = await destroyCampaigns(conn, {
       fixtureName: args.name,
@@ -138,12 +138,12 @@ async function cmdDestroy(args: {
       }
     }
   } finally {
-    await disconnectMongo();
+    await disconnectData();
   }
 }
 
 async function cmdCleanE2e(): Promise<void> {
-  const conn = await connectMongo();
+  const conn = await connectData();
   try {
     const r = await cleanE2eArtifacts(conn);
     console.log(`[clean-e2e] removed ${r.screensDeleted} E2E test screen(s)`);
@@ -152,12 +152,12 @@ async function cmdCleanE2e(): Promise<void> {
     );
     if (r.r2KeysDeleted) console.log(`[clean-e2e] R2 keys deleted: ${r.r2KeysDeleted}`);
   } finally {
-    await disconnectMongo();
+    await disconnectData();
   }
 }
 
 async function cmdSweepR2(): Promise<void> {
-  const conn = await connectMongo();
+  const conn = await connectData();
   try {
     const r = await sweepOrphanR2Keys(conn);
     if (r.skippedNoR2) {
@@ -168,7 +168,7 @@ async function cmdSweepR2(): Promise<void> {
       `[sweep-r2] inspected ${r.inspected} keys, ${r.inUse} in-use, deleted ${r.orphansDeleted} orphan(s), failed ${r.orphansFailed}`
     );
   } finally {
-    await disconnectMongo();
+    await disconnectData();
   }
 }
 
@@ -272,5 +272,5 @@ main().catch((err) => {
   console.error(`[fixture] ✗ ${err instanceof Error ? err.message : String(err)}`);
   process.exitCode = 1;
   // Best-effort disconnect in case we failed mid-flight
-  disconnectMongo().catch(() => undefined);
+  disconnectData().catch(() => undefined);
 });

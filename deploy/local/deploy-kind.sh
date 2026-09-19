@@ -108,17 +108,9 @@ verify_endpoint() {
 up() {
   require_tools
 
-  local session_secret mongodb_uri
+  local session_secret
   session_secret=$(read_env_value SESSION_SECRET || true)
   [ -n "${session_secret:-}" ] || die "SESSION_SECRET is empty or missing in $ENV_FILE. It MUST match the value the app signs party tokens with."
-  mongodb_uri=$(read_env_value MONGODB_URI || true)
-  [ -n "${mongodb_uri:-}" ] || die "MONGODB_URI is empty or missing in $ENV_FILE. The web app cannot pass /readyz without MongoDB (name a dedicated database in the URI path, e.g. .../cartyx_local)."
-  # Redact credentials before logging: only print what follows the last "@".
-  if [[ "$mongodb_uri" == *@* ]]; then
-    log "MONGODB_URI set — using ...@${mongodb_uri##*@}"
-  else
-    log "MONGODB_URI set — using the configured database."
-  fi
 
   if ! kind get clusters 2>/dev/null | grep -qx "$CLUSTER"; then
     log "Creating kind cluster '$CLUSTER' (host 1999 -> realtime, host 3200 -> web)..."
@@ -133,7 +125,7 @@ up() {
   apply_schemas
 
   log "Building realtime image $REALTIME_IMAGE..."
-  docker build -t "$REALTIME_IMAGE" "$REPO_ROOT/realtime"
+  docker build -f "$REPO_ROOT/realtime/Dockerfile" -t "$REALTIME_IMAGE" "$REPO_ROOT"
 
   log "Building web image $WEB_IMAGE (client env baked at build time)..."
   docker build -f "$REPO_ROOT/Dockerfile.web" \
@@ -141,7 +133,7 @@ up() {
     -t "$WEB_IMAGE" "$REPO_ROOT"
 
   log "Building audio-worker image $AUDIO_WORKER_IMAGE..."
-  docker build -t "$AUDIO_WORKER_IMAGE" "$REPO_ROOT/audio-worker"
+  docker build -f "$REPO_ROOT/audio-worker/Dockerfile" -t "$AUDIO_WORKER_IMAGE" "$REPO_ROOT"
 
   log "Loading images into kind..."
   kind load docker-image "$REALTIME_IMAGE" --name "$CLUSTER"
@@ -176,7 +168,6 @@ up() {
     -f "$CHART_DIR/values-local.yaml" \
     --namespace "$NAMESPACE" --create-namespace \
     --set-string secret.values.sessionSecret="$(esc "$session_secret")" \
-    --set-string secret.values.mongodbUri="$(esc "$mongodb_uri")" \
     ${extra_sets[@]+"${extra_sets[@]}"}
 
   # Tags are the constant "local" with pullPolicy: Never, so a re-run with a
@@ -193,7 +184,7 @@ up() {
 
   verify_endpoint "http://localhost:1999/healthz" "realtime"
   verify_endpoint "http://localhost:3200/healthz" "web"
-  verify_endpoint "http://localhost:3200/readyz" "web readiness (Mongo ping)"
+  verify_endpoint "http://localhost:3200/readyz" "web readiness (graph and Cassandra probes)"
   log "Ready. Web: http://localhost:3200  Realtime: localhost:1999"
   log "Note: OAuth logins need the :3200 redirect URI registered (see deploy/local/README.md)."
 }

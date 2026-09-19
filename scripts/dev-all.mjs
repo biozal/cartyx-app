@@ -24,8 +24,8 @@ step(process.execPath, ['scripts/dev-data.mjs', 'up']);
 
 step(process.execPath, ['scripts/dev-schema.mjs']);
 
-// Load .env into process.env so the realtime service gets SESSION_SECRET /
-// MONGODB_URI. Vite loads .env on its own, so this is harmless for the web app.
+// Load .env into process.env so the realtime service gets SESSION_SECRET and the
+// data settings. Vite loads .env on its own, so this is harmless for the web app.
 if (existsSync('.env')) {
   try {
     process.loadEnvFile('.env');

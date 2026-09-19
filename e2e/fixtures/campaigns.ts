@@ -5,18 +5,18 @@
  * calls they make — in the MongoDB driver's result shape, so a spec only changes where
  * it gets the collection from — and throws on anything else, so a new use is added here
  * deliberately rather than silently misbehaving. Writes go through the campaigns
- * repository, which keeps the membership index and invite-code reservation consistent.
+ * repository, which keeps the membership index and invite-code key consistent.
  *
- * `_id` comes back as an ObjectId because specs still use it to address documents in
- * collections that are MongoDB until their own slice.
+ * `_id` comes back as an ObjectId, as it does from every other collection's driver
+ * interface (scripts/graph-db.ts), because specs build filters and references from it.
  */
-import { ObjectId } from 'mongodb';
 import {
   campaignDocumentSchema,
   campaigns,
   newObjectId,
   type CampaignDocument,
 } from '../../app/server/repositories/campaigns';
+import { ObjectId } from '../../scripts/graph-db';
 
 /** ObjectIds (and anything that stringifies to 24 hex) become the hex the graph stores. */
 function toGraph(value: unknown): unknown {
