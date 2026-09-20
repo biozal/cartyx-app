@@ -22,6 +22,9 @@ spec:
         runAsNonRoot: true
         # Dockerfile.web runs as the `node` user (uid 1000).
         runAsUser: 1000
+        # The data credentials mount 0440 and are owned by root, so the pod's user
+        # reaches them through this group. Without it every read is EACCES.
+        fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:

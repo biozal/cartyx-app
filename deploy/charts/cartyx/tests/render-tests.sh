@@ -316,6 +316,9 @@ assert_contains "CQL keyspace is set" "CQL_STATE_KEYSPACE" "${DATA_ARGS[@]}"
 assert_contains "credentials come from the provisioned data Secret" "secretName: \"cartyx-data\"" "${DATA_ARGS[@]}"
 assert_contains "the graph principal is the application one" "value: \"cartyx_app\"" "${DATA_ARGS[@]}"
 assert_contains "credential files are read-only" "readOnly: true" "${DATA_ARGS[@]}"
+# 0440 root-owned files are unreadable to the pods' non-root user without a group.
+fsgroups=$(render "${DATA_ARGS[@]}" | grep -c "fsGroup: 1000")
+if [ "$fsgroups" -eq 3 ]; then ok; else bad "all three workloads set fsGroup (got $fsgroups)"; fi
 
 # The operator graph password and the Cassandra admin password must never reach app pods.
 assert_not_contains "no operator graph credential" "key: gremlin-password" "${DATA_ARGS[@]}"
