@@ -143,6 +143,20 @@ export function createIdentityAccountState(store: ReservationStateStore) {
       throw new Error('Identity account journal mismatch');
     return { revision: row.revision, value };
   }
+  /**
+   * How long a reader waits for an operation's receipt before calling it interrupted.
+   *
+   * A write is two steps: the account row commits first, carrying the operation id as
+   * its revision, and the receipt is written immediately after. A reader landing
+   * between them sees a committed account whose receipt still says `prepared` — an
+   * operation in flight, not an interrupted one. Re-reading briefly tells them apart:
+   * a writer that really died leaves the receipt prepared for good, and the account
+   * still cannot advance past it.
+   */
+  const RECEIPT_ATTEMPTS = 6;
+  const settleWait = (attempt: number) =>
+    new Promise((resolve) => setTimeout(resolve, Math.random() * Math.min(10 * 2 ** attempt, 200)));
+
   async function rawAccount(id: string) {
     const row = await store.get(identityAccountKey(id));
     if (!row) return null;
@@ -157,14 +171,23 @@ export function createIdentityAccountState(store: ReservationStateStore) {
     return { revision: row.revision, value };
   }
   async function settled(id: string) {
-    const row = await rawAccount(id);
-    if (row) {
+    for (let attempt = 0; ; attempt++) {
+      const row = await rawAccount(id);
+      if (!row) return null;
       const receipt = await journal(row.value.lastOperationId);
-      if (receipt.value.userId !== id || receipt.value.status !== 'applied')
+      if (receipt.value.userId !== id)
         throw new Error('Identity account requires operation recovery');
+      if (receipt.value.status !== 'prepared') {
+        if (receipt.value.status !== 'applied')
+          throw new Error('Identity account requires operation recovery');
+        return row;
+      }
+      if (attempt >= RECEIPT_ATTEMPTS)
+        throw new Error('Identity account requires operation recovery');
+      await settleWait(attempt);
     }
-    return row;
   }
+
   async function finish(id: string, outcome: AccountOutcome): Promise<AccountOutcome> {
     const current = await journal(id);
     if (current.value.status !== 'prepared') return current.value.status;
@@ -238,11 +261,10 @@ export function createIdentityAccountState(store: ReservationStateStore) {
         // necessarily exists: later writers may advance only after that receipt.
         return finish(id, 'rejected');
       }
-      if (current) {
-        const previous = await journal(current.value.lastOperationId);
-        if (previous.value.userId !== command.userId || previous.value.status !== 'applied')
-          throw new Error('Identity account requires operation recovery');
-      }
+      // The account this command advances must itself be settled; a receipt still in
+      // flight is waited for rather than treated as interrupted (see RECEIPT_ATTEMPTS).
+      if (current && !(await settled(command.userId)))
+        throw new Error('Identity account requires operation recovery');
       let next: Account;
       if (command.kind === 'initialize' || command.kind === 'import') {
         next = {
