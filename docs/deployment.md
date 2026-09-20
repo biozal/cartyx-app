@@ -19,14 +19,17 @@ browser ── Cloudflare edge (TLS, apex 301 → app) ── Cloudflare Tunnel
              │                                Traefik (k3s, websecure)
              │                                 │                  │
              │                          cartyx-web (SSR)   cartyx-realtime (ws)
-             │                                 │
-             └── cartyx-audio-worker ──── MongoDB Atlas (per-env clusters)
-                 (no port; polls the queue)
+             │                                 │                  │
+             └── cartyx-audio-worker ──── JanusGraph + Cassandra (cartyx-data chart,
+                 (no port; polls the queue)       per-env keyspaces, in-cluster TLS)
 ```
 
 - **Environments:** namespace `dev` → dev.cartyx.io / dev-ws.cartyx.io;
   namespace `prod` → app.cartyx.io / ws.cartyx.io. Everything exists twice —
-  Atlas cluster, OAuth clients, R2 bucket, GlitchTip project, Umami website.
+  data keyspaces, OAuth clients, R2 bucket, GlitchTip project, Umami website.
+  (Production runs the pre-graph release on MongoDB Atlas until its own
+  cutover; a release from `dev` needs that cutover before it can deploy there —
+  the chart refuses to render without the data stores.)
 - **Image uploads:** the browser PUTs directly to R2 via a presigned URL (the
   server only signs); local dev without `CDN_URL` falls back to a server-side
   path under `public/uploads/`.
@@ -69,15 +72,14 @@ the cartyx-infrastructure README.
 Everything below already exists for cartyx.io; kept as the runbook for
 standing up a new environment from zero.
 
-### MongoDB Atlas (two clusters: prod + dev)
+### Data stores (JanusGraph + Cassandra)
 
-1. [cloud.mongodb.com](https://cloud.mongodb.com) → Build a Database → M0
-   free tier → name it (`cartyx-prod` / `cartyx-dev`), create a db user.
-2. Network Access → Allow Access from Anywhere (`0.0.0.0/0`) — the cluster
-   egresses via a residential ISP; auth still applies.
-3. Copy the connection string and **make sure the database name is in the
-   path** (`…mongodb.net/cartyx?…`). Without it mongoose silently writes to
-   a `test` database — this has bitten us.
+Provisioned by the `cartyx-data` chart in `biozal/cartyx-infrastructure`, one
+state keyspace per environment. That repo's runbook covers credentials
+(`kubernetes.mjs provision-app-secret <env>` creates the `cartyx-app-data`
+Secret the app mounts), schema installation (`npm run graph:schema -- apply`,
+`npm run identity:graph-schema -- apply`, `npm run db:schema`), backups and
+restores. The app chart sets `data.cql.stateKeyspace` per environment.
 
 ### OAuth (two clients per provider)
 
@@ -112,8 +114,9 @@ chart values, the secrets in the per-namespace `cartyx` Secret.
 
 ### Cluster secrets (out-of-band, never in git)
 
-One Secret `cartyx` per app namespace: `mongodbUri` (WITH the /cartyx path),
-`sessionSecret` (≥32 chars), OAuth secrets, R2 keys. Created with
+One Secret `cartyx` per app namespace: `sessionSecret` (≥32 chars), OAuth
+secrets, R2 keys. Data-store credentials are the separate `cartyx-app-data`
+Secret (above). Created with
 `kubectl create secret generic` per `deploy/charts/cartyx/README.md`.
 Rotation = `kubectl patch` + rollout restart (the chart's `existingSecret`
 bypasses checksum auto-restart). Platform-namespace secrets: see
@@ -127,7 +130,7 @@ bypasses checksum auto-restart). Platform-namespace secrets: see
 | ------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | Client-baked (build-time) | `VITE_PUBLIC_GLITCHTIP_DSN`, `VITE_PUBLIC_UMAMI_WEBSITE_ID`, `VITE_PUBLIC_PARTYKIT_HOST` | `deploy/build/web-<env>.args` + merge (CI rebuilds image) |
 | Server runtime (plain)    | `APP_ENV`, `GLITCHTIP_DSN`, `UMAMI_WEBSITE_ID`, `CDN_URL`, `REALTIME_INTERNAL_HOST`      | chart `values-<env>.yaml` + merge (Flux rolls)            |
-| Server runtime (secret)   | `MONGODB_URI`, `SESSION_SECRET`, OAuth/R2 secrets                                        | `kubectl patch` Secret + rollout restart                  |
+| Server runtime (secret)   | `SESSION_SECRET`, OAuth/R2 secrets; data credentials (`cartyx-app-data`)                 | `kubectl patch` Secret + rollout restart                  |
 
 ## Troubleshooting
 
@@ -135,8 +138,9 @@ bypasses checksum auto-restart). Platform-namespace secrets: see
   `deploying` skill; most common causes are a failed image push (rerun the
   failed job) or Flux not yet reconciled (force with the kubectl annotate
   pattern — the `flux` CLI is not installed on the laptop).
-- **Login fails with E11000 / users land in a `test` db** → the Mongo URI is
-  missing the `/cartyx` database path.
+- **Every request 503s / `/readyz` fails** → the graph or Cassandra probe is
+  failing: check the `cartyx-data` pods, the `cartyx-app-data` Secret, and that
+  the schemas were applied for this environment's keyspace.
 - **Images don't display** → `CDN_URL` must match the R2 custom domain; check
   the custom domain is active in Cloudflare R2 settings.
 - **WebSockets dead in containers but fine locally** → set

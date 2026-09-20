@@ -2,7 +2,8 @@
 
 TanStack Start (React 19) web app + custom Node `ws` realtime service + a Node
 `audio-worker` (ffmpeg transcode queue), self-hosted on a single-node k3s cluster
-(`z440`) behind a Cloudflare Tunnel. MongoDB Atlas for data, Cloudflare R2 + CDN
+(`z440`) behind a Cloudflare Tunnel. JanusGraph + Cassandra for data (MongoDB was
+removed 2026-09; production's own cutover is a separate step), Cloudflare R2 + CDN
 for images and audio, self-hosted observability
 (GlitchTip/Umami/Grafana — see `docs/observability.md`).
 
@@ -23,18 +24,28 @@ for images and audio, self-hosted observability
 - `realtime/` and `audio-worker/` are separate npm packages with their own
   lockfiles and test suites — run `(cd audio-worker && npm run typecheck && npm
 test)` for worker changes; the root suite does not cover them. CI's `services`
-  job runs both, and also `docker build`s the worker image (its Dockerfile
-  asserts the ffmpeg capabilities the pipeline needs).
+  job runs both, and also `docker build`s both images (the worker's Dockerfile
+  asserts the ffmpeg capabilities the pipeline needs). Both services bundle the
+  app's graph modules with esbuild, so their images build from the repo root
+  (`docker build -f realtime/Dockerfile .`) and their type checks need the root
+  `npm ci` too.
 - `deploy/charts/` is prettierignored — don't format it.
 
 ## Testing conventions
 
-- Unit tests mock mongoose (per-method model mocks, no in-memory Mongo). That
-  makes them fast, but it also means **they cannot catch identity-resolution or
-  query-shape bugs**: a mock returns whatever it was told to regardless of what
-  the query actually asked for, so handing a query the wrong id (e.g. the OAuth
-  provider id where a `User` Mongo `_id` is required) or dropping a filter
-  clause passes every unit assertion. E2E against seeded data is what covers
+- Models (`app/server/db/models/`) are graph models with the Mongoose API
+  (`defineGraphModel`: find/sort/lean, updateOne operators, upserts, save);
+  filters and updates keep MongoDB semantics via mingo, and the shared contracts
+  in `tests/contracts/` run both in memory and against real JanusGraph
+  (`scripts/graph/repositories-integration.ts`, a CI graph step).
+- Most unit tests mock those models per method. That makes them fast, but it
+  also means **they cannot catch identity-resolution or query-shape bugs**: a
+  mock returns whatever it was told to regardless of what the query actually
+  asked for, so handing a query the wrong id (e.g. the OAuth provider id where
+  a user's `_id` is required) or dropping a filter clause passes every unit
+  assertion. A test can instead run the real model on the in-memory entity
+  store (`vi.mock('~/server/repositories/entity-store', () =>
+import('./entityStoreDouble'))`). E2E against seeded data is what covers
   those — the audio library's `ownerId` bug (2026-07-28) was green across the
   whole unit suite and caught only by an E2E hitting a real seeded row.
 - E2E runs against deliberately fake R2 credentials (`ci.yml`'s e2e job), so
@@ -76,8 +87,6 @@ test)` for worker changes; the root suite does not cover them. CI's `services`
 
 - TWO of everything per environment — Google/GitHub OAuth clients, GlitchTip
   DSNs, Umami website IDs. The laptop `.env` holds DEV values; never copy
-  `.env` OAuth/R2/Mongo values into prod config.
-- Atlas connection strings need the db name in the path (`…/cartyx?…`) or
-  mongoose silently writes to `test`.
+  `.env` OAuth/R2/data values into prod config.
 - Cluster access: `export KUBECONFIG=~/.kube/cartyx.yaml`. The `flux` CLI is
   not installed — see the `deploying` skill for the kubectl reconcile pattern.

@@ -8,8 +8,8 @@ vi.mock('@tanstack/react-start', () => ({
 }));
 vi.mock('~/server/session', () => ({ getSession: vi.fn() }));
 vi.mock('~/server/db/connection', () => ({ connectDB: vi.fn(), isDBConnected: vi.fn(() => true) }));
-vi.mock('~/server/db/models/User', () => ({ User: { findOne: vi.fn() } }));
-vi.mock('~/server/db/models/Campaign', () => ({ Campaign: { findById: vi.fn() } }));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/Lore', () => ({
   Lore: {
     find: vi.fn(),
@@ -31,14 +31,14 @@ vi.mock('~/server/db/models/Race', () => ({ Race: { findById: vi.fn() } }));
 vi.mock('~/server/db/models/Event', () => ({ Event: { updateMany: vi.fn() } }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
-import { Campaign } from '~/server/db/models/Campaign';
+import { resetIdentityDouble } from './identityTestDouble';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { Lore } from '~/server/db/models/Lore';
 import { removeDocumentRefsFromScreens } from '~/server/functions/gmscreens-helpers';
 import { listLore, getLore, createLore, updateLore, deleteLore } from '~/server/functions/lore';
 
 const session = { id: 'sess-1' } as never;
-const dbUser = { _id: 'user-1' };
+const dbUser = { id: 'user-1' };
 const gmCampaign = {
   _id: 'camp-1',
   gameMasterId: 'user-1',
@@ -67,13 +67,13 @@ function mockFindReturning(docs: unknown[]) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(session);
-  vi.mocked(User.findOne).mockResolvedValue(dbUser as never);
-  vi.mocked(Campaign.findById).mockResolvedValue(gmCampaign as never);
+  resetIdentityDouble(dbUser);
+  campaignsDouble.get.mockResolvedValue(gmCampaign as never);
 });
 
 describe('listLore', () => {
   it('restricts non-GM members to public or own lore', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     mockFindReturning([]);
     await _list({ data: { campaignId: 'camp-1' } });
     const filter = vi.mocked(Lore.find).mock.calls[0][0] as unknown as Record<string, unknown>;
@@ -112,7 +112,7 @@ describe('listLore', () => {
 
 describe('getLore', () => {
   it('strips gmContent for non-GM viewers', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(Lore.findById).mockReturnValue({
       lean: vi.fn().mockResolvedValue({
         _id: 'l1',
@@ -135,7 +135,7 @@ describe('getLore', () => {
   });
 
   it('returns null for a private lore a non-owner non-GM requests', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(Lore.findById).mockReturnValue({
       lean: vi.fn().mockResolvedValue({
         _id: 'l1',
@@ -159,7 +159,7 @@ describe('getLore', () => {
 
 describe('updateLore / deleteLore permissions', () => {
   it('forbids a non-creator non-GM from updating', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(Lore.findById).mockReturnValue({
       lean: vi.fn().mockResolvedValue({
         _id: 'l1',
@@ -190,7 +190,7 @@ describe('updateLore / deleteLore permissions', () => {
 
 describe('createLore', () => {
   it('allows any member to create', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(Lore.create).mockResolvedValue({
       _id: 'new',
       title: 'T',
@@ -213,7 +213,7 @@ describe('createLore', () => {
   });
 
   it('does NOT persist gmContent when a non-GM creates lore', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(Lore.create).mockResolvedValue({
       _id: 'new',
       title: 'T',
@@ -281,7 +281,7 @@ describe('updateLore GM gmContent', () => {
   });
 
   it('does NOT write gmContent when a non-GM creator updates lore (preserves stored GM notes)', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     // non-GM must be the creator to pass the permission check
     vi.mocked(Lore.findById).mockReturnValue({
       lean: vi.fn().mockResolvedValue({

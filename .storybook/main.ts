@@ -46,8 +46,8 @@ const config: StorybookConfig = {
       : Object.entries(existingAlias).map(([find, replacement]) => ({ find, replacement }));
     aliasArray.push(
       // Every `~/server/**` module collapses to one inert stub. Without this the
-      // server-function dynamic imports inside hooks pull mongoose, the MongoDB
-      // driver and @sentry/node-core into the browser bundle and the preview
+      // server-function dynamic imports inside hooks pull the graph and CQL
+      // drivers and @sentry/node-core into the browser bundle and the preview
       // build fails outright. See ./mocks/serverFunctions.ts.
       {
         find: /^~\/server\/.*$/,

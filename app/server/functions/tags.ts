@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
-import { User } from '../db/models/User';
-import { Campaign } from '../db/models/Campaign';
+import { identityRepository } from '../repositories/identity';
+import { campaigns } from '../repositories/campaigns';
 import { Tag } from '../db/models/Tag';
 import { serverCaptureException } from '../utils/telemetry';
 import { normalizeTags } from '../utils/helpers';
@@ -18,13 +18,13 @@ async function requireCampaignMember(
   await connectDB();
   if (!isDBConnected()) throw new Error('Database not available');
 
-  const dbUser = await User.findOne({ providerId: user.id });
+  const dbUser = await identityRepository.findProfile(user.id);
   if (!dbUser) throw new Error('User not found');
 
-  const campaign = await Campaign.findById(campaignId);
+  const campaign = await campaigns.get(String(campaignId));
   if (!campaign) throw new Error('Campaign not found');
 
-  const userId = String(dbUser._id);
+  const userId = String(dbUser.id);
   const members = campaign.members ?? [];
   const isMember =
     members.some((m) => String(m.userId) === userId) || String(campaign.gameMasterId) === userId;

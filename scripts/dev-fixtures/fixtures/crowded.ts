@@ -15,8 +15,8 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { ObjectId } from 'mongodb';
 import type { Fixture, FixtureContext } from '../cli';
+import { ObjectId } from '../../graph-db';
 
 const FIXTURE_NAME = 'crowded';
 const CAMPAIGN_NAME = '[Fixture: crowded] Continental Crisis';
@@ -771,7 +771,7 @@ const SCREEN_LAYOUTS: Array<{ name: string; tabOrder: number; openWindows: numbe
 
 async function seed(ctx: FixtureContext): Promise<{ campaignIds: ObjectId[] }> {
   const { conn, gm, marker } = ctx;
-  const db = conn.db!;
+  const db = conn.db;
   const now = new Date();
 
   // ----- Campaign -----
@@ -797,7 +797,18 @@ async function seed(ctx: FixtureContext): Promise<{ campaignIds: ObjectId[] }> {
     createdAt: now,
     updatedAt: now,
   };
-  const { insertedId: campaignId } = await db.collection('campaigns').insertOne(campaignDoc);
+  // Everything below refers to the campaign by id, as the driver-shaped documents did.
+  const { campaigns, campaignDocumentSchema } =
+    await import('../../../app/server/repositories/campaigns');
+  const created = await campaigns.create(
+    campaignDocumentSchema.parse({
+      ...campaignDoc,
+      _id: new ObjectId().toHexString(),
+      gameMasterId: String(campaignDoc.gameMasterId),
+      members: campaignDoc.members.map((m) => ({ ...m, userId: String(m.userId) })),
+    })
+  );
+  const campaignId = new ObjectId(created._id);
 
   // ----- LocationTypes -----
   await db.collection('locationtype').insertMany(
@@ -892,7 +903,7 @@ async function seed(ctx: FixtureContext): Promise<{ campaignIds: ObjectId[] }> {
   }));
   await db.collection('characters').insertMany(charDocs);
 
-  // Wire relationships. Cast — MongoDB's typed bulk-op shape is overly strict
+  // Wire relationships. Cast — the driver's typed bulk-op shape is overly strict
   // about embedded objects in $push that we know match the schema.
   const relOps = RELATIONSHIPS.map(([fromIdx, descriptor, toIdx]) => ({
     updateOne: {
@@ -1079,17 +1090,6 @@ async function seed(ctx: FixtureContext): Promise<{ campaignIds: ObjectId[] }> {
     updatedAt: now,
   }));
   await db.collection('gmscreen').insertMany(gmScreenDocs);
-
-  // ----- Update User.campaigns array -----
-  await db.collection('users').updateOne(
-    { _id: gm._id },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    {
-      $push: {
-        campaigns: { campaignId, joinedAt: now, status: 'active' },
-      },
-    } as any
-  );
 
   console.log(`[fixture:crowded]`);
   console.log(`  campaign:    ${CAMPAIGN_NAME}`);

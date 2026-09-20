@@ -16,6 +16,7 @@ spec:
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
       labels:
         {{- include "cartyx.web.selectorLabels" . | nindent 8 }}
+        {{- include "cartyx.data.podLabels" . | nindent 8 }}
     spec:
       securityContext:
         runAsNonRoot: true
@@ -53,11 +54,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "cartyx.secretName" . }}
                   key: sessionSecret
-            - name: MONGODB_URI
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "cartyx.secretName" . }}
-                  key: mongodbUri
+            {{- include "cartyx.data.env" . | nindent 12 }}
             # The remaining secret keys are optional features (OAuth, R2).
             # `optional: true` lets an existingSecret omit them.
             - name: GOOGLE_CLIENT_SECRET
@@ -85,7 +82,7 @@ spec:
                   key: r2SecretAccessKey
                   optional: true
           livenessProbe:
-            # /healthz does no I/O; a Mongo outage must not restart the pod.
+            # /healthz does no I/O; a data-store outage must not restart the pod.
             httpGet:
               path: /healthz
               port: http
@@ -94,7 +91,7 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 3
           readinessProbe:
-            # /readyz pings Mongo with a 2s server-side bound; timeoutSeconds
+            # /readyz probes the graph and Cassandra with a 2s server-side bound; timeoutSeconds
             # sits above it so a slow Atlas moment marks the pod unready
             # instead of racing the probe.
             httpGet:
@@ -106,3 +103,7 @@ spec:
             failureThreshold: 3
           resources:
             {{- toYaml .Values.web.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "cartyx.data.volumeMount" . | nindent 12 }}
+      volumes:
+        {{- include "cartyx.data.volume" . | nindent 8 }}

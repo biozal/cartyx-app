@@ -9,27 +9,13 @@ vi.mock('@tanstack/react-start', () => ({
   }),
 }));
 
-const mockMongoSessionObj = {
-  withTransaction: vi.fn(async (fn: () => Promise<unknown>) => fn()),
-  endSession: vi.fn(),
-};
-vi.mock('mongoose', () => ({
-  default: {
-    startSession: vi.fn(() => mockMongoSessionObj),
-  },
-}));
-
 vi.mock('~/server/session', () => ({ getSession: vi.fn() }));
 vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
   isDBConnected: vi.fn(() => true),
 }));
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn() },
-}));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findById: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/Session', () => ({
   Session: {
     find: vi.fn(),
@@ -40,8 +26,8 @@ vi.mock('~/server/db/models/Session', () => ({
 }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
-import { Campaign } from '~/server/db/models/Campaign';
+import { resetIdentityDouble } from './identityTestDouble';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { Session } from '~/server/db/models/Session';
 import {
   listSessions,
@@ -61,7 +47,7 @@ const mockSession = {
   refreshToken: null,
   tokenIssuedAt: 0,
 };
-const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
+const mockDbUser = { id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
 const mockCampaign = {
   _id: 'camp-1',
   gameMasterId: 'dbuser-1',
@@ -71,8 +57,8 @@ const mockCampaign = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
-  vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
-  vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign);
+  resetIdentityDouble(mockDbUser);
+  campaignsDouble.get.mockResolvedValue(mockCampaign);
 });
 
 // Cast server functions to callable handler signatures
@@ -181,7 +167,7 @@ describe('listSessions', () => {
   });
 
   it('throws when user is not the GM of the campaign', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       ...mockCampaign,
       gameMasterId: 'other-user-id',
     });
@@ -211,7 +197,7 @@ describe('getSessionCatchUp', () => {
   });
 
   it('is readable by a non-GM player member', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: 'camp-1',
       gameMasterId: 'other-gm',
       members: [{ userId: 'dbuser-1', role: 'player' }],
@@ -246,7 +232,7 @@ describe('getSessionCatchUp', () => {
   });
 
   it('throws when the user is not a member of the campaign', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       _id: 'camp-1',
       gameMasterId: 'other-gm',
       members: [{ userId: 'someone-else', role: 'player' }],
@@ -264,26 +250,21 @@ describe('getSessionCatchUp', () => {
 // createSession
 // ---------------------------------------------------------------------------
 describe('createSession', () => {
-  it('creates an inactive session with auto-assigned number in a transaction', async () => {
-    vi.mocked(Session.findOne).mockReturnValue({
-      sort: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          session: vi.fn().mockReturnValue({
-            lean: vi.fn().mockResolvedValue({ number: 2 }),
+  const lastSessionNumber = (...numbers: number[]) => {
+    for (const number of numbers)
+      vi.mocked(Session.findOne).mockReturnValueOnce({
+        sort: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            lean: vi.fn().mockResolvedValue({ number }),
           }),
         }),
-      }),
-    } as never);
-    vi.mocked(Session.create).mockResolvedValue([
-      {
-        _id: 'new-session-1',
-        name: 'The Dragon Quest',
-        number: 3,
-        startDate: new Date('2025-06-01'),
-        endDate: null,
-        status: 'not_started',
-      },
-    ] as never);
+      } as never);
+  };
+  const created = { _id: 'new-session-1', name: 'The Dragon Quest', number: 3 };
+
+  it('creates an inactive session numbered after the last one', async () => {
+    lastSessionNumber(2);
+    vi.mocked(Session.create).mockResolvedValue(created as never);
 
     const result = await _createSession({
       data: {
@@ -294,29 +275,36 @@ describe('createSession', () => {
     });
 
     expect(Session.create).toHaveBeenCalledWith(
-      [
-        expect.objectContaining({
-          campaignId: 'camp-1',
-          name: 'The Dragon Quest',
-          gm: 'dbuser-1',
-          number: 3,
-          startDate: expect.any(Date),
-          status: 'not_started',
-        }),
-      ],
-      expect.objectContaining({ session: mockMongoSessionObj })
-    );
-    expect(mockMongoSessionObj.endSession).toHaveBeenCalled();
-    expect(result).toEqual(
       expect.objectContaining({
-        success: true,
-        sessionId: 'new-session-1',
+        campaignId: 'camp-1',
+        name: 'The Dragon Quest',
+        gm: 'dbuser-1',
+        number: 3,
+        startDate: expect.any(Date),
+        status: 'not_started',
       })
     );
+    expect(result).toEqual(expect.objectContaining({ success: true, sessionId: 'new-session-1' }));
+  });
+
+  it('takes the next number when a concurrent create claimed this one', async () => {
+    lastSessionNumber(2, 3);
+    vi.mocked(Session.create)
+      .mockRejectedValueOnce(Object.assign(new Error('E11000'), { code: 11000 }))
+      .mockResolvedValueOnce({ ...created, number: 4 } as never);
+
+    const result = await _createSession({
+      data: { campaignId: 'camp-1', name: 'The Dragon Quest', startDate: '2025-06-01' },
+    });
+
+    expect(
+      vi.mocked(Session.create).mock.calls.map(([doc]) => (doc as { number: number }).number)
+    ).toEqual([3, 4]);
+    expect((result as { sessionId: string }).sessionId).toBe('new-session-1');
   });
 
   it('throws when user is not the GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    campaignsDouble.get.mockResolvedValue({
       ...mockCampaign,
       gameMasterId: 'other-user-id',
     });

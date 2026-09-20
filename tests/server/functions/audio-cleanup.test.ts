@@ -17,14 +17,11 @@ const lean = vi.fn();
 const find = vi.fn(() => ({ lean }));
 vi.mock('~/server/db/models/AudioAsset', () => ({ AudioAsset: { find } }));
 
-// `lookupAudioStoragePrefix` is NOT mocked — `~/server/functions/audio-storage`
-// runs for real (including `audioUserRoot`'s shape validation) against a mocked
-// User model, so a scan that resolved the wrong namespace would fail here.
-const userLean = vi.fn();
-const userSelect = vi.fn(() => ({ lean: userLean }));
-const findById = vi.fn(() => ({ select: userSelect }));
-const findOneAndUpdate = vi.fn();
-vi.mock('~/server/db/models/User', () => ({ User: { findById, findOneAndUpdate } }));
+// `~/server/functions/audio-storage` runs for real, including `audioUserRoot`'s shape
+// validation, so a scan that resolved the wrong namespace would fail here. Only the
+// namespace itself comes from the identity double.
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
+import { identityDouble, identityRepository, resetIdentityDouble } from './identityTestDouble';
 
 import { serverCaptureEvent } from '~/server/utils/telemetry';
 
@@ -62,7 +59,8 @@ beforeEach(() => {
   process.env.R2_BUCKET = 'd';
   process.env.CDN_URL = 'https://cdn.test';
   lean.mockResolvedValue([]);
-  userLean.mockResolvedValue({ audioStoragePrefix: PREFIX });
+  resetIdentityDouble({ id: OWNER });
+  identityDouble.audioPrefix = PREFIX;
   r2Lists([]);
 });
 
@@ -302,7 +300,7 @@ describe('scanOrphanAudio — ownership scoping', () => {
    * document would hand a prefix to every account that ever clicked Scan.
    */
   it('returns an empty scan without touching R2 or minting a prefix', async () => {
-    userLean.mockResolvedValue({ audioStoragePrefix: null });
+    identityDouble.audioPrefix = null;
     const { scanOrphanAudio } = await import('~/server/functions/audio-cleanup');
     const res = await scanOrphanAudio({ userId: OWNER });
 
@@ -313,7 +311,8 @@ describe('scanOrphanAudio — ownership scoping', () => {
       r2Disabled: false,
     });
     expect(send).not.toHaveBeenCalled();
-    expect(findOneAndUpdate).not.toHaveBeenCalled();
+    // Allocation is a write. A read-only scan must look the namespace up, never mint it.
+    expect(identityRepository.resolveAudioStoragePrefix).not.toHaveBeenCalled();
   });
 
   it('reports r2Disabled instead of throwing when storage is not configured', async () => {

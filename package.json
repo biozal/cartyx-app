@@ -30,16 +30,29 @@
     "build-storybook:full": "node scripts/build-storybook-with-iframe.mjs",
     "realtime:dev": "npm --prefix realtime run dev",
     "check:deps-age": "node scripts/check-package-age.mjs",
-    "db:verify": "tsx scripts/mongo-admin.ts verify",
-    "db:sync": "tsx scripts/mongo-admin.ts sync",
-    "dev:clear": "node scripts/run-python.cjs dev_clear.py",
-    "dev:seed": "node scripts/run-python.cjs dev_seed.py && node scripts/gen_seed_avatars.mjs && node scripts/gen_seed_lore_images.mjs && node scripts/gen_seed_org_images.mjs && node scripts/gen_seed_quest_images.mjs",
-    "dev:repair-images": "node scripts/run-python.cjs repair_seed_images.py && node scripts/gen_seed_avatars.mjs",
-    "dev:gen-avatars": "node scripts/gen_seed_avatars.mjs",
+    "dev:clear": "tsx scripts/seed/cli.ts clear",
+    "dev:seed": "tsx scripts/seed/cli.ts seed && tsx scripts/gen_seed_avatars.mjs && node scripts/gen_seed_lore_images.mjs && node scripts/gen_seed_org_images.mjs && node scripts/gen_seed_quest_images.mjs",
+    "dev:repair-images": "tsx scripts/repair-images.ts && tsx scripts/gen_seed_avatars.mjs",
+    "dev:gen-avatars": "tsx scripts/gen_seed_avatars.mjs",
     "fixture": "tsx scripts/dev-fixtures/cli.ts",
     "srd:lint": "tsx scripts/srd/lint.ts",
     "srd:extract": "tsx scripts/srd/extract-rules.ts",
-    "srd:generate": "tsx scripts/srd/generate-srd-data.ts"
+    "srd:generate": "tsx scripts/srd/generate-srd-data.ts",
+    "db:up": "node scripts/dev-data.mjs up",
+    "db:schema": "node scripts/dev-schema.mjs",
+    "db:down": "node scripts/dev-data.mjs down",
+    "db:status": "node scripts/dev-data.mjs status",
+    "db:smoke": "node scripts/dev-data.mjs smoke",
+    "db:tools": "node scripts/dev-data.mjs tools",
+    "db:chart-test": "node scripts/dev-data.mjs chart-test",
+    "graph:schema": "tsx scripts/graph/cli.ts",
+    "graph:reindex": "tsx scripts/graph/reindex.ts",
+    "graph:test": "tsx scripts/graph/integration.ts",
+    "cql:schema": "tsx scripts/cql/cli.ts",
+    "cql:test": "tsx scripts/cql/integration.ts",
+    "cql:local": "node scripts/cql/local.mjs",
+    "identity:graph-schema": "tsx scripts/identity/profile-schema-cli.ts",
+    "identity:resolve-revocation": "tsx scripts/identity/resolve-revocation.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1090.0",
@@ -59,11 +72,13 @@
     "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-router": "^1.170.15",
     "@tanstack/react-start": "^1.168.25",
+    "cassandra-driver": "4.9.0",
     "dayjs": "^1.11.20",
+    "gremlin": "3.7.6",
     "jose": "^6.2.2",
     "konva": "^10.2.5",
     "lucide-react": "^1.25.0",
-    "mongoose": "^9.7.4",
+    "mingo": "7.2.4",
     "nitro": "^3.0.260522-beta",
     "partysocket": "^1.3.0",
     "pino": "^10.3.1",
@@ -73,14 +88,21 @@
     "react-konva": "^19.2.5",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "stemmer": "2.0.1",
     "vite": "^7.3.6",
     "zod": "^4.4.3"
   },
   "overrides": {
     "esbuild": "^0.28.1",
     "h3-v2": "npm:h3@2.0.1-rc.19",
-    "js-yaml": "4.3.0",
-    "postcss": "8.5.19"
+    "js-yaml": "4.3.2",
+    "postcss": "8.5.28",
+    "gremlin": {
+      "uuid": "11.1.1"
+    },
+    "cassandra-driver": {
+      "adm-zip": "0.6.1"
+    }
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^5.1.1",
@@ -97,6 +119,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.5.2",
+    "@types/gremlin": "3.6.7",
     "@types/node": "^25.9.5",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.0.4",

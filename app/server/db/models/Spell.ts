@@ -1,136 +1,110 @@
-import mongoose, { type InferSchemaType, type Model } from 'mongoose';
-import { normalizeTags } from '~/server/utils/helpers';
+import { z } from 'zod';
+import { defineGraphModel } from '~/server/repositories/graph-model';
+import { now, objectId, tags, touchAndNormalizeTags, touchUpdate } from './schema-parts';
 
-const diceSchema = new mongoose.Schema({ count: Number, sides: Number }, { _id: false });
+const diceSchema = z.object({ count: z.number().nullish(), sides: z.number().nullish() });
 
-const modifierSchema = new mongoose.Schema(
-  {
-    id: { type: String, required: true },
-    type: { type: String, required: true },
-    dice: { type: diceSchema, default: undefined },
-    scaling: {
-      perStep: { type: diceSchema, default: undefined },
-    },
-    fixedValue: Number,
-    damageType: String,
-    atHigherLevels: String,
-    notes: String,
-  },
-  { _id: false }
-);
-
-const conditionSchema = new mongoose.Schema(
-  {
-    id: { type: String, required: true },
-    action: { type: String, required: true },
-    condition: { type: String, required: true },
-  },
-  { _id: false }
-);
-
-const higherLevelSchema = new mongoose.Schema(
-  {
-    id: { type: String, required: true },
-    level: { type: Number, required: true },
-    description: { type: String, required: true },
-  },
-  { _id: false }
-);
-
-const spellSchema = new mongoose.Schema({
-  campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign', required: true },
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  source: { type: String, enum: ['srd', 'homebrew'], default: 'homebrew' },
-  name: { type: String, required: true },
-  description: { type: String, required: true },
-  imageUrl: { type: String },
-  level: { type: Number, required: true, min: 0, max: 9 },
-  school: { type: String, required: true },
-  version: { type: String },
-  castingTime: {
-    value: { type: Number, default: 1 },
-    unit: { type: String, default: 'action' },
-    reactionCondition: { type: String },
-  },
-  components: {
-    verbal: { type: Boolean, default: false },
-    somatic: { type: Boolean, default: false },
-    material: { type: Boolean, default: false },
-    materialDescription: { type: String },
-  },
-  range: {
-    type: { type: String, default: 'self' },
-    distance: { type: Number },
-  },
-  duration: {
-    type: { type: String, default: 'instantaneous' },
-    value: { type: Number },
-    unit: { type: String },
-    concentration: { type: Boolean, default: false },
-  },
-  ritual: { type: Boolean, default: false },
-  higherLevelScaling: {
-    enabled: { type: Boolean, default: false },
-    type: { type: String },
-  },
-  classes: { type: [String], default: [] },
-  attackSave: {
-    kind: { type: String, default: 'none' },
-    attackType: { type: String },
-    saveAbility: { type: String },
-    saveEffect: { type: String },
-  },
-  modifiers: { type: [modifierSchema], default: [] },
-  conditions: { type: [conditionSchema], default: [] },
-  higherLevels: { type: [higherLevelSchema], default: [] },
-  areaOfEffect: {
-    shape: { type: String, default: 'none' },
-    size: { type: Number },
-    width: { type: Number },
-  },
-  tags: { type: [String], default: [] },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
+const modifierSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  dice: diceSchema.nullish(),
+  scaling: z.object({ perStep: diceSchema.nullish() }).nullish(),
+  fixedValue: z.number().nullish(),
+  damageType: z.string().nullish(),
+  atHigherLevels: z.string().nullish(),
+  notes: z.string().nullish(),
 });
 
-spellSchema.pre('save', function () {
-  if (this.isModified('tags')) {
-    this.tags = normalizeTags(this.tags);
-  }
-  this.updatedAt = new Date();
+const conditionSchema = z.object({ id: z.string(), action: z.string(), condition: z.string() });
+
+const higherLevelSchema = z.object({
+  id: z.string(),
+  level: z.number(),
+  description: z.string(),
 });
 
-spellSchema.pre('findOneAndUpdate', function () {
-  const update = this.getUpdate() as unknown;
-  if (!update) return;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mongoose update object
-  const updateObj = update as Record<string, any>;
-  if ('$set' in updateObj) {
-    const set = (updateObj.$set ??= {});
-    if (Array.isArray(set.tags)) {
-      set.tags = normalizeTags(set.tags as string[]);
-    }
-    set.updatedAt = new Date();
-  } else {
-    if (Array.isArray(updateObj.tags)) {
-      updateObj.tags = normalizeTags(updateObj.tags as string[]);
-    }
-    updateObj.updatedAt = new Date();
-  }
+// Mongoose nested paths always exist, with their defaults filled in: hence prefault.
+export const spellSchema = z.object({
+  _id: objectId,
+  campaignId: objectId,
+  createdBy: objectId,
+  source: z.enum(['srd', 'homebrew']).default('homebrew'),
+  name: z.string(),
+  description: z.string(),
+  imageUrl: z.string().nullish(),
+  level: z.number().min(0).max(9),
+  school: z.string(),
+  version: z.string().nullish(),
+  castingTime: z
+    .object({
+      value: z.number().default(1),
+      unit: z.string().default('action'),
+      reactionCondition: z.string().nullish(),
+    })
+    .prefault({}),
+  components: z
+    .object({
+      verbal: z.boolean().default(false),
+      somatic: z.boolean().default(false),
+      material: z.boolean().default(false),
+      materialDescription: z.string().nullish(),
+    })
+    .prefault({}),
+  range: z
+    .object({ type: z.string().default('self'), distance: z.number().nullish() })
+    .prefault({}),
+  duration: z
+    .object({
+      type: z.string().default('instantaneous'),
+      value: z.number().nullish(),
+      unit: z.string().nullish(),
+      concentration: z.boolean().default(false),
+    })
+    .prefault({}),
+  ritual: z.boolean().default(false),
+  higherLevelScaling: z
+    .object({ enabled: z.boolean().default(false), type: z.string().nullish() })
+    .prefault({}),
+  classes: z.array(z.string()).default([]),
+  attackSave: z
+    .object({
+      kind: z.string().default('none'),
+      attackType: z.string().nullish(),
+      saveAbility: z.string().nullish(),
+      saveEffect: z.string().nullish(),
+    })
+    .prefault({}),
+  modifiers: z.array(modifierSchema).default([]),
+  conditions: z.array(conditionSchema).default([]),
+  higherLevels: z.array(higherLevelSchema).default([]),
+  areaOfEffect: z
+    .object({
+      shape: z.string().default('none'),
+      size: z.number().nullish(),
+      width: z.number().nullish(),
+    })
+    .prefault({}),
+  tags: tags(),
+  createdAt: now(),
+  updatedAt: now(),
 });
 
-// istanbul ignore next
-if (typeof (spellSchema as { index?: unknown }).index === 'function') {
-  spellSchema.index({ campaignId: 1 });
-  spellSchema.index({ campaignId: 1, updatedAt: -1 });
-  spellSchema.index({ campaignId: 1, level: 1 });
-  spellSchema.index({ campaignId: 1, school: 1 });
-  spellSchema.index({ createdBy: 1 });
-  spellSchema.index({ tags: 1 });
-  spellSchema.index({ name: 'text', description: 'text' });
-}
+export type ISpell = z.infer<typeof spellSchema>;
 
-export type ISpell = InferSchemaType<typeof spellSchema>;
-
-export const Spell: Model<ISpell> =
-  (mongoose.models.Spell as Model<ISpell>) || mongoose.model<ISpell>('Spell', spellSchema);
+export const Spell = defineGraphModel<ISpell>({
+  name: 'spells',
+  kind: 'Spell',
+  modelName: 'Spell',
+  schema: spellSchema,
+  index: {
+    campaignId: 'ix_s1',
+    createdBy: 'ix_s2',
+    school: 'ix_s3',
+    source: 'ix_s4',
+    level: 'ix_n1',
+    updatedAt: 'ix_d1',
+  },
+  searchText: (spell) => `${spell.name} ${spell.description}`,
+  preSave: touchAndNormalizeTags,
+  preFindOneAndUpdate: (update) => touchUpdate(update, { tags: true }),
+});

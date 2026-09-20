@@ -8,8 +8,8 @@ vi.mock('@tanstack/react-start', () => ({
 }));
 vi.mock('~/server/session', () => ({ getSession: vi.fn() }));
 vi.mock('~/server/db/connection', () => ({ connectDB: vi.fn(), isDBConnected: vi.fn(() => true) }));
-vi.mock('~/server/db/models/User', () => ({ User: { findOne: vi.fn() } }));
-vi.mock('~/server/db/models/Campaign', () => ({ Campaign: { findById: vi.fn() } }));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/Calendar', () => ({ Calendar: { findOne: vi.fn() } }));
 vi.mock('~/server/db/models/Event', () => ({
   Event: {
@@ -28,8 +28,8 @@ vi.mock('~/server/db/models/Race', () => ({ Race: { findById: vi.fn() } }));
 vi.mock('~/server/db/models/Lore', () => ({ Lore: { findById: vi.fn() } }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
-import { Campaign } from '~/server/db/models/Campaign';
+import { resetIdentityDouble } from './identityTestDouble';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { Calendar } from '~/server/db/models/Calendar';
 import { Event } from '~/server/db/models/Event';
 import { removeDocumentRefsFromScreens } from '~/server/functions/gmscreens-helpers';
@@ -87,14 +87,14 @@ function mockEventFind(docs: unknown[]) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue({ id: 'sess-1' } as never);
-  vi.mocked(User.findOne).mockResolvedValue({ _id: 'user-1' } as never);
-  vi.mocked(Campaign.findById).mockResolvedValue(gmCampaign as never);
+  resetIdentityDouble({ id: 'user-1' });
+  campaignsDouble.get.mockResolvedValue(gmCampaign as never);
   vi.mocked(Calendar.findOne).mockReturnValue({ lean: vi.fn().mockResolvedValue(calDoc) } as never);
 });
 
 describe('listEvents', () => {
   it('restricts non-GM to public events', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     mockEventFind([]);
     await _list({ data: { campaignId: 'camp-1' } });
     const filter = vi.mocked(Event.find).mock.calls[0][0] as unknown as Record<string, unknown>;
@@ -136,7 +136,7 @@ describe('listEvents', () => {
 
 describe('createEvent', () => {
   it('forbids a non-GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     await expect(
       _create({
         data: { campaignId: 'camp-1', title: 'T', start: { year: 1, monthIndex: 0, day: 1 } },
@@ -145,7 +145,7 @@ describe('createEvent', () => {
   });
   it('computes startOrdinal/endOrdinal from the calendar', async () => {
     vi.mocked(Event.create).mockImplementation(
-      async (doc: Record<string, unknown>) => ({ _id: 'e1', ...doc }) as never
+      async (doc) => ({ _id: 'e1', ...(doc as Record<string, unknown>) }) as never
     );
     await _create({
       data: {
@@ -197,10 +197,10 @@ describe('createEvent', () => {
     const tags = new FakeMongooseArray();
     tags.push('festival');
     vi.mocked(Event.create).mockImplementation(
-      async (doc: Record<string, unknown>) =>
+      async (doc) =>
         ({
           _id: 'e1',
-          ...doc,
+          ...(doc as Record<string, unknown>),
           start: new SubDoc(1, 0, 2),
           end: new SubDoc(1, 0, 3),
           tags,
@@ -252,7 +252,7 @@ const publicEventDoc = {
 
 describe('getEvent', () => {
   it('strips gmContent for a non-GM member', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(Event.findById).mockReturnValue({
       lean: vi.fn().mockResolvedValue(publicEventDoc),
     } as never);
@@ -273,7 +273,7 @@ describe('getEvent', () => {
   });
 
   it('hides a non-public event from a non-GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(Event.findById).mockReturnValue({
       lean: vi.fn().mockResolvedValue({ ...publicEventDoc, isPublic: false }),
     } as never);
@@ -343,7 +343,7 @@ describe('updateEvent', () => {
   });
 
   it('rejects a non-GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     await expect(
       _update({
         data: {
@@ -363,7 +363,7 @@ describe('updateEvent', () => {
 
 describe('deleteEvent', () => {
   it('rejects a non-GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     await expect(_delete({ data: { id: 'e1', campaignId: 'camp-1' } })).rejects.toThrow(
       'Forbidden'
     );

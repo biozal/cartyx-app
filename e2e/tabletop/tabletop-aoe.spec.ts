@@ -13,8 +13,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
-import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
+import { seededGameMaster } from '../fixtures/data';
+import { campaignFixtures } from '../fixtures/campaigns';
+import { graphDb, ObjectId, type Db } from '../../scripts/graph-db';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -31,11 +33,10 @@ interface Provisioned {
   gmId: string;
 }
 
-let client: MongoClient;
 let provisioned: Provisioned;
 
 function db(): Db {
-  return process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+  return graphDb();
 }
 
 function aoes() {
@@ -53,13 +54,12 @@ async function provision(database: Db): Promise<Provisioned> {
   const cookie = storage.cookies.find((c) => c.name === 'cartyx_session');
   if (!cookie) throw new Error('No cartyx_session cookie — globalSetup did not run?');
   const providerId = (decodeJwt(cookie.value) as { user?: { id?: string } }).user?.id;
-  const gm = await database.collection('users').findOne({ providerId });
-  if (!gm?._id) throw new Error('Session GM user not found');
+  const gm = seededGameMaster(providerId);
 
   const now = new Date();
 
   const campaignId = (
-    await database.collection('campaigns').insertOne({
+    await campaignFixtures.insertOne({
       gameMasterId: gm._id,
       name: CAMPAIGN_NAME,
       description: 'E2E spell AoE tool test.',
@@ -143,10 +143,6 @@ test.beforeAll(async () => {
   } catch {
     /* env may be set externally */
   }
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error('MONGODB_URI not set');
-  client = new MongoClient(uri);
-  await client.connect();
   provisioned = await provision(db());
 });
 
@@ -158,15 +154,13 @@ test.afterEach(async () => {
 });
 
 test.afterAll(async () => {
-  if (!client) return;
   if (provisioned?.campaignId) {
     const cid = new ObjectId(provisioned.campaignId);
     await aoes().deleteMany({ campaignId: cid });
     await db().collection('tabletopscreen').deleteMany({ campaignId: cid });
     await db().collection('map').deleteMany({ campaignId: cid });
-    await db().collection('campaigns').deleteMany({ _id: cid });
+    await campaignFixtures.deleteMany({ _id: cid });
   }
-  await client.close();
 });
 
 test('selecting the AoE tool opens a settings popup with sphere selected by default', async ({

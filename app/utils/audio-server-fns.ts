@@ -51,8 +51,7 @@ import {
 // 'User'` (`~/server/db/models/AudioAsset.ts`), same as every other
 // per-user-scoped collection (e.g. `Campaign.gameMasterId`). Every other
 // caller that scopes a query this way resolves the real id first via
-// `User.findOne({ providerId: user.id })` (see `~/server/functions/
-// campaigns.ts`); skipping that step here and handing `AudioAsset.find`/
+// the identity repository's provider-ID lookup; skipping that step here and handing `AudioAsset.find`/
 // `.create` the provider id string instead throws a Mongoose `CastError` on
 // every call, for every user — caught by this task's E2E suite hitting a
 // genuinely seeded, real `ownerId`.

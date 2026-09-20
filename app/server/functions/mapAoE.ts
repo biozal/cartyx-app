@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { requireCampaignMember } from '../utils/requireCampaignMember';
 import { MapAoE } from '../db/models/MapAoE';
 import { Map as MapModel } from '../db/models/Map';
-import { User } from '../db/models/User';
+import { identityRepository } from '../repositories/identity';
 import { serverCaptureException, serverCaptureEvent } from '../utils/telemetry';
 
 /**
@@ -122,8 +122,7 @@ export const createMapAoE = async ({ data }: { data: z.infer<typeof createMapAoE
     // the server is the source of truth for a direct RPC).
     const { w, h } = await mapBounds(data.campaignId, data.mapId);
 
-    const u = await User.findById(member.userId).select('firstName lastName email').lean();
-    const uDoc = u as { firstName?: string; lastName?: string; email?: string } | null;
+    const uDoc = await identityRepository.readDisplayName(member.userId);
     const createdByName =
       [uDoc?.firstName, uDoc?.lastName].filter(Boolean).join(' ') || uDoc?.email || 'Unknown';
 

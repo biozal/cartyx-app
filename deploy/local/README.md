@@ -7,14 +7,46 @@ Two ways to run the stack against Docker Desktop:
 | **docker-compose** | You want the web app + realtime service running together, no Kubernetes. Fastest.                                                                                                          |
 | **kind**           | You want to test the real Kubernetes manifests, probes, and the Helm chart before they hit a real cluster. Deploys the full app chart (web + realtime) — the same manifests as production. |
 
-The docker-compose path runs **two services**: `web` (built from the repo-root
+The docker-compose path runs `web` (built from the repo-root
 `Dockerfile.web`, served on host port **3100**) and `realtime` (built from
 `realtime/Dockerfile`, served on host port **1999**, unchanged from before). The `web`
-container depends on `realtime` passing its healthcheck before it starts. The kind
-path deploys the same two services from the `deploy/charts/cartyx` Helm chart: web on
-host port **3200**, realtime on **1999**.
+container depends on `realtime` passing its healthcheck before it starts. Cassandra
+and JanusGraph run alongside them with persistent storage, TLS and authentication.
+The audio worker is available through `--profile audio`; it consumes the queue
+configured in `.env`, so use development credentials. The kind path deploys the
+application chart and a separate `cartyx-data` chart: web on host port **3200**,
+realtime on **1999**.
 
-Both paths read secrets from the repo-root `.env`. For docker-compose specifically,
+The database chart, Compose definitions, configuration, and operations tools live
+in the separate `cartyx-infrastructure` repository. Check out both repositories
+beside each other, with the infrastructure changes present:
+
+```text
+Developer/
+  cartyx-app/
+  cartyx-infrastructure/
+```
+
+For another location, export `CARTYX_INFRASTRUCTURE_DIR` as an **absolute path**
+in your shell; both the npm commands and Compose use it. The npm wrapper does
+not load this setting from `.env`. Land the infrastructure changes before the
+app integration so a fresh checkout can find these files.
+
+Initialize the local data credentials before the first full-stack Compose run:
+
+```bash
+npm run db:tools
+npm run db:up
+npm run db:smoke -- seed
+npm run db:smoke
+```
+
+`npm run dev` also starts/waits for the Docker database services. `npm run db:down`
+stops them without deleting data; they hold all of the app's data. See the [data infrastructure runbook](https://github.com/biozal/cartyx-infrastructure/blob/main/deploy/charts/cartyx-data/README.md)
+for Kubernetes, credentials, backups and restore rehearsals.
+
+Application secrets come from the app repo-root `.env`; database credentials live
+in `cartyx-infrastructure/.local/data/local`. For docker-compose specifically,
 you must run the command from the **repo root** with `--env-file .env` so the
 `VITE_PUBLIC_*` build args (feature flags) interpolate into the `web`
 image at build time — running it any other way, or omitting `--env-file .env`, builds
@@ -38,13 +70,9 @@ Both paths read the repo-root `.env`. Two variables matter:
 - **`SESSION_SECRET` (required)** — must be **identical** to the value the web app
   signs party tokens with. If it differs, every WebSocket connection is rejected
   with `401`. Copy it from the same `.env` the app uses.
-- **`MONGODB_URI`** — required for the kind path (the web app can't pass `/readyz`
-  without it) and recommended for compose. Point it at a **dedicated database in the
-  URI path** so it stays out of the app's data:
-  ```
-  MONGODB_URI=mongodb+srv://USER:PASS@cluster.mongodb.net/cartyx_local
-  ```
-  The service uses whatever database the URI names.
+- **The data settings** (`GREMLIN_*`, `CQL_*`) — the graph and Cassandra the app,
+  realtime and the audio worker all use. `npm run dev` fills them in for the local
+  stack; the kind path wires them through the chart's `data` values.
 
 ## Path A — docker-compose
 
@@ -100,7 +128,7 @@ npm run dev
 ```
 
 Open a campaign session in two browser windows and do a dice roll — it should relay
-between them, and chat history should return on reload (when `MONGODB_URI` is set).
+between them, and chat history should return on reload (it is kept in the graph).
 
 ## Verify
 
