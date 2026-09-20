@@ -634,7 +634,12 @@ def build_lore_docs(*, campaign_id, gm_id, player_ids, player_user_ids,
     race_ids      : dict mapping race title → ObjectId (subset; may be empty)
     """
     def image(slug, caption):
-        return {"url": f"/uploads/seed-lore/{slug}.png", "caption": caption, "crop": None}
+        # `public_url` yields the full CDN URL when R2/CDN is configured, so the
+        # stored URL matches the key gen_seed_lore_images.mjs uploads; a deployed
+        # pod cannot serve local public/uploads/ writes. Falls back to the bare
+        # path for local Vite.
+        return {"url": public_url(f"/uploads/seed-lore/{slug}.png"),
+                "caption": caption, "crop": None}
 
     def lore(title, content, *, public, author_id, links, images, tags,
              gm_content="", day_offset=0):
