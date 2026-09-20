@@ -16,12 +16,18 @@
 # with it disabled is an error, since the workloads have nowhere to keep data.
 data:
   enabled: true
-  # Secret created by `kubernetes.mjs provision-app-secret <env>` in cartyx-infrastructure.
-  secretName: cartyx-app-data
+  # The Secret cartyx-infrastructure provisions for the data stack
+  # (`deploy/data/kubernetes.mjs provision-secret <env>`). It also holds operator
+  # credentials, which is why the mount selects ONLY the three application items
+  # (see `cartyx.data.volume`): the app pods never receive the operator graph
+  # password or the Cassandra admin password.
+  secretName: cartyx-data
   graph:
     service: cartyx-data-janusgraph
     port: 8182
-    username: cartyx_identity
+    # The application service principal. `cartyx_identity` was its name before
+    # cartyx-infrastructure renamed it; the published policy accepts both.
+    username: cartyx_app
   cql:
     service: cartyx-data-cassandra
     port: 9042
