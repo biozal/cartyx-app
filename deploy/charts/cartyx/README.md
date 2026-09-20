@@ -46,8 +46,9 @@ OAuth, R2, `APP_ENV`, `BASE_URL`, the data-store settings) is live: plain values
 
     Repeat with `-n dev` and the dev-site values (dev OAuth client secrets
     if separate). The graph and Cassandra credentials are not in this Secret:
-    they come from `cartyx-app-data`, provisioned by cartyx-infrastructure
-    (`data.secretName`), and every environment must set
+    they come from the `cartyx-data` Secret that cartyx-infrastructure
+    provisions (`data.secretName`; the mount selects only the three
+    application items), and every environment must set
     `data.cql.stateKeyspace` — rendering without the data stores fails. `sessionSecret` must be ≥32 chars — the app
     refuses to boot in production/staging otherwise.
 

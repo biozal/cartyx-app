@@ -306,14 +306,15 @@ DATA_ARGS=(
 # On by default: there is no other store to fall back to.
 assert_contains "data access is on by default (label)" "cartyx\.io/data-client"
 assert_contains "data access is on by default (Gremlin env)" "GREMLIN_URL"
-assert_contains "data access is on by default (credential mount)" "cartyx-app-data"
+assert_contains "data access is on by default (credential mount)" "cartyx-data"
 
 # Enabled: every workload gets the label the database NetworkPolicy requires.
 label_count=$(render "${DATA_ARGS[@]}" | grep -c "cartyx\.io/data-client: 'true'")
 if [ "$label_count" -eq 3 ]; then ok; else bad "all three workloads are labelled data clients (got $label_count)"; fi
 assert_contains "graph endpoint is in-cluster TLS" "wss://cartyx-data-janusgraph:8182/gremlin" "${DATA_ARGS[@]}"
 assert_contains "CQL keyspace is set" "CQL_STATE_KEYSPACE" "${DATA_ARGS[@]}"
-assert_contains "credentials come from the app data Secret" "secretName: \"cartyx-app-data\"" "${DATA_ARGS[@]}"
+assert_contains "credentials come from the provisioned data Secret" "secretName: \"cartyx-data\"" "${DATA_ARGS[@]}"
+assert_contains "the graph principal is the application one" "value: \"cartyx_app\"" "${DATA_ARGS[@]}"
 assert_contains "credential files are read-only" "readOnly: true" "${DATA_ARGS[@]}"
 
 # The operator graph password and the Cassandra admin password must never reach app pods.
