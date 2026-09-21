@@ -15,8 +15,8 @@
   },
   "dependencies": {
     "cassandra-driver": "4.9.0",
-    "gremlin": "3.7.6",
-    "jose": "^6.2.2",
+    "gremlin": "3.8.2",
+    "jose": "^6.2.12",
     "mingo": "7.2.4",
     "pino": "^10.3.1",
     "stemmer": "2.0.1",
@@ -33,11 +33,11 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.6",
     "@types/ws": "^8.5.10",
-    "esbuild": "^0.28.1",
-    "tsx": "~4.23.1",
+    "esbuild": "^0.28.2",
+    "tsx": "~4.23.13",
     "typescript": "^6.0.3",
-    "vitest": "4.1.9"
+    "vitest": "4.1.11"
   }
 }
