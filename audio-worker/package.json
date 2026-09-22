@@ -13,16 +13,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1090.0",
+    "@aws-sdk/client-s3": "^3.1129.0",
     "cassandra-driver": "4.9.0",
-    "gremlin": "3.7.6",
+    "gremlin": "3.7.7",
     "mingo": "7.2.4",
     "pino": "^10.3.1",
     "stemmer": "2.0.1",
-    "zod": "^4.4.3"
+    "zod": "^4.6.1"
   },
   "overrides": {
-    "postcss": "8.5.19",
+    "postcss": "8.5.28",
     "gremlin": {
       "uuid": "11.1.1"
     },
@@ -31,9 +31,9 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^25.9.1",
-    "esbuild": "^0.28.1",
+    "@types/node": "^25.9.6",
+    "esbuild": "^0.28.2",
     "typescript": "^6.0.3",
-    "vitest": "4.1.9"
+    "vitest": "4.1.11"
   }
 }
