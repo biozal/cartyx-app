@@ -86,11 +86,25 @@ mingo filters or projects it (`graph-model.ts:324-354`). The projection still
 shrinks the server-fn _response_, which is worth keeping, but the peak-heap risk
 it was introduced to remove is back.
 
-**Redesign:** bound the number of documents, since that is the only lever the
-storage model leaves. `listPackages` gains a limit and a cursor, following the
-idiom `listAudioAssets` already uses rather than inventing a second one. The
-projection stays as a payload-shrinker, with its comment corrected to say what it
-now does.
+**A cursor does not fix it either.** `matching()` reads through
+`collection.findAll`, which is typed `Omit<FindOptions<T>, 'limit' | 'offset'>`
+and loops every store page into one array (`collection.ts:257-265`); `find()`
+then applies `page(found, skip, limit)` in process (`graph-model.ts:552-558`).
+So `.limit()` bounds the **response**, never the read. Shipping a cursor as an
+OOM control would repeat the mistake this document exists to avoid.
+
+**What actually bounds peak heap is the `where` clause**, because that is the
+only thing that decides how many documents `findAll` accumulates. So the memory
+fix _is_ the visibility-filter fix below: splitting the `$or` into two
+pushed-down arms turns "every package in the install" into "the caller's own,
+already capped at `MAX_PACKAGES_PER_USER`, plus the curated system set". One
+change closes both problems.
+
+**Redesign:** split the `$or` (below) for the memory bound. `listPackages` also
+gains a limit and a cursor, following the idiom `listAudioAssets` already uses —
+but **for response size and incremental rendering, not as a memory control**, and
+its comment must say so. The projection likewise stays as a payload-shrinker,
+with its own comment corrected to claim only that.
 
 ### Visibility filtering on `ownerId: null`
 
@@ -99,8 +113,16 @@ your packages plus the system ones. Two independent reasons it no longer narrows
 pushdown only considers top-level keys present in the `index` map, so anything
 inside `$or` is invisible to it (`graph-model.ts:335-337`); and a null index value
 is deliberately stored as an _absent_ property, precisely "so `has` cannot match
-it" (`graph-entity-store.ts:179`). The result is a full `audiopackages` scan
-on four call paths, degrading with total install size rather than with the caller.
+it" (`graph-entity-store.ts:179`). The result is a full `audiopackages` scan,
+degrading with total install size rather than with the caller.
+
+**Only `listPackages` is affected.** The filter has four call sites, but
+`getPackage`, `listPackageAssets` and `clonePackage` all AND it with
+`_id: data.id`, and `matching()` short-circuits a string `_id` to a single
+`collection.get(id)` (`graph-model.ts:328-330`) before any index pushdown is
+considered. Those three narrow to one document and evaluate the `$or` in
+process, which is correct and cheap. `listPackages` is the only caller with no
+`_id`, and therefore the only one that scans.
 
 **Redesign, in two parts:**
 
