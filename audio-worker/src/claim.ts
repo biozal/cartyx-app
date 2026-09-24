@@ -307,7 +307,11 @@ export async function reapRejectedUploads(
         status: 'failed',
         confirmedAt: null,
         variant: { $ne: 'once' },
-        sourceKey: { $type: 'string' },
+        // Now that `sourceKey` is a nullable declared field rather than a
+        // required one, `{ $ne: null }` is the real idempotency predicate:
+        // a row this reaper already cleared has `sourceKey: null` and must
+        // not be re-listed.
+        sourceKey: { $ne: null },
         createdAt: { $lt: cutoff },
       },
       { projection: { sourceKey: 1 }, limit: REAP_UPLOAD_BATCH }
@@ -315,17 +319,33 @@ export async function reapRejectedUploads(
     .toArray();
   const rows = rejected.filter((row) => row.sourceKey);
   if (rows.length === 0) return;
-  try {
-    await deleteSource(rows.map((row) => row.sourceKey as string));
+
+  // Fence FIRST, delete after — the rule the rest of this file is built on.
+  // A row can be confirmed between the `find` above and the write below; the
+  // fence makes that write a no-op, and only a matched write authorizes
+  // removing the object. Deleting first (which this function used to do) hands
+  // the R2 delete to rows that are no longer reclaimable, and the deletes are
+  // not recoverable.
+  const reclaimable: string[] = [];
+  for (const row of rows) {
+    if (shouldContinue && !shouldContinue()) break;
+    const result = await model.updateOne(
+      { _id: row._id, status: 'failed', confirmedAt: null, sourceKey: row.sourceKey },
+      // `$set: null`, not `$unset`: `sourceKey` is a declared schema field, and
+      // an unset makes the document fail its own parse on the way back in.
+      { $set: { sourceKey: null, sourceBytes: null, updatedAt: new Date() } }
+    );
     beat();
-    for (const row of rows) {
-      if (shouldContinue && !shouldContinue()) break;
-      await model.updateOne(
-        { _id: row._id, status: 'failed', confirmedAt: null, sourceKey: row.sourceKey },
-        { $unset: { sourceKey: '' }, $set: { sourceBytes: null, updatedAt: new Date() } }
-      );
-      beat();
-    }
+    // Explicit 0 only: the driver always reports matchedCount, and treating a
+    // missing field as "didn't match" would silently stop reclaiming objects.
+    if (result?.matchedCount === 0) continue;
+    reclaimable.push(row.sourceKey as string);
+  }
+
+  if (reclaimable.length === 0) return;
+  try {
+    await deleteSource(reclaimable);
+    beat();
   } catch (err) {
     logger.warn({ err }, 'failed to reclaim rejected audio uploads');
     captureException(err, { scope: 'reap-rejected' });

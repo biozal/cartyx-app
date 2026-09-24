@@ -36,19 +36,24 @@ function collection() {
       createdAt: new Date(10000),
     },
   ];
+  // Called just before `updateOne` resolves a fenced write. Lets a test stage
+  // a race — a row's state changing between the `find` above and its own
+  // turn in the fenced-write loop — the exact window the inverted ordering
+  // exists to close.
+  let onBeforeUpdate: (() => void) | undefined;
   const find = vi.fn((filter: Record<string, unknown>) => ({
     toArray: async () => {
       expect(filter).toMatchObject({
         status: 'failed',
         confirmedAt: null,
-        sourceKey: { $type: 'string' },
+        sourceKey: { $ne: null },
       });
       return rows
         .filter(
           (row) =>
             row.status === filter.status &&
             row.confirmedAt == null &&
-            typeof row.sourceKey === 'string' &&
+            row.sourceKey != null &&
             row.variant !== 'once' &&
             (row.createdAt as Date) < (filter.createdAt as { $lt: Date }).$lt
         )
@@ -58,18 +63,26 @@ function collection() {
   const updateOne = vi.fn(
     async (
       filter: Record<string, unknown>,
-      update: { $unset: Record<string, unknown>; $set: Record<string, unknown> }
-    ) => {
+      update: { $set: Record<string, unknown> }
+    ): Promise<{ matchedCount: number }> => {
+      onBeforeUpdate?.();
       const row = rows.find((candidate) =>
         Object.entries(filter).every(([key, value]) => candidate[key] === value)
       );
       if (!row) return { matchedCount: 0 };
       Object.assign(row, update.$set);
-      for (const key of Object.keys(update.$unset)) delete row[key];
       return { matchedCount: 1 };
     }
   );
-  return { rows, model: { find, updateOne } as unknown as ClaimModel, find, updateOne };
+  return {
+    rows,
+    model: { find, updateOne } as unknown as ClaimModel,
+    find,
+    updateOne,
+    onBeforeUpdate: (fn: () => void) => {
+      onBeforeUpdate = fn;
+    },
+  };
 }
 
 it('reclaims replayed rejected uploads after expiry without destroying retryable sources', async () => {
@@ -80,23 +93,81 @@ it('reclaims replayed rejected uploads after expiry without destroying retryable
   });
   await reapRejectedUploads(model, new Date(5000), remove);
   expect(objects).toEqual(new Set(['accepted.wav', 'live-url.wav']));
-  expect(rows[0]).not.toHaveProperty('sourceKey');
+  expect(rows[0].sourceKey).toBeNull();
   expect(rows[1].sourceKey).toBe('accepted.wav');
+  // Second pass: row 0 now has `sourceKey: null`, so the `{ $ne: null }`
+  // candidate filter must exclude it — the reaper's own idempotency check.
   await reapRejectedUploads(model, new Date(5000), remove);
   expect(remove).toHaveBeenCalledTimes(1);
 });
 
-it('retains failed deletions for a later retry', async () => {
-  const { model, rows, updateOne } = collection();
+it('clears sourceKey with $set: null rather than $unset', async () => {
+  const { model, updateOne } = collection();
+  await reapRejectedUploads(model, new Date(5000), vi.fn().mockResolvedValue(undefined));
+  expect(updateOne).toHaveBeenCalledWith(
+    { _id: 'rejected', status: 'failed', confirmedAt: null, sourceKey: 'replayed.wav' },
+    { $set: { sourceKey: null, sourceBytes: null, updatedAt: expect.any(Date) } }
+  );
+});
+
+it('does not delete R2 objects for a row that stops matching between the find and the fenced write', async () => {
+  const { model, rows, onBeforeUpdate } = collection();
+  // The row is confirmed between the candidate list and its own fenced write
+  // — it is no longer reclaimable, and the fence must make that write a
+  // no-op rather than authorizing the delete.
+  onBeforeUpdate(() => {
+    rows[0].confirmedAt = new Date();
+  });
+  const remove = vi.fn(async () => {});
+
+  await reapRejectedUploads(model, new Date(5000), remove);
+
+  expect(remove).not.toHaveBeenCalled();
+  expect(rows[0].sourceKey).toBe('replayed.wav');
+});
+
+it('deletes only rows whose fenced write actually matched', async () => {
+  const { model, rows, onBeforeUpdate } = collection();
+  const deleted: string[] = [];
+  // Bring the second candidate row into scope too, so both a matched and an
+  // unmatched write happen in the same pass.
+  rows[2].confirmedAt = null;
+  rows[2].createdAt = new Date(0);
+  let calls = 0;
+  onBeforeUpdate(() => {
+    calls += 1;
+    if (calls === 1) rows[0].confirmedAt = new Date(); // races out row 0
+  });
+  const remove = vi.fn(async (keys: string[]) => {
+    deleted.push(...keys);
+  });
+
+  await reapRejectedUploads(model, new Date(5000), remove);
+
+  expect(deleted).toEqual(['live-url.wav']);
+  expect(rows[0].sourceKey).toBe('replayed.wav');
+  expect(rows[2].sourceKey).toBeNull();
+});
+
+it('retries a delete failure on a later pass without re-clearing an already-null sourceKey', async () => {
+  const { model, rows } = collection();
   const remove = vi
     .fn()
     .mockRejectedValueOnce(new Error('R2 unavailable'))
     .mockResolvedValue(undefined);
+
+  // Delete fails, but the fenced write already ran — matching
+  // `reapAbandonedUploads`'s best-effort delete: the status/field write must
+  // not be undone by an R2 outage.
   await reapRejectedUploads(model, new Date(5000), remove);
-  expect(rows[0].sourceKey).toBe('replayed.wav');
-  expect(updateOne).not.toHaveBeenCalled();
+  expect(rows[0].sourceKey).toBeNull();
+  expect(remove).toHaveBeenCalledTimes(1);
+
+  // A second pass finds nothing left to reclaim: the candidate filter
+  // already excludes the null-sourceKey row, so `remove` is not called
+  // again.
   await reapRejectedUploads(model, new Date(5000), remove);
-  expect(rows[0]).not.toHaveProperty('sourceKey');
+  expect(remove).toHaveBeenCalledTimes(1);
 });
 
 it('honors shutdown without starting rejected-upload cleanup', async () => {
