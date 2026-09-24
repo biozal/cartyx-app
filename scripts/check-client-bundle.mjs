@@ -64,7 +64,7 @@ const FORBIDDEN_IN_CLIENT = [
   // (string contents are not mangled), so it proves the FUNCTION did not ship,
   // not merely that an env name did not.
   'Try again in ',
-  'mongoose',
+  'gremlin',
 ];
 
 /**
@@ -75,13 +75,19 @@ const FORBIDDEN_IN_CLIENT = [
  *   script forbids. Finding it proves we are searching a populated client
  *   bundle that really does contain the audio surface — not an empty
  *   directory, and not a build where `/audio` was tree-shaken away entirely.
- * - `mongoose` under `.output/server` is the technique control: the same
+ * - `gremlin` under `.output/server` is the technique control: the same
  *   string this script forbids on the client must be present on the server, so
- *   a search that can never match anything cannot masquerade as a pass.
+ *   a search that can never match anything cannot masquerade as a pass. Was
+ *   `mongoose` until the graph migration removed it; measured via
+ *   `grep -rl 'gremlin' .output/server` (75 hits) vs
+ *   `grep -rl 'gremlin' .output/public` (0 hits) after `npm run build`.
  */
 const REQUIRED = [
   { dir: PUBLIC_DIR, needle: 'Storage limit reached', why: "AudioQuotaBar's client-side copy" },
-  { dir: SERVER_DIR, needle: 'mongoose', why: 'server bundle sanity' },
+  // Technique control: a string this script forbids on the client must be
+  // present on the server, so a search that can never match anything cannot
+  // masquerade as a pass. Was `mongoose` until the graph migration removed it.
+  { dir: SERVER_DIR, needle: 'gremlin', why: 'server bundle sanity' },
 ];
 
 /** Every file under `dir`, recursively. */

@@ -44,7 +44,7 @@ function fail(message) {
 if (process.env.NODE_ENV === 'production') {
   fail('refusing to run with NODE_ENV=production.');
 }
-for (const name of ['MONGODB_URI', 'R2_BUCKET']) {
+for (const name of ['GREMLIN_URL', 'R2_BUCKET']) {
   if (process.env[name]?.toLowerCase().includes('prod')) {
     fail(`refusing to run: ${name} looks like a production value.`);
   }
@@ -54,7 +54,7 @@ for (const name of ['MONGODB_URI', 'R2_BUCKET']) {
 // is claimed — i.e. after an upload, not at boot. Check them up front so the
 // failure is visible now instead of as a mysteriously stuck asset later.
 const missing = [
-  'MONGODB_URI',
+  'GREMLIN_URL',
   'R2_ACCOUNT_ID',
   'R2_ACCESS_KEY_ID',
   'R2_SECRET_ACCESS_KEY',
