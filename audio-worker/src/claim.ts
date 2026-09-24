@@ -330,6 +330,17 @@ export async function reapRejectedUploads(
   for (const row of rows) {
     if (shouldContinue && !shouldContinue()) break;
     const result = await model.updateOne(
+      // Unlike the `find` above and unlike `reapAbandonedUploads`'s own fenced
+      // write, this does NOT re-assert `variant: { $ne: 'once' }` — and that
+      // omission is safe, not an oversight. `variant` only ever becomes
+      // `'once'` through `createOnceVariantUpload`
+      // (app/server/functions/audio.ts), which is gated on `status: 'ready'`,
+      // and a row can only reach `'ready'` after its main confirm has stamped
+      // `confirmedAt` (non-null from then on — nothing in the app ever resets
+      // it to null). This fence already requires `confirmedAt: null`, so any
+      // row that had acquired `variant: 'once'` would already fail to match
+      // on that clause alone; re-asserting `variant` here would be a no-op
+      // check on top of one that already excludes it.
       { _id: row._id, status: 'failed', confirmedAt: null, sourceKey: row.sourceKey },
       // `$set: null`, not `$unset`: `sourceKey` is a declared schema field, and
       // an unset makes the document fail its own parse on the way back in.
@@ -343,13 +354,15 @@ export async function reapRejectedUploads(
   }
 
   if (reclaimable.length === 0) return;
+  // `beat()` outside the try, same as `reapAbandonedUploads`'s delete loop:
+  // it must run even when `deleteSource` throws, not just on success.
   try {
     await deleteSource(reclaimable);
-    beat();
   } catch (err) {
     logger.warn({ err }, 'failed to reclaim rejected audio uploads');
     captureException(err, { scope: 'reap-rejected' });
   }
+  beat();
 }
 
 /**

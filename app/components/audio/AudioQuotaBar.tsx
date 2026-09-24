@@ -14,7 +14,8 @@ export interface AudioQuotaBarProps {
   assetCount: number;
   /**
    * The server's per-user cap, in bytes — `AUDIO_USER_QUOTA_BYTES`, read via
-   * `getAudioUserQuotaBytes()` (`~/server/functions/audio.ts`) and returned
+   * `getAudioUserQuotaBytes()` (`~/lib/audio-quota-limits.ts`, re-exported
+   * from `~/server/functions/audio.ts` for existing imports) and returned
    * by the SAME server call that produced `usageBytes`. This must always
    * come from that response, never a client-side constant: the write-side
    * enforcement in `assertUnderStorageQuota` reads the env var fresh on

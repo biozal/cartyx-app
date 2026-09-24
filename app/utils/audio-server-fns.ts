@@ -54,13 +54,18 @@ import {
 //
 // `SessionUser.id` is the OAuth provider's subject id (see
 // `toSessionUser`/`upsertUser` in `~/server/utils/oauth.ts`), not this app's
-// Mongo `_id` — but `AudioAsset.ownerId` is a Mongoose `ObjectId` `ref:
-// 'User'` (`~/server/db/models/AudioAsset.ts`), same as every other
-// per-user-scoped collection (e.g. `Campaign.gameMasterId`). Every other
-// caller that scopes a query this way resolves the real id first via
-// the identity repository's provider-ID lookup; skipping that step here and handing `AudioAsset.find`/
-// `.create` the provider id string instead throws a Mongoose `CastError` on
-// every call, for every user — caught by this task's E2E suite hitting a
+// `_id` — but `AudioAsset.ownerId` is a lowercase 24-hex id
+// (`~/server/db/models/AudioAsset.ts`), same as every other per-user-scoped
+// graph model (e.g. `Campaign.gameMasterId`). There is no `User` model —
+// identity lives in the identity repository, not a referenced collection.
+// Every other caller that scopes a query this way resolves the real id first
+// via the identity repository's provider-ID lookup; skipping that step here
+// and handing the provider id string to `AudioAsset.create` instead fails
+// that field's `objectIdString` validation on every call, for every user.
+// Handing it to `AudioAsset.find` is the quieter failure: filters aren't
+// schema-validated here the way Mongoose cast them, so a provider id there
+// simply matches no document's `ownerId` — a silent empty result rather than
+// a thrown error. Both shapes are caught by this task's E2E suite hitting a
 // genuinely seeded, real `ownerId`.
 //
 // `requireActor()` returns BOTH ids, because the two are used for different

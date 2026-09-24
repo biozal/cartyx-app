@@ -41,6 +41,19 @@ describe('the worker against the graph store', () => {
     expect(stored).toMatchObject({ status: 'processing', claimedBy: 'worker-a' });
   });
 
+  it('claims the oldest pending row first', async () => {
+    // Pins the FIFO ordering `claimNext` relies on `findOneAndUpdate`'s `sort`
+    // option to enforce. `graph-driver.ts`'s `findOneAndUpdate` now types
+    // `options` as `Plain` specifically so `sort` reaches the real driver call
+    // below unmodified; this test is what makes that type change more than a
+    // comment — see its own doc comment for the mutation this guards against.
+    const newer = await pending('newer', new Date('2026-01-02'));
+    const older = await pending('older', new Date('2026-01-01'));
+    const claimed = await claimNext<Claimed>(model(), 'worker-1');
+    expect(String(claimed?._id)).toBe(String(older._id));
+    expect(String(claimed?._id)).not.toBe(String(newer._id));
+  });
+
   it('never lets two workers claim the same asset', async () => {
     for (let n = 0; n < 3; n++) await pending(`a${n}`, new Date(n * 1000));
     const claims = await Promise.all(

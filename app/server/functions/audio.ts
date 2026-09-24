@@ -148,27 +148,30 @@ function reportAudioError(e: unknown, actor: Actor, context: Record<string, unkn
 }
 
 /**
- * Compares a SERVER-derived ObjectId (a lean document's field, which
- * `String()` always renders as lowercase hex) against a CLIENT-supplied id,
- * case-insensitively.
+ * Compares a SERVER-derived id (a lean document's `_id`, which `String()`
+ * always renders as lowercase hex — see `objectIdString`,
+ * `/^[0-9a-f]{24}$/`) against a CLIENT-supplied id.
  *
- * Mongo's own ObjectId cast is case-insensitive — `find({_id: 'AABB…'})`
- * matches the document whose id prints as `aabb…` — so a query can succeed
- * while a naive `String(field) !== id` comparison over the same value is
- * `true` for every row. `deleteAudioAsset`'s package prune did exactly that:
- * an upper-cased 24-hex id (which `objectId`'s `[0-9a-fA-F]` regex accepts)
- * deleted the asset and all six of its R2 objects while EVERY referencing
- * package item survived as a permanent tombstone against the 64-item cap, and
- * `pruneOrphanedMoodStates` then no-opped too, because the surviving-items
- * list it was handed was the unchanged original.
+ * Ids are lowercase 24-hex strings (`objectIdString`), and the request schema
+ * lowercases at the boundary, so this is a plain comparison. It used to lean
+ * on Mongo's case-insensitive ObjectId cast, which no longer exists: an
+ * upper-cased id now misses rather than matching. That is fail-closed and
+ * safe (a miss here means "not the same item", never "same item, wrongly
+ * treated as different"), and the `.toLowerCase()` on both sides below is
+ * belt-and-suspenders on top of the schema's own lowercasing, not a rescue
+ * for an upstream that upper-cased.
  *
- * The `objectId` schema now lower-cases at the boundary (see
- * `~/types/schemas/audio.ts`), so in practice `data.id` reaches here already
- * canonical. This is the second, independent defence: the ingest surface is
- * deliberately auth-agnostic and phase 3's bearer adapter may not route every
- * call through the same Zod object, and a comparison that is only correct
- * because something upstream normalised is a comparison that breaks silently
- * when the upstream moves.
+ * `deleteAudioAsset`'s package prune is why this comparison is explicit
+ * rather than a bare `!==`: on the old Mongo-backed store, an upper-cased
+ * 24-hex id (which `objectId`'s regex accepts) still matched via Mongo's
+ * case-insensitive cast, so the asset and all six of its R2 objects were
+ * deleted while EVERY referencing package item survived as a permanent
+ * tombstone against the 64-item cap, and `pruneOrphanedMoodStates` then
+ * no-opped too, because the surviving-items list it was handed was the
+ * unchanged original. The ingest surface is deliberately auth-agnostic and
+ * phase 3's bearer adapter may not route every call through the same Zod
+ * object, so this stays a second, independent defence rather than trusting
+ * the schema alone.
  */
 function sameObjectId(serverValue: unknown, clientId: string): boolean {
   return String(serverValue).toLowerCase() === clientId.toLowerCase();
@@ -269,11 +272,13 @@ export function getMaxPendingJobsPerUser(): number {
  * deliberate boundary below: the count is read before the row that would
  * consume a slot actually lands, so a caller already AT the cap is refused
  * rather than landing exactly on it. Like those checks, this is a resource
- * bound, not an exact invariant, and the same slack `assertUnderStorageQuota`
- * documents applies here unmodified: two concurrent requests from the same
- * user can both read `count == max - 1` and both proceed, landing the user
- * one job over the cap — closing that with a transaction would cost more
- * than the one extra queued job it prevents.
+ * bound, not an exact invariant. Racy by construction, and deliberately so:
+ * the count and the enqueueing write are two calls, and this layer has no
+ * multi-document transaction to make them one. N concurrent confirms from one
+ * user can all read `count == max - 1`, landing them up to N-1 over the cap.
+ * The ingest limiter bounds N in practice. Closing it properly needs a
+ * per-user counter document CAS'd with `{$lt: max}` plus a decrement on
+ * completion — more machinery than a 20-job fairness knob is worth.
  */
 async function checkPendingJobCap(
   userId: string

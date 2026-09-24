@@ -95,8 +95,8 @@ import { createRateLimiter } from '~/lib/rate-limit';
  */
 
 /**
- * Guards a `process.env` read the same way
- * `~/server/functions/audio.ts`'s `getAudioUserQuotaBytes` /
+ * Guards a `process.env` read the same way `~/lib/audio-quota-limits.ts`'s
+ * `getAudioUserQuotaBytes` and `~/server/functions/audio.ts`'s
  * `getMaxPendingJobsPerUser` do: `Number(undefined)` and `Number('')` (what
  * Helm renders for a `values.yaml` key nobody set) are both non-positive
  * under this check, so an absent or empty env var falls through to

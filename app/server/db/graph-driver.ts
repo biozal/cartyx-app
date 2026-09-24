@@ -140,7 +140,15 @@ export function graphCollection(model: Model) {
     async findOneAndUpdate(
       filter: Plain,
       update: Plain,
-      options: { returnDocument?: 'before' | 'after'; upsert?: boolean } = {}
+      // `Plain`, not a two-key literal: `claimNext` (audio-worker/src/claim.ts)
+      // passes `sort` through here and the transcode queue's FIFO ordering
+      // depends on it surviving to `model.findOneAndUpdate` below. A narrower
+      // declared type would still forward the whole object at runtime (nothing
+      // here reads individual keys off it), but a refactor that destructured
+      // only `returnDocument`/`upsert` would silently drop `sort` with no type
+      // error and no failing test — see graph-store.test.ts's FIFO-ordering
+      // test for the check that actually pins this.
+      options: Plain = {}
     ) {
       return withObjectId(await model.findOneAndUpdate(filter, update, options).lean());
     },
