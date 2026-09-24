@@ -25,6 +25,7 @@ import type {
   getPackageSchema,
   clonePackageSchema,
   listPackageAssetsSchema,
+  listPackagesSchema,
 } from '~/types/schemas/soundboard';
 
 async function ensureDb() {
@@ -132,8 +133,21 @@ function reportPackageError(e: unknown, actor: Actor, context: Record<string, un
  * package (`ownerId: null` — phase 3's generated catalogue, readable by
  * everyone). This is the one seam in the soundboard where phase 1's
  * ownerId-only scoping does not apply, so it is expressed exactly once here
- * and reused by every READ below — never an incidental `$or` re-typed at a
- * call site.
+ * and reused by every ID-SCOPED read below — never an incidental `$or`
+ * re-typed at a call site.
+ *
+ * ID-SCOPED, and that qualifier is now load-bearing. `getPackage`,
+ * `listPackageAssets` and `clonePackage` each AND this with `_id: <one id>`,
+ * and the graph model short-circuits a string `_id` to a single
+ * `collection.get(id)` BEFORE it considers index pushdown — so those three
+ * fetch exactly one document and evaluate this `$or` in process, correctly
+ * and cheaply.
+ *
+ * `listPackages` does NOT use this, deliberately. It has no `_id`, so its
+ * filter goes down the pushdown path, where only top-level indexed keys are
+ * translated into graph predicates — a `$or` is not one, so it narrowed
+ * nothing and the list read EVERY package in the install. It issues two
+ * separately-pushed-down reads instead; see its own comment.
  *
  * NEVER used for a write. Every mutation in this file filters on
  * `{ _id, ownerId: userId }` instead — see `updatePackage`/`deletePackage` —
@@ -248,18 +262,24 @@ export function serializePackage(p: PackageDoc): AudioPackageData {
  * `items`/`moods` are ~99% of a package document — a maxed one (64 items with
  * 200-char labels, 32 moods of 64 states, a 2000-char description) is about
  * 410 KiB serialized, of which the scalar fields below are a few hundred
- * bytes. `listPackages` is unpaginated and fires on every `/audio/packages`
- * visit and every soundboard mount, so returning whole documents made one
- * user's package count the memory cost of their own page load on a
- * `replicaCount: 1` pod capped at 512Mi (`deploy/charts/cartyx/values.yaml`) —
- * an OOMKill that takes the site down for every other user and recurs on
- * restart, because the victim's own next page load fires the same read.
+ * bytes. `listPackages` fires on every `/audio/packages` visit and every
+ * soundboard mount, and returning whole documents made one user's package
+ * count the memory cost of their own page load on a `replicaCount: 1` pod
+ * capped at 512Mi (`deploy/charts/cartyx/values.yaml`).
  *
- * `$size` (a Mongo aggregation expression, supported in `find` projections
- * since 4.4) gives the list exactly what it renders — the counts — without
- * either array crossing the wire or the process boundary. `$ifNull` guards a
- * document written before the field existed; `$size` throws on a missing
- * field rather than returning 0.
+ * `$size` gives the list exactly what it renders — the counts — and `$ifNull`
+ * guards a document written before the field existed, because `$size` throws
+ * on a missing field rather than returning 0.
+ *
+ * This trims the SERVER-FN RESPONSE, and that is all it does. It is not a
+ * memory control: the entity store keeps each document as one JSON blob, so
+ * `items` and `moods` are fully materialised — and the projection is applied
+ * in process, by mingo, after the rows are already in this heap. What bounds
+ * this function's peak heap is the split visibility read in `listPackages`,
+ * not this. (An earlier revision of this comment claimed the arrays "never
+ * crossed the process boundary". They always did; only the response was ever
+ * smaller. A guard justified by a dead premise reads exactly like a true one
+ * to whoever builds the next guard on it.)
  *
  * NOT applied to `getPackage`/`listPackageAssets`/`clonePackage`: each of
  * those reads ONE document and genuinely needs its items (to edit it, to
@@ -301,19 +321,133 @@ export function serializePackageSummary(p: PackageDoc): AudioPackageSummaryData 
   };
 }
 
+/**
+ * The list's total order, and the one comparison both the sort and the cursor
+ * seek below go through.
+ *
+ * Code-unit comparison, NOT `localeCompare`, for two reasons. It is what the
+ * `.sort({ name: 1 })` this function used to issue already did, so the order a
+ * user sees does not silently change; and it is locale-independent, whereas
+ * `localeCompare`'s result depends on the process's default ICU locale — a
+ * cursor is only correct if the seek and the sort that minted it agree, and
+ * that agreement should not rest on an ambient setting.
+ */
+function compareByName(a: PackageDoc, b: PackageDoc): number {
+  const an = String(a.name);
+  const bn = String(b.name);
+  if (an !== bn) return an < bn ? -1 : 1;
+  // `name` is not unique — two packages may share one, and a system package
+  // and the caller's own copy of it routinely do. `_id` breaks the tie so the
+  // order is TOTAL: a non-total order makes a cursor ambiguous at exactly the
+  // boundary it is used at, which is how a page repeats or skips a row.
+  const ai = String(a._id);
+  const bi = String(b._id);
+  return ai < bi ? -1 : ai > bi ? 1 : 0;
+}
+
+const PACKAGE_ID_RE = /^[0-9a-f]{24}$/;
+
+/**
+ * `<base64url(name)>_<id>`. The sort key is `name`, free text that may contain
+ * anything including the delimiter, so the name half is base64url-encoded; the
+ * id half is always 24 lowercase hex and contains no `_`, which makes
+ * `lastIndexOf('_')` an unambiguous split.
+ */
+function encodePackageCursor(name: string, id: string): string {
+  return `${Buffer.from(name, 'utf8').toString('base64url')}_${id}`;
+}
+
+/**
+ * Returns null for anything this server did not mint — the caller fails
+ * closed. `listPackagesSchema.cursor` rejects the same shapes at the request
+ * boundary, so in practice nothing reaches this path; it exists so the
+ * function is safe for any caller, not only validated ones.
+ */
+function decodePackageCursor(cursor: string): { name: string; id: string } | null {
+  const idx = cursor.lastIndexOf('_');
+  if (idx <= 0 || idx === cursor.length - 1) return null;
+  const encodedName = cursor.slice(0, idx);
+  const id = cursor.slice(idx + 1);
+  if (!PACKAGE_ID_RE.test(id)) return null;
+  // Node's base64url decoder does not throw on junk — it skips what it cannot
+  // read — so the alphabet has to be checked before decoding rather than
+  // caught after. Without this, `!!!!_<24 hex>` would decode to some arbitrary
+  // string and seek to an arbitrary place in the list instead of being refused.
+  if (!/^[A-Za-z0-9_-]+$/.test(encodedName)) return null;
+  return { name: Buffer.from(encodedName, 'base64url').toString('utf8'), id };
+}
+
 export async function listPackages({
+  data,
   userId,
   sessionUserId,
-}: Actor): Promise<{ items: AudioPackageSummaryData[] }> {
+}: {
+  data: z.infer<typeof listPackagesSchema>;
+} & Actor): Promise<{
+  items: AudioPackageSummaryData[];
+  nextCursor: string | null;
+}> {
   try {
     await ensureDb();
-    const rows = (await AudioPackage.find(
-      packageVisibilityFilter(userId),
-      PACKAGE_SUMMARY_PROJECTION
-    )
-      .sort({ name: 1 })
-      .lean()) as PackageDoc[];
-    return { items: rows.map(serializePackageSummary) };
+
+    // TWO PUSHED-DOWN READS RATHER THAN ONE `$or`, and this — not the cursor
+    // below — is the memory fix.
+    //
+    // The graph model only pushes TOP-LEVEL INDEXED KEYS down into the store's
+    // `where`; a `$or` is neither, so `packageVisibilityFilter` narrowed
+    // nothing and this read loaded EVERY package in the install into this heap
+    // before mingo filtered it. Split, each arm narrows on `ownerId` (indexed
+    // as `ix_s1`): the caller's own set is capped by `MAX_PACKAGES_PER_USER`,
+    // and the system set is a curated catalogue. `{ ownerId: null }` pushes
+    // down too — the store drops absent properties rather than writing a null,
+    // so a null filter translates to `hasNot(slot)` rather than a scan.
+    //
+    // The union is exactly what the `$or` matched: the two arms are disjoint
+    // (`userId` is never null), so no document can appear twice.
+    const [mine, system] = (await Promise.all([
+      AudioPackage.find({ ownerId: userId }, PACKAGE_SUMMARY_PROJECTION).lean(),
+      AudioPackage.find({ ownerId: null }, PACKAGE_SUMMARY_PROJECTION).lean(),
+    ])) as [PackageDoc[], PackageDoc[]];
+
+    const ordered = [...mine, ...system].sort(compareByName);
+
+    // THE CURSOR IS NOT A MEMORY CONTROL, and no comment here should ever
+    // imply that it is. `matching()` reads through `collection.findAll`, whose
+    // options are typed `Omit<FindOptions<T>, 'limit' | 'offset'>` and which
+    // loops every store page into one array; `find()` then slices in process.
+    // So `limit` bounds the RESPONSE — its serialization cost and how much the
+    // browser has to render at once — and never the read. The `where` clause
+    // above is the only thing that bounds the read.
+    let start = 0;
+    if (data.cursor) {
+      const decoded = decodePackageCursor(data.cursor);
+      // Fail closed, exactly as `listAudioAssets` does: silently restarting at
+      // page 1 appends page 1 underneath page 1 in an append-style UI, giving
+      // the user duplicate rows and the client no signal that its cursor was
+      // thrown away. A `PackageClientError`, so a client looping on a bad
+      // cursor files no GlitchTip event.
+      if (!decoded) throw new PackageClientError('Invalid pagination cursor');
+      // The first row strictly AFTER the cursor, under the same total order
+      // `compareByName` imposes above. Not `findIndex(id === decoded.id)`: the
+      // row the cursor names may have been deleted or renamed between pages,
+      // and a seek by position must still land somewhere sensible rather than
+      // restarting.
+      const after = { name: decoded.name, _id: decoded.id } as PackageDoc;
+      start = ordered.findIndex((p) => compareByName(p, after) > 0);
+      // Every row sorts at or before the cursor — the caller has reached the
+      // end (or everything past it was deleted). An empty page with no cursor,
+      // not page 1 again.
+      if (start < 0) start = ordered.length;
+    }
+
+    const rows = ordered.slice(start, start + data.limit);
+    const items = rows.map(serializePackageSummary);
+    const last = rows[rows.length - 1];
+    const nextCursor =
+      last && start + rows.length < ordered.length
+        ? encodePackageCursor(String(last.name), String(last._id))
+        : null;
+    return { items, nextCursor };
   } catch (e) {
     reportPackageError(e, { userId, sessionUserId }, { action: 'listPackages' });
     throw e;

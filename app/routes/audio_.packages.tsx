@@ -17,7 +17,7 @@ import type { createPackageSchema } from '~/types/schemas/soundboard';
 import { queryKeys } from '~/utils/queryKeys';
 import { captureException } from '~/utils/telemetry-client';
 import { isClientRefusal } from '~/lib/client-refusal';
-import type { AudioPackageSummaryData } from '~/types/soundboard';
+import { PACKAGE_LIST_PAGE_SIZE, type AudioPackageSummaryData } from '~/types/soundboard';
 
 /**
  * `createPackageSchema`'s shape, not a structural literal (per the brief) —
@@ -129,7 +129,12 @@ export function PackagesListPage() {
     error: listError,
   } = useQuery({
     queryKey: queryKeys.packages.list(),
-    queryFn: () => listPackagesFn(),
+    // `listPackages` is paged now (the split visibility read is what bounds
+    // its memory; the page bounds the response — see its doc comment). This
+    // list has no append affordance, so it asks for one page of
+    // `PACKAGE_LIST_PAGE_SIZE` and ignores `data.nextCursor`; the cursor is
+    // there for whoever adds "load more" or an infinite scroll here.
+    queryFn: () => listPackagesFn({ data: { limit: PACKAGE_LIST_PAGE_SIZE } }),
   });
   const packages = data?.items ?? [];
 

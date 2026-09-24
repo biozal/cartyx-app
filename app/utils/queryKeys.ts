@@ -264,9 +264,15 @@ export const queryKeys = {
   },
   packages: {
     all: ['packages'] as const,
-    // `listPackages` takes no filters (visibility-scoped by the caller's
+    // `listPackages` takes no FILTERS (visibility is scoped by the caller's
     // session alone), so `list` is a fixed key — same shape as
-    // `campaigns.list`, not `audio.list`'s filters-object variant.
+    // `campaigns.list`, not `audio.list`'s filters-object variant. Its
+    // `limit`/`cursor` page request is not a filter and deliberately not in
+    // this key: both callers ask for the same single page
+    // (`PACKAGE_LIST_PAGE_SIZE`) and share the cache entry. Anyone wiring up
+    // "load more" must move to `useInfiniteQuery` — whose page params live
+    // outside the key — rather than folding the cursor in here, which would
+    // mint a fresh entry per page and defeat the shared cache.
     list: () => ['packages', 'list'] as const,
     detail: (id: string) => ['packages', 'detail', id] as const,
     // Task 21: the assets one package's items reference — one key per

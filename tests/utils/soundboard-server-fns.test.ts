@@ -1,13 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Same "mock createServerFn too" fallback as tests/utils/audio-server-fns.test.ts:
-// collapse `createServerFn(...).inputValidator(...).handler(fn)` (or, for
-// `listPackagesFn`, the input-less `createServerFn(...).handler(fn)`) down to
-// just `fn`, so each exported wrapper becomes directly callable in this test
-// with no real TanStack Start server-fn machinery involved. Both `.handler`
-// call shapes need a landing spot on the mock object: the six wrappers with
-// input go through `.inputValidator().handler()`, `listPackagesFn` goes
-// straight from `createServerFn(...)` to `.handler()`.
+// collapse `createServerFn(...).inputValidator(...).handler(fn)` down to just
+// `fn`, so each exported wrapper becomes directly callable in this test with
+// no real TanStack Start server-fn machinery involved.
+//
+// EVERY wrapper in this module now goes through `.inputValidator().handler()`.
+// `listPackagesFn` used to be the one exception — the input-less
+// `createServerFn(...).handler(fn)` — and this file documented it as such;
+// that stopped being true when `listPackages` gained its `limit`/`cursor` page
+// request. The bare `.handler` below is kept anyway, deliberately: it costs one
+// line, and without it the NEXT input-less wrapper added to this module would
+// fail here as `handler is not a function` rather than as whatever it actually
+// got wrong.
+//
+// Note what did NOT change with the validator: `listPackagesFn` is still
+// ungated. Reads on this surface carry no rate-limit bucket (see the module's
+// own note, and the "does not gate reads" case below), and taking an input is
+// not what earns one — writing is.
 vi.mock('@tanstack/react-start', () => ({
   createServerFn: () => ({
     inputValidator: () => ({
@@ -156,6 +166,13 @@ const FAKE_PACKAGE_SUMMARY = {
   updatedAt: '2026-07-30T00:00:00.000Z',
 };
 
+/**
+ * The page request every `listPackagesFn` call below sends. `listPackagesFn`
+ * is a READ and stays ungated — this input exists so the list can be paged,
+ * not because the wrapper gained a gate.
+ */
+const LIST_PAGE = { limit: 50 } as const;
+
 const FAKE_BOARD_STATE = {
   campaignId: 'c1',
   packageId: null,
@@ -171,27 +188,53 @@ beforeEach(() => {
 describe('listPackagesFn', () => {
   it('rejects with "Not authenticated" and never calls listPackages when there is no session', async () => {
     vi.mocked(getSession).mockResolvedValue(null);
-    await expect(listPackagesFn()).rejects.toThrow('Not authenticated');
+    await expect(listPackagesFn({ data: LIST_PAGE })).rejects.toThrow('Not authenticated');
     expect(listPackages).not.toHaveBeenCalled();
   });
 
   it("calls listPackages with the resolved Mongo userId (not the session's provider id) once authenticated", async () => {
     vi.mocked(getSession).mockResolvedValue(SESSION_USER);
     mockDbUser(DB_USER_ID);
-    vi.mocked(listPackages).mockResolvedValue({ items: [FAKE_PACKAGE_SUMMARY] });
-    const r = await listPackagesFn();
+    vi.mocked(listPackages).mockResolvedValue({
+      items: [FAKE_PACKAGE_SUMMARY],
+      nextCursor: null,
+    });
+    const r = await listPackagesFn({ data: LIST_PAGE });
     expect(listPackages).toHaveBeenCalledTimes(1);
     expect(listPackages).toHaveBeenCalledWith({
+      data: LIST_PAGE,
       userId: DB_USER_ID,
       sessionUserId: SESSION_USER.id,
     });
-    expect(r).toEqual({ items: [FAKE_PACKAGE_SUMMARY] });
+    expect(r).toEqual({ items: [FAKE_PACKAGE_SUMMARY], nextCursor: null });
+  });
+
+  /**
+   * The page request has to reach the server function, not be dropped on the
+   * way — a wrapper that ignored `data` would leave the cursor inert and the
+   * list permanently stuck on page 1, which every assertion above would still
+   * pass.
+   */
+  it("forwards the caller's cursor and limit unchanged", async () => {
+    vi.mocked(getSession).mockResolvedValue(SESSION_USER);
+    mockDbUser(DB_USER_ID);
+    vi.mocked(listPackages).mockResolvedValue({ items: [], nextCursor: null });
+    const data = {
+      limit: 10,
+      cursor: `${Buffer.from('a').toString('base64url')}_${'1'.repeat(24)}`,
+    };
+    await listPackagesFn({ data });
+    expect(listPackages).toHaveBeenCalledWith({
+      data,
+      userId: DB_USER_ID,
+      sessionUserId: SESSION_USER.id,
+    });
   });
 
   it('rejects with "User not found" and never calls listPackages when the session has no matching User doc', async () => {
     vi.mocked(getSession).mockResolvedValue(SESSION_USER);
     mockDbUser(null);
-    await expect(listPackagesFn()).rejects.toThrow('User not found');
+    await expect(listPackagesFn({ data: LIST_PAGE })).rejects.toThrow('User not found');
     expect(listPackages).not.toHaveBeenCalled();
   });
 });
@@ -460,11 +503,14 @@ describe('package-write rate limit', () => {
   it('does not gate reads: listPackagesFn/getPackageFn/listPackageAssetsFn survive past the capacity', async () => {
     vi.mocked(getSession).mockResolvedValue(SESSION_USER);
     mockDbUser('mongo-pkg-reader');
-    vi.mocked(listPackages).mockResolvedValue({ items: [FAKE_PACKAGE_SUMMARY] });
+    vi.mocked(listPackages).mockResolvedValue({
+      items: [FAKE_PACKAGE_SUMMARY],
+      nextCursor: null,
+    });
     vi.mocked(getPackage).mockResolvedValue(FAKE_PACKAGE);
     vi.mocked(listPackageAssets).mockResolvedValue({ items: [] });
     for (let i = 0; i < 40; i++) {
-      await listPackagesFn();
+      await listPackagesFn({ data: LIST_PAGE });
       await getPackageFn({ data: { id: 'p1' } });
       await listPackageAssetsFn({ data: { packageId: 'p1' } });
     }

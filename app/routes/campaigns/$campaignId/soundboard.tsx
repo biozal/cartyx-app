@@ -17,7 +17,11 @@ import {
 } from '~/utils/soundboard-server-fns';
 import { queryKeys } from '~/utils/queryKeys';
 import type { AudioAssetData } from '~/types/audio';
-import type { AudioPackageData, BoardStateData } from '~/types/soundboard';
+import {
+  PACKAGE_LIST_PAGE_SIZE,
+  type AudioPackageData,
+  type BoardStateData,
+} from '~/types/soundboard';
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -114,7 +118,12 @@ export function SoundboardPage() {
   // --- the package picker --------------------------------------------------
   const packagesQuery = useQuery({
     queryKey: queryKeys.packages.list(),
-    queryFn: () => listPackagesFn(),
+    // One page, same size and same key as the `/audio/packages` list — the
+    // picker shows the same set. `nextCursor` is ignored here for the same
+    // reason it is there: this picker is a single `<select>` with no append
+    // affordance. See `listPackages` for why the page bounds the response and
+    // the split visibility read bounds the memory.
+    queryFn: () => listPackagesFn({ data: { limit: PACKAGE_LIST_PAGE_SIZE } }),
   });
   const packages = useMemo(() => packagesQuery.data?.items ?? [], [packagesQuery.data]);
 

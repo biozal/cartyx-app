@@ -7,6 +7,7 @@ import {
 } from '~/lib/audio-rate-limits';
 import {
   getPackageSchema,
+  listPackagesSchema,
   createPackageSchema,
   updatePackageSchema,
   deletePackageSchema,
@@ -91,11 +92,22 @@ import {
 // `~/lib/audio-rate-limits.ts` for the full note.
 // ---------------------------------------------------------------------------
 
-export const listPackagesFn = createServerFn({ method: 'GET' }).handler(async () => {
-  const { listPackages } = await import('~/server/functions/packages');
-  const { requireActor } = await import('~/utils/require-actor');
-  return listPackages(await requireActor());
-});
+// `.inputValidator(listPackagesSchema)` and NO limiter gate, and the second
+// half of that is as deliberate as the first. `listPackagesFn` gained an input
+// only because `listPackages` now takes a `limit`/`cursor` page request; it is
+// still a READ, and the note above applies to it unchanged — a read bound
+// risks refusing one of the several reads a legitimate board reload fires at
+// once, and one refused read leaves a half-loaded board. Do not add a bucket
+// here on the grounds that it now "looks like" the validated write functions
+// below; what gates a function on this surface is whether it writes, not
+// whether it parses input.
+export const listPackagesFn = createServerFn({ method: 'GET' })
+  .inputValidator(listPackagesSchema)
+  .handler(async ({ data }) => {
+    const { listPackages } = await import('~/server/functions/packages');
+    const { requireActor } = await import('~/utils/require-actor');
+    return listPackages({ data, ...(await requireActor()) });
+  });
 
 export const getPackageFn = createServerFn({ method: 'GET' })
   .inputValidator(getPackageSchema)

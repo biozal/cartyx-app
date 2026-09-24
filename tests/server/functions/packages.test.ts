@@ -8,8 +8,16 @@ vi.mock('~/server/utils/telemetry', () => ({
 
 const findLean = vi.fn();
 const findSort = vi.fn((_sort?: Record<string, unknown>) => ({ lean: findLean }));
-const find = vi.fn((_query?: Record<string, unknown>, _projection?: Record<string, unknown>) => ({
+// `.lean()` hangs off `find()` directly as well as off `.sort()`: `listPackages`
+// no longer sorts in the query (it merges two reads and orders the union in
+// process), while the rest of the file's reads may still chain `.sort()`.
+const find = vi.fn((query?: Record<string, unknown>, _projection?: Record<string, unknown>) => ({
   sort: findSort,
+  // The query is handed to `findLean` so a test can answer differently per
+  // ARM of `listPackages`' split read, bound at `find()` time rather than read
+  // back off `mock.calls` at `.lean()` time — the two reads are issued inside
+  // one `Promise.all`, and a test must not depend on the order they interleave.
+  lean: () => findLean(query),
 }));
 const findOneLean = vi.fn();
 const findOne = vi.fn((_query?: Record<string, unknown>) => ({ lean: findOneLean }));
@@ -55,45 +63,101 @@ describe('packageVisibilityFilter', () => {
 });
 
 describe('listPackages', () => {
+  // Every `listPackages` case below asks for a page, so the input is spelled
+  // once here. `limit` is what the schema defaults to.
+  const PAGE = { limit: 50 } as const;
+
+  /**
+   * Answers each ARM of the split read separately. The dispatch is on the
+   * filter the function actually issued, so a query that asked the wrong
+   * question gets the wrong rows back — which is the only way a mocked model
+   * can make a query-shape mistake visible at all (see CLAUDE.md: a mock
+   * returns whatever it was told regardless of what the query asked for).
+   */
+  function seedVisibility(rows: {
+    mine?: Record<string, unknown>[];
+    system?: Record<string, unknown>[];
+  }) {
+    findLean.mockImplementation(async (query?: Record<string, unknown>) =>
+      query && query.ownerId === null ? (rows.system ?? []) : (rows.mine ?? [])
+    );
+  }
+
+  const OWNER = 'a'.repeat(24);
+  const pkg = (id: string, name: string, ownerId: string | null = OWNER) => ({
+    ...baseDoc(),
+    _id: id,
+    ownerId,
+    name,
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     countDocuments.mockResolvedValue(0);
+    findLean.mockReset();
     findLean.mockResolvedValue([]);
   });
 
   /**
-   * The list is the ONLY unbounded read in this file — every other one is
-   * `_id`-scoped to a single document — and it fires on every
-   * `/audio/packages` visit and every soundboard mount. A maxed package (64
-   * items with 200-char labels, 32 moods of 64 states, a 2000-char
-   * description) serializes to ~410 KiB, essentially all of it `items`/
-   * `moods`, and the web pod is `replicaCount: 1` at 512Mi. Loading whole
-   * documents here made one user's package count an out-of-memory kill for
-   * every user of the site, retriggered by the victim's own next page load.
+   * The list is the ONLY read in this file without an `_id` — every other one
+   * narrows to a single document — and it fires on every `/audio/packages`
+   * visit and every soundboard mount. A maxed package (64 items with 200-char
+   * labels, 32 moods of 64 states, a 2000-char description) serializes to ~410
+   * KiB, essentially all of it `items`/`moods`, and the web pod is
+   * `replicaCount: 1` at 512Mi.
    *
    * Asserted on the projection actually handed to the model, not on the
    * serialized output: a mock returns whatever it was told regardless of what
-   * the query asked for, so only the argument itself proves the arrays never
-   * left Mongo.
+   * the query asked for, so only the argument itself proves what was asked
+   * for. BOTH arms are checked — a projection applied to one read and not the
+   * other leaves the whole hazard reachable through the other.
    */
-  it('projects items/moods away and asks Mongo for their sizes instead', async () => {
+  it('projects items/moods away on every arm, and asks for their sizes instead', async () => {
     const { listPackages } = await import('~/server/functions/packages');
-    await listPackages({ userId: 'u1' });
-    const projection = vi.mocked(find).mock.calls[0][1] as unknown as Record<string, unknown>;
-    expect(projection).toBeDefined();
-    // Neither array may be requested — not as `1`, and not as `0` either: a
-    // `{ items: 0 }` exclusion projection cannot coexist with the inclusions
-    // this needs, and would silently return every other field too.
-    expect(projection).not.toHaveProperty('items');
-    expect(projection).not.toHaveProperty('moods');
-    expect(projection.itemCount).toEqual({ $size: { $ifNull: ['$items', []] } });
-    expect(projection.moodCount).toEqual({ $size: { $ifNull: ['$moods', []] } });
+    await listPackages({ data: PAGE, userId: OWNER });
+    const projections = vi.mocked(find).mock.calls.map((c) => c[1] as Record<string, unknown>);
+    expect(projections).toHaveLength(2);
+    for (const projection of projections) {
+      expect(projection).toBeDefined();
+      // Neither array may be requested — not as `1`, and not as `0` either: a
+      // `{ items: 0 }` exclusion projection cannot coexist with the inclusions
+      // this needs, and would silently return every other field too.
+      expect(projection).not.toHaveProperty('items');
+      expect(projection).not.toHaveProperty('moods');
+      expect(projection.itemCount).toEqual({ $size: { $ifNull: ['$items', []] } });
+      expect(projection.moodCount).toEqual({ $size: { $ifNull: ['$moods', []] } });
+    }
+  });
+
+  /**
+   * THE PUSHDOWN ASSERTION, and the reason this task exists.
+   *
+   * `packageVisibilityFilter`'s `$or` is invisible to the graph model's index
+   * pushdown — only top-level indexed keys reach the store's `where` — so the
+   * single-query form narrowed nothing and read every package in the install.
+   * The split is only a fix if each arm really does carry a bare, top-level,
+   * indexed `ownerId`, which is a property of the ARGUMENTS and of nothing
+   * else: asserting on the rows that come back would pass just as happily
+   * against the `$or` this replaces.
+   */
+  it('issues two arms, each with a pushed-down ownerId and no $or', async () => {
+    const { listPackages } = await import('~/server/functions/packages');
+    await listPackages({ data: PAGE, userId: OWNER });
+    const filters = vi.mocked(find).mock.calls.map((c) => c[0] as Record<string, unknown>);
+    expect(filters).toHaveLength(2);
+    expect(filters).toContainEqual({ ownerId: OWNER });
+    expect(filters).toContainEqual({ ownerId: null });
+    // Not just "no `$or`" — no extra key of any kind. A second top-level key
+    // that the model cannot push down (a `$and`, a regex, an unindexed field)
+    // does not itself widen the read, but `ownerId` alone is what makes each
+    // arm provably one `has`/`hasNot` lookup.
+    for (const filter of filters) expect(Object.keys(filter)).toEqual(['ownerId']);
   });
 
   it('serializes counts, and never an items/moods array', async () => {
-    findLean.mockResolvedValue([{ ...baseDoc(), itemCount: 7, moodCount: 3 }]);
+    seedVisibility({ mine: [{ ...baseDoc(), itemCount: 7, moodCount: 3 }] });
     const { listPackages } = await import('~/server/functions/packages');
-    const res = await listPackages({ userId: 'u1' });
+    const res = await listPackages({ data: PAGE, userId: OWNER });
     expect(res.items[0].itemCount).toBe(7);
     expect(res.items[0].moodCount).toBe(3);
     expect(res.items[0]).not.toHaveProperty('items');
@@ -101,48 +165,191 @@ describe('listPackages', () => {
   });
 
   /**
-   * A document written before the counts existed — or any document Mongo
+   * A document written before the counts existed — or any document the store
    * returns without the field — must serialize as 0, not `NaN` or a crash.
    */
   it('treats a missing count as zero', async () => {
-    findLean.mockResolvedValue([baseDoc()]);
+    seedVisibility({ mine: [baseDoc()] });
     const { listPackages } = await import('~/server/functions/packages');
-    const res = await listPackages({ userId: 'u1' });
+    const res = await listPackages({ data: PAGE, userId: OWNER });
     expect(res.items[0].itemCount).toBe(0);
     expect(res.items[0].moodCount).toBe(0);
   });
 
-  it('reads are visible to the owner and to everyone for system packages', async () => {
-    const { listPackages } = await import('~/server/functions/packages');
-    await listPackages({ userId: 'u1' });
-    expect(vi.mocked(find).mock.calls[0][0]).toEqual({
-      $or: [{ ownerId: 'u1' }, { ownerId: null }],
-    });
-  });
-
   it('serializes the rows it gets back', async () => {
-    findLean.mockResolvedValue([baseDoc()]);
+    seedVisibility({ mine: [baseDoc()] });
     const { listPackages } = await import('~/server/functions/packages');
-    const res = await listPackages({ userId: 'u1' });
+    const res = await listPackages({ data: PAGE, userId: OWNER });
     expect(res.items).toHaveLength(1);
     expect(res.items[0].id).toBe('p1');
     expect(res.items[0].ownerId).toBe('u1');
   });
 
   it('serializes a system package (null ownerId) without throwing', async () => {
-    findLean.mockResolvedValue([{ ...baseDoc(), ownerId: null }]);
+    seedVisibility({ system: [{ ...baseDoc(), ownerId: null }] });
     const { listPackages } = await import('~/server/functions/packages');
-    const res = await listPackages({ userId: 'u1' });
+    const res = await listPackages({ data: PAGE, userId: OWNER });
     expect(res.items[0].ownerId).toBeNull();
+  });
+
+  /**
+   * The union of the two arms is what the `$or` used to return, so the two
+   * sets must interleave by `name` rather than concatenating owner-set-first.
+   * Without the in-process merge sort the list would show every one of the
+   * caller's packages, then every system package — a visible regression from
+   * the `.sort({ name: 1 })` the single query carried.
+   */
+  it('merges the two arms into one name-ordered list', async () => {
+    seedVisibility({
+      mine: [pkg('b'.repeat(24), 'Bravo'), pkg('d'.repeat(24), 'Delta')],
+      system: [pkg('c'.repeat(24), 'Charlie', null), pkg('e'.repeat(24), 'Alpha', null)],
+    });
+    const { listPackages } = await import('~/server/functions/packages');
+    const res = await listPackages({ data: PAGE, userId: OWNER });
+    expect(res.items.map((p) => p.name)).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta']);
+  });
+
+  /** `name` is not unique, so the order has to stay total via `_id`. */
+  it('breaks a duplicate name by id, deterministically', async () => {
+    seedVisibility({
+      mine: [pkg('2'.repeat(24), 'Storm'), pkg('1'.repeat(24), 'Storm')],
+      system: [pkg('3'.repeat(24), 'Storm', null)],
+    });
+    const { listPackages } = await import('~/server/functions/packages');
+    const res = await listPackages({ data: PAGE, userId: OWNER });
+    expect(res.items.map((p) => p.id)).toEqual(['1'.repeat(24), '2'.repeat(24), '3'.repeat(24)]);
+  });
+
+  it('pages by name and resumes from the cursor without repeating or skipping a row', async () => {
+    seedVisibility({
+      mine: [pkg('1'.repeat(24), 'a'), pkg('2'.repeat(24), 'b'), pkg('3'.repeat(24), 'c')],
+    });
+    const { listPackages } = await import('~/server/functions/packages');
+    const first = await listPackages({ data: { limit: 2 }, userId: OWNER });
+    expect(first.items.map((p) => p.name)).toEqual(['a', 'b']);
+    expect(first.nextCursor).not.toBeNull();
+
+    const second = await listPackages({
+      data: { limit: 2, cursor: first.nextCursor! },
+      userId: OWNER,
+    });
+    expect(second.items.map((p) => p.name)).toEqual(['c']);
+    expect(second.nextCursor).toBeNull();
+  });
+
+  /**
+   * The boundary the naive `items.length === limit` rule gets wrong: three
+   * rows read with `limit: 3` is a full page AND the end of the list, so
+   * minting a cursor there costs the client a whole extra empty round trip —
+   * and in an append-style UI, a "load more" button that does nothing.
+   */
+  it('returns no cursor when the last page is exactly limit rows long', async () => {
+    seedVisibility({
+      mine: [pkg('1'.repeat(24), 'a'), pkg('2'.repeat(24), 'b'), pkg('3'.repeat(24), 'c')],
+    });
+    const { listPackages } = await import('~/server/functions/packages');
+    const res = await listPackages({ data: { limit: 3 }, userId: OWNER });
+    expect(res.items).toHaveLength(3);
+    expect(res.nextCursor).toBeNull();
+  });
+
+  /**
+   * `name` is free text and may contain the `_` the cursor delimits on, or
+   * any non-ASCII the encoding has to survive. Driven through the PUBLIC API
+   * rather than the codec (which is module-private) so the round trip proves
+   * the seek lands correctly, not merely that two private functions invert.
+   */
+  it('pages correctly across a name containing the cursor delimiter and non-ASCII', async () => {
+    seedVisibility({
+      mine: [
+        pkg('1'.repeat(24), 'a_b — wind & 嵐'),
+        pkg('2'.repeat(24), 'a_b — wind & 嵐 II'),
+        pkg('3'.repeat(24), 'z'),
+      ],
+    });
+    const { listPackages } = await import('~/server/functions/packages');
+    const first = await listPackages({ data: { limit: 1 }, userId: OWNER });
+    expect(first.items.map((p) => p.name)).toEqual(['a_b — wind & 嵐']);
+    const second = await listPackages({
+      data: { limit: 2, cursor: first.nextCursor! },
+      userId: OWNER,
+    });
+    expect(second.items.map((p) => p.name)).toEqual(['a_b — wind & 嵐 II', 'z']);
+  });
+
+  /**
+   * A cursor naming a row that sorts at or after everything left — the last
+   * page was deleted between requests, say — must end the list. Restarting at
+   * page 1 is what fails closed prevents on an UNDECODABLE cursor; this is the
+   * same hazard through a perfectly decodable one.
+   */
+  it('ends the list rather than restarting when the cursor is past every row', async () => {
+    const { listPackages } = await import('~/server/functions/packages');
+    // Mint a real page-1 cursor against a two-row list...
+    seedVisibility({ mine: [pkg('1'.repeat(24), 'a'), pkg('2'.repeat(24), 'b')] });
+    const page1 = await listPackages({ data: { limit: 1 }, userId: OWNER });
+    expect(page1.nextCursor).not.toBeNull();
+    // ...then delete everything after it and ask for page 2.
+    seedVisibility({ mine: [pkg('1'.repeat(24), 'a')] });
+    const past = await listPackages({
+      data: { limit: 5, cursor: page1.nextCursor! },
+      userId: OWNER,
+    });
+    expect(past.items).toEqual([]);
+    expect(past.nextCursor).toBeNull();
+  });
+
+  it('rejects an undecodable cursor rather than restarting at page 1', async () => {
+    seedVisibility({ mine: [pkg('1'.repeat(24), 'a'), pkg('2'.repeat(24), 'b')] });
+    const { listPackages } = await import('~/server/functions/packages');
+    await expect(
+      listPackages({ data: { limit: 2, cursor: 'garbage' }, userId: OWNER })
+    ).rejects.toThrow('Invalid pagination cursor');
+  });
+
+  /**
+   * Node's base64url decoder does not throw on characters outside the
+   * alphabet — it skips them — so a cursor whose name half is junk would
+   * otherwise decode to an arbitrary string and seek to an arbitrary place in
+   * the list. The id half is well-formed here precisely so the only thing
+   * under test is the name half's alphabet check.
+   */
+  it('rejects a cursor whose name half is not base64url', async () => {
+    const { listPackages } = await import('~/server/functions/packages');
+    await expect(
+      listPackages({ data: { limit: 2, cursor: `!!!!_${'1'.repeat(24)}` }, userId: OWNER })
+    ).rejects.toThrow('Invalid pagination cursor');
+  });
+
+  it('rejects a cursor whose id half is not a package id', async () => {
+    const { listPackages } = await import('~/server/functions/packages');
+    const encoded = Buffer.from('a', 'utf8').toString('base64url');
+    await expect(
+      listPackages({ data: { limit: 2, cursor: `${encoded}_notanid` }, userId: OWNER })
+    ).rejects.toThrow('Invalid pagination cursor');
+  });
+
+  /**
+   * A bad cursor is the caller's own doing, and a client looping on one would
+   * otherwise author a GlitchTip event per request — the attacker-controlled
+   * volume path `PackageClientError` exists to close.
+   */
+  it('files no GlitchTip event for a refused cursor', async () => {
+    const { serverCaptureException } = await import('~/server/utils/telemetry');
+    const { listPackages } = await import('~/server/functions/packages');
+    await expect(
+      listPackages({ data: { limit: 2, cursor: 'garbage' }, userId: OWNER, sessionUserId: 's1' })
+    ).rejects.toThrow('Invalid pagination cursor');
+    expect(serverCaptureException).not.toHaveBeenCalled();
   });
 
   it('tags telemetry with the session identity, not the Mongo id', async () => {
     const { serverCaptureException } = await import('~/server/utils/telemetry');
-    findLean.mockRejectedValue(new Error('atlas is down'));
+    findLean.mockRejectedValue(new Error('the graph is down'));
     const { listPackages } = await import('~/server/functions/packages');
     await expect(
-      listPackages({ userId: 'mongo-id-1', sessionUserId: 'provider-id-1' })
-    ).rejects.toThrow('atlas is down');
+      listPackages({ data: PAGE, userId: 'mongo-id-1', sessionUserId: 'provider-id-1' })
+    ).rejects.toThrow('the graph is down');
     expect(vi.mocked(serverCaptureException).mock.calls[0][1]).toBe('provider-id-1');
   });
 });

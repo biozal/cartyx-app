@@ -162,6 +162,39 @@ export const deletePackageSchema = z.object({ id: objectId });
 export const getPackageSchema = z.object({ id: objectId });
 
 /**
+ * `<base64url(name)>_<packageId>` — the exact shape `encodePackageCursor`
+ * produces (see `~/server/functions/packages.ts`). The sort key is `name`, a
+ * free-text string that can legally contain the delimiter, so the name half is
+ * base64url-encoded; the id half is always 24 lowercase hex, which contains no
+ * `_`, so a `lastIndexOf('_')` split is unambiguous.
+ *
+ * The length bound is DERIVED, not guessed, and the brief's `.max(200)` was
+ * wrong: `name` is `z.string().min(1).max(200)`, 200 JS characters are at most
+ * 600 UTF-8 bytes (a 4-byte code point costs two JS characters), and base64
+ * expands 600 bytes to 800 characters. A 200-character package name therefore
+ * mints an 825-character cursor. Capping this at 200 would have made page 2
+ * permanently unreachable — with a 400 the client cannot act on — for any user
+ * whose page boundary landed on a long name.
+ */
+const packageCursor = z
+  .string()
+  .max(900)
+  .regex(/^[A-Za-z0-9_-]+_[0-9a-f]{24}$/, 'Invalid cursor');
+
+/**
+ * The package list's input. It has no filter fields: visibility is decided
+ * server-side from the caller's own id (see `listPackages`), and there is
+ * nothing here a caller may narrow.
+ *
+ * `limit`/`cursor` bound the RESPONSE, not the read — see `listPackages`,
+ * where the split visibility query is what bounds the read.
+ */
+export const listPackagesSchema = z.object({
+  limit: z.number().int().min(1).max(100).default(50),
+  cursor: packageCursor.optional(),
+});
+
+/**
  * The assets one package's items reference — Task 21's package-gated read.
  * `packageId` is validated the same way every other package-id field in this
  * file is; the `$in` bound and ownership check happen server-side in
