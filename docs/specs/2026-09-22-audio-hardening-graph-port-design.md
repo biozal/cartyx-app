@@ -249,10 +249,12 @@ Small, but each is a comment or type that now asserts something false:
   refactor that destructured only the declared keys would silently turn the
   transcode queue from FIFO into arbitrary order, with no type error and no
   failing test. Widen the type.
-- `sameObjectId`'s premise — that Mongo's ObjectId cast is case-insensitive — is
-  false here: `objectIdString` is lowercase-only, so an upper-cased id misses.
-  That is fail-closed and safe, and the boundary schema normalises to lowercase
-  anyway, but the comment must stop claiming otherwise.
+- `sameObjectId`'s premise — that Mongo's ObjectId cast is case-insensitive —
+  is stale, but its actual behaviour is unchanged: the function unconditionally
+  lowercases both operands itself, so an upper-cased id still matches, never
+  misses. Its `.toLowerCase()` calls are load-bearing for a caller that doesn't
+  route through `~/types/schemas/audio.ts`'s `objectId` (which normalises
+  case) — not redundant with the stored-id-only `objectIdString`.
 - The job-cap comment says two concurrent requests land a user "one job over the
   cap". Under N in-flight requests the overshoot is up to N−1. The conclusion is
   unchanged — a hard cap needs a CAS'd counter document and is not worth it for a

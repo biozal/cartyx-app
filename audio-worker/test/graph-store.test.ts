@@ -33,25 +33,17 @@ beforeEach(() => resetEntityStore());
 
 describe('the worker against the graph store', () => {
   it('claims the oldest pending asset and marks it processing', async () => {
+    // Pins the FIFO ordering `claimNext` relies on `findOneAndUpdate`'s `sort`
+    // option to enforce. `graph-driver.ts`'s `findOneAndUpdate` now types
+    // `options` as `Plain` specifically so `sort` reaches the real driver call
+    // below unmodified; this test is what makes that type change more than a
+    // comment — reverse or drop the sort and this assertion fails.
     await pending('newer', new Date(2000));
     await pending('older', new Date(1000));
     const claimed = await claimNext<Claimed>(model(), 'worker-a');
     expect(claimed).toMatchObject({ title: 'older', status: 'processing', attempts: 1 });
     const stored = await AudioAsset.findOne({ title: 'older' }).lean();
     expect(stored).toMatchObject({ status: 'processing', claimedBy: 'worker-a' });
-  });
-
-  it('claims the oldest pending row first', async () => {
-    // Pins the FIFO ordering `claimNext` relies on `findOneAndUpdate`'s `sort`
-    // option to enforce. `graph-driver.ts`'s `findOneAndUpdate` now types
-    // `options` as `Plain` specifically so `sort` reaches the real driver call
-    // below unmodified; this test is what makes that type change more than a
-    // comment — see its own doc comment for the mutation this guards against.
-    const newer = await pending('newer', new Date('2026-01-02'));
-    const older = await pending('older', new Date('2026-01-01'));
-    const claimed = await claimNext<Claimed>(model(), 'worker-1');
-    expect(String(claimed?._id)).toBe(String(older._id));
-    expect(String(claimed?._id)).not.toBe(String(newer._id));
   });
 
   it('never lets two workers claim the same asset', async () => {

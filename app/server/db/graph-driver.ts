@@ -146,8 +146,8 @@ export function graphCollection(model: Model) {
       // declared type would still forward the whole object at runtime (nothing
       // here reads individual keys off it), but a refactor that destructured
       // only `returnDocument`/`upsert` would silently drop `sort` with no type
-      // error and no failing test — see graph-store.test.ts's FIFO-ordering
-      // test for the check that actually pins this.
+      // error and no failing test — see graph-store.test.ts's "claims the
+      // oldest pending asset" test for the check that actually pins this.
       options: Plain = {}
     ) {
       return withObjectId(await model.findOneAndUpdate(filter, update, options).lean());

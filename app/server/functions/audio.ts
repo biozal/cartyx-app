@@ -148,30 +148,45 @@ function reportAudioError(e: unknown, actor: Actor, context: Record<string, unkn
 }
 
 /**
- * Compares a SERVER-derived id (a lean document's `_id`, which `String()`
- * always renders as lowercase hex — see `objectIdString`,
- * `/^[0-9a-f]{24}$/`) against a CLIENT-supplied id.
+ * Compares a SERVER-derived id (a lean document's `_id`) against a
+ * CLIENT-supplied id, lowercasing both operands unconditionally — so an
+ * upper-cased id on either side still MATCHES here, it never misses. This
+ * function's own `.toLowerCase()` calls are what guarantee that, independent
+ * of whatever shape the two ids arrived in.
  *
- * Ids are lowercase 24-hex strings (`objectIdString`), and the request schema
- * lowercases at the boundary, so this is a plain comparison. It used to lean
- * on Mongo's case-insensitive ObjectId cast, which no longer exists: an
- * upper-cased id now misses rather than matching. That is fail-closed and
- * safe (a miss here means "not the same item", never "same item, wrongly
- * treated as different"), and the `.toLowerCase()` on both sides below is
- * belt-and-suspenders on top of the schema's own lowercasing, not a rescue
- * for an upstream that upper-cased.
+ * Two different things are both spelled `objectId`/`objectIdString` in this
+ * codebase and it is easy to conflate them:
+ *
+ * - `objectIdString` (`~/server/repositories/collection.ts`,
+ *   `/^[0-9a-f]{24}$/`, no transform) validates STORED fields — a document's
+ *   own `_id`/`ownerId`/etc, which this app only ever writes lowercase.
+ * - `objectId` (`~/types/schemas/audio.ts`, `/^[0-9a-fA-F]{24}$/` WITH
+ *   `.transform((v) => v.toLowerCase())`) validates REQUEST ids like
+ *   `deleteAudioAssetSchema`'s `data.id` — it accepts either case and
+ *   normalises to lowercase on the way in.
+ *
+ * So a request id reaching this function has almost always already been
+ * lowercased by that Zod schema before `sameObjectId` ever runs. The
+ * `.toLowerCase()` calls here are NOT redundant belt-and-suspenders on top of
+ * that: they are the real safety net for the case the module comment below
+ * names explicitly — the ingest surface is deliberately auth-agnostic, and
+ * phase 3's bearer adapter may not route every call through the same Zod
+ * object. A caller that skips that schema and hands this function a raw,
+ * un-normalised id is still compared correctly.
  *
  * `deleteAudioAsset`'s package prune is why this comparison is explicit
- * rather than a bare `!==`: on the old Mongo-backed store, an upper-cased
- * 24-hex id (which `objectId`'s regex accepts) still matched via Mongo's
- * case-insensitive cast, so the asset and all six of its R2 objects were
- * deleted while EVERY referencing package item survived as a permanent
- * tombstone against the 64-item cap, and `pruneOrphanedMoodStates` then
- * no-opped too, because the surviving-items list it was handed was the
- * unchanged original. The ingest surface is deliberately auth-agnostic and
- * phase 3's bearer adapter may not route every call through the same Zod
- * object, so this stays a second, independent defence rather than trusting
- * the schema alone.
+ * rather than a bare `!==`: on the old Mongo-backed store this function used
+ * to be a bare `String(item.assetId) !== data.id`, and Mongo's own
+ * ObjectId cast is case-insensitive, so an upper-cased 24-hex id still
+ * matched Mongo's query while missing that naive JS comparison — the asset
+ * and all six of its R2 objects were deleted while EVERY referencing package
+ * item survived as a permanent tombstone against the 64-item cap, and
+ * `pruneOrphanedMoodStates` then no-opped too, because the surviving-items
+ * list it was handed was the unchanged original. That Mongo cast no longer
+ * exists — JanusGraph does no such casting — which is exactly why this
+ * function's own lowercasing has to carry the whole guarantee now rather
+ * than being a defence-in-depth layered on top of something else that also
+ * normalised case.
  */
 function sameObjectId(serverValue: unknown, clientId: string): boolean {
   return String(serverValue).toLowerCase() === clientId.toLowerCase();
