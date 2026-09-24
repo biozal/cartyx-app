@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import { connectDB, isDBConnected } from '../db/connection';
 import { AudioAsset } from '../db/models/AudioAsset';
 
@@ -15,10 +14,20 @@ import { AudioAsset } from '../db/models/AudioAsset';
  * adversarial review found correctness bugs in three of those exact
  * functions. A drifted quota either blocks a user who is actually under it
  * or admits one who is actually over — both are worse than the cost of this
- * query. One `$group` over one user's own assets, served by the existing
- * `{ownerId, createdAt}` index (an `ownerId`-only `$match` uses it as a
- * prefix), runs in the tens of milliseconds. That trade is deliberate: see
- * the phase 1.5 design doc.
+ * query.
+ *
+ * COST, AND WHY IT IS STILL THE RIGHT TRADE
+ * -----------------------------------------
+ * This reads the caller's own asset rows and adds them up in process. The
+ * graph layer has no aggregation pipeline, and the entity store keeps each
+ * document as a single JSON blob, so there is no projection that would make
+ * the read cheaper — the rows come back whole either way.
+ *
+ * What bounds it is the quota itself: at the 2 GiB default and ~126 MB per
+ * asset that is roughly 16 rows, and `ownerId` is an indexed slot so the read
+ * narrows in the graph rather than scanning. A denormalised counter is still
+ * the wrong answer for the same reason it always was — four writers, and the
+ * phase 2a review found correctness bugs in three of them.
  */
 export interface AudioStorageUsage {
   bytes: number;
@@ -38,7 +47,7 @@ export interface AudioStorageUsage {
  *   `confirmOnceVariantUpload`'s success write, the once-variant analogue of
  *   `sourceBytes`/`confirmAudioUpload`.
  * - Rows written before `onceSourceBytes` existed simply lack the field; the
- *   `$ifNull` guard below treats that the same as any other unconfirmed slot
+ *   `bytesAt` guard below treats that the same as any other unconfirmed slot
  *   and contributes 0, not `null`/`NaN`. No migration needed.
  * - The two lists still name different leaf fields (`.key` vs `.bytes`), so a
  *   single shared array can't drive both without adding structure whose only
@@ -60,6 +69,18 @@ async function ensureDb() {
   if (!isDBConnected()) await connectDB();
 }
 
+/** Reads one dotted path, treating absent, null and non-finite alike as 0. */
+function bytesAt(document: Record<string, unknown>, path: string): number {
+  const value = path
+    .split('.')
+    .reduce<unknown>(
+      (node, key) =>
+        node && typeof node === 'object' ? (node as Record<string, unknown>)[key] : undefined,
+      document
+    );
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
 /**
  * Sum of every byte-bearing field across every asset a user owns, plus how
  * many asset rows contributed.
@@ -70,41 +91,23 @@ async function ensureDb() {
  * `pending`), and counting only `ready` would let a user park unbounded
  * bytes there indefinitely.
  *
- * `$ifNull` guards every addend: a field that is `null` (never confirmed, or
+ * `bytesAt` guards every addend: a field that is `null` (never confirmed, or
  * a rendition slot never produced) or entirely absent (a rendition
- * sub-document that was never set — the schema's `default: undefined`) would
- * otherwise make Mongo's `$add` evaluate the WHOLE sum to `null` for that
- * document, not just that one term. Falling back to `0` per-field is what
- * makes an unconfirmed asset contribute `0` rather than poisoning the total.
- *
- * `userId` — the Mongo `_id`, and the ONLY value that may scope this query —
- * is cast to a real `ObjectId` before the pipeline runs. Unlike `.find()`,
- * `.aggregate()` sends its pipeline straight to MongoDB without Mongoose's
- * query-time casting, so a bare string here would silently match nothing
- * (see `tabletop.ts`'s `$expr` comment for the same rule applied to a
- * different aggregation-context query).
+ * sub-document that was never set) contributes `0` rather than poisoning the
+ * total with `NaN`.
  */
 export async function getUserStorageUsage(userId: string): Promise<AudioStorageUsage> {
   await ensureDb();
 
-  const [result] = (await AudioAsset.aggregate([
-    { $match: { ownerId: new mongoose.Types.ObjectId(userId) } },
-    {
-      $group: {
-        _id: null,
-        assetCount: { $sum: 1 },
-        bytes: {
-          $sum: {
-            $add: BYTES_FIELD_PATHS.map((path) => ({ $ifNull: [`$${path}`, 0] })),
-          },
-        },
-      },
-    },
-  ])) as Array<{ assetCount: number; bytes: number }>;
+  // `ownerId` is an indexed slot, so this narrows in the graph rather than
+  // scanning. There is deliberately NO projection: the entity store persists
+  // each document as one JSON blob, so asking for fewer fields reads exactly
+  // the same bytes off the wire and only trims the objects afterwards.
+  const rows = (await AudioAsset.find({ ownerId: userId }).lean()) as Record<string, unknown>[];
 
-  // No matching group means the user owns no asset rows at all.
-  return {
-    bytes: result?.bytes ?? 0,
-    assetCount: result?.assetCount ?? 0,
-  };
+  let bytes = 0;
+  for (const row of rows) {
+    for (const path of BYTES_FIELD_PATHS) bytes += bytesAt(row, path);
+  }
+  return { bytes, assetCount: rows.length };
 }
