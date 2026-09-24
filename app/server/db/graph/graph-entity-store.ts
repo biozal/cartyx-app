@@ -143,7 +143,9 @@ function applyFilters<T>(
     if (!slot) throw new Error(`${field} is not an indexed field of ${codec.kind}`);
     if (filter === undefined) continue;
     const value = filter as Filter;
-    if (value && typeof value === 'object' && !(value instanceof Date) && 'within' in value)
+    // Absent-property match; see `writeProperties`, which drops null slots.
+    if (value === null) traversal = traversal.hasNot(slot);
+    else if (value && typeof value === 'object' && !(value instanceof Date) && 'within' in value)
       traversal = traversal.has(slot, P.within(...value.within.map(encodeIndexValue)));
     else traversal = traversal.has(slot, encodeIndexValue(value as IndexValue));
   }

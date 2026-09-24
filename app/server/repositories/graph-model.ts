@@ -334,7 +334,10 @@ export function defineGraphModel<T extends { _id: string }>(definition: GraphMod
       const where: Plain = {};
       for (const [key, value] of Object.entries(filter)) {
         if (!indexed.has(key)) continue;
-        if (isIndexValue(value)) where[key] = value;
+        // `null` means the property is absent in the store — `writeProperties`
+        // drops it rather than writing a null — so it narrows to `hasNot`.
+        if (value === null) where[key] = null;
+        else if (isIndexValue(value)) where[key] = value;
         else if (
           isOperatorObject(value) &&
           Object.keys(value).length === 1 &&
