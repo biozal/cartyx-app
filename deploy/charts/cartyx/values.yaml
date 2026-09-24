@@ -70,15 +70,15 @@ web:
     UMAMI_HOST: ''
     # Audio hardening (phase 1.5) operator-tunable limits — all three are
     # guarded against an absent/empty value (Helm renders '' for an unset key
-    # here; the readers in app/server/functions/audio.ts and
-    # app/lib/audio-rate-limits.ts treat that the same as "not set" and fall
-    # back to the documented default) and take effect on the next pod
-    # restart, no image rebuild. See deploy/charts/cartyx/README.md's
-    # Operations section for the operator-facing writeup of each default and
-    # where to change it.
+    # here; the readers in app/lib/audio-quota-limits.ts,
+    # app/server/functions/audio.ts and app/lib/audio-rate-limits.ts treat
+    # that the same as "not set" and fall back to the documented default) and
+    # take effect on the next pod restart, no image rebuild. See
+    # deploy/charts/cartyx/README.md's Operations section for the
+    # operator-facing writeup of each default and where to change it.
     #
     # Per-user storage quota in bytes. Default (when unset): 2 GiB — see
-    # DEFAULT_AUDIO_USER_QUOTA_BYTES in app/server/functions/audio.ts.
+    # DEFAULT_AUDIO_USER_QUOTA_BYTES in app/lib/audio-quota-limits.ts.
     # It is enforced at BOTH the upload presign and the upload confirm, so a
     # single accepted request can overshoot it by that one asset's eventual
     # footprint (~126 MB: a 50 MiB source plus its opus/aac renditions).

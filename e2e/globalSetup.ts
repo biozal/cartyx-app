@@ -37,6 +37,7 @@ import {
 } from './fixtures/soundboard-fixtures';
 import { campaignFixtures } from './fixtures/campaigns';
 import { graphDb, ObjectId, type Db } from '../scripts/graph-db';
+import { getAudioUserQuotaBytes } from '../app/lib/audio-quota-limits';
 
 /**
  * Local, not imported from `~/server/utils/helpers`'s own `escapeRegExp` —
@@ -207,20 +208,32 @@ async function seedAudioFixtures(db: Db, ownerId: unknown): Promise<void> {
 async function seedStorageQuotaFixtures(db: Db, ownerId: unknown): Promise<void> {
   const { bytes } = AUDIO_QUOTA_FIXTURE;
 
-  // Before Task 1 added `onceSourceBytes` to the `AudioAsset` Zod schema,
-  // `schema.parse` silently stripped it on every write — this fixture would
-  // have under-counted by `bytes.onceSource * count` while still (with the
-  // other five fields alone) exceeding the default quota, i.e. the E2E would
-  // have passed without proving the byte actually landed. Fail loudly here
-  // instead of trusting that every field written below survives the model's
-  // schema. Mirrors `getAudioUserQuotaBytes` (`app/server/functions/audio.ts`)
-  // rather than importing it — that module pulls in R2/db wiring this
-  // standalone script has no business loading (see `escapeRegExp` above for
-  // the same reasoning).
+  // A cheap fail-fast, NOT a check that the seeded bytes actually persisted:
+  // this sums the DECLARED figures in `AUDIO_QUOTA_FIXTURE` before the
+  // upsert loop below ever runs and never reads anything back from the
+  // store, so it cannot catch a field silently stripped on write (which is
+  // exactly what happened to `onceSourceBytes` before Task 1 added it to the
+  // `AudioAsset` Zod schema — `schema.parse` dropped it on every write, and
+  // this computation would have stayed green throughout, because it never
+  // touches the schema at all). What DOES cover persistence is
+  // `e2e/audio-hardening.spec.ts`'s own assertion (around line 151,
+  // `expect(usageBytes).toBeGreaterThanOrEqual(SEEDED_FILLER_BYTES)`), which
+  // reads back the server's actual aggregated usage after a real request.
+  // This check exists one layer up from that: if the fixture's own declared
+  // numbers stop exceeding the quota (an edit to `AUDIO_QUOTA_FIXTURE` or to
+  // the quota itself), fail here, immediately, with a clear message — rather
+  // than downstream inside a Playwright assertion whose failure gives no
+  // hint that the seed itself was the problem.
+  //
+  // `getAudioUserQuotaBytes` comes from `~/lib/audio-quota-limits.ts`, a
+  // framework-free leaf module — never from `~/server/functions/audio.ts`
+  // directly, which pulls in R2/db wiring this standalone script has no
+  // business loading (see `escapeRegExp` above for the same reasoning). This
+  // is the SAME function `assertUnderStorageQuota` calls, not a duplicated
+  // copy of its env/default logic, so the two cannot silently drift.
   const seededTotal =
     AUDIO_QUOTA_FIXTURE.count * Object.values(bytes).reduce((sum, n) => sum + n, 0);
-  const rawQuota = Number(process.env.AUDIO_USER_QUOTA_BYTES);
-  const quotaBytes = Number.isFinite(rawQuota) && rawQuota > 0 ? rawQuota : 2 * 1024 * 1024 * 1024;
+  const quotaBytes = getAudioUserQuotaBytes();
   if (seededTotal <= quotaBytes) {
     throw new Error(
       `Quota fixture seeds ${seededTotal} bytes, which does not exceed the ${quotaBytes}-byte ` +
