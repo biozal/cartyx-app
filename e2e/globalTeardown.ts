@@ -8,10 +8,10 @@
  * Every other fixture this suite seeds is additive — an extra image on a
  * location, extra audio rows, a tabletop screen — and leaving it behind costs
  * a developer nothing. These rows are different in kind: locally the suite runs
- * against the developer's own dev Atlas database, and while they exist the
- * seeded GM is over the storage quota, so `/audio` refuses EVERY upload with a
- * message that gives no hint the E2E suite is why. Cleaning them up is what
- * keeps "I ran the E2E suite once" from silently disabling a feature.
+ * against the developer's own dev graph, and while they exist the seeded GM is
+ * over the storage quota, so `/audio` refuses EVERY upload with a message that
+ * gives no hint the E2E suite is why. Cleaning them up is what keeps "I ran
+ * the E2E suite once" from silently disabling a feature.
  *
  * Deletion is keyed on `sourceKey`, not owner or title: the prefix is
  * E2E-specific, so this cannot reach a row the fixture didn't create, and it
@@ -25,8 +25,8 @@
  * regardless; the next `globalSetup` re-upserts the same three rows either way,
  * so nothing accumulates.
  */
-import mongoose from 'mongoose';
 import { AUDIO_QUOTA_FIXTURE } from './fixtures/audio-fixtures';
+import { graphDb } from '../scripts/graph-db';
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -39,22 +39,24 @@ export default async function globalTeardown(): Promise<void> {
     // .env optional in CI when vars are set in the environment
   }
 
-  // Without a URI `globalSetup` could not have seeded anything, so there is
-  // nothing here to remove.
-  const mongoUri = process.env.MONGODB_URI;
-  if (!mongoUri) return;
+  // Without a graph URL `globalSetup` could not have seeded anything, so
+  // there is nothing here to remove.
+  if (!process.env.GREMLIN_URL) return;
   // Same guard as globalSetup — it matters more here: this file issues a delete.
-  if (/prod/i.test(mongoUri)) throw new Error('Refusing to use a production-looking MONGODB_URI');
+  if (/prod/i.test(process.env.GREMLIN_URL)) {
+    throw new Error('Refusing to use a production-looking GREMLIN_URL');
+  }
 
-  await mongoose.connect(mongoUri, { dbName: process.env.MONGODB_DB });
+  const { closeData } = await import('../app/server/db/data-runtime');
   try {
-    const db = mongoose.connection.db;
-    if (!db) throw new Error('Mongo connection has no db handle');
-
-    await db.collection('audioassets').deleteMany({
-      sourceKey: { $regex: `^${escapeRegExp(AUDIO_QUOTA_FIXTURE.sourceKeyPrefix)}` },
-    });
+    await graphDb()
+      .collection('audioassets')
+      .deleteMany({
+        // `sourceKey` is not an indexed slot, so this filters in process over
+        // the collection. Acceptable for a teardown against a test database.
+        sourceKey: { $regex: `^${escapeRegExp(AUDIO_QUOTA_FIXTURE.sourceKeyPrefix)}` },
+      });
   } finally {
-    await mongoose.disconnect();
+    await closeData();
   }
 }

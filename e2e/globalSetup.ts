@@ -207,6 +207,27 @@ async function seedAudioFixtures(db: Db, ownerId: unknown): Promise<void> {
 async function seedStorageQuotaFixtures(db: Db, ownerId: unknown): Promise<void> {
   const { bytes } = AUDIO_QUOTA_FIXTURE;
 
+  // Before Task 1 added `onceSourceBytes` to the `AudioAsset` Zod schema,
+  // `schema.parse` silently stripped it on every write — this fixture would
+  // have under-counted by `bytes.onceSource * count` while still (with the
+  // other five fields alone) exceeding the default quota, i.e. the E2E would
+  // have passed without proving the byte actually landed. Fail loudly here
+  // instead of trusting that every field written below survives the model's
+  // schema. Mirrors `getAudioUserQuotaBytes` (`app/server/functions/audio.ts`)
+  // rather than importing it — that module pulls in R2/db wiring this
+  // standalone script has no business loading (see `escapeRegExp` above for
+  // the same reasoning).
+  const seededTotal =
+    AUDIO_QUOTA_FIXTURE.count * Object.values(bytes).reduce((sum, n) => sum + n, 0);
+  const rawQuota = Number(process.env.AUDIO_USER_QUOTA_BYTES);
+  const quotaBytes = Number.isFinite(rawQuota) && rawQuota > 0 ? rawQuota : 2 * 1024 * 1024 * 1024;
+  if (seededTotal <= quotaBytes) {
+    throw new Error(
+      `Quota fixture seeds ${seededTotal} bytes, which does not exceed the ${quotaBytes}-byte ` +
+        'quota — the E2E would pass without proving anything.'
+    );
+  }
+
   for (let i = 1; i <= AUDIO_QUOTA_FIXTURE.count; i += 1) {
     const sourceKey = `${AUDIO_QUOTA_FIXTURE.sourceKeyPrefix}${i}`;
     const onceSourceKey = `${sourceKey}.once`;
