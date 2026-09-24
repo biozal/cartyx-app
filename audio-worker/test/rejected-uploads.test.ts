@@ -149,7 +149,7 @@ it('deletes only rows whose fenced write actually matched', async () => {
   expect(rows[2].sourceKey).toBeNull();
 });
 
-it('retries a delete failure on a later pass without re-clearing an already-null sourceKey', async () => {
+it('does not retry a failed delete on a later pass, leaving the object to the orphan scan', async () => {
   const { model, rows } = collection();
   const remove = vi
     .fn()
@@ -164,8 +164,12 @@ it('retries a delete failure on a later pass without re-clearing an already-null
   expect(remove).toHaveBeenCalledTimes(1);
 
   // A second pass finds nothing left to reclaim: the candidate filter
-  // already excludes the null-sourceKey row, so `remove` is not called
-  // again.
+  // already excludes the null-sourceKey row, so `remove` is NOT called
+  // again — this is intended, not a gap. The fenced write already landed, so
+  // the row is no longer "abandoned"; the object it failed to delete is
+  // stranded, and cleaning it up is the owner-scoped orphan scan's job, the
+  // same handoff `reapAbandonedUploads` relies on for its own best-effort
+  // deletes.
   await reapRejectedUploads(model, new Date(5000), remove);
   expect(remove).toHaveBeenCalledTimes(1);
 });

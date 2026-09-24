@@ -400,7 +400,15 @@ export async function listPackages({
     // as `ix_s1`): the caller's own set is capped by `MAX_PACKAGES_PER_USER`,
     // and the system set is a curated catalogue. `{ ownerId: null }` pushes
     // down too — the store drops absent properties rather than writing a null,
-    // so a null filter translates to `hasNot(slot)` rather than a scan.
+    // so a null filter translates to `hasNot(slot)` rather than `has(slot,
+    // null)`. That is not index-served the way an equality `has` is, though:
+    // the composite indexes require equality on every key, so `hasNot` falls
+    // back to the `(scope, kind)` index and walks every `audiopackages`
+    // vertex testing absence — O(kind), not O(matches). What it still buys is
+    // the thing this split exists for: Gremlin filters before `project()`, so
+    // only matching documents are ever materialised into this process, which
+    // is what keeps this arm's heap bounded where the `$or` form bounded
+    // nothing (see `graph-entity-store.ts`'s `applyFilters`).
     //
     // The union is exactly what the `$or` matched, and it is a union rather
     // than a merge because the two arms are DISJOINT — which depends on

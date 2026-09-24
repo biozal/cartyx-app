@@ -98,10 +98,13 @@ export type ShouldContinue = () => boolean;
  * semantics), so rows that have never been retried — and rows written before
  * this field existed — remain immediately claimable.
  *
- * NOTE: this runs against the raw driver collection
- * (`mongoose.connection.collection(...)`), so the "give me the updated doc"
- * option is `returnDocument: 'after'`. Mongoose models use `new: true`; passing
- * that here is silently ignored and you get the pre-update document back.
+ * NOTE: `model` here is the graph model the worker builds from
+ * `graphCollection(AudioAsset)` (`audio-worker/src/store.ts`), not a raw
+ * Mongo driver collection. `findOneAndUpdate`'s options honour BOTH
+ * `returnDocument: 'after'` and Mongoose's `new: true`
+ * (`graph-model.ts:653-654`), so either spelling gets the updated document
+ * back; `returnDocument: 'after'` is used here for consistency with the rest
+ * of this file's option objects, not because `new: true` would be ignored.
  */
 export async function claimNext<T>(model: ClaimModel, workerId: string): Promise<T | null> {
   const doc = await model.findOneAndUpdate(

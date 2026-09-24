@@ -120,8 +120,9 @@ import {
 // took its exemption away: the old justification said its "cost scales with
 // the caller's own asset count, not with how often they call it", which names
 // the wrong axis (total Atlas CPU is count TIMES frequency, and frequency is
-// the caller's own parameter), and it is the only read here that is a `$group`
-// aggregation rather than a projected `find`. It is also the read that can
+// the caller's own parameter), and it is the only read here whose cost is an
+// unbounded `find` over every row the caller owns rather than a bounded,
+// projected one — see `audio-quota.ts`'s `getUserStorageUsage`. It is also the read that can
 // safely carry a bucket: it feeds ONE indicator (`AudioQuotaBar`, which takes
 // an explicit `error` prop), so a refusal degrades a badge rather than
 // half-loading a page. See `~/lib/audio-rate-limits.ts` for the sizing.
@@ -311,7 +312,8 @@ export const deleteAudioAssetFn = createServerFn({ method: 'POST' })
 // write-side quota:
 //
 //  - `getUserStorageUsage` (`~/server/functions/audio-quota.ts`) — the same
-//    aggregation the quota check runs, scoped to the caller's own `ownerId`.
+//    read the quota check runs (a `find` on the caller's own `ownerId`
+//    summed in process, not an aggregation — there is no Atlas here).
 //  - `getAudioUserQuotaBytes` (`~/server/functions/audio.ts`) — reads
 //    `AUDIO_USER_QUOTA_BYTES` fresh from server env on every call, the exact
 //    function the enforcement path calls. Returning ITS result, rather than
@@ -327,8 +329,8 @@ export const deleteAudioAssetFn = createServerFn({ method: 'POST' })
 // pointed at it, but that one gained a `limit`/`cursor` page request. Gated by
 // `storageUsageReadLimiter` (final-review addition): taking no input bounds
 // the SHAPE of a call, not the NUMBER of them, and this is the only
-// aggregation on the surface. The gate runs before the aggregation, so a
-// refused call costs no Atlas work.
+// unbounded-row read on the surface. The gate runs before the read, so a
+// refused call costs no store work.
 export const getAudioStorageUsageFn = createServerFn({ method: 'GET' }).handler(async () => {
   const { getUserStorageUsage } = await import('~/server/functions/audio-quota');
   const { getAudioUserQuotaBytes, AudioClientError } = await import('~/server/functions/audio');
@@ -340,7 +342,24 @@ export const getAudioStorageUsageFn = createServerFn({ method: 'GET' }).handler(
       retryAfterMs: gate.retryAfterMs,
     });
   }
-  const usage = await getUserStorageUsage(actor.userId);
+  let usage;
+  try {
+    usage = await getUserStorageUsage(actor.userId);
+  } catch (e) {
+    // Genuine store fault on the DISPLAY path — mirror the ENFORCEMENT
+    // path's deliberate capture (`assertUnderStorageQuota`,
+    // `~/server/functions/audio.ts`): this isn't caller-triggerable the way
+    // a refusal is, so reporting it doesn't make report volume an
+    // attacker's parameter, and swallowing it here would make this read's
+    // own failure mode invisible. Fire-and-forget — never awaited on a
+    // request-critical path — and re-thrown unchanged, not converted into a
+    // refusal.
+    const { serverCaptureException } = await import('~/server/utils/telemetry');
+    void serverCaptureException(e, actor.sessionUserId ?? actor.userId, {
+      action: 'getAudioStorageUsageFn',
+    });
+    throw e;
+  }
   return { ...usage, limitBytes: getAudioUserQuotaBytes() };
 });
 

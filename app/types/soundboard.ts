@@ -61,6 +61,18 @@ export const MAX_PACKAGES_PER_USER = 100;
  * comment: `tests/server/functions/packages.test.ts` parses this constant
  * through that schema, because a future bump past the cap would otherwise
  * surface at RUNTIME as a 400 on every board mount.
+ *
+ * COUPLING THAT MUST HOLD: the system catalogue must stay under
+ * `PACKAGE_LIST_PAGE_SIZE - MAX_PACKAGES_PER_USER` (100 today). `listPackages`
+ * sorts the union of the caller's own packages and the system catalogue BY
+ * NAME and then truncates to this page size. If the system catalogue ever
+ * grows past that headroom, truncation does not drop "the system extras" —
+ * name order has no relationship to which arm a row came from — it drops
+ * whatever sorts last alphabetically, which will routinely include some of
+ * the CALLER'S OWN packages, silently, on the one page where they can delete
+ * them. There is no code enforcing this coupling; see the design doc's
+ * Follow-ups for the recommended guardrail (a `serverCaptureEvent` when
+ * `listPackages` returns a non-null `nextCursor`).
  */
 export const PACKAGE_LIST_PAGE_SIZE = MAX_PACKAGES_PER_USER * 2;
 

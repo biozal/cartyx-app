@@ -64,13 +64,24 @@ refuses the upload, because an unmeasurable quota that admits the request is not
 a quota. The `$ifNull` guards become ordinary nullish-coalescing on each of the
 six paths, which is what they always meant.
 
-What changes is the cost argument. The original justified the query as "one
-`$group` served by the `{ownerId, createdAt}` index". Now it materialises the
-user's own rows. That is bounded by the quota itself — at the 2 GiB default and
-~126 MB per asset, roughly 16 rows — so the cost is acceptable, but the reasoning
-in the code comment must be rewritten rather than carried over. A comment that
-justifies a design with a premise that is no longer true is worse than no
-comment; it reads exactly like a true one to whoever builds the next guard on it.
+What changes is the cost argument, and it does not resolve to "bounded". The
+original justified the query as "one `$group` served by the `{ownerId,
+createdAt}` index". Now it materialises the user's own rows, and **row count is
+not bounded by the quota at all** — dividing 2 GiB by ~126 MB (a maxed asset's
+footprint) gives the MINIMUM row count consistent with being at the quota, not
+a maximum; row count is maximised by small or zero-byte rows. Decisively,
+`createAudioUpload` mints an `AudioAsset` row at presign time with
+`sourceBytes: null`, which contributes 0 to the sum, so the quota can never
+refuse it. If the upload is abandoned, `reapAbandonedUploads`
+(`audio-worker/src/claim.ts`) fails the row and deletes its R2 object but never
+deletes the row — nothing does — and there is no per-user asset-count cap
+anywhere in this repo. So an account can accumulate an unbounded number of
+zero-byte `failed` rows, and `getUserStorageUsage` reads every one of them, in
+full, on every presign, every confirm, and every `/audio` page load. The Mongo
+`$group` this replaced returned one row to the pod regardless of cardinality,
+so this is a real regression the port introduces, not merely a reworded cost
+argument. The code comment must say this rather than the "roughly 16 rows"
+claim it used to carry, and the real fix is tracked as a Follow-up below.
 
 ### The `listPackages` memory guard
 
@@ -131,6 +142,22 @@ process, which is correct and cheap. `listPackages` is the only caller with no
    small, general addition that matches the store's existing model of null — it
    already writes null as a property drop, so reading it back as `hasNot` closes
    a gap rather than introducing a new concept. Every model gains it.
+
+   **What this buys is narrower than it sounds.** The composite indexes here
+   are `(scope, kind)` and `(scope, kind, ix_sN)`
+   (`scripts/graph/0002-entities.groovy`), and a composite index requires
+   EQUALITY on every one of its keys. `hasNot('ix_s1')` supplies no equality
+   value for `ix_s1`, so JanusGraph's planner cannot use the three-key index
+   for it and falls back to `(scope, kind)`, then walks every vertex of that
+   kind testing absence one at a time. So `hasNot` narrows the RESULT SET
+   inside the graph, not the SCAN — it is O(kind), not O(matches). The outcome
+   the split was bought for still holds regardless: Gremlin filters before
+   `project()`, so only matching documents are ever materialised and shipped
+   to the web pod, where the unfiltered `$or` form materialised everything.
+   That memory bound is real. What is not true is that `hasNot` is index-served
+   the way `has(slot, value)` is — the next model to write `find({ x: null })`
+   should not expect this to be cheap in the way an equality lookup is.
+
 2. **Split the disjunction into two pushed-down queries**, merged in process.
    Both arms then narrow in the graph. This is deliberately preferred over
    teaching the pushdown layer to translate `$or` into a `union()` traversal,
@@ -328,3 +355,23 @@ New, from this investigation:
   caller.
 - Load behaviour past 12 CAS retries on a single hot document is untested. The
   `repositories-integration.ts` harness is where that would go.
+- **`getUserStorageUsage`'s row count is unbounded** (see "The storage quota's
+  aggregation" above). A presign-only `AudioAsset` row (`sourceBytes: null`)
+  contributes zero bytes and is never reaped once `reapAbandonedUploads` fails
+  it, so an account can accumulate arbitrarily many rows this function still
+  reads in full on every presign, confirm, and `/audio` page load. Real
+  options: a per-user asset-count cap (mirroring `MAX_PACKAGES_PER_USER`), a
+  store-side count/sum primitive, or having the abandoned-upload reaper delete
+  the row instead of only failing it. This should be closed before the
+  `dev` → `main` promotion.
+- **`PACKAGE_LIST_PAGE_SIZE`'s truncation is silent.** `listPackages` sorts the
+  union of the caller's own packages and the system catalogue by name and then
+  truncates to `PACKAGE_LIST_PAGE_SIZE`. Today that is safe because the system
+  catalogue is empty, but the moment it exceeds
+  `PACKAGE_LIST_PAGE_SIZE - MAX_PACKAGES_PER_USER`, truncation drops whatever
+  sorts last alphabetically — not "the system extras" — which will routinely
+  include some of the caller's OWN packages, silently, on the one page where
+  they can delete them. Recommended fix: a `serverCaptureEvent` when
+  `listPackages` returns a non-null `nextCursor`, so the day this starts
+  truncating is visible before a user reports missing packages. Not
+  implemented in this PR.

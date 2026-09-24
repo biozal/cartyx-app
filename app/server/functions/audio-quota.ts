@@ -23,11 +23,29 @@ import { AudioAsset } from '../db/models/AudioAsset';
  * document as a single JSON blob, so there is no projection that would make
  * the read cheaper — the rows come back whole either way.
  *
- * What bounds it is the quota itself: at the 2 GiB default and ~126 MB per
- * asset that is roughly 16 rows, and `ownerId` is an indexed slot so the read
- * narrows in the graph rather than scanning. A denormalised counter is still
- * the wrong answer for the same reason it always was — four writers, and the
- * phase 2a review found correctness bugs in three of them.
+ * NOTHING BOUNDS ROW COUNT. Dividing the 2 GiB default by ~126 MB (a maxed
+ * asset's footprint) gives the MINIMUM row count consistent with being at the
+ * quota, not the maximum — row count is maximised by small or zero-byte
+ * rows, and there is no cap on those. `createAudioUpload` mints an
+ * `AudioAsset` row at presign time with `sourceBytes: null`
+ * (`app/server/functions/audio.ts`), so it contributes 0 to the sum and the
+ * quota can never refuse it on bytes alone. If the browser never completes
+ * the PUT, `reapAbandonedUploads` (`audio-worker/src/claim.ts`) moves that
+ * row to `failed` and deletes its R2 object, but it does not delete the row
+ * — nothing does. There is also no per-user asset-COUNT cap anywhere in this
+ * repo, only the byte quota. So an account can accumulate an unbounded
+ * number of zero-byte `failed` rows, and this function reads every one of
+ * them, in full, on every presign, every confirm, and every `/audio` page
+ * load. `ownerId` is an indexed slot, so the read narrows to the caller's
+ * own rows rather than scanning the whole `audioassets` kind — but "the
+ * caller's own rows" is exactly the axis that is unbounded. The Mongo
+ * `$group` this replaced returned one aggregated row to the pod regardless
+ * of cardinality; this port trades that away and nothing here bounds what it
+ * trades it for. See the design doc's Follow-ups for the real fixes (a
+ * per-user asset-count cap, a store-side count/sum, or deleting the row in
+ * the abandoned-upload reaper) — none implemented yet. A denormalised
+ * counter is still the wrong answer for the same reason it always was — four
+ * writers, and the phase 2a review found correctness bugs in three of them.
  */
 export interface AudioStorageUsage {
   bytes: number;
@@ -69,7 +87,19 @@ async function ensureDb() {
   if (!isDBConnected()) await connectDB();
 }
 
-/** Reads one dotted path, treating absent, null and non-finite alike as 0. */
+/**
+ * Reads one dotted path, treating absent, null and non-finite alike as 0.
+ *
+ * The `Number.isFinite` half of that guard is unreachable today — `z.number()`
+ * rejects `NaN` on write and `JSON.stringify(Infinity)` serialises to `null`,
+ * so a non-finite value cannot round-trip through the store at all — but it
+ * stays because of what drops it does if it's ever wrong: one non-finite
+ * addend turns `bytes` into `NaN` below; `getUserStorageUsage` does not throw
+ * on that, so `checkStorageQuota`'s fail-closed `catch` never fires; and
+ * `usage.bytes >= limitBytes` is `false` for `NaN`, so the quota would fail
+ * OPEN — silently admitting every upload — which is the exact opposite of
+ * its specification.
+ */
 function bytesAt(document: Record<string, unknown>, path: string): number {
   const value = path
     .split('.')

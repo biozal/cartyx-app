@@ -99,9 +99,12 @@ export const audioAssetSchema = z.object({
   // `createOnceVariantUpload` (replace, -> null) and
   // `confirmOnceVariantUpload`'s reject path (clear, -> null) in
   // `app/server/functions/audio.ts`; `markOnceFailed` in
-  // `audio-worker/src/process.ts` and `reapAbandonedOnceUploads` in
-  // `audio-worker/src/claim.ts` (both clear, -> null). If `onceSourceKey`
-  // ever grows a new writer, that writer owns this field too.
+  // `audio-worker/src/process.ts`; and, in `audio-worker/src/claim.ts`,
+  // both `reapAbandonedOnceUploads` (clear, -> null) AND `reapStale`'s own
+  // once branch (clear, -> null, alongside its `status`/`variant` reset when
+  // a once-attach exhausts its retry budget). Five writers, all correct in
+  // code today — this list is the roll-call the invariant depends on, so if
+  // `onceSourceKey` ever grows a new writer, that writer owns this field too.
   //
   // Zod strips what it does not declare, and `audioAssetSchema.parse` runs
   // inside the compare-and-set mutator on every create and every update, so
