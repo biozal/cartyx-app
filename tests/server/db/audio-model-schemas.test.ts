@@ -103,6 +103,24 @@ describe('AudioAsset schema', () => {
   });
 
   /**
+   * The test above only proves `audioAssetSchema.parse` accepts a null
+   * `sourceKey` — it never runs `parse` inside the compare-and-set mutator,
+   * so it cannot catch the failure mode this file exists to catch: a schema
+   * that declares the field non-nullable would still pass that test (`parse`
+   * would throw on the literal `null` input, sure, but nothing there proves
+   * a real UPDATE can WRITE a null over an existing value and have it stick).
+   * The reject-reaper's actual write is `updateOne(..., { $set: { sourceKey:
+   * null } })` against a row that already has a string key, so this pins the
+   * one thing that matters: that write, through the real model, round-trips.
+   */
+  it('clears sourceKey to null through a real update, not just a parse', async () => {
+    const created = await AudioAsset.create(asset({ _id: undefined }));
+    await AudioAsset.updateOne({ _id: created._id }, { $set: { sourceKey: null } });
+    const reloaded = await AudioAsset.findOne({ _id: created._id }).lean();
+    expect(reloaded?.sourceKey).toBeNull();
+  });
+
+  /**
    * Ported from the Mongoose-era `audio-asset-model.test.ts`'s index test. The four
    * compound indexes it pinned have no equivalent here — `defineGraphModel` takes a
    * declarative field -> slot map — but the two things that test existed to protect
