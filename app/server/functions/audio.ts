@@ -168,7 +168,7 @@ function reportAudioError(e: unknown, actor: Actor, context: Record<string, unkn
  * So a request id reaching this function has almost always already been
  * lowercased by that Zod schema before `sameObjectId` ever runs. The
  * `.toLowerCase()` calls here are NOT redundant belt-and-suspenders on top of
- * that: they are the real safety net for the case the module comment below
+ * that: they are the real safety net for the case the module comment above
  * names explicitly — the ingest surface is deliberately auth-agnostic, and
  * phase 3's bearer adapter may not route every call through the same Zod
  * object. A caller that skips that schema and hands this function a raw,
