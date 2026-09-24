@@ -167,15 +167,25 @@ describe('the once-attach liveness clock, app vs worker (Task 10, fix 2)', () =>
 
   /**
    * The other half of the same contract: the field must exist on the schema
-   * the app owns, or Mongoose strips it from the `$set` and the worker's
-   * query matches nothing but legacy rows — the same silent reinstatement of
-   * the bug, reached from the schema side.
+   * the app owns, or it is stripped from the `$set` and the worker's query
+   * matches nothing but legacy rows — the same silent reinstatement of the
+   * bug, reached from the schema side.
+   *
+   * The stripping mechanism changed with the graph port and the hazard did
+   * not: Mongoose's strict mode used to drop an undeclared path, and now Zod
+   * drops an undeclared key, because `audioAssetSchema.parse` runs inside the
+   * compare-and-set mutator on every create and every update
+   * (`app/server/repositories/graph-model.ts`). Either way there is no throw
+   * and no log. So this assertion moved from `{ type: Date }` to the Zod
+   * declaration, and still fails the moment the field is renamed or removed
+   * on the app side — which is the whole reason it exists, since neither
+   * package's own suite can see the other's literal.
    */
   it('declares the field on the model the app owns', () => {
     const model = readFileSync(
       join(process.cwd(), 'app', 'server', 'db', 'models', 'AudioAsset.ts'),
       'utf8'
     );
-    expect(model).toMatch(/onceUploadStartedAt:\s*\{\s*type:\s*Date/);
+    expect(model).toMatch(/onceUploadStartedAt:\s*z\.coerce\.date\(\)/);
   });
 });
