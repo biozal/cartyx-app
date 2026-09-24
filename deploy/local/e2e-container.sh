@@ -5,10 +5,14 @@
 # (npm run dev:seed), Docker running.
 set -euo pipefail
 
+node scripts/dev-data.mjs secrets
+
 COMPOSE=(docker compose --env-file .env -f deploy/local/compose.yaml)
 
 cleanup() { "${COMPOSE[@]}" down; }
 trap cleanup EXIT
 
 "${COMPOSE[@]}" up --build --wait
+# The containers hold data but no schema; installing it is idempotent.
+node scripts/dev-schema.mjs
 E2E_BASE_URL=http://localhost:3100 npx playwright test "$@"

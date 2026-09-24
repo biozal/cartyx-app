@@ -31,20 +31,17 @@ vi.mock('~/server/session', () => ({
   getSession: vi.fn(),
 }));
 
-// `requireUserId()` resolves `SessionUser.id` (the OAuth provider's subject
-// id) to this app's Mongo `_id` via `User.findOne({ providerId })` before
-// handing it to `~/server/functions/audio` — `AudioAsset.ownerId` is a
-// Mongoose `ObjectId`, and a provider id like `'user-1'`/`'google_...'`
-// doesn't cast to one. Per this repo's "unit tests mock mongoose" convention
-// (no in-memory Mongo), `User.findOne` is mocked per-test rather than hit
-// for real.
+// `requireUserId()` resolves `SessionUser.id` (the OAuth provider's subject id) to this
+// app's own user id before handing it to `~/server/functions/audio` — `AudioAsset.ownerId`
+// is a Mongoose `ObjectId`, and a provider id like `'user-1'`/`'google_...'` doesn't cast
+// to one. Identity is served from the graph, so the identity module is stood in for here
+// rather than a Mongo model.
 vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
+  isDBConnected: vi.fn(() => true),
 }));
 
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('../server/functions/identityTestDouble'));
 
 // `AudioClientError` is a real class here rather than a `vi.fn()` because the
 // wrapper's rate-limit gate constructs one (`new AudioClientError(msg, {
@@ -96,7 +93,11 @@ vi.mock('~/server/utils/telemetry', () => ({
 }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
+import {
+  identityDouble,
+  identityRepository,
+  resetIdentityDouble,
+} from '../server/functions/identityTestDouble';
 import {
   AudioClientError,
   createAudioUpload,
@@ -152,11 +153,9 @@ const SESSION_USER = {
  */
 const DB_USER_ID = 'mongo-user-1';
 
-/** Stubs `User.findOne(...).select(...).lean()` — mirrors requireUserId's chain. */
+/** Stubs the identity repository's provider-id lookup. */
 function mockDbUser(id: string | null) {
-  vi.mocked(User.findOne).mockReturnValue({
-    select: () => ({ lean: () => Promise.resolve(id ? { _id: id } : null) }),
-  } as unknown as ReturnType<typeof User.findOne>);
+  resetIdentityDouble(id ? { id } : null);
 }
 
 const FAKE_ASSET = {
@@ -183,6 +182,14 @@ const FAKE_ASSET = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+it('stops an authenticated audio request before writing domain data when identity is unavailable', async () => {
+  vi.mocked(getSession).mockResolvedValue(SESSION_USER);
+  identityDouble.profile = null;
+  identityRepository.findUserId.mockRejectedValueOnce(new Error('Database not connected'));
+  await expect(listAudioAssetsFn({ data: {} })).rejects.toThrow('Database not connected');
+  expect(listAudioAssets).not.toHaveBeenCalled();
 });
 
 describe('createAudioUploadFn', () => {

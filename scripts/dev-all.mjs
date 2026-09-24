@@ -10,11 +10,14 @@
  *
  * Ctrl+C, or either child exiting, tears the whole stack down — no orphans.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
-// Load .env into process.env so the realtime service gets SESSION_SECRET /
-// MONGODB_URI. Vite loads .env on its own, so this is harmless for the web app.
+// Database containers remain running when the host processes stop; db:down is
+// explicit and never deletes their data volume.
+// Load .env FIRST: the database and schema steps below read the data settings from
+// the environment too (CARTYX_INFRASTRUCTURE_DIR picks the infrastructure checkout).
+// Vite loads .env on its own, so this is harmless for the web app.
 if (existsSync('.env')) {
   try {
     process.loadEnvFile('.env');
@@ -22,6 +25,15 @@ if (existsSync('.env')) {
     console.warn('[dev] could not load .env:', err.message);
   }
 }
+
+const step = (command, args, env) => {
+  const result = spawnSync(command, args, { stdio: 'inherit', env: { ...process.env, ...env } });
+  if (result.error) throw result.error;
+  if (result.status !== 0) process.exit(result.status ?? 1);
+};
+step(process.execPath, ['scripts/dev-data.mjs', 'up']);
+
+step(process.execPath, ['scripts/dev-schema.mjs']);
 
 const children = [];
 let shuttingDown = false;

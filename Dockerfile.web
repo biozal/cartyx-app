@@ -2,9 +2,9 @@
 #
 # VITE_PUBLIC_* values are baked into the client bundle at BUILD time — prod
 # and dev need separate image builds with different --build-arg values, not
-# one image with different runtime env. Server-read env (MONGODB_URI,
-# SESSION_SECRET, APP_ENV, R2_*, BASE_URL, ...) is injected at
-# runtime.
+# one image with different runtime env. Server-read env (SESSION_SECRET,
+# APP_ENV, R2_*, BASE_URL, the GREMLIN_*/CQL_* data settings, ...) is injected
+# at runtime.
 #
 # Local build (pulls VITE_PUBLIC_* from your shell / .env):
 #   set -a; source .env; set +a

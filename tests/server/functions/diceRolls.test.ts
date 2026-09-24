@@ -14,15 +14,11 @@ vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
   isDBConnected: vi.fn(() => true),
 }));
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
 vi.mock('~/server/db/models/Session', () => ({
   Session: { findById: vi.fn() },
 }));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findById: vi.fn() },
-}));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/DiceRoll', () => ({
   DiceRoll: {
     find: vi.fn(),
@@ -31,9 +27,9 @@ vi.mock('~/server/db/models/DiceRoll', () => ({
 }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
+import { resetIdentityDouble } from './identityTestDouble';
 import { Session as DbSession } from '~/server/db/models/Session';
-import { Campaign } from '~/server/db/models/Campaign';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { DiceRoll } from '~/server/db/models/DiceRoll';
 import { listDiceRolls, saveDiceRoll } from '~/server/functions/diceRolls';
 
@@ -48,7 +44,7 @@ const mockSession = {
   refreshToken: null,
   tokenIssuedAt: 0,
 };
-const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
+const mockDbUser = { id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
 const mockDbSession = { campaignId: 'camp-1' };
 const mockCampaign = {
   _id: 'camp-1',
@@ -59,15 +55,13 @@ const mockCampaign = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
-  vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
+  resetIdentityDouble(mockDbUser);
   vi.mocked(DbSession.findById).mockReturnValue({
     select: vi.fn().mockReturnValue({
       lean: vi.fn().mockResolvedValue(mockDbSession),
     }),
   } as never);
-  vi.mocked(Campaign.findById).mockReturnValue({
-    lean: vi.fn().mockResolvedValue(mockCampaign),
-  } as never);
+  campaignsDouble.get.mockResolvedValue(mockCampaign);
 });
 
 const _listDiceRolls = listDiceRolls as unknown as (args: {
@@ -153,9 +147,7 @@ describe('listDiceRolls — GM channel filtering', () => {
       gameMasterId: 'other-user',
       members: [{ userId: 'dbuser-1', role: 'player' }],
     };
-    vi.mocked(Campaign.findById).mockReturnValue({
-      lean: vi.fn().mockResolvedValue(playerCampaign),
-    } as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign);
 
     const mockSort = vi.fn().mockReturnValue({
       limit: vi.fn().mockReturnValue({
@@ -190,9 +182,7 @@ describe('saveDiceRoll', () => {
       gameMasterId: 'other-user',
       members: [{ userId: 'dbuser-1', role: 'player' }],
     };
-    vi.mocked(Campaign.findById).mockReturnValue({
-      lean: vi.fn().mockResolvedValue(playerCampaign),
-    } as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign);
 
     await expect(
       _saveDiceRoll({

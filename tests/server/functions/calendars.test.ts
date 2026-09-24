@@ -8,16 +8,16 @@ vi.mock('@tanstack/react-start', () => ({
 }));
 vi.mock('~/server/session', () => ({ getSession: vi.fn() }));
 vi.mock('~/server/db/connection', () => ({ connectDB: vi.fn(), isDBConnected: vi.fn(() => true) }));
-vi.mock('~/server/db/models/User', () => ({ User: { findOne: vi.fn() } }));
-vi.mock('~/server/db/models/Campaign', () => ({ Campaign: { findById: vi.fn() } }));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/Calendar', () => ({
   Calendar: { findOne: vi.fn(), findOneAndUpdate: vi.fn(), deleteOne: vi.fn() },
 }));
 vi.mock('~/server/db/models/Event', () => ({ Event: { find: vi.fn(), bulkWrite: vi.fn() } }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
-import { Campaign } from '~/server/db/models/Campaign';
+import { resetIdentityDouble } from './identityTestDouble';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { Calendar } from '~/server/db/models/Calendar';
 import { Event } from '~/server/db/models/Event';
 import {
@@ -78,13 +78,13 @@ const calDoc = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(session);
-  vi.mocked(User.findOne).mockResolvedValue({ _id: 'user-1' } as never);
-  vi.mocked(Campaign.findById).mockResolvedValue(gmCampaign as never);
+  resetIdentityDouble({ id: 'user-1' });
+  campaignsDouble.get.mockResolvedValue(gmCampaign as never);
 });
 
 describe('upsertCalendar', () => {
   it('forbids a non-GM from saving', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     await expect(_upsert({ data: baseInput })).rejects.toThrow('Forbidden');
   });
 
@@ -165,7 +165,7 @@ describe('getCalendar', () => {
   });
 
   it('canEdit is false for a non-GM member', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     vi.mocked(Calendar.findOne).mockReturnValue({
       lean: vi.fn().mockResolvedValue(calDoc),
     } as never);
@@ -176,7 +176,7 @@ describe('getCalendar', () => {
 
 describe('setCurrentDate', () => {
   it('forbids a non-GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     await expect(
       _setDate({ data: { campaignId: 'camp-1', currentDate: { year: 1, monthIndex: 0, day: 2 } } })
     ).rejects.toThrow('Forbidden');
@@ -209,7 +209,7 @@ describe('setCurrentDate', () => {
 
 describe('deleteCalendar', () => {
   it('forbids a non-GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(playerCampaign as never);
+    campaignsDouble.get.mockResolvedValue(playerCampaign as never);
     await expect(_delete({ data: { campaignId: 'camp-1' } })).rejects.toThrow('Forbidden');
   });
 

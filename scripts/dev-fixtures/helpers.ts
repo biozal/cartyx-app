@@ -2,7 +2,7 @@
  * Shared helpers for dev fixture scripts.
  *
  * Provides:
- *   - Safe Mongo connection (refuses prod URIs)
+ *   - Safe data connection (refuses production targets)
  *   - GM lookup
  *   - Campaign destroyer that walks every collection a campaign touches
  *     (sessions, chars, players, locations, screens, notes, rules, etc.)
@@ -15,10 +15,10 @@ import {
   type DeleteObjectCommandOutput,
   ListObjectsV2Command,
 } from '@aws-sdk/client-s3';
-import mongoose, { type Connection } from 'mongoose';
-import { ObjectId } from 'mongodb';
+import { graphDb, ObjectId, type Db } from '../graph-db';
+import { assertSeedTargetIsNotProduction } from '../seed/guards';
 
-// Load .env into process.env so MONGODB_URI / R2 creds are picked up.
+// Load .env into process.env so the graph and R2 settings are picked up.
 // Node 20.6+ has this built-in; ignored if .env doesn't exist.
 try {
   process.loadEnvFile('.env');
@@ -39,43 +39,33 @@ export interface FixtureMetadata {
   createdAt: string;
 }
 
-/** Refuses to run if the URI looks like prod. Loads .env into process.env. */
-export function requireSafeMongoUri(): { uri: string; dbName?: string } {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Refusing to run dev fixtures in NODE_ENV=production.');
-  }
-  const uri = process.env.MONGODB_URI;
-  if (!uri) {
-    throw new Error('MONGODB_URI is not set (load via .env or shell export).');
-  }
-  if (/prod/i.test(uri)) {
-    throw new Error('MONGODB_URI looks like a production connection string. Aborting.');
-  }
-  return { uri, dbName: process.env.MONGODB_DB };
+/** A fixture run's handle on the data: the driver's `db.collection(name)` over the graph. */
+export interface Connection {
+  db: Db;
 }
 
-export async function connectMongo(): Promise<Connection> {
-  const { uri, dbName } = requireSafeMongoUri();
-  await mongoose.connect(uri, { dbName });
-  const conn = mongoose.connection;
-  if (!conn.db) throw new Error('Mongo connected but db handle missing.');
-  return conn;
+/** Refuses production targets (the seeder's own guard), then opens the graph. */
+export async function connectData(): Promise<Connection> {
+  assertSeedTargetIsNotProduction();
+  return { db: graphDb() };
 }
 
-export async function disconnectMongo(): Promise<void> {
-  await mongoose.disconnect();
+export async function disconnectData(): Promise<void> {
+  // The Cassandra driver would otherwise hold the process open.
+  const { closeData } = await import('../../app/server/db/data-runtime');
+  await closeData();
 }
 
-/** Find the GM user — fixture campaigns will be owned by this account. */
-export async function findGm(conn: Connection): Promise<{ _id: ObjectId; providerId?: string }> {
-  const db = conn.db!;
-  const gm = await db.collection('users').findOne({ role: 'gm' });
-  if (!gm) {
-    throw new Error(
-      'No GM user found. Run `node scripts/seed-gm.cjs` then log in once to create the User doc.'
-    );
-  }
-  return { _id: gm._id as ObjectId, providerId: gm.providerId };
+/**
+ * Find the seeded game master — fixture campaigns will be owned by this account.
+ * Accounts live in the graph; campaigns still store the id as an ObjectId.
+ */
+export async function findGm(): Promise<{ _id: ObjectId; providerId?: string }> {
+  const { identityRepository } = await import('../../app/server/repositories/identity');
+  const { GM_PROVIDER_ID } = await import('../seed/users');
+  const gm = await identityRepository.findProfile(GM_PROVIDER_ID);
+  if (!gm) throw new Error('No seeded game master found. Run `npm run dev:seed` first.');
+  return { _id: new ObjectId(gm.id), providerId: GM_PROVIDER_ID };
 }
 
 // ---------------------------------------------------------------------------
@@ -87,11 +77,9 @@ export async function findGm(conn: Connection): Promise<{ _id: ObjectId; provide
  * campaign can populate. Stays in lockstep with the app models. If you add
  * a new campaign-scoped collection, add it here too.
  */
-// Mongoose collection names verified against the model files in
-// app/server/db/models/. Several use singular custom names — be careful when
-// updating: `location`, `locationtype`, `tabletopscreen`, `gmscreen`,
-// `tabletopplayerstate`, `sessionevent`. The rest follow Mongoose's default
-// (lowercased + pluralised).
+// Collection names are the graph models' names (app/server/db/models/graph-models.ts),
+// kept from MongoDB. Several are singular — be careful when updating: `location`,
+// `locationtype`, `tabletopscreen`, `gmscreen`, `tabletopplayerstate`, `sessionevent`.
 const CAMPAIGN_SCOPED_COLLECTIONS: Array<{ name: string; field: string }> = [
   { name: 'sessions', field: 'campaignId' },
   { name: 'characters', field: 'campaignId' },
@@ -156,22 +144,29 @@ export async function destroyCampaigns(
   conn: Connection,
   filter: { fixtureName?: string; campaignId?: string; allFixtures?: boolean; force?: boolean }
 ): Promise<DestroyResult> {
-  const db = conn.db!;
+  const db = conn.db;
   const cdnUrl = process.env.CDN_URL?.replace(/\/+$/, '') ?? null;
 
-  const mongoFilter: Record<string, unknown> = {};
-  if (filter.campaignId) {
-    mongoFilter._id = new ObjectId(filter.campaignId);
-  } else if (filter.fixtureName) {
-    mongoFilter['metadata.managedBy'] = FIXTURE_MARKER.managedBy;
-    mongoFilter['metadata.fixtureName'] = filter.fixtureName;
-  } else if (filter.allFixtures) {
-    mongoFilter['metadata.managedBy'] = FIXTURE_MARKER.managedBy;
-  } else {
+  if (!filter.campaignId && !filter.fixtureName && !filter.allFixtures)
     throw new Error('destroyCampaigns: provide fixtureName, campaignId, or allFixtures.');
-  }
 
-  const campaigns = await db.collection('campaigns').find(mongoFilter).toArray();
+  // Campaigns live in the graph. The fixture marker is not indexed, and a dev tool reads
+  // few enough campaigns that filtering them here is fine.
+  const { campaigns: campaignRepository } = await import('../../app/server/repositories/campaigns');
+  const candidates = filter.campaignId
+    ? [await campaignRepository.get(filter.campaignId)].filter((c) => c !== null)
+    : await campaignRepository.listAll();
+  const campaigns = candidates
+    .filter((campaign) => {
+      if (filter.campaignId) return true;
+      const metadata = (campaign.metadata ?? {}) as { managedBy?: string; fixtureName?: string };
+      return (
+        metadata.managedBy === FIXTURE_MARKER.managedBy &&
+        (!filter.fixtureName || metadata.fixtureName === filter.fixtureName)
+      );
+    })
+    // Dependent documents are addressed through the driver interface, by ObjectId.
+    .map((campaign) => ({ ...campaign, _id: new ObjectId(campaign._id) }));
 
   // Safety: if a single campaign was named by id but isn't fixture-managed,
   // refuse unless force is set.
@@ -231,7 +226,7 @@ export async function destroyCampaigns(
     .collection('sessions')
     .find({ campaignId: { $in: campaignIds } }, { projection: { _id: 1 } })
     .toArray();
-  const sessionIds = sessions.map((s) => s._id);
+  const sessionIds = sessions.map((s: { _id: unknown }) => s._id);
 
   // ----- Delete session-scoped data -----
   if (sessionIds.length > 0) {
@@ -250,17 +245,9 @@ export async function destroyCampaigns(
   }
 
   // ----- Delete campaigns -----
-  const campRes = await db.collection('campaigns').deleteMany({ _id: { $in: campaignIds } });
-  result.campaignsDeleted = campRes.deletedCount ?? 0;
-
-  // ----- Pull campaign refs from user.campaigns arrays -----
-  // Cast the update to `any` — MongoDB driver's PullOperator type is overly
-  // strict about nested-array selectors which Mongo itself fully supports.
-  await db.collection('users').updateMany(
-    { 'campaigns.campaignId': { $in: campaignIds } },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    { $pull: { campaigns: { campaignId: { $in: campaignIds } } } } as any
-  );
+  result.campaignsDeleted = 0;
+  for (const id of campaignIds)
+    if (await campaignRepository.remove(String(id))) result.campaignsDeleted++;
 
   // ----- Best-effort R2 cleanup -----
   if (r2 && r2KeysToDelete.size > 0) {
@@ -304,7 +291,7 @@ export interface CleanE2eResult {
 }
 
 export async function cleanE2eArtifacts(conn: Connection): Promise<CleanE2eResult> {
-  const db = conn.db!;
+  const db = conn.db;
 
   // 1. tabletopscreens named "E2E Test Screen"
   const screenRes = await db.collection('tabletopscreen').deleteMany({ name: 'E2E Test Screen' });
@@ -391,7 +378,7 @@ export async function sweepOrphanR2Keys(conn: Connection): Promise<OrphanSweepRe
   }
 
   const cdnUrl = process.env.CDN_URL?.replace(/\/+$/, '') ?? null;
-  const db = conn.db!;
+  const db = conn.db;
 
   // Build the set of in-use R2 keys across every campaign-scoped doc.
   const inUse = new Set<string>();
@@ -407,8 +394,12 @@ export async function sweepOrphanR2Keys(conn: Connection): Promise<OrphanSweepRe
   const urlSources: Array<[string, string]> = [
     ['characters', 'picture'],
     ['players', 'picture'],
-    ['campaigns', 'imagePath'],
   ];
+  const { campaigns: campaignRepository } = await import('../../app/server/repositories/campaigns');
+  for (const campaign of await campaignRepository.listAll()) {
+    const url = campaign.imagePath ?? undefined;
+    if (url && cdnUrl && url.startsWith(cdnUrl + '/')) inUse.add(url.slice(cdnUrl.length + 1));
+  }
   for (const [coll, field] of urlSources) {
     for await (const doc of db
       .collection(coll)

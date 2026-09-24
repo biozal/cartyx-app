@@ -1,48 +1,32 @@
-import mongoose, { type InferSchemaType, type Model } from 'mongoose';
+import { z } from 'zod';
+import { defineGraphModel } from '~/server/repositories/graph-model';
+import { now, objectId } from './schema-parts';
 
-// Freeform text written on a map by a player or GM. Any member can create
-// text; deletion is gated to the author (createdBy) or any GM.
-const mapTextSchema = new mongoose.Schema(
-  {
-    mapId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Map',
-      required: true,
-    },
-    // Denormalised for cheap auth checks (avoids a Map lookup per write).
-    campaignId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Campaign',
-      required: true,
-    },
-    // Position in MAP-LOCAL pixel coordinates (the image's native pixel space).
-    x: { type: Number, required: true },
-    y: { type: Number, required: true },
-    text: { type: String, required: true },
-    color: { type: String, default: '#fbbf24' },
-    // Font size in map-local pixels (rendered scaled by the viewport).
-    fontSize: { type: Number, default: 16 },
-    // The author. Used to gate deletion: a player may delete only their own
-    // text; a GM may delete anyone's.
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now },
-  },
-  { collection: 'mapText' }
-);
+// Freeform text written on a map by a player or GM. Deletion is gated to the
+// author (createdBy) or any GM.
+export const mapTextSchema = z.object({
+  _id: objectId,
+  mapId: objectId,
+  // Denormalised for cheap auth checks (avoids a Map lookup per write).
+  campaignId: objectId,
+  // Position in MAP-LOCAL pixel coordinates (the image's native pixel space).
+  x: z.number(),
+  y: z.number(),
+  text: z.string(),
+  color: z.string().default('#fbbf24'),
+  // Font size in map-local pixels (rendered scaled by the viewport).
+  fontSize: z.number().default(16),
+  createdBy: objectId,
+  createdAt: now(),
+  updatedAt: now(),
+});
 
-// istanbul ignore next
-if (typeof (mapTextSchema as { index?: unknown }).index === 'function') {
-  // Queries always filter by (mapId, campaignId), so index the compound shape.
-  mapTextSchema.index({ mapId: 1, campaignId: 1 });
-}
+export type IMapText = z.infer<typeof mapTextSchema>;
 
-export type IMapText = InferSchemaType<typeof mapTextSchema>;
-
-export const MapText: Model<IMapText> =
-  (mongoose.models.MapText as Model<IMapText>) ||
-  mongoose.model<IMapText>('MapText', mapTextSchema);
+export const MapText = defineGraphModel<IMapText>({
+  name: 'mapText',
+  kind: 'MapText',
+  modelName: 'MapText',
+  schema: mapTextSchema,
+  index: { mapId: 'ix_s1', campaignId: 'ix_s2' },
+});

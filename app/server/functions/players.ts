@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { getSession } from '../session';
 import { connectDB, isDBConnected } from '../db/connection';
-import { User } from '../db/models/User';
-import { Campaign } from '../db/models/Campaign';
+import { identityRepository } from '../repositories/identity';
+import { campaigns } from '../repositories/campaigns';
 import { requireCampaignMember } from '../utils/requireCampaignMember';
 import { Player } from '../db/models/Player';
 import { Character } from '../db/models/Character';
@@ -585,16 +585,16 @@ export const validateInviteCode = async ({
     await connectDB();
     if (!isDBConnected()) throw new Error('Database not available');
 
-    const dbUser = await User.findOne({ providerId: user.id });
+    const dbUser = await identityRepository.findProfile(user.id);
     if (!dbUser) throw new Error('User not found');
 
     const normalizedInviteCode = data.inviteCode.trim().toUpperCase();
-    const campaign = await Campaign.findOne({ inviteCode: normalizedInviteCode });
+    const campaign = await campaigns.findByInviteCode(normalizedInviteCode);
     if (!campaign) throw new Error('Invalid invite code');
     if (campaign.status !== 'active') throw new Error('Campaign is not active');
 
     // Check if user is already a member
-    const userId = String(dbUser._id);
+    const userId = String(dbUser.id);
     const alreadyMember =
       (campaign.members ?? []).some((m) => String(m.userId) === userId) ||
       String(campaign.gameMasterId) === userId;
@@ -631,54 +631,19 @@ export const completeJoinWizard = async ({
     await connectDB();
     if (!isDBConnected()) throw new Error('Database not available');
 
-    const dbUser = await User.findOne({ providerId: user.id });
+    const dbUser = await identityRepository.findProfile(user.id);
     if (!dbUser) throw new Error('User not found');
 
-    const userId = String(dbUser._id);
+    const userId = String(dbUser.id);
     const now = new Date();
 
-    // 1. Add user to campaign members (with capacity check)
-    const updatedCampaign = await Campaign.findOneAndUpdate(
-      {
-        _id: data.campaignId,
-        status: 'active',
-        'members.userId': { $ne: dbUser._id },
-        $expr: {
-          $lt: [
-            {
-              $size: {
-                $filter: {
-                  input: { $ifNull: ['$members', []] },
-                  as: 'm',
-                  cond: { $eq: ['$$m.role', 'player'] },
-                },
-              },
-            },
-            { $ifNull: ['$maxPlayers', 4] },
-          ],
-        },
-      },
-      {
-        $addToSet: { members: { userId: dbUser._id, role: 'player', joinedAt: now } },
-      },
-      {
-        new: true,
-      }
-    );
-
-    if (!updatedCampaign) {
+    // 1. Add user to campaign members (with capacity check). One compare-and-set checks
+    // status, membership and the player limit together, so two joins cannot both take
+    // the last seat. Every refusal reports as "full", as the conditional update did.
+    const joined = await campaigns.addPlayer(data.campaignId, userId, now);
+    if (joined.outcome !== 'joined' || !joined.campaign) {
       throw new Error('Campaign is full');
     }
-
-    // 2. Update User.campaigns
-    await User.updateOne(
-      { _id: dbUser._id },
-      {
-        $addToSet: {
-          campaigns: { campaignId: updatedCampaign._id, status: 'active', joinedAt: now },
-        },
-      }
-    );
 
     // 3. Guard against duplicate player (race condition / double-submit)
     const existingPlayer = await Player.findOne({

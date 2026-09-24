@@ -1,195 +1,112 @@
-import mongoose, { type InferSchemaType, type Model } from 'mongoose';
+import { z } from 'zod';
+import { defineGraphModel } from '~/server/repositories/graph-model';
+import { cropSchema, now, objectId, touch, touchUpdate } from './schema-parts';
 
-// Picture crop reused from Character/Player — same shape.
-const pictureCropSchema = new mongoose.Schema(
-  {
-    x: { type: Number, required: true },
-    y: { type: Number, required: true },
-    width: { type: Number, required: true },
-    height: { type: Number, required: true },
-  },
-  { _id: false }
-);
+const abilityScoreSchema = z.object({
+  score: z.number().default(10),
+  mod: z.number().default(0),
+  save: z.number().default(0),
+});
 
-const abilityScoreSchema = new mongoose.Schema(
-  {
-    score: { type: Number, default: 10 },
-    mod: { type: Number, default: 0 },
-    save: { type: Number, default: 0 },
-  },
-  { _id: false }
-);
+const speedSchema = z.object({
+  kind: z.enum(['walk', 'fly', 'swim', 'climb', 'burrow']),
+  feet: z.number().default(30),
+  notes: z.string().default(''),
+});
 
-const speedSchema = new mongoose.Schema(
-  {
-    kind: {
-      type: String,
-      enum: ['walk', 'fly', 'swim', 'climb', 'burrow'],
-      required: true,
-    },
-    feet: { type: Number, default: 30 },
-    notes: { type: String, default: '' },
-  },
-  { _id: false }
-);
+const skillSchema = z.object({ name: z.string(), modifier: z.number().default(0) });
 
-const skillSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    modifier: { type: Number, default: 0 },
-  },
-  { _id: false }
-);
+const senseSchema = z.object({ name: z.string(), range: z.number().nullable().default(null) });
 
-const senseSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    range: { type: Number, default: null },
-  },
-  { _id: false }
-);
+const featureSchema = z.object({
+  section: z.enum(['traits', 'actions', 'bonusActions', 'reactions', 'legendaryActions']),
+  name: z.string(),
+  description: z.string().default(''),
+});
 
-const featureSchema = new mongoose.Schema(
-  {
-    section: {
-      type: String,
-      enum: ['traits', 'actions', 'bonusActions', 'reactions', 'legendaryActions'],
-      required: true,
-    },
-    name: { type: String, required: true },
-    description: { type: String, default: '' },
-  },
-  { _id: false }
-);
+const linkSchema = z.object({ name: z.string(), url: z.string() });
 
-const linkSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    url: { type: String, required: true },
-  },
-  { _id: false }
-);
+const crSchema = z.object({
+  value: z.number().default(0), // 0, 0.125 (1/8), 0.25 (1/4), 0.5 (1/2), int
+  xp: z.number().default(0),
+  proficiencyBonus: z.number().default(2),
+});
 
-const crSchema = new mongoose.Schema(
-  {
-    value: { type: Number, default: 0 }, // 0, 0.125 (1/8), 0.25 (1/4), 0.5 (1/2), int
-    xp: { type: Number, default: 0 },
-    proficiencyBonus: { type: Number, default: 2 },
-  },
-  { _id: false }
-);
-
-const monsterSchema = new mongoose.Schema({
+// Subdocument defaults of `() => ({})` are filled in by Mongoose: hence prefault.
+export const monsterSchema = z.object({
+  _id: objectId,
   // ---- Identity / taxonomy ----
-  name: { type: String, required: true },
-  size: {
-    type: String,
-    enum: ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'],
-    default: 'medium',
-  },
-  type: { type: String, default: '' },
-  subtype: { type: String, default: '' },
-  alignment: { type: String, default: '' },
+  name: z.string(),
+  size: z.enum(['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan']).default('medium'),
+  type: z.string().default(''),
+  subtype: z.string().default(''),
+  alignment: z.string().default(''),
 
   // ---- Stat block ----
-  armorClass: { type: Number, default: 10 },
-  armorClassNote: { type: String, default: '' },
-  hitPoints: {
-    type: new mongoose.Schema(
-      {
-        average: { type: Number, default: 1 },
-        formula: { type: String, default: '' },
-      },
-      { _id: false }
-    ),
-    default: () => ({}),
-  },
-  initiativeMod: { type: Number, default: 0 },
-  initiativePassive: { type: Number, default: 10 },
-  speeds: { type: [speedSchema], default: () => [{ kind: 'walk', feet: 30, notes: '' }] },
-  abilities: {
-    type: new mongoose.Schema(
-      {
-        str: { type: abilityScoreSchema, default: () => ({}) },
-        dex: { type: abilityScoreSchema, default: () => ({}) },
-        con: { type: abilityScoreSchema, default: () => ({}) },
-        int: { type: abilityScoreSchema, default: () => ({}) },
-        wis: { type: abilityScoreSchema, default: () => ({}) },
-        cha: { type: abilityScoreSchema, default: () => ({}) },
-      },
-      { _id: false }
-    ),
-    default: () => ({}),
-  },
-  skills: { type: [skillSchema], default: [] },
-  resistances: { type: [String], default: [] },
-  immunities: { type: [String], default: [] },
-  vulnerabilities: { type: [String], default: [] },
-  conditionImmunities: { type: [String], default: [] },
-  senses: { type: [senseSchema], default: [] },
-  passivePerception: { type: Number, default: 10 },
-  languages: { type: [String], default: [] },
-  cr: { type: crSchema, default: () => ({}) },
-  features: { type: [featureSchema], default: [] },
+  armorClass: z.number().default(10),
+  armorClassNote: z.string().default(''),
+  hitPoints: z
+    .object({ average: z.number().default(1), formula: z.string().default('') })
+    .prefault({}),
+  initiativeMod: z.number().default(0),
+  initiativePassive: z.number().default(10),
+  speeds: z.array(speedSchema).default(() => [{ kind: 'walk' as const, feet: 30, notes: '' }]),
+  abilities: z
+    .object({
+      str: abilityScoreSchema.prefault({}),
+      dex: abilityScoreSchema.prefault({}),
+      con: abilityScoreSchema.prefault({}),
+      int: abilityScoreSchema.prefault({}),
+      wis: abilityScoreSchema.prefault({}),
+      cha: abilityScoreSchema.prefault({}),
+    })
+    .prefault({}),
+  skills: z.array(skillSchema).default([]),
+  resistances: z.array(z.string()).default([]),
+  immunities: z.array(z.string()).default([]),
+  vulnerabilities: z.array(z.string()).default([]),
+  conditionImmunities: z.array(z.string()).default([]),
+  senses: z.array(senseSchema).default([]),
+  passivePerception: z.number().default(10),
+  languages: z.array(z.string()).default([]),
+  cr: crSchema.prefault({}),
+  features: z.array(featureSchema).default([]),
 
   // ---- Cartyx additions ----
-  picture: { type: String, default: '' },
-  pictureCrop: { type: pictureCropSchema, default: null },
-  links: { type: [linkSchema], default: [] },
-  gmNotes: { type: String, default: '' },
-  tags: { type: [String], default: [] },
-  sessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Session', default: null },
-  color: { type: String, default: '#9ca3af' }, // editable per the open-question answer
-  source: { type: String, enum: ['srd', 'custom'], default: 'custom' },
-  isHomebrew: { type: Boolean, default: false },
+  picture: z.string().default(''),
+  pictureCrop: cropSchema.nullable().default(null),
+  links: z.array(linkSchema).default([]),
+  gmNotes: z.string().default(''),
+  tags: z.array(z.string()).default([]),
+  sessionId: objectId.nullable().default(null),
+  color: z.string().default('#9ca3af'),
+  source: z.enum(['srd', 'custom']).default('custom'),
+  isHomebrew: z.boolean().default(false),
 
   // ---- Ownership ----
-  campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign', required: true },
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
+  campaignId: objectId,
+  createdBy: objectId,
+  createdAt: now(),
+  updatedAt: now(),
 });
 
-monsterSchema.pre('save', function () {
-  this.updatedAt = new Date();
+export type IMonster = z.infer<typeof monsterSchema>;
+
+export const Monster = defineGraphModel<IMonster>({
+  name: 'monsters',
+  kind: 'Monster',
+  modelName: 'Monster',
+  schema: monsterSchema,
+  index: {
+    campaignId: 'ix_s1',
+    createdBy: 'ix_s2',
+    name: 'ix_s3',
+    sessionId: 'ix_s4',
+    source: 'ix_s5',
+    updatedAt: 'ix_d1',
+  },
+  searchText: (monster) =>
+    [monster.name, ...monster.features.map((feature) => feature.description)].join(' '),
+  preSave: touch,
+  preFindOneAndUpdate: (update) => touchUpdate(update),
 });
-
-monsterSchema.pre('findOneAndUpdate', function () {
-  const update = this.getUpdate() as unknown;
-  if (!update) return;
-  if (Array.isArray(update)) {
-    let hasSetStage = false;
-    update.forEach((stage) => {
-      if (!stage || typeof stage !== 'object') return;
-      const stageObj = stage as Record<string, unknown>;
-      if (!('$set' in stageObj)) return;
-      hasSetStage = true;
-      (stageObj.$set as Record<string, unknown>).updatedAt = new Date();
-    });
-    if (!hasSetStage) update.push({ $set: { updatedAt: new Date() } });
-    this.setUpdate(update);
-    return;
-  }
-  const updateObj = update as Record<string, unknown>;
-  if ('$set' in updateObj) {
-    ((updateObj.$set as Record<string, unknown>) ??= {}).updatedAt = new Date();
-  } else {
-    updateObj.updatedAt = new Date();
-  }
-});
-
-// istanbul ignore next
-if (typeof (monsterSchema as { index?: unknown }).index === 'function') {
-  monsterSchema.index({ campaignId: 1, updatedAt: -1 });
-  monsterSchema.index({ campaignId: 1, name: 1 });
-  monsterSchema.index({ campaignId: 1, tags: 1 });
-  monsterSchema.index({ campaignId: 1, sessionId: 1 });
-  monsterSchema.index({ campaignId: 1, 'cr.value': 1 });
-  monsterSchema.index({ name: 'text', 'features.description': 'text' });
-}
-
-export type IMonster = InferSchemaType<typeof monsterSchema>;
-
-export const Monster: Model<IMonster> =
-  (mongoose.models.Monster as Model<IMonster>) ||
-  mongoose.model<IMonster>('Monster', monsterSchema);

@@ -6,7 +6,7 @@
  *     const { thing } = await import('~/server/functions/…')
  *   })
  * and a bundler follows that dynamic import even though a story never executes
- * it — dragging mongoose, the MongoDB driver and `@sentry/node-core` into a
+ * it — dragging the graph and CQL drivers and `@sentry/node-core` into a
  * browser bundle. In the real app the TanStack Start plugin strips server-fn
  * bodies before that can happen, but Storybook deliberately does not run that
  * plugin (see .storybook/vite.config.ts), so the server layer is aliased here.

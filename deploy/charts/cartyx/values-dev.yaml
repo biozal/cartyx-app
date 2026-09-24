@@ -39,3 +39,8 @@ tls:
 secret:
   create: false
   existingSecret: cartyx
+
+data:
+  enabled: true
+  cql:
+    stateKeyspace: cartyx_dev_state

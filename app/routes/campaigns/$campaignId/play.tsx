@@ -46,11 +46,11 @@ const getTabletopPartyTokenFn = createServerFn({ method: 'GET' })
     // Mint the token with the caller's campaign role so the tabletop-map party
     // can enforce GM-only relays (drawings, token create/update/delete). A
     // non-member resolves to 'player' and is still room-bound in onBeforeConnect.
-    const { User } = await import('~/server/db/models/User');
-    const { Campaign } = await import('~/server/db/models/Campaign');
-    const dbUser = await User.findOne({ providerId: user.id });
-    const campaign = dbUser ? await Campaign.findById(data.campaignId) : null;
-    const userId = dbUser ? String(dbUser._id) : '';
+    const { identityRepository } = await import('~/server/repositories/identity');
+    const { campaigns } = await import('~/server/repositories/campaigns');
+    const dbUser = await identityRepository.findProfile(user.id);
+    const campaign = dbUser ? await campaigns.get(data.campaignId) : null;
+    const userId = dbUser ? String(dbUser.id) : '';
     const isGM =
       !!campaign &&
       !!userId &&

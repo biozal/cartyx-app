@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const mockFindOneAndUpdate = vi.fn();
-const mockFindOne = vi.fn();
-const mockUpdateOne = vi.fn();
-vi.mock('~/server/db/models/User', () => ({
-  User: {
-    findOneAndUpdate: (...args: unknown[]) => mockFindOneAndUpdate(...args),
-    findOne: (...args: unknown[]) => mockFindOne(...args),
-    updateOne: (...args: unknown[]) => mockUpdateOne(...args),
-  },
-}));
+vi.mock('~/server/repositories/identity', () => import('../functions/identityTestDouble'));
+
+// These tests reset the module registry between cases so `oauth.ts` re-reads its
+// environment. The double is reached through the mocked path, which is the same
+// instance the code under test resolves; importing the double's own path would hand
+// this file a second copy whose mocks nothing calls.
+let identity: typeof import('../functions/identityTestDouble');
+async function useIdentity(profile: { id: string; role?: string } | null) {
+  identity = (await import('~/server/repositories/identity')) as unknown as typeof identity;
+  identity.resetIdentityDouble(profile);
+  return identity;
+}
 
 const mockConnectDB = vi.fn();
 const mockIsDBConnected = vi.fn(() => true);
@@ -24,13 +26,28 @@ const originalFetch = globalThis.fetch;
 // SESSION_SECRET drives the token-encryption key derivation.
 process.env.SESSION_SECRET = 'test-secret-for-unit-tests-at-least-32-chars';
 
-/** Helper: build the `findOne(...).select(...).lean()` chain used by revokeToken. */
-function mockFindOneReturning(value: unknown) {
-  mockFindOne.mockReturnValue({
-    select: vi.fn().mockReturnValue({
-      lean: vi.fn().mockResolvedValue(value),
-    }),
-  });
+/**
+ * The stored token generation `revokeToken` observes. `null` means the account has no
+ * usable token, which is what makes the early returns below meaningful.
+ */
+function storedAccessToken(
+  value: {
+    userId?: string;
+    providerId: string;
+    tokenRevision?: string;
+    accessToken: { ciphertext: string; iv: string; authTag: string };
+  } | null
+) {
+  identity.identityRepository.readAccessToken.mockResolvedValue(
+    value === null
+      ? null
+      : {
+          userId: value.userId ?? '1'.repeat(24),
+          providerId: value.providerId,
+          tokenRevision: value.tokenRevision ?? '11111111-1111-4111-8111-111111111111',
+          accessToken: value.accessToken,
+        }
+  );
 }
 
 describe('PKCE: generateCodeVerifier / deriveCodeChallenge', () => {
@@ -192,16 +209,16 @@ describe('PKCE: token exchange includes code_verifier', () => {
 });
 
 describe('upsertUser', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
-    mockFindOneAndUpdate.mockClear();
+    await useIdentity({ id: '1'.repeat(24), role: 'gm' });
     mockConnectDB.mockClear();
     mockIsDBConnected.mockReturnValue(true);
   });
 
-  it('rethrows when the DB upsert fails', async () => {
-    const dbError = new Error('MongoDB connection lost');
-    mockFindOneAndUpdate.mockRejectedValue(dbError);
+  it('rethrows when the identity write fails', async () => {
+    const dbError = new Error('Database not connected');
+    identity.identityRepository.recordLogin.mockRejectedValue(dbError);
 
     const { upsertUser } = await import('~/server/utils/oauth');
     const profile = {
@@ -219,10 +236,11 @@ describe('upsertUser', () => {
     // the OAuth callback relies on this throw to redirect to an error page rather
     // than logging the user in with an unpersisted "unknown" session.
     await expect(upsertUser(profile)).rejects.toThrow(dbError);
+    expect(identity.identityRepository.recordLogin).toHaveBeenCalledTimes(1);
   });
 
-  it('rethrows when the DB is not connected (no broken session)', async () => {
-    mockIsDBConnected.mockReturnValue(false);
+  it('rethrows when the store is not available (no broken session)', async () => {
+    identity.identityDouble.available = false;
 
     const { upsertUser } = await import('~/server/utils/oauth');
     const profile = {
@@ -239,11 +257,70 @@ describe('upsertUser', () => {
     // No DB means we can't persist the account: auth must fail rather than mint
     // an unpersisted "unknown" session.
     await expect(upsertUser(profile)).rejects.toThrow(/not connected/);
-    expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
+    expect(identity.identityRepository.recordLogin).not.toHaveBeenCalled();
+  });
+
+  it('refuses a login while the account is closed pending revocation', async () => {
+    const refusal = new Error('Identity login is closed pending revocation');
+    identity.revocationAdmission.assertOpen.mockRejectedValue(refusal);
+    identity.identityRepository.findUserId.mockResolvedValue('1'.repeat(24));
+
+    const { upsertUser } = await import('~/server/utils/oauth');
+    await expect(
+      upsertUser({
+        id: 'google_123',
+        provider: 'google' as const,
+        name: 'Test User',
+        email: 'test@example.com',
+        avatar: null,
+        accessToken: 'tok',
+        refreshToken: null,
+        tokenIssuedAt: Date.now(),
+      })
+    ).rejects.toThrow(refusal);
+    // The login must not be recorded either: a refused account stays as it was.
+    expect(identity.identityRepository.recordLogin).not.toHaveBeenCalled();
+  });
+
+  it('opens a barrier row for an account that has just been created', async () => {
+    identity.identityRepository.findUserId.mockResolvedValue(null);
+    identity.identityRepository.recordLogin.mockResolvedValue({ id: '1'.repeat(24), role: 'gm' });
+
+    const { upsertUser } = await import('~/server/utils/oauth');
+    await upsertUser({
+      id: 'google_new',
+      provider: 'google' as const,
+      name: 'New User',
+      email: 'new@example.com',
+      avatar: null,
+      accessToken: null,
+      refreshToken: null,
+      tokenIssuedAt: Date.now(),
+    });
+
+    expect(identity.revocationAdmission.assertOpen).not.toHaveBeenCalled();
+    expect(identity.revocationAdmission.ensureRow).toHaveBeenCalledWith('1'.repeat(24));
+  });
+
+  it('refuses to mint a session when the repository answers with no account', async () => {
+    identity.identityRepository.recordLogin.mockResolvedValue(null as never);
+    const { upsertUser } = await import('~/server/utils/oauth');
+    await expect(
+      upsertUser({
+        id: 'google_missing',
+        provider: 'google',
+        name: null,
+        email: null,
+        avatar: null,
+        accessToken: null,
+        refreshToken: null,
+        tokenIssuedAt: 1,
+      })
+    ).rejects.toThrow('Identity was not persisted');
   });
 
   it('persists provider tokens ENCRYPTED (not plaintext) and never returns them in the session user', async () => {
-    mockFindOneAndUpdate.mockResolvedValue({ role: 'gm' });
+    identity.identityRepository.recordLogin.mockResolvedValue({ id: '1'.repeat(24), role: 'gm' });
 
     const { upsertUser } = await import('~/server/utils/oauth');
     const profile = {
@@ -267,24 +344,23 @@ describe('upsertUser', () => {
     // Identity claims preserved.
     expect(sessionUser).toMatchObject({ id: 'google_789', provider: 'google', role: 'gm' });
 
-    // The persisted document must store encrypted tokens (ciphertext/iv/authTag),
-    // never the plaintext.
-    const update = mockFindOneAndUpdate.mock.calls[0][1] as {
-      $set: {
-        oauthTokens: { accessToken: Record<string, string>; refreshToken: Record<string, string> };
-      };
-    };
-    const persisted = JSON.stringify(update.$set.oauthTokens);
+    // What is handed to the store must be encrypted (ciphertext/iv/authTag), never the
+    // plaintext the provider returned.
+    const { oauthTokens } = identity.identityRepository.recordLogin.mock.calls[0][0];
+    const persisted = JSON.stringify(oauthTokens);
     expect(persisted).not.toContain('super-secret-access-token');
     expect(persisted).not.toContain('super-secret-refresh-token');
-    expect(update.$set.oauthTokens.accessToken).toHaveProperty('ciphertext');
-    expect(update.$set.oauthTokens.accessToken).toHaveProperty('iv');
-    expect(update.$set.oauthTokens.accessToken).toHaveProperty('authTag');
-    expect(update.$set.oauthTokens.refreshToken).toHaveProperty('ciphertext');
+    expect(oauthTokens.accessToken).toHaveProperty('ciphertext');
+    expect(oauthTokens.accessToken).toHaveProperty('iv');
+    expect(oauthTokens.accessToken).toHaveProperty('authTag');
+    expect(oauthTokens.refreshToken).toHaveProperty('ciphertext');
   });
 
   it('stores null token slots when the provider returned no token', async () => {
-    mockFindOneAndUpdate.mockResolvedValue({ role: 'player' });
+    identity.identityRepository.recordLogin.mockResolvedValue({
+      id: '1'.repeat(24),
+      role: 'player',
+    });
 
     const { upsertUser } = await import('~/server/utils/oauth');
     await upsertUser({
@@ -298,22 +374,18 @@ describe('upsertUser', () => {
       tokenIssuedAt: Date.now(),
     });
 
-    const update = mockFindOneAndUpdate.mock.calls[0][1] as {
-      $set: { oauthTokens: { accessToken: unknown; refreshToken: unknown } };
-    };
-    expect(update.$set.oauthTokens.accessToken).toBeNull();
-    expect(update.$set.oauthTokens.refreshToken).toBeNull();
+    const { oauthTokens } = identity.identityRepository.recordLogin.mock.calls[0][0];
+    expect(oauthTokens.accessToken).toBeNull();
+    expect(oauthTokens.refreshToken).toBeNull();
   });
 });
 
 describe('revokeToken (reads from encrypted server-side store)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
-    mockFindOne.mockReset();
-    mockUpdateOne.mockReset();
+    await useIdentity({ id: '1'.repeat(24), role: 'gm' });
     mockConnectDB.mockClear();
     mockIsDBConnected.mockReturnValue(true);
-    mockUpdateOne.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -339,7 +411,10 @@ describe('revokeToken (reads from encrypted server-side store)', () => {
   it('decrypts the stored Google token and calls the Google revoke endpoint, then clears tokens', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     globalThis.fetch = fetchMock;
-    mockFindOneReturning({ oauthTokens: { accessToken: await storedToken('google-access-xyz') } });
+    storedAccessToken({
+      providerId: 'google_123',
+      accessToken: await storedToken('google-access-xyz'),
+    });
 
     const { revokeToken } = await import('~/server/utils/oauth');
     await revokeToken(sessionUser('google', 'google_123'));
@@ -349,11 +424,12 @@ describe('revokeToken (reads from encrypted server-side store)', () => {
     expect(url).toContain('oauth2.googleapis.com/revoke');
     // The decrypted plaintext token is sent to the provider.
     expect(url).toContain(encodeURIComponent('google-access-xyz'));
-    // Tokens cleared after revocation.
-    expect(mockUpdateOne).toHaveBeenCalledWith(
-      { providerId: 'google_123' },
-      { $unset: { oauthTokens: '' } }
-    );
+    // Tokens cleared after revocation, against the generation that was observed.
+    expect(identity.identityRepository.clearTokens).toHaveBeenCalledWith({
+      userId: '1'.repeat(24),
+      providerId: 'google_123',
+      tokenRevision: '11111111-1111-4111-8111-111111111111',
+    });
   });
 
   it('decrypts the stored GitHub token and calls the GitHub token-delete endpoint', async () => {
@@ -361,7 +437,10 @@ describe('revokeToken (reads from encrypted server-side store)', () => {
     process.env.GITHUB_CLIENT_SECRET = 'test-client-secret';
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     globalThis.fetch = fetchMock;
-    mockFindOneReturning({ oauthTokens: { accessToken: await storedToken('gh-access-abc') } });
+    storedAccessToken({
+      providerId: 'github_456',
+      accessToken: await storedToken('gh-access-abc'),
+    });
 
     const { revokeToken } = await import('~/server/utils/oauth');
     await revokeToken(sessionUser('github', 'github_456'));
@@ -371,33 +450,129 @@ describe('revokeToken (reads from encrypted server-side store)', () => {
     expect(url).toContain('api.github.com/applications/test-client-id/token');
     expect(init.method).toBe('DELETE');
     expect(init.body).toContain('gh-access-abc');
-    expect(mockUpdateOne).toHaveBeenCalled();
+    expect(identity.identityRepository.clearTokens).toHaveBeenCalled();
 
     delete process.env.GITHUB_CLIENT_ID;
     delete process.env.GITHUB_CLIENT_SECRET;
   });
 
+  it('keeps the original generation fence after a login during provider revocation', async () => {
+    const observedRevision = '11111111-1111-4111-8111-111111111111';
+    let revision = observedRevision;
+    storedAccessToken({
+      providerId: 'google_1',
+      tokenRevision: observedRevision,
+      accessToken: await storedToken('older-access'),
+    });
+    globalThis.fetch = vi.fn(async () => {
+      // A login lands while the provider request is in flight, installing a newer
+      // generation. Clearing must not erase it.
+      revision = '22222222-2222-4222-8222-222222222222';
+      return { ok: true } as Response;
+    });
+    identity.identityRepository.clearTokens.mockImplementation(async (fence) =>
+      fence.tokenRevision === revision ? 'cleared' : 'stale'
+    );
+    const { revokeToken } = await import('~/server/utils/oauth');
+    await revokeToken(sessionUser('google'));
+    expect(identity.identityRepository.clearTokens).toHaveBeenCalledTimes(1);
+    expect(identity.identityRepository.clearTokens.mock.calls[0][0].tokenRevision).toBe(
+      observedRevision
+    );
+    expect(identity.identityRepository.readAccessToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not clear or retry after an uncertain provider request', async () => {
+    storedAccessToken({ providerId: 'google_1', accessToken: await storedToken('access') });
+    const fetchMock = vi.fn().mockRejectedValue(new Error('Synthetic network interruption'));
+    globalThis.fetch = fetchMock;
+    const { revokeToken } = await import('~/server/utils/oauth');
+    await revokeToken(sessionUser('google'));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(identity.identityRepository.clearTokens).not.toHaveBeenCalled();
+  });
+
   it('early-returns without fetch when no token is stored', async () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock;
-    mockFindOneReturning({ oauthTokens: undefined });
+    storedAccessToken(null);
 
     const { revokeToken } = await import('~/server/utils/oauth');
     await revokeToken(sessionUser('google'));
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(mockUpdateOne).not.toHaveBeenCalled();
+    expect(identity.identityRepository.clearTokens).not.toHaveBeenCalled();
   });
 
-  it('early-returns when the user document is not found', async () => {
+  it('early-returns when the account is not found', async () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock;
-    mockFindOneReturning(null);
+    storedAccessToken(null);
 
     const { revokeToken } = await import('~/server/utils/oauth');
     await revokeToken(sessionUser('google'));
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('closes the account before dispatching and reopens it once the provider answers', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
+    storedAccessToken({ providerId: 'google_1', accessToken: await storedToken('access') });
+
+    const { revokeToken } = await import('~/server/utils/oauth');
+    await revokeToken(sessionUser('google'));
+
+    const barrier = identity.revocationAdmission;
+    expect(barrier.beginRevocation).toHaveBeenCalledTimes(1);
+    expect(barrier.settle).toHaveBeenCalledWith('1'.repeat(24));
+    expect(barrier.strand).not.toHaveBeenCalled();
+    // Closing must happen before the request, or a lost outcome leaves the account open.
+    expect(barrier.beginRevocation.mock.invocationCallOrder[0]).toBeLessThan(
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]
+    );
+  });
+
+  it('leaves the account closed when the outcome is never learned', async () => {
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('Synthetic network interruption'));
+    storedAccessToken({ providerId: 'google_1', accessToken: await storedToken('access') });
+
+    const { revokeToken } = await import('~/server/utils/oauth');
+    await revokeToken(sessionUser('google'));
+
+    const barrier = identity.revocationAdmission;
+    expect(barrier.strand).toHaveBeenCalledWith('1'.repeat(24));
+    expect(barrier.settle).not.toHaveBeenCalled();
+    // The grant may or may not be gone, so the tokens are not cleared either.
+    expect(identity.identityRepository.clearTokens).not.toHaveBeenCalled();
+  });
+
+  it('dispatches once when the user logs out twice', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    globalThis.fetch = fetchMock;
+    storedAccessToken({ providerId: 'google_1', accessToken: await storedToken('access') });
+    // The row is already held by the first logout's attempt.
+    identity.revocationAdmission.beginRevocation.mockResolvedValue(null);
+
+    const { revokeToken } = await import('~/server/utils/oauth');
+    await revokeToken(sessionUser('google'));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(identity.identityRepository.clearTokens).not.toHaveBeenCalled();
+    expect(identity.revocationAdmission.strand).not.toHaveBeenCalled();
+  });
+
+  it('keeps an Apple logout local, opening no barrier', async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+    storedAccessToken({ providerId: 'apple_1', accessToken: await storedToken('access') });
+
+    const { revokeToken } = await import('~/server/utils/oauth');
+    await revokeToken(sessionUser('apple'));
+
+    // Apple has no revoke endpoint; the tokens are still cleared locally.
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(identity.revocationAdmission.beginRevocation).not.toHaveBeenCalled();
+    expect(identity.identityRepository.clearTokens).toHaveBeenCalled();
   });
 
   it('does not throw when the stored token cannot be decrypted (e.g. rotated SESSION_SECRET)', async () => {
@@ -409,7 +584,7 @@ describe('revokeToken (reads from encrypted server-side store)', () => {
     // SESSION_SECRET was rotated since the token was persisted).
     const valid = await storedToken('google-access-xyz');
     const tampered = { ...valid, ciphertext: Buffer.from('garbage-ciphertext').toString('base64') };
-    mockFindOneReturning({ oauthTokens: { accessToken: tampered } });
+    storedAccessToken({ providerId: 'google_123', accessToken: tampered });
 
     const { revokeToken } = await import('~/server/utils/oauth');
     // Logout must proceed gracefully: revokeToken must not throw to its caller.
@@ -417,6 +592,6 @@ describe('revokeToken (reads from encrypted server-side store)', () => {
 
     // Decryption failed before any provider call or token clear could happen.
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(mockUpdateOne).not.toHaveBeenCalled();
+    expect(identity.identityRepository.clearTokens).not.toHaveBeenCalled();
   });
 });

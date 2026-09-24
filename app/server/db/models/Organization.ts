@@ -1,68 +1,36 @@
-import mongoose, { type InferSchemaType, type Model } from 'mongoose';
-import { normalizeTags } from '~/server/utils/helpers';
+import { z } from 'zod';
+import { defineGraphModel } from '~/server/repositories/graph-model';
+import { imageSchema, now, objectId, tags, touchAndNormalizeTags } from './schema-parts';
 
-const locationLinkSchema = new mongoose.Schema(
-  {
-    locationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Location', required: true },
-    publicInfo: { type: String, default: '' },
-    privateInfo: { type: String, default: '' },
-  },
-  { _id: false }
-);
-
-const cropSchema = new mongoose.Schema(
-  {
-    x: { type: Number, required: true },
-    y: { type: Number, required: true },
-    width: { type: Number, required: true },
-    height: { type: Number, required: true },
-  },
-  { _id: false }
-);
-
-const imageSchema = new mongoose.Schema(
-  {
-    url: { type: String, required: true },
-    caption: { type: String, default: '' },
-    crop: { type: cropSchema, default: null },
-  },
-  { _id: false }
-);
-
-const organizationSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  publicInfo: { type: String, default: '' },
-  privateInfo: { type: String, default: '' },
-  isPublic: { type: Boolean, default: false },
-  images: { type: [imageSchema], default: [] },
-  locations: { type: [locationLinkSchema], default: [] },
-  tags: { type: [String], default: [] },
-  campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign', required: true },
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
+const locationLinkSchema = z.object({
+  locationId: objectId,
+  publicInfo: z.string().default(''),
+  privateInfo: z.string().default(''),
 });
 
-organizationSchema.pre('save', function () {
-  if (this.isModified('tags')) {
-    this.tags = normalizeTags(this.tags as string[]);
-  }
-  this.updatedAt = new Date();
+export const organizationSchema = z.object({
+  _id: objectId,
+  name: z.string(),
+  publicInfo: z.string().default(''),
+  privateInfo: z.string().default(''),
+  isPublic: z.boolean().default(false),
+  images: z.array(imageSchema).default([]),
+  locations: z.array(locationLinkSchema).default([]),
+  tags: tags(),
+  campaignId: objectId,
+  createdBy: objectId,
+  createdAt: now(),
+  updatedAt: now(),
 });
 
-// istanbul ignore next
-if (typeof (organizationSchema as { index?: unknown }).index === 'function') {
-  organizationSchema.index({ campaignId: 1 });
-  organizationSchema.index({ campaignId: 1, updatedAt: -1 });
-  organizationSchema.index({ createdBy: 1 });
-  organizationSchema.index({ tags: 1 });
-  organizationSchema.index({ isPublic: 1 });
-  organizationSchema.index({ 'locations.locationId': 1 });
-  organizationSchema.index({ name: 'text', publicInfo: 'text' });
-}
+export type IOrganization = z.infer<typeof organizationSchema>;
 
-export type IOrganization = InferSchemaType<typeof organizationSchema>;
-
-export const Organization: Model<IOrganization> =
-  (mongoose.models.Organization as Model<IOrganization>) ||
-  mongoose.model<IOrganization>('Organization', organizationSchema);
+export const Organization = defineGraphModel<IOrganization>({
+  name: 'organizations',
+  kind: 'Organization',
+  modelName: 'Organization',
+  schema: organizationSchema,
+  index: { campaignId: 'ix_s1', createdBy: 'ix_s2', isPublic: 'ix_b1', updatedAt: 'ix_d1' },
+  searchText: (organization) => `${organization.name} ${organization.publicInfo}`,
+  preSave: touchAndNormalizeTags,
+});

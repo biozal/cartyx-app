@@ -1,40 +1,29 @@
 #!/usr/bin/env python3
 """
-Reset the dev environment to a clean slate.
+Empty the dev environment's media stores, for a clean slate.
 
-Wipes EVERYTHING tied to the previous environment so tests start fresh:
-  - every MongoDB collection except `users` — chat messages, dice rolls,
-    campaigns, sessions, characters, monsters, maps, tokens, GM screens, notes,
-    and anything else. User accounts are PRESERVED (and their campaign
-    references reset) because the seed requires a GM user to exist and you need
-    to stay logged in.
+Wipes:
   - all locally-served upload files under public/uploads/.
   - all objects in the R2 (S3) object store.
 
-Enumerating live collections (rather than a hardcoded list) means new
-collections are wiped automatically and name drift can't leave data behind.
+The data itself lives in the graph and is emptied by `npm run dev:clear`
+(scripts/seed/cli.ts), which runs this script first. User accounts are kept there,
+so the seed can reuse them and you stay logged in.
 
 Usage:
-    scripts/.venv/bin/python scripts/dev_clear.py            # interactive confirmation
-    scripts/.venv/bin/python scripts/dev_clear.py --force    # skip confirmation
-
-Shortcut:
     npm run dev:clear
-    npm run dev:clear -- --force
+    npm run dev:clear -- --force    # skip confirmation
 
-Safety: refuses to run if NODE_ENV is "production", if MONGODB_URI contains
-"prod", or if R2_BUCKET contains "prod".
+Safety: refuses to run if NODE_ENV is "production" or if R2_BUCKET contains "prod"
+(the latter enforced by r2_util).
 """
 
 import os
-import re
 import shutil
 import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pymongo import MongoClient
-from pymongo.errors import ConfigurationError
 
 from r2_util import get_r2_client, r2_env
 
@@ -43,60 +32,18 @@ load_dotenv()
 # Repo root anchored to this script's location (scripts/ is one level down)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Collections we never wipe. Users are identity, not test data: the seed needs
-# a GM user to exist and you need to stay logged in across a reset.
-PRESERVE_COLLECTIONS = {"users"}
-
-
 # ---------------------------------------------------------------------------
 # Safety
 # ---------------------------------------------------------------------------
 
-def require_mongo_uri() -> str:
+def require_safe_environment() -> None:
     if os.environ.get("NODE_ENV") == "production":
         sys.exit("Refusing to run in production.")
-    uri = os.environ.get("MONGODB_URI")
-    if not uri:
-        sys.exit("MONGODB_URI is not set.")
-    if re.search(r"prod", uri, re.IGNORECASE):
-        sys.exit("MONGODB_URI looks like a production connection string. Aborting.")
-    return uri
-
-
-def get_db(uri: str):
-    client: MongoClient = MongoClient(uri)
-    db_name = os.environ.get("MONGODB_DB")
-    if db_name:
-        return client, client[db_name]
-    try:
-        return client, client.get_default_database()
-    except ConfigurationError:
-        sys.exit(
-            "MONGODB_URI does not include a database name and MONGODB_DB is not set.\n"
-            "Either add a database name to the URI (e.g. mongodb+srv://…/cartyx) "
-            "or set MONGODB_DB=cartyx in your .env file."
-        )
 
 
 # ---------------------------------------------------------------------------
 # Clear steps
 # ---------------------------------------------------------------------------
-
-def clear_database(db) -> int:
-    """Delete every document from every collection except preserved ones."""
-    total = 0
-    for name in sorted(db.list_collection_names()):
-        if name in PRESERVE_COLLECTIONS or name.startswith("system."):
-            print(f"  keep  {name}")
-            continue
-        result = db[name].delete_many({})
-        total += result.deleted_count
-        print(f"  clear {name} — {result.deleted_count} documents removed")
-    # Reset campaign references on the preserved users (don't delete users).
-    user_result = db.users.update_many({}, {"$set": {"campaigns": []}})
-    print(f"  patch users — cleared campaign refs from {user_result.modified_count} user(s)")
-    return total
-
 
 def clear_local_uploads() -> int:
     """Remove every locally-served upload under public/uploads/ (keep the dir)."""
@@ -143,35 +90,23 @@ def clear_r2_bucket() -> int:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    uri = require_mongo_uri()
+    require_safe_environment()
     force = "--force" in sys.argv
     bucket = os.environ.get("R2_BUCKET") or "(not configured)"
 
     if not force:
         print("\nThis will PERMANENTLY DELETE, for a clean test environment:")
-        print("  - every MongoDB collection except `users`")
         print("  - all files under public/uploads/")
         print(f"  - all objects in the R2 bucket '{bucket}'")
-        masked = re.sub(r"//[^@]+@", "//<credentials>@", uri)
-        print(f"\nMongo target: {masked}\n")
         if input("Proceed? (y/N) ").strip().lower() != "y":
             print("Aborted.")
-            return
+            sys.exit(1)
 
-    client, db = get_db(uri)
-    try:
-        print("\nDatabase:")
-        total = clear_database(db)
-        print("\nLocal uploads:")
-        clear_local_uploads()
-        print("\nR2 object store:")
-        clear_r2_bucket()
-        print(
-            f"\nDone. {total} documents deleted; public/uploads/ and the R2 bucket emptied. "
-            "User accounts preserved."
-        )
-    finally:
-        client.close()
+    print("\nLocal uploads:")
+    clear_local_uploads()
+    print("\nR2 object store:")
+    clear_r2_bucket()
+    print("\nDone. public/uploads/ and the R2 bucket emptied.")
 
 
 if __name__ == "__main__":

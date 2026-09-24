@@ -13,8 +13,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '@playwright/test';
-import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
+import { seededGameMaster } from '../fixtures/data';
+import { campaignFixtures } from '../fixtures/campaigns';
+import { graphDb, ObjectId, type Db } from '../../scripts/graph-db';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -31,7 +33,6 @@ interface Provisioned {
   tokenBId: string;
 }
 
-let client: MongoClient;
 let provisioned: Provisioned;
 
 function tokenDoc(
@@ -72,11 +73,9 @@ async function provision(db: Db): Promise<Provisioned> {
   const cookie = storage.cookies.find((c) => c.name === 'cartyx_session');
   if (!cookie) throw new Error('No cartyx_session cookie — globalSetup did not run?');
   const providerId = (decodeJwt(cookie.value) as { user?: { id?: string } }).user?.id;
-  const gm = await db.collection('users').findOne({ providerId });
-  if (!gm?._id) throw new Error('Session GM user not found');
+  const gm = seededGameMaster(providerId);
 
-  const stale = await db
-    .collection('campaigns')
+  const stale = await campaignFixtures
     .find({ name: CAMPAIGN_NAME }, { projection: { _id: 1 } })
     .toArray();
   if (stale.length) {
@@ -84,12 +83,12 @@ async function provision(db: Db): Promise<Provisioned> {
     await db.collection('mapToken').deleteMany({ campaignId: { $in: ids } });
     await db.collection('tabletopscreen').deleteMany({ campaignId: { $in: ids } });
     await db.collection('map').deleteMany({ campaignId: { $in: ids } });
-    await db.collection('campaigns').deleteMany({ _id: { $in: ids } });
+    await campaignFixtures.deleteMany({ _id: { $in: ids } });
   }
 
   const now = new Date();
   const campaignId = (
-    await db.collection('campaigns').insertOne({
+    await campaignFixtures.insertOne({
       gameMasterId: gm._id,
       name: CAMPAIGN_NAME,
       description: 'E2E measurement tool test.',
@@ -177,25 +176,19 @@ test.beforeAll(async () => {
   } catch {
     /* env may be set externally */
   }
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error('MONGODB_URI not set');
-  client = new MongoClient(uri);
-  await client.connect();
-  const db = process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+  const db = graphDb();
   provisioned = await provision(db);
 });
 
 test.afterAll(async () => {
-  if (!client) return;
   if (provisioned?.campaignId) {
-    const db = process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+    const db = graphDb();
     const cid = new ObjectId(provisioned.campaignId);
     await db.collection('mapToken').deleteMany({ campaignId: cid });
     await db.collection('tabletopscreen').deleteMany({ campaignId: cid });
     await db.collection('map').deleteMany({ campaignId: cid });
-    await db.collection('campaigns').deleteMany({ _id: cid });
+    await campaignFixtures.deleteMany({ _id: cid });
   }
-  await client.close();
 });
 
 test('selecting the ruler tool shows a crosshair cursor', async ({ page }) => {

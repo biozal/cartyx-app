@@ -14,18 +14,18 @@ paths they reference — local or R2 — and never touches the database.
 
 Usage:
     npm run dev:repair-images
-    # or: scripts/.venv/bin/python scripts/repair_seed_images.py
 
-Safety: refuses to run if NODE_ENV is "production" or MONGODB_URI contains "prod".
+Safety: refuses to run if NODE_ENV is "production". Run it through
+`npm run dev:repair-images`, which reads the campaigns from the graph first.
 """
 
 import hashlib
+import json
 import os
 import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pymongo import MongoClient
 
 # Reuse the seed's SVG generator + repo anchor (importing is safe — dev_seed
 # guards its insertion logic behind `if __name__ == "__main__"`) and the
@@ -69,15 +69,17 @@ def served_rel_path(image_path: str) -> str | None:
 
 
 def main() -> None:
-    uri = os.environ.get("MONGODB_URI")
-    if not uri:
-        sys.exit("MONGODB_URI is not set (check .env)")
-    if os.environ.get("NODE_ENV") == "production" or "prod" in uri.lower():
-        sys.exit("Refusing to run against a production-looking database.")
-
-    client = MongoClient(uri)
-    db_name = os.environ.get("MONGODB_DB")
-    db = client[db_name] if db_name else client.get_default_database()
+    if os.environ.get("NODE_ENV") == "production":
+        sys.exit("Refusing to run in production.")
+    # Campaigns live in the graph, which this script cannot read; `scripts/repair-images.ts`
+    # lists them and hands over the two fields needed here.
+    listing = os.environ.get("CARTYX_REPAIR_CAMPAIGNS", "").strip()
+    if not listing:
+        sys.exit(
+            "No campaign listing. Run `npm run dev:repair-images`, which reads the campaigns "
+            "and passes CARTYX_REPAIR_CAMPAIGNS."
+        )
+    campaigns = json.loads(Path(listing).read_text(encoding="utf-8"))
 
     # 1) Player portraits — republish the committed assets (R2 upload when the
     #    CDN is configured, local copy otherwise).
@@ -91,7 +93,7 @@ def main() -> None:
     ok = 0
     skipped = 0
     stale_origin = 0
-    for c in db.campaigns.find({}, {"name": 1, "imagePath": 1}):
+    for c in campaigns:
         image_path = c.get("imagePath")
         name = c.get("name") or "Campaign"
         rel = served_rel_path(image_path) if image_path else None
@@ -132,7 +134,6 @@ def main() -> None:
     if stale_origin:
         summary += f" {stale_origin} on a stale CDN origin (see warnings above)."
     print(summary)
-    client.close()
 
 
 if __name__ == "__main__":

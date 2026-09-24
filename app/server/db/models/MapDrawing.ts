@@ -1,57 +1,39 @@
-import mongoose, { type InferSchemaType, type Model } from 'mongoose';
+import { z } from 'zod';
+import { defineGraphModel } from '~/server/repositories/graph-model';
+import { now, objectId } from './schema-parts';
 
 // Freeform drawing placed on a map by a player or GM (pencil stroke, rectangle,
-// or ellipse). Any member can create a drawing; modification (resize/delete) is
-// gated to the author (createdBy) or any GM. All geometry is in MAP-LOCAL pixel
-// coordinates (the image's native pixel space), rendered scaled by the viewport.
-const mapDrawingSchema = new mongoose.Schema(
-  {
-    mapId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Map',
-      required: true,
-    },
-    // Denormalised for cheap auth checks (avoids a Map lookup per write).
-    campaignId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Campaign',
-      required: true,
-    },
-    // 'pencil' → freeform polyline (points); 'rect'/'ellipse' → bounding box.
-    kind: { type: String, enum: ['pencil', 'rect', 'ellipse'], required: true },
-    color: { type: String, default: '#e74c3c' },
-    // Line/stroke width in map-local pixels (rendered scaled by the viewport).
-    strokeWidth: { type: Number, default: 4 },
-    // Filled vs. outline (rect/ellipse only; ignored for pencil).
-    filled: { type: Boolean, default: false },
-    // Pencil: flattened [x0, y0, x1, y1, …] map-local points. Empty otherwise.
-    points: { type: [Number], default: [] },
-    // Bounding box for rect/ellipse (map-local pixels). Zero for pencil.
-    x: { type: Number, default: 0 },
-    y: { type: Number, default: 0 },
-    width: { type: Number, default: 0 },
-    height: { type: Number, default: 0 },
-    // The author. Used to gate modification: a player may resize/delete only
-    // their own drawing; a GM may modify anyone's.
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now },
-  },
-  { collection: 'mapDrawing' }
-);
+// or ellipse). Modification is gated to the author (createdBy) or any GM. All
+// geometry is in MAP-LOCAL pixel coordinates, rendered scaled by the viewport.
+export const mapDrawingSchema = z.object({
+  _id: objectId,
+  mapId: objectId,
+  // Denormalised for cheap auth checks (avoids a Map lookup per write).
+  campaignId: objectId,
+  // 'pencil' → freeform polyline (points); 'rect'/'ellipse' → bounding box.
+  kind: z.enum(['pencil', 'rect', 'ellipse']),
+  color: z.string().default('#e74c3c'),
+  strokeWidth: z.number().default(4),
+  // Filled vs. outline (rect/ellipse only; ignored for pencil).
+  filled: z.boolean().default(false),
+  // Pencil: flattened [x0, y0, x1, y1, …] map-local points. Empty otherwise.
+  points: z.array(z.number()).default([]),
+  // Bounding box for rect/ellipse (map-local pixels). Zero for pencil.
+  x: z.number().default(0),
+  y: z.number().default(0),
+  width: z.number().default(0),
+  height: z.number().default(0),
+  createdBy: objectId,
+  createdAt: now(),
+  updatedAt: now(),
+});
 
-// istanbul ignore next
-if (typeof (mapDrawingSchema as { index?: unknown }).index === 'function') {
-  // Queries always filter by (mapId, campaignId), so index the compound shape.
-  mapDrawingSchema.index({ mapId: 1, campaignId: 1 });
-}
+export type IMapDrawing = z.infer<typeof mapDrawingSchema>;
 
-export type IMapDrawing = InferSchemaType<typeof mapDrawingSchema>;
-
-export const MapDrawing: Model<IMapDrawing> =
-  (mongoose.models.MapDrawing as Model<IMapDrawing>) ||
-  mongoose.model<IMapDrawing>('MapDrawing', mapDrawingSchema);
+export const MapDrawing = defineGraphModel<IMapDrawing>({
+  name: 'mapDrawing',
+  kind: 'MapDrawing',
+  modelName: 'MapDrawing',
+  schema: mapDrawingSchema,
+  index: { mapId: 'ix_s1', campaignId: 'ix_s2' },
+});

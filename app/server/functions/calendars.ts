@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AnyBulkWriteOperation } from 'mongoose';
+import type { BulkOperation } from '../repositories/graph-model';
 import { requireCampaignMember } from '../utils/requireCampaignMember';
 import { serverCaptureException } from '../utils/telemetry';
 import { Calendar } from '../db/models/Calendar';
@@ -115,7 +115,7 @@ export const upsertCalendar = async ({ data }: { data: z.infer<typeof upsertCale
       { start: 1, end: 1 }
     ).lean()) as AnyDoc[];
     const invalidEventIds: string[] = [];
-    const ops: AnyBulkWriteOperation[] = [];
+    const ops: BulkOperation[] = [];
     for (const ev of events) {
       const start = ev.start as CalDate;
       const end = (ev.end as CalDate | null) ?? null;

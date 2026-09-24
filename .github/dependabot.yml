@@ -26,10 +26,6 @@ updates:
     cooldown:
       default-days: 10
     ignore:
-      # Only accept patch and minor updates for major version packages
-      - dependency-name: 'mongoose'
-        update-types: ['version-update:semver-major']
-
       # --- FontAwesome 7 boundary ---
       # FontAwesome 7 is a major architectural rewrite that breaks
       # compatibility with @fortawesome/react-fontawesome v3 and our
@@ -166,8 +162,6 @@ updates:
         versions: ['>=7.0.0']
       - dependency-name: 'vitest'
         versions: ['>=5.0.0']
-      - dependency-name: 'mongoose'
-        update-types: ['version-update:semver-major']
 
   - package-ecosystem: 'github-actions'
     directory: '/'

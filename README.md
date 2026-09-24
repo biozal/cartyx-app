@@ -31,7 +31,7 @@ npm run dev            # http://localhost:3000
 | **UI**            | React 19 + [Tailwind CSS v4](https://tailwindcss.com)                               |
 | **Routing**       | [TanStack Router](https://tanstack.com/router) (file-based, type-safe)              |
 | **Auth**          | Custom OAuth (Google, GitHub, Apple) via [JOSE](https://github.com/panva/jose) JWT  |
-| **Database**      | MongoDB Atlas ([Mongoose](https://mongoosejs.com))                                  |
+| **Database**      | JanusGraph + Cassandra (graph models with the Mongoose API over an entity store)    |
 | **Image Storage** | [Cloudflare R2](https://developers.cloudflare.com/r2/) (S3-compatible)              |
 | **Dates**         | [Day.js](https://day.js.org) with timezone + relative time plugins                  |
 | **Build**         | [Vite](https://vitejs.dev) + [Nitro](https://nitro.build/)                          |
@@ -51,7 +51,7 @@ app/
 ├── routes/          # TanStack Router file-based routes
 ├── server/
 │   ├── functions/   # Server functions (auth, campaigns, uploads)
-│   ├── models/      # Mongoose models
+│   ├── models/      # Graph models (Mongoose API)
 │   └── utils/       # Server utilities (OAuth, helpers)
 ├── styles/          # Global CSS (Tailwind)
 ├── utils/           # Client utilities (date, image compression)
@@ -79,9 +79,9 @@ npm run test:coverage  # Coverage report
 
 ### Dev Data Scripts
 
-Standalone Python scripts for seeding and clearing test data in MongoDB. These are
-intentionally separate from the app's TypeScript codebase — simple, dependency-free
-(just pymongo), and easy to modify.
+Seeding builds its documents with a standalone Python script (`scripts/dev_seed.py`,
+which writes a plan) and persists them to JanusGraph/Cassandra from TypeScript
+(`scripts/seed/cli.ts`), through the same models the app uses.
 
 ```bash
 # One-time setup
@@ -91,12 +91,13 @@ scripts/.venv/bin/pip install -r scripts/requirements.txt
 # Seed 3 test campaigns with sessions, characters, and placeholder images
 npm run dev:seed
 
-# Wipe all campaign data (interactive confirmation)
+# Wipe all campaign data and media, keeping accounts (interactive confirmation)
 npm run dev:clear
 npm run dev:clear -- --force   # skip confirmation
 ```
 
-Both scripts require `MONGODB_URI` to be set and refuse to run against production databases.
+Both need the local data settings (`GREMLIN_*`, `CQL_*`; see `.env.example`) and refuse
+production targets.
 
 ## Observability
 
@@ -118,12 +119,11 @@ For contributor setup, story-writing patterns, interaction tests, and Storybook-
 
 ## Environments
 
-| Environment    | URL              | Branch        | Database             |
-| -------------- | ---------------- | ------------- | -------------------- |
-| **Production** | `app.cartyx.io`  | `main`        | MongoDB Atlas (prod) |
-| **Staging**    | `dev.cartyx.io`  | `dev`         | MongoDB Atlas (dev)  |
-| **PR Preview** | `*.vercel.app`   | any PR branch | MongoDB Atlas (dev)  |
-| **Local**      | `localhost:3000` | any           | Local or Atlas dev   |
+| Environment    | URL              | Branch | Database                                     |
+| -------------- | ---------------- | ------ | -------------------------------------------- |
+| **Production** | `app.cartyx.io`  | `main` | MongoDB Atlas (prod) — graph cutover pending |
+| **Staging**    | `dev.cartyx.io`  | `dev`  | JanusGraph + Cassandra (dev)                 |
+| **Local**      | `localhost:3000` | any    | JanusGraph + Cassandra (`npm run db:up`)     |
 
 ## Branching Strategy
 
@@ -142,7 +142,7 @@ feature/my-feature → PR against dev → preview URL → merge to dev (staging)
 See [docs/deployment.md](docs/deployment.md) for complete setup instructions including:
 
 - Vercel project configuration
-- MongoDB Atlas setup
+- Data stores (JanusGraph + Cassandra)
 - OAuth provider setup (Google, GitHub, Apple)
 - Cloudflare DNS and R2 image storage
 - Environment variables reference

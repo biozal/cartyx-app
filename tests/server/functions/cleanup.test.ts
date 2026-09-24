@@ -31,18 +31,16 @@ vi.mock('~/server/utils/telemetry', () => ({
   serverCaptureEvent: vi.fn(),
 }));
 
-vi.mock('~/server/db/models/User', () => ({ User: { findOne: vi.fn() } }));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findById: vi.fn(), find: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/Location', () => ({ Location: { find: vi.fn() } }));
 vi.mock('~/server/db/models/Character', () => ({ Character: { find: vi.fn() } }));
 vi.mock('~/server/db/models/Player', () => ({ Player: { find: vi.fn() } }));
 vi.mock('~/server/db/models/AudioAsset', () => ({ AudioAsset: { find: vi.fn() } }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
-import { Campaign } from '~/server/db/models/Campaign';
+import { resetIdentityDouble } from './identityTestDouble';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { Location } from '~/server/db/models/Location';
 import { Character } from '~/server/db/models/Character';
 import { Player } from '~/server/db/models/Player';
@@ -109,8 +107,8 @@ beforeEach(() => {
   process.env.CDN_URL = 'https://cdn.example.com';
 
   vi.mocked(getSession).mockResolvedValue(mockSession);
-  vi.mocked(User.findOne).mockResolvedValue({ _id: 'dbuser1' } as never);
-  vi.mocked(Campaign.findById).mockResolvedValue({
+  resetIdentityDouble({ id: 'dbuser1' });
+  campaignsDouble.get.mockResolvedValue({
     _id: 'c1',
     gameMasterId: 'dbuser1',
     members: [],
@@ -121,7 +119,7 @@ beforeEach(() => {
   vi.mocked(Location.find).mockReturnValue(leanCursorChain([]) as never);
   vi.mocked(Character.find).mockReturnValue(leanCursorChain([]) as never);
   vi.mocked(Player.find).mockReturnValue(leanCursorChain([]) as never);
-  vi.mocked(Campaign.find).mockReturnValue(leanCursorChain([]) as never);
+  campaignsDouble.listAll.mockResolvedValue([]);
   vi.mocked(AudioAsset.find).mockReturnValue(leanCursorChain([]) as never);
   setupR2Objects({});
 });

@@ -23,11 +23,10 @@ vi.mock('~/server/session', () => ({
 
 vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
+  isDBConnected: vi.fn(() => true),
 }));
 
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('../server/functions/identityTestDouble'));
 
 // `PackageClientError`/`SoundboardClientError` are real classes rather than
 // `vi.fn()`s because the wrappers' rate-limit gates construct one and the
@@ -77,7 +76,7 @@ vi.mock('~/server/utils/telemetry', () => ({
 }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
+import { resetIdentityDouble } from '../server/functions/identityTestDouble';
 import {
   PackageClientError,
   listPackages,
@@ -124,11 +123,9 @@ const SESSION_USER = {
  */
 const DB_USER_ID = 'mongo-user-1';
 
-/** Stubs `User.findOne(...).select(...).lean()` — mirrors `requireActor`'s chain. */
+/** Stubs the identity repository's provider-id lookup. */
 function mockDbUser(id: string | null) {
-  vi.mocked(User.findOne).mockReturnValue({
-    select: () => ({ lean: () => Promise.resolve(id ? { _id: id } : null) }),
-  } as unknown as ReturnType<typeof User.findOne>);
+  resetIdentityDouble(id ? { id } : null);
 }
 
 const FAKE_PACKAGE = {

@@ -29,10 +29,6 @@ vi.mock('~/server/db/connection', () => ({
   isDBConnected: vi.fn().mockReturnValue(true),
 }));
 
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn(), findOneAndUpdate: vi.fn() },
-}));
-
 import { logoutFn } from '~/server/functions/auth';
 
 const _logoutFn = logoutFn as unknown as () => Promise<{ success: boolean }>;

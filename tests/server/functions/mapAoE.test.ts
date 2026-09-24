@@ -5,12 +5,8 @@ vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
   isDBConnected: vi.fn(() => true),
 }));
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn(), findById: vi.fn() },
-}));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findById: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/MapAoE', () => ({
   MapAoE: {
     create: vi.fn(),
@@ -29,8 +25,8 @@ vi.mock('~/server/utils/telemetry', () => ({
 }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
-import { Campaign } from '~/server/db/models/Campaign';
+import { identityDouble, resetIdentityDouble } from './identityTestDouble';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { MapAoE } from '~/server/db/models/MapAoE';
 import { Map as MapModel } from '~/server/db/models/Map';
 import {
@@ -52,7 +48,7 @@ const mockSession = {
   refreshToken: null,
   tokenIssuedAt: 0,
 };
-const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
+const mockDbUser = { id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
 const mockGMCampaign = {
   _id: 'camp-1',
   gameMasterId: 'dbuser-1',
@@ -113,9 +109,8 @@ const _moveMapAoE = moveMapAoE as unknown as (args: {
 }) => Promise<{ aoe: Record<string, unknown> }>;
 
 function mockUserFindById(user: Record<string, unknown> | null) {
-  vi.mocked(User.findById).mockReturnValue({
-    select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(user) }),
-  } as never);
+  // The placer's name, which is read for someone other than the acting user.
+  identityDouble.displayName = user as never;
 }
 
 function mockMapBounds(imageWidth = 1000, imageHeight = 1000) {
@@ -127,8 +122,8 @@ function mockMapBounds(imageWidth = 1000, imageHeight = 1000) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(mockSession);
-  vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
-  vi.mocked(Campaign.findById).mockResolvedValue(mockGMCampaign);
+  resetIdentityDouble(mockDbUser);
+  campaignsDouble.get.mockResolvedValue(mockGMCampaign);
   mockUserFindById({ firstName: 'Ada', lastName: 'Lovelace' });
   mockMapBounds();
   vi.mocked(MapAoE.countDocuments).mockResolvedValue(0 as never);
@@ -140,7 +135,7 @@ beforeEach(() => {
 
 describe('createMapAoE', () => {
   it('sets createdBy and createdByName (resolved from the placer) and returns the doc', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
     mockUserFindById({ firstName: 'Ada', lastName: 'Lovelace' });
     const created = makeAoE({ createdByName: 'Ada Lovelace' });
     vi.mocked(MapAoE.create).mockResolvedValue({
@@ -172,7 +167,7 @@ describe('createMapAoE', () => {
   });
 
   it('clamps an out-of-bounds origin into the map image bounds', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
     mockMapBounds(1000, 800);
     const created = makeAoE();
     vi.mocked(MapAoE.create).mockResolvedValue({ ...created, toObject: () => created } as never);
@@ -197,7 +192,7 @@ describe('createMapAoE', () => {
   });
 
   it('rejects creation when the map is already at the template cap', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
     vi.mocked(MapAoE.countDocuments).mockResolvedValue(200 as never);
 
     await expect(
@@ -218,7 +213,7 @@ describe('createMapAoE', () => {
   });
 
   it('persists an optional label when provided', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
     mockUserFindById({ firstName: 'Ada', lastName: 'Lovelace' });
     const created = makeAoE({ createdByName: 'Ada Lovelace', label: 'Fireball' });
     vi.mocked(MapAoE.create).mockResolvedValue({
@@ -247,7 +242,7 @@ describe('createMapAoE', () => {
   });
 
   it('falls back to email, then Unknown, when the placer has no name', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
     mockUserFindById({ email: 'ada@example.com' });
     const created = makeAoE({ createdByName: 'ada@example.com' });
     vi.mocked(MapAoE.create).mockResolvedValue({
@@ -272,7 +267,7 @@ describe('createMapAoE', () => {
   });
 
   it('rejects a non-member (via requireCampaignMember)', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockNonMemberCampaign);
+    campaignsDouble.get.mockResolvedValue(mockNonMemberCampaign);
 
     await expect(
       _createMapAoE({
@@ -312,7 +307,7 @@ describe('listMapAoE', () => {
   }
 
   it('returns docs to a player (non-GM) — not GM-gated', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
     const docs = [makeAoE(), makeAoE({ _id: 'aoe-2', createdBy: 'someone-else' })];
     mockFind(docs);
 
@@ -338,7 +333,7 @@ describe('listMapAoE', () => {
 
 describe('removeMapAoE', () => {
   it('allows a player to remove their own AoE', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
     const doc = makeAoE({ createdBy: 'dbuser-1' });
     vi.mocked(MapAoE.findOne).mockResolvedValue(doc as never);
 
@@ -351,7 +346,7 @@ describe('removeMapAoE', () => {
   });
 
   it("throws Forbidden when a player removes another member's AoE", async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
     const doc = makeAoE({ createdBy: 'other' });
     vi.mocked(MapAoE.findOne).mockResolvedValue(doc as never);
 
@@ -363,7 +358,7 @@ describe('removeMapAoE', () => {
   });
 
   it("allows a GM to remove anyone's AoE", async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockGMCampaign);
+    campaignsDouble.get.mockResolvedValue(mockGMCampaign);
     const doc = makeAoE({ createdBy: 'other' });
     vi.mocked(MapAoE.findOne).mockResolvedValue(doc as never);
 
@@ -390,7 +385,7 @@ describe('removeMapAoE', () => {
 
 describe('moveMapAoE', () => {
   it('allows a player to move their own AoE', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
     const doc = makeAoE({ createdBy: 'dbuser-1' });
     vi.mocked(MapAoE.findOne).mockResolvedValue(doc as never);
 
@@ -406,7 +401,7 @@ describe('moveMapAoE', () => {
   });
 
   it("throws Forbidden when a player moves another member's AoE, and does not save", async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
     const doc = makeAoE({ createdBy: 'other' });
     vi.mocked(MapAoE.findOne).mockResolvedValue(doc as never);
 
@@ -420,7 +415,7 @@ describe('moveMapAoE', () => {
   });
 
   it("allows a GM to move anyone's AoE", async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockGMCampaign);
+    campaignsDouble.get.mockResolvedValue(mockGMCampaign);
     const doc = makeAoE({ createdBy: 'other' });
     vi.mocked(MapAoE.findOne).mockResolvedValue(doc as never);
 
@@ -450,7 +445,7 @@ describe('moveMapAoE', () => {
 
 describe('clearMapAoE', () => {
   it('GM clears all AoEs on the map', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockGMCampaign);
+    campaignsDouble.get.mockResolvedValue(mockGMCampaign);
     vi.mocked(MapAoE.deleteMany).mockResolvedValue({ deletedCount: 3 } as never);
 
     const result = await _clearMapAoE({ data: { campaignId: 'camp-1', mapId: 'map-1' } });
@@ -460,7 +455,7 @@ describe('clearMapAoE', () => {
   });
 
   it('throws Forbidden for a non-GM', async () => {
-    vi.mocked(Campaign.findById).mockResolvedValue(mockPlayerCampaign);
+    campaignsDouble.get.mockResolvedValue(mockPlayerCampaign);
 
     await expect(_clearMapAoE({ data: { campaignId: 'camp-1', mapId: 'map-1' } })).rejects.toThrow(
       'Forbidden'

@@ -1,67 +1,42 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockCommand, mockConnectDB, mockIsDBConnected, mongooseState } = vi.hoisted(() => ({
-  mockCommand: vi.fn(),
+const { mockConnectDB, mockRequireDataAvailable } = vi.hoisted(() => ({
   mockConnectDB: vi.fn(),
-  mockIsDBConnected: vi.fn(),
-  mongooseState: { db: undefined as unknown },
+  mockRequireDataAvailable: vi.fn(),
 }));
 
-vi.mock('mongoose', () => ({
-  default: {
-    connection: {
-      get db() {
-        return mongooseState.db;
-      },
-    },
-  },
-}));
-
-vi.mock('~/server/db/connection', () => ({
-  connectDB: mockConnectDB,
-  isDBConnected: mockIsDBConnected,
-}));
+vi.mock('~/server/db/connection', () => ({ connectDB: mockConnectDB }));
+vi.mock('~/server/db/data-runtime', () => ({ requireDataAvailable: mockRequireDataAvailable }));
 
 import { healthCheck } from '~/server/functions/health';
+import { DataUnavailableError } from '~/server/db/data-unavailable';
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockIsDBConnected.mockReturnValue(true);
-  mockCommand.mockResolvedValue({ ok: 1 });
-  mongooseState.db = { admin: () => ({ command: mockCommand }) };
+  mockConnectDB.mockResolvedValue(undefined);
+  mockRequireDataAvailable.mockResolvedValue(undefined);
 });
 
 describe('healthCheck', () => {
-  it('connects, pings Mongo, and reports ok', async () => {
+  it('connects, probes the data stores, and reports ok', async () => {
     await expect(healthCheck()).resolves.toEqual({ ok: true });
     expect(mockConnectDB).toHaveBeenCalled();
-    expect(mockCommand).toHaveBeenCalledWith({ ping: 1 });
+    expect(mockRequireDataAvailable).toHaveBeenCalled();
   });
 
-  it('throws when the DB is not connected', async () => {
-    mockIsDBConnected.mockReturnValue(false);
-    await expect(healthCheck()).rejects.toThrow('Database not connected');
-    expect(mockCommand).not.toHaveBeenCalled();
-  });
-
-  it('tags the "not connected" error with status 503 when isDBConnected is false', async () => {
-    mockIsDBConnected.mockReturnValue(false);
+  it('fails with a 503 "Database not connected" when a store is unavailable', async () => {
+    mockRequireDataAvailable.mockRejectedValue(new DataUnavailableError());
     await expect(healthCheck()).rejects.toMatchObject({
       status: 503,
       message: 'Database not connected',
     });
   });
 
-  it('tags the "not connected" error with status 503 when mongoose.connection.db is undefined', async () => {
-    mongooseState.db = undefined;
-    await expect(healthCheck()).rejects.toMatchObject({
-      status: 503,
-      message: 'Database not connected',
-    });
-  });
-
-  it('propagates ping failures', async () => {
-    mockCommand.mockRejectedValue(new Error('no reachable servers'));
-    await expect(healthCheck()).rejects.toThrow('no reachable servers');
+  it('propagates a failure to compose the data runtime', async () => {
+    mockConnectDB.mockRejectedValue(
+      Object.assign(new Error('Missing GREMLIN_URL'), { status: 503 })
+    );
+    await expect(healthCheck()).rejects.toMatchObject({ status: 503 });
+    expect(mockRequireDataAvailable).not.toHaveBeenCalled();
   });
 });

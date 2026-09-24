@@ -1,48 +1,33 @@
-import mongoose, { type InferSchemaType, type Model } from 'mongoose';
+import { z } from 'zod';
+import { defineGraphModel } from '~/server/repositories/graph-model';
 import { SESSION_EVENT_TYPES } from '~/types/tabletop';
+import { now, objectId } from './schema-parts';
 
-const sessionEventSchema = new mongoose.Schema(
-  {
-    campaignId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Campaign',
-      required: true,
-    },
-    sessionId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Session',
-      required: true,
-    },
-    timestamp: { type: Date, default: Date.now },
-    eventType: {
-      type: String,
-      enum: SESSION_EVENT_TYPES,
-      required: true,
-    },
-    documentId: {
-      type: mongoose.Schema.Types.ObjectId,
-      required: true,
-    },
-    collection: { type: String, required: true },
-    tabletopScreenId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'TabletopScreen',
-      required: true,
-    },
-    triggeredBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-    displayName: { type: String, required: true },
+export const sessionEventSchema = z.object({
+  _id: objectId,
+  campaignId: objectId,
+  sessionId: objectId,
+  timestamp: now(),
+  eventType: z.enum(SESSION_EVENT_TYPES),
+  documentId: objectId,
+  collection: z.string(),
+  tabletopScreenId: objectId,
+  triggeredBy: objectId,
+  displayName: z.string(),
+});
+
+export type ISessionEvent = z.infer<typeof sessionEventSchema>;
+
+export const SessionEvent = defineGraphModel<ISessionEvent>({
+  name: 'sessionevent',
+  kind: 'SessionEvent',
+  modelName: 'SessionEvent',
+  schema: sessionEventSchema,
+  index: {
+    campaignId: 'ix_s1',
+    sessionId: 'ix_s2',
+    documentId: 'ix_s3',
+    tabletopScreenId: 'ix_s4',
+    timestamp: 'ix_d1',
   },
-  { collection: 'sessionevent' }
-);
-
-sessionEventSchema.index({ campaignId: 1, sessionId: 1, timestamp: 1 });
-
-export type ISessionEvent = InferSchemaType<typeof sessionEventSchema>;
-
-export const SessionEvent: Model<ISessionEvent> =
-  (mongoose.models.SessionEvent as Model<ISessionEvent>) ||
-  mongoose.model<ISessionEvent>('SessionEvent', sessionEventSchema);
+});

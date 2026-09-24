@@ -200,7 +200,10 @@ function renderPng(svg) {
 
 async function main() {
   loadEnv();
-  if (process.env.NODE_ENV === 'production' || /prod/i.test(process.env.MONGODB_URI ?? '')) {
+  if (
+    process.env.NODE_ENV === 'production' ||
+    /prod/i.test(`${process.env.GREMLIN_URL ?? ''} ${process.env.CQL_STATE_KEYSPACE ?? ''}`)
+  ) {
     console.error('Refusing to run against a production-looking environment.');
     process.exit(1);
   }

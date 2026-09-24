@@ -1,14 +1,15 @@
 {
+  // Type-check only: esbuild bundles src/ together with the app's graph modules it
+  // imports, so resolution follows the bundler, and `~/*` is the app's own alias.
   "compilerOptions": {
     "target": "ES2023",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "outDir": "dist",
-    "rootDir": "src",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
     "strict": true,
     "skipLibCheck": true,
-    "sourceMap": true,
-    "types": ["node"]
+    "types": ["node"],
+    "paths": { "~/*": ["./../app/*"] }
   },
   "include": ["src"],
   "exclude": ["src/**/*.test.ts"]

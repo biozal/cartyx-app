@@ -46,14 +46,14 @@ jobs:
         run: |
           docker build \
             --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
-            -t "${{ steps.tags.outputs.realtime }}" realtime
+            -f realtime/Dockerfile -t "${{ steps.tags.outputs.realtime }}" .
           docker push "${{ steps.tags.outputs.realtime }}"
 
       - name: Build and push audio-worker image
         run: |
           docker build \
             --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
-            -t "${{ steps.tags.outputs.audioworker }}" audio-worker
+            -f audio-worker/Dockerfile -t "${{ steps.tags.outputs.audioworker }}" .
           docker push "${{ steps.tags.outputs.audioworker }}"
 
       - name: Build and push web image

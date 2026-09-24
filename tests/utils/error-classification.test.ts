@@ -2,6 +2,30 @@ import { describe, it, expect } from 'vitest';
 import { isInfrastructureFailure, BackendUnavailableError } from '~/utils/error-classification';
 
 describe('isInfrastructureFailure', () => {
+  it('treats a failed graph or CQL request as an outage, but not a lost graph race', () => {
+    expect(
+      isInfrastructureFailure(
+        new Error(
+          'Graph request failed; a submitted write may have committed. Reconcile before retrying.'
+        )
+      )
+    ).toBe(true);
+    expect(
+      isInfrastructureFailure(
+        new Error(
+          'CQL request failed; a submitted mutation may have committed. Read its revision before retrying.'
+        )
+      )
+    ).toBe(true);
+    expect(
+      isInfrastructureFailure(
+        new Error(
+          'Graph request conflict; a submitted write may have committed. Reconcile before retrying.'
+        )
+      )
+    ).toBe(false);
+  });
+
   it('classifies fetch network errors as infrastructure', () => {
     expect(isInfrastructureFailure(new TypeError('Failed to fetch'))).toBe(true); // Chrome
     expect(isInfrastructureFailure(new TypeError('Load failed'))).toBe(true); // Safari

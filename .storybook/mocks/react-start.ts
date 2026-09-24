@@ -11,7 +11,7 @@
  * and both exist purely to define server endpoints — so the builder chain is
  * reproduced here and the resulting endpoint throws a clear message if a story
  * ever calls it. Pair this with the `~/server/**` alias, which keeps the handler
- * bodies (and therefore mongoose) out of the bundle entirely.
+ * bodies (and therefore the data drivers) out of the bundle entirely.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */

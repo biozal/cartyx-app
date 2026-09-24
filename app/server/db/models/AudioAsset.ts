@@ -1,33 +1,40 @@
-import mongoose, { type InferSchemaType, type Model } from 'mongoose';
-import { normalizeTags } from '~/server/utils/helpers';
+import { z } from 'zod';
+import { defineGraphModel } from '~/server/repositories/graph-model';
 import { AUDIO_KINDS, AUDIO_STATUSES } from '~/types/audio';
+import { now, objectId, tags, touchAndNormalizeTags } from './schema-parts';
 
-const renditionSchema = new mongoose.Schema(
-  { key: String, url: String, bytes: Number },
-  { _id: false }
-);
+const renditionSchema = z.object({
+  key: z.string().nullish(),
+  url: z.string().nullish(),
+  bytes: z.number().nullish(),
+});
 
-const audioAssetSchema = new mongoose.Schema({
-  ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  title: { type: String, required: true },
-  kind: { type: String, enum: AUDIO_KINDS, required: true },
+// A nested path in Mongoose: it always exists, each rendition absent until written.
+const renditionsSchema = z.object({
+  opus: renditionSchema.nullish(),
+  aac: renditionSchema.nullish(),
+});
 
-  environment: { type: [String], default: [] },
-  mood: { type: [String], default: [] },
-  intensity: { type: Number, min: 1, max: 5, default: null },
-  tags: { type: [String], default: [] },
+export const audioAssetSchema = z.object({
+  _id: objectId,
+  ownerId: objectId,
+  title: z.string(),
+  kind: z.enum(AUDIO_KINDS),
 
-  sourceKey: {
-    type: String,
-    required: function (this: { status?: string }) {
-      return this.status !== 'failed';
-    },
-  },
+  environment: z.array(z.string()).default([]),
+  mood: z.array(z.string()).default([]),
+  intensity: z.number().min(1).max(5).nullable().default(null),
+  tags: tags(),
+
+  // Nullable because `reapRejectedUploads` (audio-worker/src/claim.ts) clears it
+  // once it has reclaimed the R2 object, so the row cannot be re-reaped. Mirrors
+  // `onceSourceKey` and `sourceBytes`, which have always been nullable.
+  sourceKey: z.string().nullable().default(null),
   // The object's REAL size, measured by confirmAudioUpload's HeadObject. Null
   // until then — deliberately: this used to be seeded at row creation from the
   // client's self-declared `bytes`, which meant anything reading it before
   // confirm got an unverified number the uploader chose.
-  sourceBytes: { type: Number, default: null },
+  sourceBytes: z.number().nullable().default(null),
   // Written ONLY by a confirm SUCCESS path — `confirmAudioUpload`'s, and
   // `confirmOnceVariantUpload`'s. (This comment used to claim a single writer;
   // that was never true once Task 18 landed, and a false premise reads exactly
@@ -48,21 +55,15 @@ const audioAssetSchema = new mongoose.Schema({
   //
   // Cross-service contract field: declared here because the web app owns
   // the schema, even though the worker doesn't read it.
-  confirmedAt: { type: Date, default: null },
-  renditions: {
-    opus: { type: renditionSchema, default: undefined },
-    aac: { type: renditionSchema, default: undefined },
-  },
+  confirmedAt: z.coerce.date().nullable().default(null),
+  renditions: renditionsSchema.prefault({}),
   // The phase 2 ∞/1× music variant (`kind: 'music'` only) — the composed
   // ending the board's `1×` position plays instead of looping. Written by
   // Task 18's attach flow (`createOnceVariantUpload` -> confirm -> the
   // worker), never at main ingest time. Every reader must still treat this
   // as optional: an asset attached before Task 18, or one whose owner never
   // attaches a once-variant, has it absent forever.
-  onceRenditions: {
-    opus: { type: renditionSchema, default: undefined },
-    aac: { type: renditionSchema, default: undefined },
-  },
+  onceRenditions: renditionsSchema.prefault({}),
   // The once-variant's own uploaded source object key, mirroring `sourceKey`
   // above. Null until `createOnceVariantUpload` presigns one. Kept
   // separately from `sourceKey` rather than overwriting it: the main
@@ -70,7 +71,7 @@ const audioAssetSchema = new mongoose.Schema({
   // and the two need independent keys so their renditions can't collide
   // (see `variant` below and `renditionKeyBase`'s callers in
   // audio-worker/src/process.ts).
-  onceSourceKey: { type: String, default: null },
+  onceSourceKey: z.string().nullable().default(null),
   // The once-source object's REAL size, measured by
   // `confirmOnceVariantUpload`'s HeadObject — mirrors `sourceBytes` above,
   // same shape and same nullability, for the same reason: null until
@@ -101,43 +102,12 @@ const audioAssetSchema = new mongoose.Schema({
   // `audio-worker/src/process.ts` and `reapAbandonedOnceUploads` in
   // `audio-worker/src/claim.ts` (both clear, -> null). If `onceSourceKey`
   // ever grows a new writer, that writer owns this field too.
-  onceSourceBytes: { type: Number, default: null },
-  // When the CURRENT once-variant attach presigned its upload — the clock
-  // `reapAbandonedOnceUploads` (audio-worker/src/claim.ts) measures a stuck
-  // attach against. Cross-service contract field: written here, read only by
-  // the worker.
   //
-  // It exists because that reaper used to gate on `updatedAt`, and
-  // `updatedAt` cannot answer the question it was being asked. "How long has
-  // this attach been stuck?" is a JOB-LIVENESS question; `updatedAt` answers
-  // "when was this document last modified at all", and unrelated writers
-  // legitimately bump it. `updateAudioAsset` and `bulkTagAudioAssets` are
-  // both unfenced facet edits — retitle the track, add a tag — so a GM who
-  // edits an asset whose once-attach died mid-PUT pushes the reap out by the
-  // full timeout, every time, and there is no self-service recovery:
-  // `createOnceVariantUpload` requires `status: 'ready'` and the row is
-  // stuck in `uploading`. Editing it again (or a bulk retag that happens to
-  // include it) postpones it again, indefinitely. A dedicated field is
-  // immune by construction. (The mirror-image case is `AudioPackage`'s
-  // optimistic-concurrency precondition, which is CORRECTLY `updatedAt`:
-  // there the question really is "has this document been modified since I
-  // read it", so any writer bumping it should be a conflict.)
-  //
-  // INVARIANT, and it is what keeps this field cheap: it has EXACTLY ONE
-  // writer, `createOnceVariantUpload` in `app/server/functions/audio.ts`,
-  // which is also the only write in either package that can put a row into
-  // `status: 'uploading', variant: 'once'` — the only state the reaper reads
-  // it in. Nothing else may stamp it, and nothing needs to clear it: a value
-  // left over from a finished attach is unreachable, because getting back
-  // into the state that reads it necessarily runs the one writer again. If a
-  // second path into `uploading`/`once` is ever added, that path owns this
-  // field too.
-  //
-  // Rows written before this field existed lack it, and the reaper falls
-  // back to `updatedAt` for exactly those (see its `$or`) — old rows keep
-  // today's behaviour rather than being treated as infinitely stale, which
-  // would reap every in-flight attach at deploy time.
-  onceUploadStartedAt: { type: Date, default: null },
+  // Zod strips what it does not declare, and `audioAssetSchema.parse` runs
+  // inside the compare-and-set mutator on every create and every update, so
+  // a `$set` naming a field missing from this schema is discarded silently.
+  // That is why the declaration and the invariant live together.
+  onceSourceBytes: z.number().nullable().default(null),
   // Which pipeline pass the row's CURRENT status/attempts/claim state
   // describes: 'main' for the ordinary source -> renditions pipeline (every
   // asset, including every one that predates this field), 'once' while a
@@ -156,7 +126,8 @@ const audioAssetSchema = new mongoose.Schema({
   // `processAsset`'s catch never ran at all. That third path used to fall
   // through to the main pipeline's `failed`/`lastError` write and brick the
   // music asset exactly as described below.
-  // This is a Task 18 review fix, not the original design: `status`:
+  //
+  // This is a Task 18 review fix, not the original design: `status:
   // 'failed'` describes the WHOLE row under this shared-state scheme, so a
   // failed once-variant used to be indistinguishable from a failed MAIN
   // asset, and a `PermanentError` (over-cap, silent, ...) on the once file
@@ -203,7 +174,7 @@ const audioAssetSchema = new mongoose.Schema({
   // that reason is wrong, and it never goes away on its own. The same
   // per-variant queue fixes this; so, more cheaply, would clearing
   // `unplayable` when an asset is seen `ready` again.
-  variant: { type: String, enum: ['main', 'once'], default: 'main' },
+  variant: z.enum(['main', 'once']).default('main'),
   // The once job's own error, kept separate from `lastError` (which
   // describes the MAIN pipeline and must never be overwritten by a once
   // failure). Set by `markOnceFailed`/`reapAbandonedOnceUploads` whenever a
@@ -211,9 +182,47 @@ const audioAssetSchema = new mongoose.Schema({
   // it is display-only context for "what happened last time," overwritten
   // by the next attach attempt's own failure, if any, and left stale
   // (harmlessly) after a successful attach.
-  onceLastError: { type: String, default: null },
+  onceLastError: z.string().nullable().default(null),
+  // When the CURRENT once-variant attach presigned its upload — the clock
+  // `reapAbandonedOnceUploads` (audio-worker/src/claim.ts) measures a stuck
+  // attach against. Cross-service contract field: written here, read only by
+  // the worker.
+  //
+  // It exists because that reaper used to gate on `updatedAt`, and
+  // `updatedAt` cannot answer the question it was being asked. "How long has
+  // this attach been stuck?" is a JOB-LIVENESS question; `updatedAt` answers
+  // "when was this document last modified at all", and unrelated writers
+  // legitimately bump it. `updateAudioAsset` and `bulkTagAudioAssets` are
+  // both unfenced facet edits — retitle the track, add a tag — so a GM who
+  // edits an asset whose once-attach died mid-PUT pushes the reap out by the
+  // full timeout, every time, and there is no self-service recovery:
+  // `createOnceVariantUpload` requires `status: 'ready'` and the row is
+  // stuck in `uploading`. Editing it again (or a bulk retag that happens to
+  // include it) postpones it again, indefinitely. A dedicated field is
+  // immune by construction. (The mirror-image case is `AudioPackage`'s
+  // optimistic-concurrency precondition, which is CORRECTLY `updatedAt`:
+  // there the question really is "has this document been modified since I
+  // read it", so any writer bumping it should be a conflict.)
+  //
+  // INVARIANT, and it is what keeps this field cheap: it has EXACTLY ONE
+  // writer, `createOnceVariantUpload` in `app/server/functions/audio.ts`,
+  // which is also the only write in either package that can put a row into
+  // `status: 'uploading', variant: 'once'` — the only state the reaper reads
+  // it in. Nothing else may stamp it, and nothing needs to clear it: a value
+  // left over from a finished attach is unreachable, because getting back
+  // into the state that reads it necessarily runs the one writer again. If a
+  // second path into `uploading`/`once` is ever added, that path owns this
+  // field too.
+  //
+  // Rows written before this field existed lack it, and the reaper falls
+  // back to `updatedAt` for exactly those (see its `$or`) — old rows keep
+  // today's behaviour rather than being treated as infinitely stale, which
+  // would reap every in-flight attach at deploy time. The `.default(null)`
+  // below is what makes that true of a stored row read back through this
+  // schema, so no version bump is needed to introduce the field.
+  onceUploadStartedAt: z.coerce.date().nullable().default(null),
 
-  durationMs: { type: Number, default: null },
+  durationMs: z.number().nullable().default(null),
   // Exact decoded length in samples per channel at 48 kHz (the rate every
   // rendition is produced at — see RENDITION_SAMPLE_RATE in
   // audio-worker/src/ffmpeg.ts), NOT at `sampleRate` below, which records what
@@ -228,19 +237,19 @@ const audioAssetSchema = new mongoose.Schema({
   // the container's own duration adds more on top (+312 samples for an
   // Ogg/Opus upload, +1440 for ADTS AAC — both measured). An audible tick on
   // every repeat of an ambience loop is the failure that produces.
-  durationSamples: { type: Number, default: null },
+  durationSamples: z.number().nullable().default(null),
   // The loudnorm TARGET the worker normalized to (-20), not a measurement:
   // single-pass loudnorm doesn't guarantee the output lands on it. Named for
   // what it is so phase 2's gain logic can't mistake it for a measured value;
   // a real two-pass measurement would be a separate `loudnessLufs` field.
-  loudnessTargetLufs: { type: Number, default: null },
-  sampleRate: { type: Number, default: null },
-  channels: { type: Number, default: null },
-  peaks: { type: [Number], default: [] },
+  loudnessTargetLufs: z.number().nullable().default(null),
+  sampleRate: z.number().nullable().default(null),
+  channels: z.number().nullable().default(null),
+  peaks: z.array(z.number()).default([]),
 
-  status: { type: String, enum: AUDIO_STATUSES, default: 'uploading' },
-  attempts: { type: Number, default: 0 },
-  lastError: { type: String, default: null },
+  status: z.enum(AUDIO_STATUSES).default('uploading'),
+  attempts: z.number().default(0),
+  lastError: z.string().nullable().default(null),
   // "This source can never succeed" — set by the worker when a validation step
   // rejects the file itself (over the 30-minute cap, zero samples, wholly
   // silent, truncated) rather than when a transient fault ran out of attempts.
@@ -248,51 +257,45 @@ const audioAssetSchema = new mongoose.Schema({
   // run, and each Retry click would buy another pass of pinned CPU on a
   // single-node cluster for a guaranteed identical outcome. Cross-service
   // contract field, written by the worker through the raw driver.
-  permanentFailure: { type: Boolean, default: false },
-  claimedAt: { type: Date, default: null },
-  claimedBy: { type: String, default: null },
+  permanentFailure: z.boolean().default(false),
+  claimedAt: z.coerce.date().nullable().default(null),
+  claimedBy: z.string().nullable().default(null),
   // Retry backoff gate, written by the audio worker (`requeueForRetry` in
   // audio-worker/src/process.ts) and read by its claim query
   // (`claimNext` in audio-worker/src/claim.ts): a `pending` row is only
   // claimable once this is null/absent or in the past. Declared here because
   // the field is a cross-service contract, not worker-local state — the web
   // app owns the schema both services write.
-  nextAttemptAt: { type: Date, default: null },
+  nextAttemptAt: z.coerce.date().nullable().default(null),
 
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
+  createdAt: now(),
+  updatedAt: now(),
 });
 
-audioAssetSchema.pre('save', function () {
-  if (this.isModified('tags')) {
-    this.tags = normalizeTags(this.tags);
-  }
-  this.updatedAt = new Date();
-});
+export type IAudioAsset = z.infer<typeof audioAssetSchema>;
 
-// istanbul ignore next
-if (typeof (audioAssetSchema as { index?: unknown }).index === 'function') {
-  // `listAudioAssets`'s `kind` filter, and its `{ tags: { $all: [...] } }`
-  // filter (multikey).
-  audioAssetSchema.index({ ownerId: 1, kind: 1 });
-  audioAssetSchema.index({ ownerId: 1, tags: 1 });
-  // The unfiltered library page: `find({ ownerId }).sort({ createdAt: -1, _id: -1 })`,
-  // plus the compound pagination cursor's `createdAt` range.
-  audioAssetSchema.index({ ownerId: 1, createdAt: -1 });
-  // Drives the worker's atomic claim: `claimNext` matches `{ status: 'pending', ... }`
-  // and sorts `{ createdAt: 1 }` (audio-worker/src/claim.ts), and `reapStale`
-  // matches on `status` too.
-  audioAssetSchema.index({ status: 1, createdAt: 1 });
-  // There is deliberately NO `{ title: 'text' }` index. Title search is
+export const AudioAsset = defineGraphModel<IAudioAsset>({
+  name: 'audioassets',
+  kind: 'AudioAsset',
+  modelName: 'AudioAsset',
+  schema: audioAssetSchema,
+  // `listAudioAssets` filters by owner, kind and tags and pages by createdAt; the
+  // worker's claim matches on status and takes the oldest by createdAt.
+  //
+  // There is deliberately NO search index on `title`. Title search is
   // `{ $regex: escapeRegExp(search), $options: 'i' }` in `listAudioAssets` —
   // `$text` is not used anywhere in this codebase, and a text index cannot
-  // serve a `$regex` query. It only ever cost: Atlas tokenizes and writes an
-  // index entry per word of every title on every insert and every title edit,
-  // to answer a query nothing issues.
-}
-
-export type IAudioAsset = InferSchemaType<typeof audioAssetSchema>;
-
-export const AudioAsset: Model<IAudioAsset> =
-  (mongoose.models.AudioAsset as Model<IAudioAsset>) ||
-  mongoose.model<IAudioAsset>('AudioAsset', audioAssetSchema);
+  // serve a `$regex` query. It only ever cost: every title is tokenized and an
+  // index entry written per word on every insert and every title edit, to
+  // answer a query nothing issues.
+  index: {
+    ownerId: 'ix_s1',
+    kind: 'ix_s2',
+    status: 'ix_s3',
+    variant: 'ix_s4',
+    createdAt: 'ix_d1',
+    // The once-reaper's liveness clock: `reapAbandonedOnceUploads` ranges on it.
+    onceUploadStartedAt: 'ix_d2',
+  },
+  preSave: touchAndNormalizeTags,
+});

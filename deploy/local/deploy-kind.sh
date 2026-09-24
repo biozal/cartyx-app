@@ -64,6 +64,36 @@ down() {
   fi
 }
 
+# The chart creates keyspaces and roles; the application's own tables, property keys
+# and indexes come from its migrations. Neither service is published outside the
+# cluster, so schema work forwards both for the length of this one step.
+apply_schemas() {
+  local infra kubeconfig gremlin_pf cql_pf
+  infra=${CARTYX_INFRASTRUCTURE_DIR:-$(cd "$REPO_ROOT/../cartyx-infrastructure" && pwd)}
+  kubeconfig="$infra/.local/data/$CLUSTER.kubeconfig"
+  [ -f "$kubeconfig" ] || die "No data kubeconfig at $kubeconfig; data-kind.sh should have written one."
+
+  log "Forwarding the data services to apply schemas..."
+  kubectl --kubeconfig "$kubeconfig" -n "$NAMESPACE" port-forward svc/cartyx-data-janusgraph 18182:8182 >/dev/null &
+  gremlin_pf=$!
+  kubectl --kubeconfig "$kubeconfig" -n "$NAMESPACE" port-forward svc/cartyx-data-cassandra 19042:9042 >/dev/null &
+  cql_pf=$!
+  # shellcheck disable=SC2064 # expand the PIDs now, not when the trap fires.
+  trap "kill $gremlin_pf $cql_pf 2>/dev/null || true" RETURN
+  local attempt
+  for attempt in $(seq 1 30); do
+    if nc -z localhost 18182 2>/dev/null && nc -z localhost 19042 2>/dev/null; then break; fi
+    [ "$attempt" -lt 30 ] || die "The data services never accepted a forwarded connection."
+    sleep 1
+  done
+
+  CARTYX_INFRASTRUCTURE_DIR="$infra" \
+    GREMLIN_URL=wss://localhost:18182/gremlin \
+    CQL_CONTACT_POINT=127.0.0.1 CQL_PORT=19042 CQL_TLS_SERVER_NAME=localhost \
+    CQL_DATACENTER=dc1 CQL_STATE_KEYSPACE=cartyx_state \
+    node "$REPO_ROOT/scripts/dev-schema.mjs"
+}
+
 verify_endpoint() {
   local url=$1 name=$2 attempt
   log "Verifying $name at $url ..."
@@ -78,17 +108,9 @@ verify_endpoint() {
 up() {
   require_tools
 
-  local session_secret mongodb_uri
+  local session_secret
   session_secret=$(read_env_value SESSION_SECRET || true)
   [ -n "${session_secret:-}" ] || die "SESSION_SECRET is empty or missing in $ENV_FILE. It MUST match the value the app signs party tokens with."
-  mongodb_uri=$(read_env_value MONGODB_URI || true)
-  [ -n "${mongodb_uri:-}" ] || die "MONGODB_URI is empty or missing in $ENV_FILE. The web app cannot pass /readyz without MongoDB (name a dedicated database in the URI path, e.g. .../cartyx_local)."
-  # Redact credentials before logging: only print what follows the last "@".
-  if [[ "$mongodb_uri" == *@* ]]; then
-    log "MONGODB_URI set — using ...@${mongodb_uri##*@}"
-  else
-    log "MONGODB_URI set — using the configured database."
-  fi
 
   if ! kind get clusters 2>/dev/null | grep -qx "$CLUSTER"; then
     log "Creating kind cluster '$CLUSTER' (host 1999 -> realtime, host 3200 -> web)..."
@@ -97,8 +119,13 @@ up() {
     log "Reusing existing kind cluster '$CLUSTER'."
   fi
 
+  log "Deploying persistent Cassandra and JanusGraph infrastructure..."
+  DATA_KIND_CLUSTER="$CLUSTER" bash "$SCRIPT_DIR/data-kind.sh"
+
+  apply_schemas
+
   log "Building realtime image $REALTIME_IMAGE..."
-  docker build -t "$REALTIME_IMAGE" "$REPO_ROOT/realtime"
+  docker build -f "$REPO_ROOT/realtime/Dockerfile" -t "$REALTIME_IMAGE" "$REPO_ROOT"
 
   log "Building web image $WEB_IMAGE (client env baked at build time)..."
   docker build -f "$REPO_ROOT/Dockerfile.web" \
@@ -106,7 +133,7 @@ up() {
     -t "$WEB_IMAGE" "$REPO_ROOT"
 
   log "Building audio-worker image $AUDIO_WORKER_IMAGE..."
-  docker build -t "$AUDIO_WORKER_IMAGE" "$REPO_ROOT/audio-worker"
+  docker build -f "$REPO_ROOT/audio-worker/Dockerfile" -t "$AUDIO_WORKER_IMAGE" "$REPO_ROOT"
 
   log "Loading images into kind..."
   kind load docker-image "$REALTIME_IMAGE" --name "$CLUSTER"
@@ -141,7 +168,6 @@ up() {
     -f "$CHART_DIR/values-local.yaml" \
     --namespace "$NAMESPACE" --create-namespace \
     --set-string secret.values.sessionSecret="$(esc "$session_secret")" \
-    --set-string secret.values.mongodbUri="$(esc "$mongodb_uri")" \
     ${extra_sets[@]+"${extra_sets[@]}"}
 
   # Tags are the constant "local" with pullPolicy: Never, so a re-run with a
@@ -158,7 +184,7 @@ up() {
 
   verify_endpoint "http://localhost:1999/healthz" "realtime"
   verify_endpoint "http://localhost:3200/healthz" "web"
-  verify_endpoint "http://localhost:3200/readyz" "web readiness (Mongo ping)"
+  verify_endpoint "http://localhost:3200/readyz" "web readiness (graph and Cassandra probes)"
   log "Ready. Web: http://localhost:3200  Realtime: localhost:1999"
   log "Note: OAuth logins need the :3200 redirect URI registered (see deploy/local/README.md)."
 }

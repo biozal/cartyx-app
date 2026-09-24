@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { getSession, clearSession } from '../session';
 import { revokeToken } from '../utils/oauth';
 import { connectDB, isDBConnected } from '../db/connection';
-import { User } from '../db/models/User';
+import { identityRepository, ensureIdentityAvailable } from '../repositories/identity';
 import { serverCaptureException, serverCaptureEvent } from '../utils/telemetry';
 import { withLogging } from '../utils/logger';
 import {
@@ -30,10 +30,9 @@ export const getMe = withLogging('auth.getMe', async () => {
     if (!user) return null;
 
     // Sync role from DB (read-only — don't update lastLoginAt on every page load)
-    await connectDB();
-    if (isDBConnected()) {
+    if (await ensureIdentityAvailable()) {
       try {
-        const stored = await User.findOne({ providerId: user.id }).lean();
+        const stored = await identityRepository.findProfile(user.id);
         if (stored) return toClientUser({ ...user, role: stored.role as string });
       } catch (e) {
         serverCaptureException(e, user.id, { action: 'getMe', step: 'roleSyncFromDB' });
@@ -78,14 +77,11 @@ export const getUserPreferences = withLogging(
       const user = await getSession();
       if (!user) return fallback;
 
-      await connectDB();
-      if (!isDBConnected()) return fallback;
+      if (!(await ensureIdentityAvailable())) return fallback;
 
-      const stored = await User.findOne({ providerId: user.id })
-        .select('preferences')
-        .lean<{ preferences?: { rulerColor?: string } }>();
+      const stored = await identityRepository.readPreferences(user.id);
       return {
-        rulerColor: stored?.preferences?.rulerColor || DEFAULT_RULER_COLOR,
+        rulerColor: stored?.rulerColor || DEFAULT_RULER_COLOR,
       };
     } catch (e) {
       serverCaptureException(e, undefined, { action: 'getUserPreferences' });
@@ -104,13 +100,9 @@ export const setRulerColor = withLogging(
       if (!user) throw new Error('Not authenticated');
       userId = user.id;
 
-      await connectDB();
-      if (!isDBConnected()) throw new Error('Database not available');
+      if (!(await ensureIdentityAvailable())) throw new Error('Database not available');
 
-      await User.updateOne(
-        { providerId: user.id },
-        { $set: { 'preferences.rulerColor': data.rulerColor } }
-      );
+      await identityRepository.setRulerColor(user.id, data.rulerColor);
 
       serverCaptureEvent(user.id, 'ruler_color_updated', { ruler_color: data.rulerColor });
       return { rulerColor: data.rulerColor };

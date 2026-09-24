@@ -1,79 +1,61 @@
-import mongoose, { type InferSchemaType, type Model } from 'mongoose';
+import { z } from 'zod';
+import { defineGraphModel } from '~/server/repositories/graph-model';
 import { GRID_STYLES, TABLETOP_MODES } from '~/types/tabletop';
+import { now, objectId, subdocumentId } from './schema-parts';
 
 export const TABLETOP_LIMITS = {
   MAX_WINDOWS: 20,
 } as const;
 
-const windowSchema = new mongoose.Schema(
-  {
-    collection: { type: String, required: true },
-    documentId: { type: mongoose.Schema.Types.ObjectId, required: true },
-    state: {
-      type: String,
-      enum: ['open', 'minimized', 'hidden'],
-      default: 'open',
-    },
-    x: { type: Number, default: null },
-    y: { type: Number, default: null },
-    width: { type: Number, default: null },
-    height: { type: Number, default: null },
-    zIndex: { type: Number, default: 0 },
+const windowSchema = z.object({
+  _id: subdocumentId,
+  collection: z.string(),
+  documentId: objectId,
+  state: z.enum(['open', 'minimized', 'hidden']).default('open'),
+  x: z.number().nullable().default(null),
+  y: z.number().nullable().default(null),
+  width: z.number().nullable().default(null),
+  height: z.number().nullable().default(null),
+  zIndex: z.number().default(0),
+});
+
+export const tabletopScreenSchema = z.object({
+  _id: objectId,
+  campaignId: objectId,
+  name: z.string(),
+  tabOrder: z.number().default(0),
+  createdBy: objectId,
+  mode: z.enum(TABLETOP_MODES).default('grid'),
+  gridStyle: z.enum(GRID_STYLES).default('dark'),
+  gridSize: z.number().default(50),
+  gridVisible: z.boolean().default(true),
+  gridScale: z.number().default(5),
+  locationId: objectId.nullable().default(null),
+  battleMapImage: z.string().nullable().default(null),
+  // The Map shown on this tab. Active map is per-tab (per screen), not
+  // campaign-wide, so different tabs can display different maps.
+  activeMapId: objectId.nullable().default(null),
+  windows: z
+    .array(windowSchema)
+    .max(
+      TABLETOP_LIMITS.MAX_WINDOWS,
+      `A screen cannot contain more than ${TABLETOP_LIMITS.MAX_WINDOWS} windows.`
+    )
+    .default([]),
+  createdAt: now(),
+  updatedAt: now(),
+});
+
+export type ITabletopScreen = z.infer<typeof tabletopScreenSchema>;
+
+export const TabletopScreen = defineGraphModel<ITabletopScreen>({
+  name: 'tabletopscreen',
+  kind: 'TabletopScreen',
+  modelName: 'TabletopScreen',
+  schema: tabletopScreenSchema,
+  index: { campaignId: 'ix_s1', name: 'ix_s2', activeMapId: 'ix_s3', tabOrder: 'ix_n1' },
+  unique: {
+    campaignId_tabOrder: (screen) => [screen.campaignId, screen.tabOrder],
+    campaignId_name: (screen) => [screen.campaignId, screen.name],
   },
-  { _id: true }
-);
-
-const tabletopScreenSchema = new mongoose.Schema(
-  {
-    campaignId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Campaign',
-      required: true,
-    },
-    name: { type: String, required: true },
-    tabOrder: { type: Number, default: 0 },
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-    mode: {
-      type: String,
-      enum: TABLETOP_MODES,
-      default: 'grid',
-    },
-    gridStyle: {
-      type: String,
-      enum: GRID_STYLES,
-      default: 'dark',
-    },
-    gridSize: { type: Number, default: 50 },
-    gridVisible: { type: Boolean, default: true },
-    gridScale: { type: Number, default: 5 },
-    locationId: { type: mongoose.Schema.Types.ObjectId, default: null },
-    battleMapImage: { type: String, default: null },
-    // The Map shown on this tab. Active map is per-tab (per screen), not
-    // campaign-wide, so different tabs can display different maps.
-    activeMapId: { type: mongoose.Schema.Types.ObjectId, ref: 'Map', default: null },
-    windows: {
-      type: [windowSchema],
-      default: [],
-      validate: {
-        validator: (v: unknown) => Array.isArray(v) && v.length <= TABLETOP_LIMITS.MAX_WINDOWS,
-        message: `A screen cannot contain more than ${TABLETOP_LIMITS.MAX_WINDOWS} windows.`,
-      },
-    },
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now },
-  },
-  { collection: 'tabletopscreen' }
-);
-
-tabletopScreenSchema.index({ campaignId: 1, tabOrder: 1 }, { unique: true });
-tabletopScreenSchema.index({ campaignId: 1, name: 1 }, { unique: true });
-
-export type ITabletopScreen = InferSchemaType<typeof tabletopScreenSchema>;
-
-export const TabletopScreen: Model<ITabletopScreen> =
-  (mongoose.models.TabletopScreen as Model<ITabletopScreen>) ||
-  mongoose.model<ITabletopScreen>('TabletopScreen', tabletopScreenSchema);
+});

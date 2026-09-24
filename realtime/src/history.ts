@@ -1,4 +1,4 @@
-import type { Collection, Db } from 'mongodb';
+import { RealtimeRoomMessage } from '../../app/server/db/models/RealtimeRoomMessage';
 
 export type StoredMessage = { roomId: string; seq: number; msg: unknown };
 
@@ -27,25 +27,19 @@ export class MemoryHistoryStore implements HistoryStore {
   }
 }
 
-export class MongoHistoryStore implements HistoryStore {
-  private col: Collection<StoredMessage>;
-
-  constructor(db: Db) {
-    this.col = db.collection<StoredMessage>('realtime_room_messages');
-  }
-  async ensureIndexes(): Promise<void> {
-    await this.col.createIndex({ roomId: 1, seq: 1 }, { unique: true });
-  }
+/**
+ * History in the graph, through the app's own model: one entity per message, unique
+ * per (room, seq), so a room's history survives a restart of this service.
+ */
+export class GraphHistoryStore implements HistoryStore {
   async load(roomId: string): Promise<StoredMessage[]> {
-    return this.col
-      .find({ roomId }, { projection: { _id: 0 } })
-      .sort({ seq: 1 })
-      .toArray();
+    const rows = await RealtimeRoomMessage.find({ roomId }).sort({ seq: 1 }).lean();
+    return rows.map((row) => ({ roomId: row.roomId, seq: row.seq, msg: row.msg }));
   }
   async append(entry: StoredMessage): Promise<void> {
-    await this.col.insertOne({ ...entry });
+    await RealtimeRoomMessage.create({ roomId: entry.roomId, seq: entry.seq, msg: entry.msg });
   }
   async deleteUpTo(roomId: string, maxSeqInclusive: number): Promise<void> {
-    await this.col.deleteMany({ roomId, seq: { $lte: maxSeqInclusive } });
+    await RealtimeRoomMessage.deleteMany({ roomId, seq: { $lte: maxSeqInclusive } });
   }
 }

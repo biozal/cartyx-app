@@ -8,12 +8,7 @@ sample set is easy to expand later.
 import random
 
 # 4 player accounts referenced by email; the dev seed finds-or-creates each.
-PLAYER_EMAILS = [
-    "cartyx.player1@gmail.com",
-    "alabeauai@gmail.com",
-    "costoda@gmail.com",
-    "aalabeau@gmail.com",
-]
+# The player accounts themselves live in `scripts/seed/users.ts` (PLAYER_EMAILS).
 
 # 12 unique player portraits (3 campaigns x 4 players). Each player document
 # in each campaign gets a different image so portraits never repeat.

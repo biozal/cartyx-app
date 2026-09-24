@@ -1,6 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { connectDB, isDBConnected } from '../db/connection';
-import { User } from '../db/models/User';
+import {
+  ensureIdentityAvailable,
+  identityRepository,
+  revocationAdmissionFor,
+} from '../repositories/identity';
+import type { IdentityProfile } from '../repositories/identity/types';
 import type { SessionUser } from '../session';
 import { providerConfigured } from './helpers';
 import { serverCaptureException } from './telemetry';
@@ -332,7 +336,11 @@ export async function exchangeGithubCode(
 }
 
 /** Build the SessionUser identity claims, never including provider tokens. */
-function toSessionUser(profile: OAuthProfile, role: string, stored?: UserDoc | null): SessionUser {
+function toSessionUser(
+  profile: OAuthProfile,
+  role: string,
+  stored?: IdentityProfile | null
+): SessionUser {
   return {
     id: profile.id,
     provider: profile.provider,
@@ -344,17 +352,8 @@ function toSessionUser(profile: OAuthProfile, role: string, stored?: UserDoc | n
   };
 }
 
-interface UserDoc {
-  email?: string | null;
-  firstName?: string | null;
-  lastName?: string | null;
-  avatarUrl?: string | null;
-  role?: string;
-}
-
 export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
-  await connectDB();
-  if (!isDBConnected()) {
+  if (!(await ensureIdentityAvailable())) {
     // With no DB connection we can neither look up nor persist the account, so
     // minting a session would log the user into an unpersisted, role-less
     // "unknown" session. Fail loudly (consistent with the catch below) so the
@@ -372,7 +371,14 @@ export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
       accessToken: profile.accessToken ? encryptToken(profile.accessToken) : null,
       refreshToken: profile.refreshToken ? encryptToken(profile.refreshToken) : null,
     };
-    const $set = {
+    // An account whose provider grant is being withdrawn must not be logged back in
+    // while that is unresolved. A first login has no account yet, so there is nothing
+    // to be closed; its row is opened once the account exists.
+    const admission = await revocationAdmissionFor(profile.provider);
+    const existing = await identityRepository.findUserId(profile.id);
+    if (admission && existing) await admission.assertOpen(existing);
+
+    const stored = await identityRepository.recordLogin({
       provider: profile.provider,
       providerId: profile.id,
       ...(profile.email && { email: profile.email }),
@@ -383,39 +389,13 @@ export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
       ...(profile.avatar && { avatarUrl: profile.avatar }),
       oauthTokens,
       lastLoginAt: new Date(),
-    };
+    });
 
-    // 1. Returning user — match by the OAuth subject id.
-    let stored = (await User.findOneAndUpdate(
-      { providerId: profile.id },
-      { $set },
-      { returnDocument: 'after', new: true }
-    )) as UserDoc | null;
-
-    // 2. First login for a pre-provisioned account. The dev seed (and the
-    //    invite flow) create User docs keyed only by email, with no providerId,
-    //    to be "claimed" on first OAuth login. Link the OAuth identity onto that
-    //    existing doc — which preserves its campaign memberships. Only claim
-    //    docs with no providerId yet, so we never hijack an account already
-    //    bound to a different provider identity.
-    if (!stored && profile.email) {
-      stored = (await User.findOneAndUpdate(
-        { email: profile.email, providerId: null },
-        { $set },
-        { returnDocument: 'after', new: true }
-      )) as UserDoc | null;
-    }
-
-    // 3. Brand-new user — create the account.
-    if (!stored) {
-      stored = (await User.findOneAndUpdate(
-        { providerId: profile.id },
-        { $set, $setOnInsert: { createdAt: new Date(), role: 'unknown' } },
-        { upsert: true, returnDocument: 'after', new: true }
-      )) as UserDoc | null;
-    }
-
-    return toSessionUser(profile, stored?.role ?? 'unknown', stored);
+    // A repository that answers with nothing has not claimed the account, and minting a
+    // session from that would log the user into an unpersisted, role-less identity.
+    if (!stored) throw new Error('Identity was not persisted');
+    if (admission) await admission.ensureRow(stored.id);
+    return toSessionUser(profile, stored.role ?? 'unknown', stored);
   } catch (e) {
     // A write failure here (lost connection, duplicate-key from the unique email
     // index, etc.) means we could NOT persist/claim the account. Swallowing it and
@@ -425,12 +405,6 @@ export async function upsertUser(profile: OAuthProfile): Promise<SessionUser> {
     serverCaptureException(e, profile.id, { action: 'upsertUser', provider: profile.provider });
     throw e;
   }
-}
-
-interface EncryptedTokenField {
-  ciphertext?: string;
-  iv?: string;
-  authTag?: string;
 }
 
 /**
@@ -446,23 +420,39 @@ interface EncryptedTokenField {
  * GitHub token delete; Apple has no revoke path).
  */
 export async function revokeToken(user: SessionUser): Promise<void> {
+  let admission: Awaited<ReturnType<typeof revocationAdmissionFor>> = null;
+  let fence: { userId: string; providerId: string; tokenRevision: string } | null = null;
   try {
-    await connectDB();
-    if (!isDBConnected()) return;
+    if (!(await ensureIdentityAvailable())) return;
 
-    // Tokens are select:false, so they must be explicitly selected.
-    const stored = (await User.findOne({ providerId: user.id }).select('+oauthTokens').lean()) as {
-      oauthTokens?: { accessToken?: EncryptedTokenField | null };
-    } | null;
+    const observed = await identityRepository.readAccessToken(user.id);
+    const enc = observed?.accessToken;
+    if (!observed || !enc || !enc.ciphertext || !enc.iv || !enc.authTag) return;
 
-    const enc = stored?.oauthTokens?.accessToken;
-    if (!enc || !enc.ciphertext || !enc.iv || !enc.authTag) return;
-
+    // Decrypt before closing anything: a token this server can no longer read (a
+    // rotated SESSION_SECRET) is not a revocation in progress.
     const accessToken = decryptToken({
       ciphertext: enc.ciphertext,
       iv: enc.iv,
       authTag: enc.authTag,
     });
+
+    // Apple has no revoke endpoint, so its logout is local and opens no barrier.
+    admission = user.provider === 'apple' ? null : await revocationAdmissionFor(user.provider);
+    const observedFence = {
+      userId: observed.userId,
+      providerId: observed.providerId,
+      tokenRevision: observed.tokenRevision,
+    };
+    if (admission) {
+      // Closed before anything is dispatched, so a logout whose outcome is never
+      // learned cannot leave the account quietly loginable. A second logout finds the
+      // row already held and does not send a second request.
+      fence = await admission.beginRevocation(observed.userId, observedFence);
+      if (!fence) return;
+    } else {
+      fence = observedFence;
+    }
 
     if (user.provider === 'google') {
       await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(accessToken)}`, {
@@ -488,9 +478,24 @@ export async function revokeToken(user: SessionUser): Promise<void> {
       });
     }
 
-    // Clear the stored tokens once we've attempted revocation.
-    await User.updateOne({ providerId: user.id }, { $unset: { oauthTokens: '' } });
+    // A response arrived, so the outcome is known even if the provider refused. The
+    // HTTP request cannot be undone by this database fence; never erase a generation
+    // installed during that request.
+    await identityRepository.clearTokens(fence);
+    await admission?.settle(fence.userId);
+    fence = null;
   } catch (e) {
     serverCaptureException(e, user.id, { action: 'revokeToken', provider: user.provider });
+  } finally {
+    // Reached with a fence still held only when the attempt did not finish: the
+    // outcome is unknown, so this one account stays closed until an operator resolves
+    // it. Every other account is unaffected.
+    if (admission && fence) {
+      try {
+        await admission.strand(fence.userId);
+      } catch (e) {
+        serverCaptureException(e, user.id, { action: 'revokeToken', provider: user.provider });
+      }
+    }
   }
 }

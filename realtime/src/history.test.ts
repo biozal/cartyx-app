@@ -1,7 +1,13 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { MongoMemoryServer } from 'mongodb-memory-server';
-import { MongoClient } from 'mongodb';
-import { MemoryHistoryStore, MongoHistoryStore, type HistoryStore } from './history.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// The graph store runs against the app's in-memory entity store, which satisfies the
+// same contract as JanusGraph (proven by the app's entity-store contract suite).
+vi.mock(
+  '../../app/server/repositories/entity-store',
+  () => import('../../tests/server/functions/entityStoreDouble')
+);
+import { resetEntityStore } from '../../tests/server/functions/entityStoreDouble';
+import { GraphHistoryStore, MemoryHistoryStore, type HistoryStore } from './history.js';
 
 function behavesLikeHistoryStore(name: string, getStore: () => HistoryStore) {
   describe(name, () => {
@@ -32,22 +38,15 @@ function behavesLikeHistoryStore(name: string, getStore: () => HistoryStore) {
 
 behavesLikeHistoryStore('MemoryHistoryStore', () => new MemoryHistoryStore());
 
-describe('MongoHistoryStore', () => {
-  let mongod: MongoMemoryServer;
-  let client: MongoClient;
-  let store: MongoHistoryStore;
+describe('GraphHistoryStore', () => {
+  beforeEach(() => resetEntityStore());
+  behavesLikeHistoryStore('shared behavior', () => new GraphHistoryStore());
 
-  beforeAll(async () => {
-    mongod = await MongoMemoryServer.create();
-    client = new MongoClient(mongod.getUri());
-    await client.connect();
-    store = new MongoHistoryStore(client.db('test'));
-    await store.ensureIndexes();
+  it('keeps one message per room and seq', async () => {
+    const store = new GraphHistoryStore();
+    await store.append({ roomId: 'a', seq: 1, msg: { id: 'm1' } });
+    await expect(store.append({ roomId: 'a', seq: 1, msg: { id: 'again' } })).rejects.toMatchObject(
+      { code: 11000 }
+    );
   });
-  afterAll(async () => {
-    await client.close();
-    await mongod.stop();
-  });
-
-  behavesLikeHistoryStore('shared behavior', () => store);
 });

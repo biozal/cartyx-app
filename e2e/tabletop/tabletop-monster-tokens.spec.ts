@@ -15,8 +15,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '@playwright/test';
-import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { SignJWT, decodeJwt } from 'jose';
+import { closeIdentity, seedIdentity, seededGameMaster } from '../fixtures/data';
+import { campaignFixtures } from '../fixtures/campaigns';
+import { graphDb, ObjectId, type Db } from '../../scripts/graph-db';
 
 // Serial: all tests share one provisioned campaign on a single worker. Without
 // this, fullyParallel spreads tests across workers that each re-provision and
@@ -42,7 +44,6 @@ interface Provisioned {
   playerCookie: string;
 }
 
-let client: MongoClient;
 let provisioned: Provisioned;
 
 async function provision(db: Db): Promise<Provisioned> {
@@ -57,48 +58,22 @@ async function provision(db: Db): Promise<Provisioned> {
   if (!sessionCookie) throw new Error('No cartyx_session cookie in storageState — globalSetup?');
   const sessionProviderId = (decodeJwt(sessionCookie.value) as { user?: { id?: string } }).user?.id;
   if (!sessionProviderId) throw new Error('Could not decode session providerId');
-  const gm = await db.collection('users').findOne({ providerId: sessionProviderId });
-  if (!gm?.providerId) throw new Error('Session GM user not found in DB');
+  const gm = seededGameMaster(sessionProviderId);
 
   // Dedicated player user (stable providerId) so we can mint its session.
   const playerProviderId = 'e2e-monster-player';
-  await db.collection('users').updateOne(
-    { providerId: playerProviderId },
-    {
-      $setOnInsert: {
-        providerId: playerProviderId,
-        provider: 'test',
-        firstName: 'E2E',
-        lastName: 'Player',
-        email: 'e2e-monster-player@test.local',
-        role: 'player',
-        campaigns: [],
-        createdAt: new Date(),
-      },
-      $set: { updatedAt: new Date() },
-    },
-    { upsert: true }
-  );
-  const player = await db.collection('users').findOne({ providerId: playerProviderId });
-  if (!player) throw new Error('Failed to provision e2e player user');
-
-  // Reconcile the mapToken unique index to the multi-instance shape (the app's
-  // boot only adds indexes, never drops, so a stale unique index would block
-  // a second monster of the same type). Idempotent.
-  const tokenCol = db.collection('mapToken');
-  await tokenCol.dropIndex('mapId_1_sourceCollection_1_sourceDocumentId_1').catch(() => {});
-  await tokenCol
-    .createIndex(
-      { mapId: 1, sourceCollection: 1, sourceDocumentId: 1, instanceNumber: 1 },
-      { unique: true }
-    )
-    .catch(() => {});
+  const player = await seedIdentity({
+    provider: 'test',
+    providerId: playerProviderId,
+    email: 'e2e-monster-player@test.local',
+    firstName: 'E2E',
+    lastName: 'Player',
+  });
 
   const now = new Date();
 
   // Nuke any prior e2e campaign(s) + their data, however a previous run died.
-  const stale = await db
-    .collection('campaigns')
+  const stale = await campaignFixtures
     .find({ name: CAMPAIGN_NAME }, { projection: { _id: 1 } })
     .toArray();
   if (stale.length) {
@@ -106,10 +81,10 @@ async function provision(db: Db): Promise<Provisioned> {
     await db.collection('mapToken').deleteMany({ campaignId: { $in: ids } });
     await db.collection('map').deleteMany({ campaignId: { $in: ids } });
     await db.collection('monsters').deleteMany({ campaignId: { $in: ids } });
-    await db.collection('campaigns').deleteMany({ _id: { $in: ids } });
+    await campaignFixtures.deleteMany({ _id: { $in: ids } });
   }
 
-  const campaignRes = await db.collection('campaigns').insertOne({
+  const campaignRes = await campaignFixtures.insertOne({
     gameMasterId: gm._id,
     name: CAMPAIGN_NAME,
     description: 'E2E isolated campaign for monster token drag tests.',
@@ -260,31 +235,26 @@ test.beforeAll(async () => {
   } catch {
     /* env may be set externally */
   }
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error('MONGODB_URI not set');
-  client = new MongoClient(uri);
-  await client.connect();
-  const db = process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+  const db = graphDb();
   provisioned = await provision(db);
 });
 
 test.afterAll(async () => {
-  if (!client) return;
   if (provisioned?.campaignId) {
-    const db = process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+    const db = graphDb();
     const cid = new ObjectId(provisioned.campaignId);
     await db.collection('mapToken').deleteMany({ mapId: new ObjectId(provisioned.mapId) });
     await db.collection('tabletopscreen').deleteMany({ campaignId: cid });
     await db.collection('map').deleteMany({ campaignId: cid });
     await db.collection('monsters').deleteMany({ campaignId: cid });
-    await db.collection('campaigns').deleteMany({ _id: cid });
+    await campaignFixtures.deleteMany({ _id: cid });
   }
-  await client.close();
+  await closeIdentity();
 });
 
 test.beforeEach(async () => {
   // Isolate each test — start with no tokens on the shared map.
-  const db = process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+  const db = graphDb();
   await db.collection('mapToken').deleteMany({ mapId: new ObjectId(provisioned.mapId) });
 });
 

@@ -17,13 +17,14 @@
  * Usage:
  *   npm run dev:gen-avatars
  *
- * Safety: refuses to run if NODE_ENV is "production" or MONGODB_URI looks prod.
+ * Safety: refuses production targets, with the seeder's own guard.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MongoClient } from 'mongodb';
+import { graphDb } from './graph-db.ts';
+import { assertSeedTargetIsNotProduction } from './seed/guards.ts';
 import { Resvg } from '@resvg/resvg-js';
 import { S3Client, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 
@@ -233,15 +234,7 @@ async function processCollection(db, collection, kind, nameOf, cdn) {
 
 async function main() {
   loadEnv();
-  const uri = process.env.MONGODB_URI;
-  if (!uri) {
-    console.error('MONGODB_URI is not set (check .env)');
-    process.exit(1);
-  }
-  if (process.env.NODE_ENV === 'production' || /prod/i.test(uri)) {
-    console.error('Refusing to run against a production-looking database.');
-    process.exit(1);
-  }
+  assertSeedTargetIsNotProduction();
 
   // When the CDN is configured, mirror every avatar into R2 and point the
   // documents at CDN URLs (the deployed dev app can't see local files).
@@ -258,10 +251,8 @@ async function main() {
     console.log(`CDN configured — uploading avatars to R2 bucket '${env.R2_BUCKET}'`);
   }
 
-  const client = new MongoClient(uri);
-  await client.connect();
+  const db = graphDb();
   try {
-    const db = process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
     await processCollection(db, 'monsters', 'monster', (d) => d.name, cdn);
     await processCollection(
       db,
@@ -271,7 +262,9 @@ async function main() {
       cdn
     );
   } finally {
-    await client.close();
+    // The Cassandra driver would otherwise hold the process open.
+    const { closeData } = await import('../app/server/db/data-runtime.ts');
+    await closeData();
   }
 }
 

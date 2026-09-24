@@ -21,12 +21,8 @@ vi.mock('~/server/db/connection', () => ({
   connectDB: vi.fn(),
   isDBConnected: vi.fn(() => true),
 }));
-vi.mock('~/server/db/models/User', () => ({
-  User: { findOne: vi.fn() },
-}));
-vi.mock('~/server/db/models/Campaign', () => ({
-  Campaign: { findById: vi.fn() },
-}));
+vi.mock('~/server/repositories/identity', () => import('./identityTestDouble'));
+vi.mock('~/server/repositories/campaigns', () => import('./campaignsTestDouble'));
 vi.mock('~/server/db/models/TabletopScreen', () => ({
   TabletopScreen: {
     find: vi.fn(),
@@ -56,17 +52,11 @@ vi.mock('~/server/db/models/Rule', () => ({ Rule: { find: vi.fn() } }));
 vi.mock('~/server/db/models/Lore', () => ({ Lore: { find: vi.fn() } }));
 vi.mock('~/server/db/models/Monster', () => ({ Monster: { find: vi.fn() } }));
 vi.mock('~/server/db/models/Event', () => ({ Event: { find: vi.fn() } }));
-// `Types` is the real implementation: addPrivateWindow validates screen ids
-// with ObjectId.isValid and builds a real ObjectId for its $expr cap filter.
-vi.mock('mongoose', async () => {
-  const actual = await vi.importActual<typeof import('mongoose')>('mongoose');
-  return { default: { startSession: vi.fn(), Types: actual.Types } };
-});
 vi.mock('~/server/db/models/GMScreen', () => ({ GMScreen: { findOne: vi.fn() } }));
 
 import { getSession } from '~/server/session';
-import { User } from '~/server/db/models/User';
-import { Campaign } from '~/server/db/models/Campaign';
+import { resetIdentityDouble } from './identityTestDouble';
+import { campaigns as campaignsDouble } from './campaignsTestDouble';
 import { TabletopScreen } from '~/server/db/models/TabletopScreen';
 import { TabletopPlayerState } from '~/server/db/models/TabletopPlayerState';
 import { Lore } from '~/server/db/models/Lore';
@@ -313,7 +303,7 @@ describe('openTabletopWindow (handler)', () => {
     refreshToken: null,
     tokenIssuedAt: 0,
   };
-  const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
+  const mockDbUser = { id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
   const mockCampaign = {
     _id: 'camp-1',
     gameMasterId: 'dbuser-1',
@@ -373,8 +363,8 @@ describe('openTabletopWindow (handler)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getSession).mockResolvedValue(mockSession);
-    vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
-    vi.mocked(Campaign.findById).mockResolvedValue(mockCampaign as never);
+    resetIdentityDouble(mockDbUser);
+    campaignsDouble.get.mockResolvedValue(mockCampaign as never);
   });
 
   it('creates a new window with zIndex bumped above existing', async () => {
@@ -718,7 +708,7 @@ describe('openTabletopWindow (handler)', () => {
 // ---------------------------------------------------------------------------
 
 describe('getPlayerState (handler) — private-window hydration', () => {
-  const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
+  const mockDbUser = { id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
 
   const _getPlayerState = getPlayerState as unknown as (args: {
     data: Record<string, unknown>;
@@ -740,8 +730,8 @@ describe('getPlayerState (handler) — private-window hydration', () => {
       tokenIssuedAt: 0,
     };
     vi.mocked(getSession).mockResolvedValue(session);
-    vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    resetIdentityDouble(mockDbUser);
+    campaignsDouble.get.mockResolvedValue({
       _id: 'camp-1',
       gameMasterId: role === 'gm' ? 'dbuser-1' : 'someone-else',
       members: [{ userId: 'dbuser-1', role }],
@@ -1075,7 +1065,7 @@ describe('addPrivateWindow (handler) — GM-only collection guard', () => {
   const CAMPAIGN_ID = '65b0000000000000000000c1';
   const SCREEN_ID = '65b0000000000000000000e1';
   const DOC_ID = '65b0000000000000000000f1';
-  const mockDbUser = { _id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
+  const mockDbUser = { id: 'dbuser-1', firstName: 'Test', lastName: 'User' };
 
   const _addPrivateWindow = addPrivateWindow as unknown as (args: {
     data: Record<string, unknown>;
@@ -1094,8 +1084,8 @@ describe('addPrivateWindow (handler) — GM-only collection guard', () => {
       tokenIssuedAt: 0,
     };
     vi.mocked(getSession).mockResolvedValue(session);
-    vi.mocked(User.findOne).mockResolvedValue(mockDbUser as never);
-    vi.mocked(Campaign.findById).mockResolvedValue({
+    resetIdentityDouble(mockDbUser);
+    campaignsDouble.get.mockResolvedValue({
       _id: CAMPAIGN_ID,
       gameMasterId: role === 'gm' ? 'dbuser-1' : 'someone-else',
       members: [{ userId: 'dbuser-1', role }],

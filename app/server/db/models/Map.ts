@@ -1,65 +1,42 @@
-import mongoose, { type InferSchemaType, type Model } from 'mongoose';
+import { z } from 'zod';
+import { defineGraphModel } from '~/server/repositories/graph-model';
+import { now, objectId, tags } from './schema-parts';
 
-const scaleSchema = new mongoose.Schema(
-  {
-    gridType: {
-      type: String,
-      enum: ['square', 'hex', 'gridless'],
-      default: 'square',
-    },
-    pixelsPerSquare: { type: Number, default: 50 },
-    feetPerSquare: { type: Number, default: 5 },
-  },
-  { _id: false }
-);
+const scaleSchema = z.object({
+  gridType: z.enum(['square', 'hex', 'gridless']).default('square'),
+  pixelsPerSquare: z.number().default(50),
+  feetPerSquare: z.number().default(5),
+});
 
-const gridOverlaySchema = new mongoose.Schema(
-  {
-    enabled: { type: Boolean, default: false },
-    color: { type: String, default: '#ffffff66' },
-  },
-  { _id: false }
-);
+const gridOverlaySchema = z.object({
+  enabled: z.boolean().default(false),
+  color: z.string().default('#ffffff66'),
+});
 
-const mapSchema = new mongoose.Schema(
-  {
-    campaignId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Campaign',
-      required: true,
-    },
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-    name: { type: String, required: true },
-    tags: { type: [String], default: [] },
-    imageKey: { type: String, required: true },
-    imageUrl: { type: String, required: true },
-    imageWidth: { type: Number, required: true },
-    imageHeight: { type: Number, required: true },
-    locationId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Location',
-      default: null,
-    },
-    scale: { type: scaleSchema, default: () => ({}) },
-    gridOverlay: { type: gridOverlaySchema, default: () => ({}) },
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now },
-  },
-  { collection: 'map' }
-);
+export const mapSchema = z.object({
+  _id: objectId,
+  campaignId: objectId,
+  createdBy: objectId,
+  name: z.string(),
+  tags: tags(),
+  imageKey: z.string(),
+  imageUrl: z.string(),
+  imageWidth: z.number(),
+  imageHeight: z.number(),
+  locationId: objectId.nullable().default(null),
+  scale: scaleSchema.prefault({}),
+  gridOverlay: gridOverlaySchema.prefault({}),
+  createdAt: now(),
+  updatedAt: now(),
+});
 
-// istanbul ignore next
-if (typeof (mapSchema as { index?: unknown }).index === 'function') {
-  mapSchema.index({ campaignId: 1, updatedAt: -1 });
-  mapSchema.index({ campaignId: 1, locationId: 1 });
-  mapSchema.index({ campaignId: 1, name: 1 }, { unique: true });
-}
+export type IMap = z.infer<typeof mapSchema>;
 
-export type IMap = InferSchemaType<typeof mapSchema>;
-
-export const Map: Model<IMap> =
-  (mongoose.models.Map as Model<IMap>) || mongoose.model<IMap>('Map', mapSchema);
+export const Map = defineGraphModel<IMap>({
+  name: 'map',
+  kind: 'Map',
+  modelName: 'Map',
+  schema: mapSchema,
+  index: { campaignId: 'ix_s1', locationId: 'ix_s2', name: 'ix_s3', updatedAt: 'ix_d1' },
+  unique: { campaignId_name: (map) => [map.campaignId, map.name] },
+});

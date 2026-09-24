@@ -1,11 +1,11 @@
-import mongoose from 'mongoose';
 import { randomUUID } from 'node:crypto';
 import { logger } from './logger.js';
-import { claimNext, reapStale, type ClaimModel } from './claim.js';
+import { claimNext, reapStale } from './claim.js';
 import { readWorkerTimings } from './config.js';
-import { processAsset, makeSourceDeleter, type Model } from './process.js';
+import { processAsset, makeSourceDeleter } from './process.js';
 import { beat } from './heartbeat.js';
 import { captureException } from './telemetry.js';
+import { openAudioAssets } from './store.js';
 
 const WORKER_ID = `worker-${randomUUID().slice(0, 8)}`;
 // Parsed in config.ts, not inline here: this module calls main() at import
@@ -21,26 +21,14 @@ process.on('SIGTERM', () => {
 });
 
 async function main(): Promise<void> {
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error('MONGODB_URI is required');
-  // Before the connect, not after: the liveness probe treats a missing
-  // heartbeat as dead, and a `mongoose.connect` that never resolves is itself a
+  // Before the store opens, not after: the liveness probe treats a missing
+  // heartbeat as dead, and a store that never becomes reachable is itself a
   // wedge worth restarting. Writing it here means the probe's clock starts at
   // process start rather than at first success.
   beat();
-  await mongoose.connect(uri);
+  const { model, close } = await openAudioAssets();
   logger.info({ workerId: WORKER_ID }, 'audio worker started');
 
-  // The real mongoose Collection's findOneAndUpdate/updateMany/updateOne are
-  // structurally incompatible with ClaimModel/Model — those type their
-  // filter/update params as `unknown`, which the real driver's narrower
-  // param types don't satisfy under contravariance — so *some* cast is
-  // required here. `as never` (the bottom type) was too wide: it disables
-  // checking on `model` for the rest of this file, so a typo, a wrong
-  // argument count, or a future signature change in claim.ts/process.ts
-  // would all silently compile. Bridge through `unknown` to the actual
-  // intersection type instead, so real drift is still caught.
-  const model = mongoose.connection.collection('audioassets') as unknown as ClaimModel & Model;
   // The reaper needs to delete the R2 objects of uploads abandoned before
   // confirm — see reapStale. Built here because process.ts owns the R2 client.
   const deleteSource = makeSourceDeleter();
@@ -78,7 +66,7 @@ async function main(): Promise<void> {
     }
   }
 
-  await mongoose.disconnect();
+  await close();
   logger.info('audio worker stopped');
 }
 

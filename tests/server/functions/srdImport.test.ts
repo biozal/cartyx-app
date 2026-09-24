@@ -66,10 +66,4 @@ describe('importSrdContent', () => {
       campaignId: 'camp-1',
     });
   });
-
-  it('threads the Mongo session into insertMany when provided', async () => {
-    const session = { id: 'sess' } as never;
-    await importSrdContent({ campaignId: 'camp-1', gmId: 'gm-1', session });
-    expect(firstCall(Spell.insertMany as unknown as InsertManyFn)[1]).toEqual({ session });
-  });
 });

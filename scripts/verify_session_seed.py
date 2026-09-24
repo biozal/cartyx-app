@@ -5,7 +5,7 @@ Exits 0 on success, 1 on first failed assertion.
 """
 import random
 from datetime import datetime, timezone, timedelta
-from bson import ObjectId
+from object_id import ObjectId
 
 import dev_seed as seed  # importable: main() is guarded by __main__
 

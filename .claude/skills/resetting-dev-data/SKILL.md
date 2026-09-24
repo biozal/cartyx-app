@@ -14,54 +14,44 @@ npm run dev:clear -- --force   # 1. wipe all game data (keeps users)
 npm run dev:seed               # 2. reseed 3 test campaigns + SRD content
 ```
 
-**Never run `dev:seed` alone to "reset."** `scripts/dev_seed.py` only _inserts_ —
-it has no drop/cleanup logic and uses `$push` for user campaign refs. Running it
-again **accumulates**: you get duplicate campaigns (multiple "The Lost Mines of
-Phandelver"), stale data from older runs, and users with piled-up campaign
-references. That stale data is what makes you see "old" content (e.g. spells that
+**Never run `dev:seed` alone to "reset."** Seeding only _inserts_ — it has no
+drop/cleanup logic. Running it again **accumulates**: you get duplicate campaigns
+(multiple "The Lost Mines of Phandelver") and stale data from older runs. That stale data is what makes you see "old" content (e.g. spells that
 still show raw HTML after you fixed the generator). The wipe is what makes it a
 reset.
 
 ## What each step does
 
-- **`npm run dev:clear -- --force`** (`scripts/dev_clear.py`) — deletes every
-  document from every collection **except `users`** (accounts/login are
-  preserved), **resets `campaigns: []` on all users**, and empties
-  `public/uploads/` and the dev R2 bucket. `--force` skips the interactive
+- **`npm run dev:clear -- --force`** (`scripts/seed/cli.ts clear`) — empties
+  every graph collection (campaigns and everything in them) but **keeps
+  accounts**, so login still works; `scripts/dev_clear.py` empties
+  `public/uploads/` and the dev R2 bucket first. `--force` skips the interactive
   "Proceed? (y/N)" prompt — required in a non-interactive shell.
-- **`npm run dev:seed`** — creates the 3 stock test campaigns; SRD content
+- **`npm run dev:seed`** — `scripts/dev_seed.py` builds the documents as a plan and
+  `scripts/seed/cli.ts` persists them to the graph: the 3 stock test campaigns; SRD content
   (races, rules, spells) is imported **only into the bulk-test campaign**
   ("The Lost Mines of Phandelver"). It reads spells from
   `app/server/data/srd/spells.json`.
 
 ## Prerequisites
 
-- `.env` present with the **dev** `MONGODB_URI` (per CLAUDE.md the laptop `.env`
-  holds DEV values → `cartyx` DB on the dev Atlas cluster). Both scripts refuse
-  to run if `NODE_ENV=production`, or if `MONGODB_URI`/`R2_BUCKET` contains
-  `prod` — so they cannot touch prod.
-- The seed venv: `scripts/.venv/bin/python` with `pymongo` + `python-dotenv`.
+- `.env` present with the **dev** data settings (`GREMLIN_*`, `CQL_*`; per CLAUDE.md
+  the laptop `.env` holds DEV values). Both steps refuse to run if
+  `NODE_ENV=production`, or if the graph URL, CQL keyspace/contact point or
+  `R2_BUCKET` contains `prod` — so they cannot touch prod.
+- The seed venv: `scripts/.venv/bin/python` with `boto3` + `python-dotenv`
+  (`scripts/requirements.txt`).
 - **If SRD data changed**, regenerate the committed JSON first so the seed picks
   it up: `npm run srd:generate` (parses `docs/srd/spells/spells-5.2.1.md` →
   `app/server/data/srd/spells.json`).
 
 ## Verify (optional but recommended)
 
-`dev_clear`/`dev_seed` print their own summaries. To confirm the DB is clean —
+`dev:clear`/`dev:seed` print their own summaries. To confirm the data is clean —
 exactly 3 campaigns, spells only in the bulk-test campaign, no leftovers:
 
 ```bash
-scripts/.venv/bin/python - <<'PY'
-import os
-from dotenv import load_dotenv
-from pymongo import MongoClient
-load_dotenv(dotenv_path="/Users/labeaaa/Developer/cartyx-app/.env")
-db = MongoClient(os.environ["MONGODB_URI"]).get_default_database()
-print("campaigns:", db.campaigns.count_documents({}), "| spells:", db.spells.count_documents({}))
-for cid in db.spells.distinct("campaignId"):
-    c = db.campaigns.find_one({"_id": cid}, {"name": 1})
-    print(" ", c["name"], db.spells.count_documents({"campaignId": cid}), "spells")
-PY
+npx tsx scripts/seed/summary.ts
 ```
 
 Expected after a clean reset: 3 campaigns, all spells under one campaign

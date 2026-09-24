@@ -1,34 +1,40 @@
-import mongoose, { type InferSchemaType, type Model } from 'mongoose';
+import { z } from 'zod';
+import { defineGraphModel } from '~/server/repositories/graph-model';
+import { now, objectId, touch } from './schema-parts';
 
-const organizationMembershipSchema = new mongoose.Schema({
-  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
-  memberKind: { type: String, enum: ['player', 'character'], required: true },
-  memberId: { type: mongoose.Schema.Types.ObjectId, required: true },
-  title: { type: String, default: '' },
-  publicNotes: { type: String, default: '' },
-  privateNotes: { type: String, default: '' },
-  campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign', required: true },
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
+export const organizationMembershipSchema = z.object({
+  _id: objectId,
+  organizationId: objectId,
+  memberKind: z.enum(['player', 'character']),
+  memberId: objectId,
+  title: z.string().default(''),
+  publicNotes: z.string().default(''),
+  privateNotes: z.string().default(''),
+  campaignId: objectId,
+  createdBy: objectId,
+  createdAt: now(),
+  updatedAt: now(),
 });
 
-organizationMembershipSchema.pre('save', function () {
-  this.updatedAt = new Date();
+export type IOrganizationMembership = z.infer<typeof organizationMembershipSchema>;
+
+export const OrganizationMembership = defineGraphModel<IOrganizationMembership>({
+  name: 'organizationmemberships',
+  kind: 'OrganizationMembership',
+  modelName: 'OrganizationMembership',
+  schema: organizationMembershipSchema,
+  index: {
+    organizationId: 'ix_s1',
+    campaignId: 'ix_s2',
+    memberKind: 'ix_s3',
+    memberId: 'ix_s4',
+  },
+  unique: {
+    organizationId_memberKind_memberId: (membership) => [
+      membership.organizationId,
+      membership.memberKind,
+      membership.memberId,
+    ],
+  },
+  preSave: touch,
 });
-
-// istanbul ignore next
-if (typeof (organizationMembershipSchema as { index?: unknown }).index === 'function') {
-  organizationMembershipSchema.index(
-    { organizationId: 1, memberKind: 1, memberId: 1 },
-    { unique: true }
-  );
-  organizationMembershipSchema.index({ campaignId: 1, memberKind: 1, memberId: 1 });
-  organizationMembershipSchema.index({ organizationId: 1 });
-}
-
-export type IOrganizationMembership = InferSchemaType<typeof organizationMembershipSchema>;
-
-export const OrganizationMembership: Model<IOrganizationMembership> =
-  (mongoose.models.OrganizationMembership as Model<IOrganizationMembership>) ||
-  mongoose.model<IOrganizationMembership>('OrganizationMembership', organizationMembershipSchema);

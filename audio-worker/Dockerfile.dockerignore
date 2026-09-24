@@ -1,0 +1,12 @@
+# Used instead of the root .dockerignore for `docker build -f audio-worker/Dockerfile .`:
+# only what the worker build reads.
+*
+!tsconfig.json
+!app/
+!audio-worker/package.json
+!audio-worker/package-lock.json
+!audio-worker/tsconfig.json
+!audio-worker/src/
+**/node_modules
+**/*.test.ts
+**/*.stories.tsx

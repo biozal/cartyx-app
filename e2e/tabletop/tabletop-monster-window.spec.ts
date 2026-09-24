@@ -5,8 +5,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '@playwright/test';
-import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { decodeJwt } from 'jose';
+import { seededGameMaster } from '../fixtures/data';
+import { campaignFixtures } from '../fixtures/campaigns';
+import { graphDb, ObjectId, type Db } from '../../scripts/graph-db';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
@@ -17,7 +19,6 @@ interface Provisioned {
   monsterId: string;
 }
 
-let client: MongoClient;
 let provisioned: Provisioned;
 
 const ability = () => ({ score: 10, mod: 0, save: 0 });
@@ -29,23 +30,21 @@ async function provision(db: Db): Promise<Provisioned> {
   const cookie = storage.cookies.find((c) => c.name === 'cartyx_session');
   if (!cookie) throw new Error('No cartyx_session cookie — globalSetup did not run?');
   const providerId = (decodeJwt(cookie.value) as { user?: { id?: string } }).user?.id;
-  const gm = await db.collection('users').findOne({ providerId });
-  if (!gm?._id) throw new Error('Session GM user not found');
+  const gm = seededGameMaster(providerId);
 
-  const stale = await db
-    .collection('campaigns')
+  const stale = await campaignFixtures
     .find({ name: CAMPAIGN_NAME }, { projection: { _id: 1 } })
     .toArray();
   if (stale.length) {
     const ids = stale.map((c) => c._id);
     await db.collection('tabletopscreen').deleteMany({ campaignId: { $in: ids } });
     await db.collection('monsters').deleteMany({ campaignId: { $in: ids } });
-    await db.collection('campaigns').deleteMany({ _id: { $in: ids } });
+    await campaignFixtures.deleteMany({ _id: { $in: ids } });
   }
 
   const now = new Date();
   const campaignId = (
-    await db.collection('campaigns').insertOne({
+    await campaignFixtures.insertOne({
       gameMasterId: gm._id,
       name: CAMPAIGN_NAME,
       description: 'E2E monster-window test.',
@@ -92,7 +91,7 @@ async function provision(db: Db): Promise<Provisioned> {
       passivePerception: 9,
       languages: ['Common', 'Goblin'],
       features: [
-        { section: 'Traits', name: 'Nimble Escape', description: 'Disengage as a bonus action.' },
+        { section: 'traits', name: 'Nimble Escape', description: 'Disengage as a bonus action.' },
       ],
       picture: '',
       pictureCrop: null,
@@ -134,24 +133,18 @@ test.beforeAll(async () => {
   } catch {
     /* env may be set externally */
   }
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error('MONGODB_URI not set');
-  client = new MongoClient(uri);
-  await client.connect();
-  const db = process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+  const db = graphDb();
   provisioned = await provision(db);
 });
 
 test.afterAll(async () => {
-  if (!client) return;
   if (provisioned?.campaignId) {
-    const db = process.env.MONGODB_DB ? client.db(process.env.MONGODB_DB) : client.db();
+    const db = graphDb();
     const cid = new ObjectId(provisioned.campaignId);
     await db.collection('tabletopscreen').deleteMany({ campaignId: cid });
     await db.collection('monsters').deleteMany({ campaignId: cid });
-    await db.collection('campaigns').deleteMany({ _id: cid });
+    await campaignFixtures.deleteMany({ _id: cid });
   }
-  await client.close();
 });
 
 test('dragging a monster onto a no-map tab opens a monster window', async ({ page }) => {
