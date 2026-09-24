@@ -78,7 +78,7 @@ export const audioAssetSchema = z.object({
   // confirm, never seeded from anything client-declared. Set by
   // `confirmOnceVariantUpload`'s success path and by nothing else. Rows
   // written before this field existed simply lack it; `getUserStorageUsage`
-  // treats absent the same as null (see `audio-quota.ts`'s `$ifNull`
+  // treats absent the same as null (see `audio-quota.ts`'s `bytesAt`
   // guard). The worker's terminal write for a successful once-attach
   // (`audio-worker/src/process.ts`) does not clear this alongside
   // `onceSourceKey` — the once-source object stays live and billed after a

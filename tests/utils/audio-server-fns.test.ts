@@ -763,8 +763,10 @@ describe('getAudioStorageUsageFn', () => {
  * ungated on the reasoning that "its cost scales with the caller's own asset
  * count, not with how often they call it" — the wrong axis: total Atlas CPU
  * is count TIMES frequency, and frequency is the caller's own parameter. It
- * is also the only read on this surface that is a `$group` aggregation
- * rather than a projected `find`.
+ * is also the only read on this surface that reads every one of the
+ * caller's own rows in full and sums them in process (`audio-quota.ts`'s
+ * `getUserStorageUsage`), rather than a narrow, already-projected `find`
+ * like the rest of this surface.
  *
  * `90` is the capacity, a literal in both directions like every other bucket
  * test here, and one `DB_USER_ID` per test because the limiter is a
