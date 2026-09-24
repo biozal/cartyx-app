@@ -62,6 +62,27 @@ describe('packageVisibilityFilter', () => {
   });
 });
 
+/**
+ * The page size is the whole truncation story on these two surfaces: neither
+ * the `/audio/packages` list nor the board's package picker has a "load more"
+ * affordance, so anything past one page is simply not shown.
+ */
+describe('PACKAGE_LIST_PAGE_SIZE', () => {
+  it('pages at least the whole visible set a single user can have', async () => {
+    const { MAX_PACKAGES_PER_USER, PACKAGE_LIST_PAGE_SIZE } = await import('~/types/soundboard');
+    const { listPackagesSchema } = await import('~/types/schemas/soundboard');
+    expect(PACKAGE_LIST_PAGE_SIZE).toBeGreaterThanOrEqual(MAX_PACKAGES_PER_USER);
+    // The load-bearing half. Nothing else stops a future bump of
+    // `PACKAGE_LIST_PAGE_SIZE` past `listPackagesSchema`'s own `.max()`, and
+    // that mismatch does not fail a build — it surfaces at RUNTIME, as a 400
+    // from the input validator on every board mount and every visit to the
+    // packages list, in production.
+    expect(listPackagesSchema.parse({ limit: PACKAGE_LIST_PAGE_SIZE })).toEqual({
+      limit: PACKAGE_LIST_PAGE_SIZE,
+    });
+  });
+});
+
 describe('listPackages', () => {
   // Every `listPackages` case below asks for a page, so the input is spelled
   // once here. `limit` is what the schema defaults to.

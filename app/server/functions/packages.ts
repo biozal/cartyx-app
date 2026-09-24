@@ -402,8 +402,14 @@ export async function listPackages({
     // down too — the store drops absent properties rather than writing a null,
     // so a null filter translates to `hasNot(slot)` rather than a scan.
     //
-    // The union is exactly what the `$or` matched: the two arms are disjoint
-    // (`userId` is never null), so no document can appear twice.
+    // The union is exactly what the `$or` matched, and it is a union rather
+    // than a merge because the two arms are DISJOINT — which depends on
+    // `userId` never being nullish. `requireActor()` guarantees that today (it
+    // throws rather than returning a userless actor), and this is the one line
+    // that relies on it: a nullish `userId` would make `isIndexValue` drop
+    // `where.ownerId` from the owned arm, and mingo's undefined-equals-missing
+    // semantics would then let both arms match every system package, so the
+    // caller would see the whole catalogue twice.
     const [mine, system] = (await Promise.all([
       AudioPackage.find({ ownerId: userId }, PACKAGE_SUMMARY_PROJECTION).lean(),
       AudioPackage.find({ ownerId: null }, PACKAGE_SUMMARY_PROJECTION).lean(),

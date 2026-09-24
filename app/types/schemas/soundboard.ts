@@ -168,13 +168,20 @@ export const getPackageSchema = z.object({ id: objectId });
  * base64url-encoded; the id half is always 24 lowercase hex, which contains no
  * `_`, so a `lastIndexOf('_')` split is unambiguous.
  *
- * The length bound is DERIVED, not guessed, and the brief's `.max(200)` was
- * wrong: `name` is `z.string().min(1).max(200)`, 200 JS characters are at most
- * 600 UTF-8 bytes (a 4-byte code point costs two JS characters), and base64
- * expands 600 bytes to 800 characters. A 200-character package name therefore
- * mints an 825-character cursor. Capping this at 200 would have made page 2
+ * The length bound is DERIVED, not guessed: `name` is
+ * `z.string().min(1).max(200)`, 200 JS characters are at most 600 UTF-8 bytes
+ * (a 4-byte code point costs two JS characters), and base64 expands 600 bytes
+ * to 800 characters. A 200-character package name therefore mints an
+ * 825-character cursor, and capping this at, say, 200 would make page 2
  * permanently unreachable — with a 400 the client cannot act on — for any user
  * whose page boundary landed on a long name.
+ *
+ * That derivation ASSUMES the 200-character name cap this file imposes, which
+ * binds `createPackage`/`updatePackage`/`clonePackage` and nothing else. A
+ * package written around those schemas — a seed script, a migration, a direct
+ * store write — with a name past ~218 characters would mint a cursor this
+ * validator then refuses, stranding the page after it. Widen the bound with
+ * the name cap if one ever moves; do not widen one without the other.
  */
 const packageCursor = z
   .string()
@@ -190,7 +197,17 @@ const packageCursor = z
  * where the split visibility query is what bounds the read.
  */
 export const listPackagesSchema = z.object({
-  limit: z.number().int().min(1).max(100).default(50),
+  /**
+   * `.max(200).default(50)` — the same pair `listAudioAssetsSchema.limit`
+   * carries (`~/types/schemas/audio.ts`), so this is the house number rather
+   * than a new one. The ceiling has to admit `PACKAGE_LIST_PAGE_SIZE`
+   * (`MAX_PACKAGES_PER_USER * 2`), which is what both callers actually send
+   * while neither has a "load more" affordance;
+   * `tests/server/functions/packages.test.ts` parses that constant through
+   * this schema so a future bump past the cap fails a test rather than
+   * becoming a 400 on every board mount.
+   */
+  limit: z.number().int().min(1).max(200).default(50),
   cursor: packageCursor.optional(),
 });
 

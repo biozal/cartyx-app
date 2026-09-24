@@ -20,9 +20,11 @@ vi.mock('@tanstack/react-start', () => ({
       handler: (fn: unknown) => fn,
     }),
     // `getAudioStorageUsageFn` (Task 5) has no `.inputValidator()` call — it
-    // takes no input, same shape as `~/utils/soundboard-server-fns.ts`'s
-    // `listPackagesFn` — so `.handler()` must also be reachable directly off
-    // the builder, mirroring that file's own mock.
+    // takes no input — so `.handler()` must also be reachable directly off
+    // the builder. It is the only wrapper on either audio surface still
+    // shaped that way: `~/utils/soundboard-server-fns.ts`'s `listPackagesFn`,
+    // which this comment used to name as its twin, now takes a `limit`/
+    // `cursor` page request and goes through `.inputValidator()`.
     handler: (fn: unknown) => fn,
   }),
 }));
@@ -720,8 +722,10 @@ describe('deleteAudioAssetFn', () => {
 
 /**
  * Task 5: `getAudioStorageUsageFn` takes no input, so it is called directly
- * (`getAudioStorageUsageFn()`, no `{ data }` wrapper) — same shape as
- * `listPackagesFn` in `~/utils/soundboard-server-fns.ts`.
+ * (`getAudioStorageUsageFn()`, no `{ data }` wrapper). It is the only wrapper
+ * on either audio surface left in that shape — `listPackagesFn`
+ * (`~/utils/soundboard-server-fns.ts`), which this comment used to name as
+ * its twin, now takes a `limit`/`cursor` page request.
  */
 describe('getAudioStorageUsageFn', () => {
   it('rejects with "Not authenticated" and never calls getUserStorageUsage when there is no session', async () => {

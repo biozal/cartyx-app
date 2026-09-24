@@ -42,14 +42,27 @@ export const MAX_PACKAGES_PER_USER = 100;
  * `/audio/packages` list and the soundboard's package picker.
  *
  * Neither surface has a "load more" affordance yet, so both are single-page
- * reads, and 50 is chosen to cover realistic use in that one page: a user's
- * own set is capped at `MAX_PACKAGES_PER_USER` (100) and the system catalogue
- * adds to it, so a heavy account CAN page — the response carries a
- * `nextCursor` for whoever wires that up. Raising this is not a memory
- * decision: what bounds `listPackages`' heap is its split visibility read, not
- * its page size (see that function's doc comment).
+ * reads: whatever does not fit in one page is simply not shown, and the
+ * `nextCursor` the response carries goes unused until someone wires that up.
+ * So this has to cover the whole visible set, and `MAX_PACKAGES_PER_USER * 2`
+ * is that number rather than a round one — the caller's own set cannot exceed
+ * `MAX_PACKAGES_PER_USER`, and the doubling is headroom for the system
+ * catalogue, which is curated (today it is empty, so the real maximum visible
+ * set is 100).
+ *
+ * RAISING THIS IS NOT A MEMORY DECISION, which is the only reason it can be
+ * raised at all. What bounds `listPackages`' heap is its split visibility
+ * read — the `where` clause, computed before `limit` exists — while `limit`
+ * slices an array that is already fully materialised (see that function's doc
+ * comment). The cost here is response bytes: a summary row is a few hundred
+ * bytes, so 200 rows is tens of KB.
+ *
+ * `listPackagesSchema.limit` caps at this same 200. That ceiling is not a
+ * comment: `tests/server/functions/packages.test.ts` parses this constant
+ * through that schema, because a future bump past the cap would otherwise
+ * surface at RUNTIME as a 400 on every board mount.
  */
-export const PACKAGE_LIST_PAGE_SIZE = 50;
+export const PACKAGE_LIST_PAGE_SIZE = MAX_PACKAGES_PER_USER * 2;
 
 export const DEFAULT_VOLUME = 1;
 export const DEFAULT_FADE_SECONDS = 2;

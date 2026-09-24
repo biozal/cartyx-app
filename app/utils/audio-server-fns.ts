@@ -316,8 +316,10 @@ export const deleteAudioAssetFn = createServerFn({ method: 'POST' })
 //    env var without an image rebuild: the next call to this function picks
 //    the new value up with no client change at all.
 //
-// No `.inputValidator()` — this takes nothing from the caller, same shape as
-// `listPackagesFn` in `~/utils/soundboard-server-fns.ts`. Gated by
+// No `.inputValidator()` — this takes nothing from the caller. It is now the
+// LAST such wrapper on either audio surface: `listPackagesFn`
+// (`~/utils/soundboard-server-fns.ts`) used to be its twin and this comment
+// pointed at it, but that one gained a `limit`/`cursor` page request. Gated by
 // `storageUsageReadLimiter` (final-review addition): taking no input bounds
 // the SHAPE of a call, not the NUMBER of them, and this is the only
 // aggregation on the surface. The gate runs before the aggregation, so a
