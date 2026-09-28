@@ -31,7 +31,9 @@ R2 cleanup is best-effort: failures are reported but don't block the destroy.
 
 ## Safety
 
-- Refuses to run when `NODE_ENV=production` or when `MONGODB_URI` contains "prod".
+- Refuses to run when `NODE_ENV=production`, or when "prod" appears in
+  `GREMLIN_URL`, `CQL_STATE_KEYSPACE`, `CQL_CONTACT_POINT`, or `R2_BUCKET`
+  (`scripts/seed/guards.ts`'s `assertSeedTargetIsNotProduction`).
 - The destroyer **only** removes campaigns marked with `metadata.managedBy === 'scripts/dev-fixtures'`. Your real campaigns are safe.
 - The `--id` form is the only way to destroy a non-fixture campaign, and it requires `--force`.
 

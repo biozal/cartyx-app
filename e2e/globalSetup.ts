@@ -12,6 +12,9 @@
  *    fixtures.ts`) owned by that GM user, so `audio-library.spec.ts` has real
  *    rows — including `ready` ones — without depending on the transcode
  *    worker, which does not run in E2E.
+ * 5b. Idempotently upserts the storage-quota fillers (`seedStorageQuotaFixtures`)
+ *    that put that same GM OVER `AUDIO_USER_QUOTA_BYTES`, which is what
+ *    `audio-hardening.spec.ts` drives. Removed again by `globalTeardown.ts`.
  * 6. Idempotently seeds the soundboard fixtures (`seedSoundboardFixtures`): a
  *    system package to clone, a foreign-owned package that must stay
  *    invisible, and a foreign-owned asset the system package references —
@@ -23,7 +26,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SignJWT } from 'jose';
-import { AUDIO_FIXTURE_TITLES } from './fixtures/audio-fixtures';
+import { AUDIO_FIXTURE_TITLES, AUDIO_QUOTA_FIXTURE } from './fixtures/audio-fixtures';
 import { assertGraphReady } from './fixtures/data';
 import { identityRepository } from '../app/server/repositories/identity';
 import { GM_EMAIL, GM_PROVIDER, GM_PROVIDER_ID } from '../scripts/seed/users';
@@ -34,6 +37,7 @@ import {
 } from './fixtures/soundboard-fixtures';
 import { campaignFixtures } from './fixtures/campaigns';
 import { graphDb, ObjectId, type Db } from '../scripts/graph-db';
+import { getAudioUserQuotaBytes } from '../app/lib/audio-quota-limits';
 
 /**
  * Local, not imported from `~/server/utils/helpers`'s own `escapeRegExp` —
@@ -177,6 +181,111 @@ async function seedAudioFixtures(db: Db, ownerId: unknown): Promise<void> {
         { $set: set, $setOnInsert: { createdAt: new Date() } },
         { upsert: true }
       );
+  }
+}
+
+/**
+ * Idempotently upserts the storage-quota fillers `audio-hardening.spec.ts`
+ * depends on — see `AUDIO_QUOTA_FIXTURE` in `e2e/fixtures/audio-fixtures.ts`
+ * for why the over-quota state is produced with seeded BYTES rather than a
+ * lowered `AUDIO_USER_QUOTA_BYTES`, and why the bytes are spread across all
+ * six fields `getUserStorageUsage` sums.
+ *
+ * These rows put the seeded GM OVER the quota for the whole run, which is the
+ * point: every server-side path that presigns an upload must refuse them.
+ * `globalTeardown.ts` deletes them again afterwards, so a local dev database
+ * (the E2E suite runs against the developer's own dev Atlas DB) isn't left
+ * with an account that silently refuses every audio upload with no visible
+ * cause. Nothing else in this file is torn down, because nothing else in this
+ * file DISABLES a feature for the seeded user.
+ *
+ * Shaped like a finished asset — `status: 'ready'`, `confirmedAt` set, both
+ * rendition pairs present, `kind: 'music'` (the only kind a once-variant may
+ * attach to) — so they are rows the real pipeline could have produced, apart
+ * from their deliberately outsized byte counts. Tagged, so they can never
+ * satisfy `audio-library.spec.ts`'s "needs tagging" filter assertions.
+ */
+async function seedStorageQuotaFixtures(db: Db, ownerId: unknown): Promise<void> {
+  const { bytes } = AUDIO_QUOTA_FIXTURE;
+
+  // A cheap fail-fast, NOT a check that the seeded bytes actually persisted:
+  // this sums the DECLARED figures in `AUDIO_QUOTA_FIXTURE` before the
+  // upsert loop below ever runs and never reads anything back from the
+  // store, so it cannot catch a field silently stripped on write (which is
+  // exactly what happened to `onceSourceBytes` before Task 1 added it to the
+  // `AudioAsset` Zod schema — `schema.parse` dropped it on every write, and
+  // this computation would have stayed green throughout, because it never
+  // touches the schema at all). What DOES cover persistence is
+  // `e2e/audio-hardening.spec.ts`'s own assertion (around line 151,
+  // `expect(usageBytes).toBeGreaterThanOrEqual(SEEDED_FILLER_BYTES)`), which
+  // reads back the server's actual aggregated usage after a real request.
+  // This check exists one layer up from that: if the fixture's own declared
+  // numbers stop exceeding the quota (an edit to `AUDIO_QUOTA_FIXTURE` or to
+  // the quota itself), fail here, immediately, with a clear message — rather
+  // than downstream inside a Playwright assertion whose failure gives no
+  // hint that the seed itself was the problem.
+  //
+  // `getAudioUserQuotaBytes` comes from `~/lib/audio-quota-limits.ts`, a
+  // framework-free leaf module — never from `~/server/functions/audio.ts`
+  // directly, which pulls in R2/db wiring this standalone script has no
+  // business loading (see `escapeRegExp` above for the same reasoning). This
+  // is the SAME function `assertUnderStorageQuota` calls, not a duplicated
+  // copy of its env/default logic, so the two cannot silently drift.
+  const seededTotal =
+    AUDIO_QUOTA_FIXTURE.count * Object.values(bytes).reduce((sum, n) => sum + n, 0);
+  const quotaBytes = getAudioUserQuotaBytes();
+  if (seededTotal <= quotaBytes) {
+    throw new Error(
+      `Quota fixture seeds ${seededTotal} bytes, which does not exceed the ${quotaBytes}-byte ` +
+        'quota — the E2E would pass without proving anything.'
+    );
+  }
+
+  for (let i = 1; i <= AUDIO_QUOTA_FIXTURE.count; i += 1) {
+    const sourceKey = `${AUDIO_QUOTA_FIXTURE.sourceKeyPrefix}${i}`;
+    const onceSourceKey = `${sourceKey}.once`;
+
+    await db.collection('audioassets').findOneAndUpdate(
+      { ownerId, sourceKey },
+      {
+        $set: {
+          ownerId,
+          title: `${AUDIO_QUOTA_FIXTURE.titlePrefix} ${i}`,
+          kind: 'music',
+          environment: [],
+          mood: [],
+          intensity: null,
+          tags: ['e2e-quota-filler'],
+          sourceKey,
+          sourceBytes: bytes.source,
+          onceSourceKey,
+          onceSourceBytes: bytes.onceSource,
+          confirmedAt: new Date(),
+          status: 'ready',
+          variant: 'main',
+          attempts: 1,
+          lastError: null,
+          claimedAt: null,
+          claimedBy: null,
+          durationMs: 42_000,
+          loudnessTargetLufs: -20,
+          sampleRate: 48_000,
+          channels: 2,
+          peaks: fakePeaks(),
+          renditions: {
+            opus: { ...fakeRendition(sourceKey, 'opus'), bytes: bytes.opus },
+            aac: { ...fakeRendition(sourceKey, 'aac'), bytes: bytes.aac },
+          },
+          onceRenditions: {
+            opus: { ...fakeRendition(onceSourceKey, 'opus'), bytes: bytes.onceOpus },
+            aac: { ...fakeRendition(onceSourceKey, 'aac'), bytes: bytes.onceAac },
+          },
+          updatedAt: new Date(),
+        },
+        $setOnInsert: { createdAt: new Date() },
+      },
+      { upsert: true }
+    );
   }
 }
 
@@ -492,6 +601,7 @@ export default async function globalSetup(): Promise<void> {
   }
 
   await seedAudioFixtures(db, user._id);
+  await seedStorageQuotaFixtures(db, user._id);
   const soundboard = await seedSoundboardFixtures(
     db,
     user._id as ObjectId,

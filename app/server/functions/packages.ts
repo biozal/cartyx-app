@@ -5,6 +5,9 @@ import { AudioPackage } from '../db/models/AudioPackage';
 import { serverCaptureException, serverCaptureEvent } from '../utils/telemetry';
 import { serializeAudioAsset } from './audio';
 import type { AudioAssetData } from '~/types/audio';
+import { PACKAGE_STALE_WRITE_ERROR_NAME } from '~/lib/soundboard/stale-write';
+import { PACKAGE_CLIENT_ERROR_NAME } from '~/lib/client-refusal';
+import { pruneOrphanedMoodStates } from '~/lib/soundboard/prune';
 import {
   DEFAULT_VOLUME,
   DEFAULT_FADE_SECONDS,
@@ -22,6 +25,7 @@ import type {
   getPackageSchema,
   clonePackageSchema,
   listPackageAssetsSchema,
+  listPackagesSchema,
 } from '~/types/schemas/soundboard';
 
 async function ensureDb() {
@@ -42,9 +46,62 @@ async function ensureDb() {
  * GlitchTip volume path if left unguarded.
  */
 export class PackageClientError extends Error {
-  constructor(message: string) {
+  /**
+   * Set only when the refusal is a rate-limit rejection thrown by
+   * `~/utils/soundboard-server-fns.ts`'s wrapper gate — same field, same
+   * meaning, as `AudioClientError.retryAfterMs`.
+   */
+  readonly retryAfterMs?: number;
+
+  constructor(message: string, options?: { retryAfterMs?: number }) {
     super(message);
-    this.name = 'PackageClientError';
+    // From the shared constant — the browser recognises this refusal by
+    // `.name` in order to keep its own telemetry as quiet as
+    // `reportPackageError` keeps the server's. See `~/lib/client-refusal.ts`.
+    this.name = PACKAGE_CLIENT_ERROR_NAME;
+    this.retryAfterMs = options?.retryAfterMs;
+  }
+}
+
+/**
+ * The optimistic-concurrency refusal: the caller's `expectedUpdatedAt` did
+ * not match the stored document, so somebody else wrote to it between the
+ * caller's read and their save.
+ *
+ * A `PackageClientError` SUBCLASS, deliberately — it is the caller's own
+ * doing in exactly the same sense (a save built on a read that has since gone
+ * out of date), so `reportPackageError` keeps filing no GlitchTip event for
+ * it: a second tab left open on an editor would otherwise author one error
+ * report per Save click. But it is a DIFFERENT identity from the bare
+ * `PackageClientError('Package not found')` its sibling failure throws, and
+ * that separation is the point. "Not found" and "changed underneath you" mean
+ * opposite things — one says the package is gone or was never yours, the
+ * other says it is very much there and newer than you think — and the editor
+ * has to offer completely different affordances for each. Nothing downstream
+ * should have to regex a message to tell them apart; see
+ * `~/lib/soundboard/stale-write.ts` for how the browser recognises this one.
+ */
+export class PackageStaleWriteError extends PackageClientError {
+  /**
+   * The `updatedAt` the stored document actually carries, ISO-encoded the way
+   * `serializePackage` encodes it. This is the token a client needs to retry
+   * the SAME edit as a deliberate overwrite — the editor's "keep my edits"
+   * path replays the identical draft with this value as its
+   * `expectedUpdatedAt`, which is still a compare-and-swap: if a third write
+   * lands in the meantime it is refused again, rather than the retry
+   * degrading into an unfenced write.
+   *
+   * No leak: the update filter this follows is already `ownerId`-scoped, so
+   * this value only ever describes a document the caller owns.
+   */
+  readonly currentUpdatedAt: string;
+
+  constructor(currentUpdatedAt: string) {
+    super(
+      'This package changed somewhere else after you opened it. Nothing has been lost — your unsaved edits are still here, and the saved version is still stored. Choose which one to keep.'
+    );
+    this.name = PACKAGE_STALE_WRITE_ERROR_NAME;
+    this.currentUpdatedAt = currentUpdatedAt;
   }
 }
 
@@ -76,8 +133,21 @@ function reportPackageError(e: unknown, actor: Actor, context: Record<string, un
  * package (`ownerId: null` — phase 3's generated catalogue, readable by
  * everyone). This is the one seam in the soundboard where phase 1's
  * ownerId-only scoping does not apply, so it is expressed exactly once here
- * and reused by every READ below — never an incidental `$or` re-typed at a
- * call site.
+ * and reused by every ID-SCOPED read below — never an incidental `$or`
+ * re-typed at a call site.
+ *
+ * ID-SCOPED, and that qualifier is now load-bearing. `getPackage`,
+ * `listPackageAssets` and `clonePackage` each AND this with `_id: <one id>`,
+ * and the graph model short-circuits a string `_id` to a single
+ * `collection.get(id)` BEFORE it considers index pushdown — so those three
+ * fetch exactly one document and evaluate this `$or` in process, correctly
+ * and cheaply.
+ *
+ * `listPackages` does NOT use this, deliberately. It has no `_id`, so its
+ * filter goes down the pushdown path, where only top-level indexed keys are
+ * translated into graph predicates — a `$or` is not one, so it narrowed
+ * nothing and the list read EVERY package in the install. It issues two
+ * separately-pushed-down reads instead; see its own comment.
  *
  * NEVER used for a write. Every mutation in this file filters on
  * `{ _id, ownerId: userId }` instead — see `updatePackage`/`deletePackage` —
@@ -192,18 +262,24 @@ export function serializePackage(p: PackageDoc): AudioPackageData {
  * `items`/`moods` are ~99% of a package document — a maxed one (64 items with
  * 200-char labels, 32 moods of 64 states, a 2000-char description) is about
  * 410 KiB serialized, of which the scalar fields below are a few hundred
- * bytes. `listPackages` is unpaginated and fires on every `/audio/packages`
- * visit and every soundboard mount, so returning whole documents made one
- * user's package count the memory cost of their own page load on a
- * `replicaCount: 1` pod capped at 512Mi (`deploy/charts/cartyx/values.yaml`) —
- * an OOMKill that takes the site down for every other user and recurs on
- * restart, because the victim's own next page load fires the same read.
+ * bytes. `listPackages` fires on every `/audio/packages` visit and every
+ * soundboard mount, and returning whole documents made one user's package
+ * count the memory cost of their own page load on a `replicaCount: 1` pod
+ * capped at 512Mi (`deploy/charts/cartyx/values.yaml`).
  *
- * `$size` (a Mongo aggregation expression, supported in `find` projections
- * since 4.4) gives the list exactly what it renders — the counts — without
- * either array crossing the wire or the process boundary. `$ifNull` guards a
- * document written before the field existed; `$size` throws on a missing
- * field rather than returning 0.
+ * `$size` gives the list exactly what it renders — the counts — and `$ifNull`
+ * guards a document written before the field existed, because `$size` throws
+ * on a missing field rather than returning 0.
+ *
+ * This trims the SERVER-FN RESPONSE, and that is all it does. It is not a
+ * memory control: the entity store keeps each document as one JSON blob, so
+ * `items` and `moods` are fully materialised — and the projection is applied
+ * in process, by mingo, after the rows are already in this heap. What bounds
+ * this function's peak heap is the split visibility read in `listPackages`,
+ * not this. (An earlier revision of this comment claimed the arrays "never
+ * crossed the process boundary". They always did; only the response was ever
+ * smaller. A guard justified by a dead premise reads exactly like a true one
+ * to whoever builds the next guard on it.)
  *
  * NOT applied to `getPackage`/`listPackageAssets`/`clonePackage`: each of
  * those reads ONE document and genuinely needs its items (to edit it, to
@@ -245,19 +321,147 @@ export function serializePackageSummary(p: PackageDoc): AudioPackageSummaryData 
   };
 }
 
+/**
+ * The list's total order, and the one comparison both the sort and the cursor
+ * seek below go through.
+ *
+ * Code-unit comparison, NOT `localeCompare`, for two reasons. It is what the
+ * `.sort({ name: 1 })` this function used to issue already did, so the order a
+ * user sees does not silently change; and it is locale-independent, whereas
+ * `localeCompare`'s result depends on the process's default ICU locale — a
+ * cursor is only correct if the seek and the sort that minted it agree, and
+ * that agreement should not rest on an ambient setting.
+ */
+function compareByName(a: PackageDoc, b: PackageDoc): number {
+  const an = String(a.name);
+  const bn = String(b.name);
+  if (an !== bn) return an < bn ? -1 : 1;
+  // `name` is not unique — two packages may share one, and a system package
+  // and the caller's own copy of it routinely do. `_id` breaks the tie so the
+  // order is TOTAL: a non-total order makes a cursor ambiguous at exactly the
+  // boundary it is used at, which is how a page repeats or skips a row.
+  const ai = String(a._id);
+  const bi = String(b._id);
+  return ai < bi ? -1 : ai > bi ? 1 : 0;
+}
+
+const PACKAGE_ID_RE = /^[0-9a-f]{24}$/;
+
+/**
+ * `<base64url(name)>_<id>`. The sort key is `name`, free text that may contain
+ * anything including the delimiter, so the name half is base64url-encoded; the
+ * id half is always 24 lowercase hex and contains no `_`, which makes
+ * `lastIndexOf('_')` an unambiguous split.
+ */
+function encodePackageCursor(name: string, id: string): string {
+  return `${Buffer.from(name, 'utf8').toString('base64url')}_${id}`;
+}
+
+/**
+ * Returns null for anything this server did not mint — the caller fails
+ * closed. `listPackagesSchema.cursor` rejects the same shapes at the request
+ * boundary, so in practice nothing reaches this path; it exists so the
+ * function is safe for any caller, not only validated ones.
+ */
+function decodePackageCursor(cursor: string): { name: string; id: string } | null {
+  const idx = cursor.lastIndexOf('_');
+  if (idx <= 0 || idx === cursor.length - 1) return null;
+  const encodedName = cursor.slice(0, idx);
+  const id = cursor.slice(idx + 1);
+  if (!PACKAGE_ID_RE.test(id)) return null;
+  // Node's base64url decoder does not throw on junk — it skips what it cannot
+  // read — so the alphabet has to be checked before decoding rather than
+  // caught after. Without this, `!!!!_<24 hex>` would decode to some arbitrary
+  // string and seek to an arbitrary place in the list instead of being refused.
+  if (!/^[A-Za-z0-9_-]+$/.test(encodedName)) return null;
+  return { name: Buffer.from(encodedName, 'base64url').toString('utf8'), id };
+}
+
 export async function listPackages({
+  data,
   userId,
   sessionUserId,
-}: Actor): Promise<{ items: AudioPackageSummaryData[] }> {
+}: {
+  data: z.infer<typeof listPackagesSchema>;
+} & Actor): Promise<{
+  items: AudioPackageSummaryData[];
+  nextCursor: string | null;
+}> {
   try {
     await ensureDb();
-    const rows = (await AudioPackage.find(
-      packageVisibilityFilter(userId),
-      PACKAGE_SUMMARY_PROJECTION
-    )
-      .sort({ name: 1 })
-      .lean()) as PackageDoc[];
-    return { items: rows.map(serializePackageSummary) };
+
+    // TWO PUSHED-DOWN READS RATHER THAN ONE `$or`, and this — not the cursor
+    // below — is the memory fix.
+    //
+    // The graph model only pushes TOP-LEVEL INDEXED KEYS down into the store's
+    // `where`; a `$or` is neither, so `packageVisibilityFilter` narrowed
+    // nothing and this read loaded EVERY package in the install into this heap
+    // before mingo filtered it. Split, each arm narrows on `ownerId` (indexed
+    // as `ix_s1`): the caller's own set is capped by `MAX_PACKAGES_PER_USER`,
+    // and the system set is a curated catalogue. `{ ownerId: null }` pushes
+    // down too — the store drops absent properties rather than writing a null,
+    // so a null filter translates to `hasNot(slot)` rather than `has(slot,
+    // null)`. That is not index-served the way an equality `has` is, though:
+    // the composite indexes require equality on every key, so `hasNot` falls
+    // back to the `(scope, kind)` index and walks every `audiopackages`
+    // vertex testing absence — O(kind), not O(matches). What it still buys is
+    // the thing this split exists for: Gremlin filters before `project()`, so
+    // only matching documents are ever materialised into this process, which
+    // is what keeps this arm's heap bounded where the `$or` form bounded
+    // nothing (see `graph-entity-store.ts`'s `applyFilters`).
+    //
+    // The union is exactly what the `$or` matched, and it is a union rather
+    // than a merge because the two arms are DISJOINT — which depends on
+    // `userId` never being nullish. `requireActor()` guarantees that today (it
+    // throws rather than returning a userless actor), and this is the one line
+    // that relies on it: a nullish `userId` would make `isIndexValue` drop
+    // `where.ownerId` from the owned arm, and mingo's undefined-equals-missing
+    // semantics would then let both arms match every system package, so the
+    // caller would see the whole catalogue twice.
+    const [mine, system] = (await Promise.all([
+      AudioPackage.find({ ownerId: userId }, PACKAGE_SUMMARY_PROJECTION).lean(),
+      AudioPackage.find({ ownerId: null }, PACKAGE_SUMMARY_PROJECTION).lean(),
+    ])) as [PackageDoc[], PackageDoc[]];
+
+    const ordered = [...mine, ...system].sort(compareByName);
+
+    // THE CURSOR IS NOT A MEMORY CONTROL, and no comment here should ever
+    // imply that it is. `matching()` reads through `collection.findAll`, whose
+    // options are typed `Omit<FindOptions<T>, 'limit' | 'offset'>` and which
+    // loops every store page into one array; `find()` then slices in process.
+    // So `limit` bounds the RESPONSE — its serialization cost and how much the
+    // browser has to render at once — and never the read. The `where` clause
+    // above is the only thing that bounds the read.
+    let start = 0;
+    if (data.cursor) {
+      const decoded = decodePackageCursor(data.cursor);
+      // Fail closed, exactly as `listAudioAssets` does: silently restarting at
+      // page 1 appends page 1 underneath page 1 in an append-style UI, giving
+      // the user duplicate rows and the client no signal that its cursor was
+      // thrown away. A `PackageClientError`, so a client looping on a bad
+      // cursor files no GlitchTip event.
+      if (!decoded) throw new PackageClientError('Invalid pagination cursor');
+      // The first row strictly AFTER the cursor, under the same total order
+      // `compareByName` imposes above. Not `findIndex(id === decoded.id)`: the
+      // row the cursor names may have been deleted or renamed between pages,
+      // and a seek by position must still land somewhere sensible rather than
+      // restarting.
+      const after = { name: decoded.name, _id: decoded.id } as PackageDoc;
+      start = ordered.findIndex((p) => compareByName(p, after) > 0);
+      // Every row sorts at or before the cursor — the caller has reached the
+      // end (or everything past it was deleted). An empty page with no cursor,
+      // not page 1 again.
+      if (start < 0) start = ordered.length;
+    }
+
+    const rows = ordered.slice(start, start + data.limit);
+    const items = rows.map(serializePackageSummary);
+    const last = rows[rows.length - 1];
+    const nextCursor =
+      last && start + rows.length < ordered.length
+        ? encodePackageCursor(String(last.name), String(last._id))
+        : null;
+    return { items, nextCursor };
   } catch (e) {
     reportPackageError(e, { userId, sessionUserId }, { action: 'listPackages' });
     throw e;
@@ -412,6 +616,166 @@ export async function createPackage({
   }
 }
 
+/**
+ * Server-only, NOT exported — same discipline as `assertPackageBudget` above.
+ * Decides WHICH refusal a failed `updatePackage` filter earned, and it is the
+ * only thing that can: `findOneAndUpdate` returning `null` is a single answer
+ * to three different questions ANDed together (does the id exist, does the
+ * caller own it, is it still at the revision they read), so on its own it
+ * cannot tell "gone or not yours" from "changed underneath you".
+ *
+ * One extra read, on the failure path only, with the precondition dropped and
+ * everything else — `_id` AND `ownerId` — held identical. Holding `ownerId`
+ * is load-bearing: re-reading by `_id` alone would answer "does this document
+ * exist" rather than "does it exist FOR YOU", which would turn a probe against
+ * another user's package id into a stale-write refusal and leak the existence
+ * of documents the caller cannot see. Another owner's package must stay
+ * indistinguishable from an absent one, exactly as it is for every other read
+ * in this file.
+ */
+async function staleWriteOrNotFound(id: string, userId: string): Promise<PackageClientError> {
+  const current = (await AudioPackage.findOne(
+    { _id: id, ownerId: userId },
+    { updatedAt: 1 }
+  ).lean()) as unknown as { updatedAt?: Date } | null;
+  if (!current) return new PackageClientError('Package not found');
+  // Same `instanceof Date` normalisation `serializePackage` applies to the
+  // same field, for the same reason — this value is going to a client that
+  // will hand it straight back as the next `expectedUpdatedAt`.
+  return new PackageStaleWriteError(
+    current.updatedAt instanceof Date ? current.updatedAt.toISOString() : ''
+  );
+}
+
+/**
+ * Drops items whose `assetId` no longer resolves to an asset this caller can
+ * see, and prunes the mood states that referenced them.
+ *
+ * WHY THIS EXISTS, and it is the other half of the optimistic-concurrency
+ * fence below rather than a separate idea. That fence's whole justification
+ * is that an unfenced whole-array replace "RESURRECTS whatever the newer
+ * write removed, including the items `deleteAudioAsset`'s prune took out
+ * because their asset no longer exists." The fence REFUSES such a write —
+ * but the editor's conflict notice then offers "Keep my edits and overwrite",
+ * which replays the same draft against the newer revision. That is the right
+ * affordance (the user's edits are real and they get to keep them), and
+ * without this it was also a supported, two-click path back into precisely
+ * the state the fence was built to prevent: the deleted asset's pad returns,
+ * permanently dangling, and the GM has no way to know it happened, because
+ * "my edits" is not a phrase that tells anyone a pad's audio was deleted
+ * underneath them.
+ *
+ * FILTERING, NOT REJECTING. Refusing the save outright would strand the user:
+ * the editor gives them no way to find or remove the offending pads, so their
+ * only exit would be discarding every edit they made. Dropping the dead items
+ * converges on what `deleteAudioAsset`'s prune already did unilaterally to
+ * this same document, which makes the two paths agree instead of fighting.
+ * The saved document comes back in the response and re-seeds the editor, so
+ * the pad visibly disappears rather than silently persisting as a tombstone.
+ * (Telling the user how many went, and why, needs a response field and a
+ * surface for it — worth doing, deliberately not smuggled into this fix.)
+ *
+ * EXISTENCE, NOT VISIBILITY, and the distinction is the whole correctness of
+ * this function. "The asset row is gone" and "you cannot read that asset" are
+ * different facts with opposite right answers, and an ownership-scoped query
+ * here answers the second while claiming to answer the first.
+ *
+ * A package may legitimately reference an asset its owner cannot see —
+ * `listPackageAssets` says so explicitly ("a package can reference another
+ * user's private asset (nothing prevents that today) and this must not leak
+ * it") and handles it by refusing to RETURN the asset, so the board renders
+ * the pad in its own unresolved group with an honest reason. That reference
+ * is intact and the asset is alive. Scoping this query by ownership deletes
+ * it on the owner's next save — silent data loss, of exactly the kind this
+ * function exists to prevent, inflicted on a case that was working. (Caught
+ * by the E2E that seeds a foreign-owned item precisely to pin that
+ * behaviour; the unit suite's mongoose mocks cannot see the difference,
+ * which is the failure mode CLAUDE.md warns about.)
+ *
+ * So: `{_id: {$in: ids}}` and nothing else. That is not a leak. It reads no
+ * field of any document — the projection is `_id` — and every id in the
+ * answer is an id the CALLER supplied. The only thing derivable is whether a
+ * 24-hex id the caller already possesses exists, which is not information
+ * any 96-bit identifier is protecting.
+ *
+ * One `$in` over at most `MAX_PACKAGE_ITEMS` (64) ids, projected to `_id`.
+ */
+async function dropUnresolvableItems(
+  items: PackageItemData[],
+  moods: MoodData[] | undefined
+): Promise<{ items: PackageItemData[]; moods: MoodData[] | undefined; dropped: boolean }> {
+  // No ids to resolve — but the moods still have to be reconciled against the
+  // (empty) item list, because a payload of `items: []` with mood states in it
+  // is every state orphaned. An early return that skipped that would make this
+  // function's guarantee true for 1..64 items and false for 0, which is the
+  // shape of edge case that survives review by looking like an optimisation.
+  const survivingItems = items.length === 0 ? items : await resolveExistingItems(items);
+  const dropped = survivingItems.length !== items.length;
+
+  // Moods reference `item.id`, never `assetId` (see `~/lib/soundboard/prune`),
+  // so removing items without this leaves mood states pointing at ids that no
+  // longer exist — the same orphan `deleteAudioAsset`'s prune handles with the
+  // same helper. `moods` may be absent: this is a partial update, and an
+  // omitted field must stay omitted rather than being materialised here — see
+  // `updatePackage`, which reconciles the STORED moods in that case.
+  return {
+    items: survivingItems,
+    moods: moods === undefined ? undefined : pruneOrphanedMoodStates(moods, survivingItems),
+    dropped,
+  };
+}
+
+/** The existence query itself — see `dropUnresolvableItems` for why it is unscoped. */
+async function resolveExistingItems(items: PackageItemData[]): Promise<PackageItemData[]> {
+  const referencedIds = [...new Set(items.map((item) => item.assetId))];
+  const rows = (await AudioAsset.find(
+    { _id: { $in: referencedIds } },
+    { _id: 1 }
+  ).lean()) as unknown as { _id: unknown }[];
+
+  const live = new Set(rows.map((row) => String(row._id).toLowerCase()));
+  return items.filter((item) => live.has(item.assetId.toLowerCase()));
+}
+
+/**
+ * OPTIMISTIC CONCURRENCY. Every field this function writes is a whole-value
+ * replace — `items` and `moods` most of all — so without a precondition the
+ * write is last-write-wins over entire arrays. That is data loss, not
+ * staleness: an editor tab left open for ten minutes and then saved does not
+ * merely lose the newer edit, it RESURRECTS whatever the newer write removed,
+ * including the items `deleteAudioAsset`'s prune took out because their asset
+ * no longer exists (`app/server/functions/audio.ts`) — putting the document
+ * back into a state the rest of the system has already moved past.
+ *
+ * The fence is `updatedAt`, ANDed into the update filter, and the choice
+ * between it and a dedicated version counter came down to two properties of
+ * THIS collection:
+ *
+ * 1. Every writer of an `AudioPackage` already advances it, and the one that
+ *    matters most already does. `deleteAudioAsset`'s prune (audio.ts) `$set`s
+ *    `updatedAt` on every package it rewrites; `createPackage`/`clonePackage`
+ *    insert with the schema's own default. So the fence closes the
+ *    resurrection case above against the writer that exists today, with no
+ *    change to another module. A `version` counter would have to be threaded
+ *    into that writer by hand, and into every future one.
+ * 2. Every stored document already HAS it. `version: { type: Number, default:
+ *    0 }` does not retro-apply to documents already in Mongo, and `{ version:
+ *    0 }` does not match a document where the field is absent — so a counter
+ *    would have made every package created before this change permanently
+ *    unsaveable, unless paired with a `$exists` special case that then lives
+ *    forever or a backfill this phase has no migration mechanism for.
+ *
+ * NOT the same mistake as Task 10's. That defect is `updateAudioAsset`
+ * bumping `updatedAt` and thereby resetting a clock the once-upload reaper
+ * reads as "how long since this JOB progressed" — a second, different
+ * question inferred from the field. This asks `updatedAt` exactly the
+ * question it answers: has this document been modified since I read it. A
+ * writer that modifies the document and stamps `updatedAt` is CORRECTLY
+ * invalidating the caller's read, not accidentally defeating a mechanism.
+ * The invariant this does rely on, and which nothing mechanically enforces:
+ * any future writer of an `AudioPackage` must stamp `updatedAt`, or it will
+ * be invisible to this fence.
+ */
 export async function updatePackage({
   data,
   userId,
@@ -423,20 +787,59 @@ export async function updatePackage({
     await ensureDb();
     // Only include fields the caller actually provided, same reasoning as
     // `updateAudioAsset` in audio.ts: an omitted field must not be clobbered.
-    const set: Record<string, unknown> = { updatedAt: new Date() };
+    const set: Record<string, unknown> = {
+      updatedAt: new Date(Math.max(Date.now(), new Date(data.expectedUpdatedAt).getTime() + 1)),
+    };
     if (data.name !== undefined) set.name = data.name;
     if (data.description !== undefined) set.description = data.description;
-    if (data.items !== undefined) set.items = data.items;
-    if (data.moods !== undefined) set.moods = data.moods;
+    if (data.items !== undefined) {
+      // Before the write, not after: see `dropUnresolvableItems`. A draft
+      // built before `deleteAudioAsset` pruned this package would otherwise
+      // put the dead pads back — which the fence below refuses on the first
+      // attempt, and the editor's "keep my edits" retry then carries through
+      // on the second.
+      const pruned = await dropUnresolvableItems(data.items, data.moods);
+      set.items = pruned.items;
+      if (pruned.moods !== undefined) {
+        set.moods = pruned.moods;
+      } else if (pruned.dropped) {
+        // ITEMS WERE DROPPED AND THE CALLER SENT NO MOODS. The editor always
+        // sends both, but `updatePackageSchema` allows `items` alone, and in
+        // that case the moods this write leaves standing are the STORED ones —
+        // which may now reference item ids that no longer exist. Pruning only
+        // what we were handed would make this check's own invariant ("the
+        // items and moods written are mutually consistent") hold for the
+        // caller who needs it least.
+        //
+        // Reading here is safe against the very race this function sits
+        // inside: the write below is fenced on the caller's
+        // `expectedUpdatedAt`, so if anything lands between this read and that
+        // write, the write is refused rather than shipping moods built on a
+        // stale read.
+        const stored = (await AudioPackage.findOne(
+          { _id: data.id, ownerId: userId },
+          { moods: 1 }
+        ).lean()) as unknown as { moods?: MoodData[] } | null;
+        const storedMoods = stored?.moods;
+        if (storedMoods?.length) {
+          set.moods = pruneOrphanedMoodStates(storedMoods, pruned.items);
+        }
+      }
+    } else if (data.moods !== undefined) {
+      set.moods = data.moods;
+    }
 
     // Owner-scoped, NEVER the visibility filter — see `packageVisibilityFilter`'s
     // doc comment. This is the query that keeps a system package immutable.
+    // `updatedAt` is the precondition; it must be a `Date`, because Mongo
+    // compares a BSON date against a string as a type mismatch that never
+    // matches — which would refuse every save rather than only the stale ones.
     const doc = await AudioPackage.findOneAndUpdate(
-      { _id: data.id, ownerId: userId },
+      { _id: data.id, ownerId: userId, updatedAt: new Date(data.expectedUpdatedAt) },
       { $set: set },
       { new: true }
     ).lean();
-    if (!doc) throw new PackageClientError('Package not found');
+    if (!doc) throw await staleWriteOrNotFound(data.id, userId);
     serverCaptureEvent(telemetryId({ userId, sessionUserId }), 'package_updated', {
       packageId: data.id,
     });

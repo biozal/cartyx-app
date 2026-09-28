@@ -38,9 +38,11 @@ export interface PackageListProps {
  * `items[]`/`moods[]` arrays themselves. This component never rendered an
  * item or a mood; it only ever called `.length` on them, and shipping ~410
  * KiB of embedded arrays per row so a `.length` could be read here is what
- * made an unpaginated `listPackages` an out-of-memory path on a single 512Mi
- * pod. The counts now come from Mongo's `$size` and the arrays never leave
- * the database (see `listPackages`).
+ * made `listPackages` an out-of-memory path on a single 512Mi pod. The counts
+ * now come from a `$size` projection instead — which trims what crosses the
+ * WIRE to this component, and nothing more: the arrays are still materialised
+ * server-side, and what bounds `listPackages`' own heap is its split
+ * visibility read (see that function).
  */
 export function PackageList({ packages, onEdit, onClone, onDelete, cloningId }: PackageListProps) {
   if (packages.length === 0) {

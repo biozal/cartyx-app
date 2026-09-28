@@ -12,7 +12,7 @@ realtime/src/
   server.ts               HTTP + WS server, routing, heartbeat
   rooms.ts                In-process Room/RoomManager + broadcast
   auth.ts                 JWT verification + room binding
-  history.ts              Memory/Mongo message history stores
+  history.ts              Memory/graph message history stores
   parties/
     tabletop.ts           Tab + window relay (this doc)
     tabletopMap.ts        Map contents: tokens, drawings, text, AoE
@@ -20,8 +20,8 @@ realtime/src/
 ```
 
 Run it locally with `npm run realtime:dev`. Env: `PORT` (default `1999`),
-`SESSION_SECRET` (**required** — the process exits without it), `MONGODB_URI`
-(optional; absent means in-memory history).
+`SESSION_SECRET` (**required** — the process exits without it), `GREMLIN_URL`
+(optional; absent means in-memory history, with a warning logged on start).
 
 > Historical note: this was previously a PartyKit app in a `party/` directory
 > with a `partykit.json`. Both are gone — see the self-host migration. Two

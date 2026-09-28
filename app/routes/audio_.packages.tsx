@@ -16,7 +16,8 @@ import {
 import type { createPackageSchema } from '~/types/schemas/soundboard';
 import { queryKeys } from '~/utils/queryKeys';
 import { captureException } from '~/utils/telemetry-client';
-import type { AudioPackageSummaryData } from '~/types/soundboard';
+import { isClientRefusal } from '~/lib/client-refusal';
+import { PACKAGE_LIST_PAGE_SIZE, type AudioPackageSummaryData } from '~/types/soundboard';
 
 /**
  * `createPackageSchema`'s shape, not a structural literal (per the brief) —
@@ -128,7 +129,12 @@ export function PackagesListPage() {
     error: listError,
   } = useQuery({
     queryKey: queryKeys.packages.list(),
-    queryFn: () => listPackagesFn(),
+    // `listPackages` is paged now (the split visibility read is what bounds
+    // its memory; the page bounds the response — see its doc comment). This
+    // list has no append affordance, so it asks for one page of
+    // `PACKAGE_LIST_PAGE_SIZE` and ignores `data.nextCursor`; the cursor is
+    // there for whoever adds "load more" or an infinite scroll here.
+    queryFn: () => listPackagesFn({ data: { limit: PACKAGE_LIST_PAGE_SIZE } }),
   });
   const packages = data?.items ?? [];
 
@@ -142,7 +148,10 @@ export function PackagesListPage() {
       invalidatePackages();
       navigate({ to: '/audio/packages/$packageId', params: { packageId: created.id } });
     },
-    onError: (e) => captureException(e, { action: 'PackagesListPage.createPackage' }),
+    onError: (e) => {
+      // A refusal is not a fault — see `~/lib/client-refusal.ts`.
+      if (!isClientRefusal(e)) captureException(e, { action: 'PackagesListPage.createPackage' });
+    },
   });
 
   const cloneMutation = useMutation({
@@ -162,13 +171,19 @@ export function PackagesListPage() {
     mutationFn: (pkg: AudioPackageSummaryData) =>
       clonePackageFn({ data: { id: pkg.id, name: cloneDisplayName(pkg.name) } }),
     onSuccess: invalidatePackages,
-    onError: (e) => captureException(e, { action: 'PackagesListPage.clonePackage' }),
+    onError: (e) => {
+      // A refusal is not a fault — see `~/lib/client-refusal.ts`.
+      if (!isClientRefusal(e)) captureException(e, { action: 'PackagesListPage.clonePackage' });
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (pkg: AudioPackageSummaryData) => deletePackageFn({ data: { id: pkg.id } }),
     onSuccess: invalidatePackages,
-    onError: (e) => captureException(e, { action: 'PackagesListPage.deletePackage' }),
+    onError: (e) => {
+      // A refusal is not a fault — see `~/lib/client-refusal.ts`.
+      if (!isClientRefusal(e)) captureException(e, { action: 'PackagesListPage.deletePackage' });
+    },
   });
 
   const { pendingDelete, deleteError, requestDelete, cancelDelete, confirmDelete } =

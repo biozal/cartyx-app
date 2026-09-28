@@ -29,14 +29,52 @@ export const MAX_PACKAGE_MOODS = 32;
  * is ~480 MiB of JSON alone and the pod is OOMKilled for every user, not just
  * the one who did it.
  *
- * `listPackages` no longer performs that read at all (it projects `items`/
- * `moods` away and returns counts), so this cap is the second of two
- * independent defences, not the only one: it bounds what a future
- * un-projected read — or a Mongo-side working set — can cost. 100 is also far
- * past any plausible use: a package is a scene set, and a campaign runs on a
- * handful.
+ * This cap is now load-bearing rather than a backstop: `listPackages` bounds
+ * its read by querying `{ ownerId: <caller> }` and `{ ownerId: null }`
+ * separately (a `$or` pushed nothing down and scanned the whole install), and
+ * THIS is what bounds the first of those two arms. 100 is also far past any
+ * plausible use: a package is a scene set, and a campaign runs on a handful.
  */
 export const MAX_PACKAGES_PER_USER = 100;
+
+/**
+ * The page size both package-list callers ask `listPackagesFn` for — the
+ * `/audio/packages` list and the soundboard's package picker.
+ *
+ * Neither surface has a "load more" affordance yet, so both are single-page
+ * reads: whatever does not fit in one page is simply not shown, and the
+ * `nextCursor` the response carries goes unused until someone wires that up.
+ * So this has to cover the whole visible set, and `MAX_PACKAGES_PER_USER * 2`
+ * is that number rather than a round one — the caller's own set cannot exceed
+ * `MAX_PACKAGES_PER_USER`, and the doubling is headroom for the system
+ * catalogue, which is curated (today it is empty, so the real maximum visible
+ * set is 100).
+ *
+ * RAISING THIS IS NOT A MEMORY DECISION, which is the only reason it can be
+ * raised at all. What bounds `listPackages`' heap is its split visibility
+ * read — the `where` clause, computed before `limit` exists — while `limit`
+ * slices an array that is already fully materialised (see that function's doc
+ * comment). The cost here is response bytes: a summary row is a few hundred
+ * bytes, so 200 rows is tens of KB.
+ *
+ * `listPackagesSchema.limit` caps at this same 200. That ceiling is not a
+ * comment: `tests/server/functions/packages.test.ts` parses this constant
+ * through that schema, because a future bump past the cap would otherwise
+ * surface at RUNTIME as a 400 on every board mount.
+ *
+ * COUPLING THAT MUST HOLD: the system catalogue must stay under
+ * `PACKAGE_LIST_PAGE_SIZE - MAX_PACKAGES_PER_USER` (100 today). `listPackages`
+ * sorts the union of the caller's own packages and the system catalogue BY
+ * NAME and then truncates to this page size. If the system catalogue ever
+ * grows past that headroom, truncation does not drop "the system extras" —
+ * name order has no relationship to which arm a row came from — it drops
+ * whatever sorts last alphabetically, which will routinely include some of
+ * the CALLER'S OWN packages, silently, on the one page where they can delete
+ * them. There is no code enforcing this coupling; see the design doc's
+ * Follow-ups for the recommended guardrail (a `serverCaptureEvent` when
+ * `listPackages` returns a non-null `nextCursor`).
+ */
+export const PACKAGE_LIST_PAGE_SIZE = MAX_PACKAGES_PER_USER * 2;
 
 export const DEFAULT_VOLUME = 1;
 export const DEFAULT_FADE_SECONDS = 2;
@@ -122,8 +160,11 @@ export type AudioPackageData = {
  * while a maxed package serializes to ~410 KiB, essentially all of it
  * `items`/`moods`. Sending the arrays so a component can call `.length` on
  * them made every visit to `/audio/packages` proportional to the caller's
- * whole library on a `replicaCount: 1`, 512Mi pod. The counts come from
- * Mongo's own `$size`, so the arrays never leave the database.
+ * whole library on a `replicaCount: 1`, 512Mi pod. The counts come from a
+ * `$size` projection instead — which bounds the RESPONSE. It does not keep
+ * the arrays out of the server's heap (the entity store returns each document
+ * as one blob and the projection is applied in process); what bounds that is
+ * `listPackages`' split visibility read.
  *
  * `getPackage` still returns the full `AudioPackageData` — the editor and the
  * board genuinely need every item and mood, for exactly one package at a time.

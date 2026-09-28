@@ -8,8 +8,16 @@ vi.mock('~/server/utils/telemetry', () => ({
 
 const findLean = vi.fn();
 const findSort = vi.fn((_sort?: Record<string, unknown>) => ({ lean: findLean }));
-const find = vi.fn((_query?: Record<string, unknown>, _projection?: Record<string, unknown>) => ({
+// `.lean()` hangs off `find()` directly as well as off `.sort()`: `listPackages`
+// no longer sorts in the query (it merges two reads and orders the union in
+// process), while the rest of the file's reads may still chain `.sort()`.
+const find = vi.fn((query?: Record<string, unknown>, _projection?: Record<string, unknown>) => ({
   sort: findSort,
+  // The query is handed to `findLean` so a test can answer differently per
+  // ARM of `listPackages`' split read, bound at `find()` time rather than read
+  // back off `mock.calls` at `.lean()` time — the two reads are issued inside
+  // one `Promise.all`, and a test must not depend on the order they interleave.
+  lean: () => findLean(query),
 }));
 const findOneLean = vi.fn();
 const findOne = vi.fn((_query?: Record<string, unknown>) => ({ lean: findOneLean }));
@@ -24,6 +32,15 @@ const countDocuments = vi.fn(async (_filter?: Record<string, unknown>) => 0);
 vi.mock('~/server/db/models/AudioPackage', () => ({
   AudioPackage: { find, findOne, findOneAndUpdate, create, deleteOne, countDocuments },
 }));
+
+// `updatePackage` resolves every `items[].assetId` it is asked to write, so a
+// draft cannot put back a pad whose audio was deleted underneath it (see
+// `dropUnresolvableItems`). Default: every referenced id still exists, so the
+// pre-existing tests below — none of which are about that check — are
+// unaffected. Tests that care override `assetFindLean` explicitly.
+const assetFindLean = vi.fn(async () => [] as { _id: unknown }[]);
+const assetFind = vi.fn((_query?: unknown, _projection?: unknown) => ({ lean: assetFindLean }));
+vi.mock('~/server/db/models/AudioAsset', () => ({ AudioAsset: { find: assetFind } }));
 
 const baseDoc = () => ({
   _id: 'p1',
@@ -45,46 +62,123 @@ describe('packageVisibilityFilter', () => {
   });
 });
 
+/**
+ * The page size is the whole truncation story on these two surfaces: neither
+ * the `/audio/packages` list nor the board's package picker has a "load more"
+ * affordance, so anything past one page is simply not shown.
+ */
+describe('PACKAGE_LIST_PAGE_SIZE', () => {
+  it('pages at least the whole visible set a single user can have', async () => {
+    const { MAX_PACKAGES_PER_USER, PACKAGE_LIST_PAGE_SIZE } = await import('~/types/soundboard');
+    const { listPackagesSchema } = await import('~/types/schemas/soundboard');
+    expect(PACKAGE_LIST_PAGE_SIZE).toBeGreaterThanOrEqual(MAX_PACKAGES_PER_USER);
+    // The load-bearing half. Nothing else stops a future bump of
+    // `PACKAGE_LIST_PAGE_SIZE` past `listPackagesSchema`'s own `.max()`, and
+    // that mismatch does not fail a build — it surfaces at RUNTIME, as a 400
+    // from the input validator on every board mount and every visit to the
+    // packages list, in production.
+    expect(listPackagesSchema.parse({ limit: PACKAGE_LIST_PAGE_SIZE })).toEqual({
+      limit: PACKAGE_LIST_PAGE_SIZE,
+    });
+  });
+});
+
 describe('listPackages', () => {
+  // Every `listPackages` case below asks for a page, so the input is spelled
+  // once here. `limit` is what the schema defaults to.
+  const PAGE = { limit: 50 } as const;
+
+  /**
+   * Answers each ARM of the split read separately. The dispatch is on the
+   * filter the function actually issued, so a query that asked the wrong
+   * question gets the wrong rows back — which is the only way a mocked model
+   * can make a query-shape mistake visible at all (see CLAUDE.md: a mock
+   * returns whatever it was told regardless of what the query asked for).
+   */
+  function seedVisibility(rows: {
+    mine?: Record<string, unknown>[];
+    system?: Record<string, unknown>[];
+  }) {
+    findLean.mockImplementation(async (query?: Record<string, unknown>) =>
+      query && query.ownerId === null ? (rows.system ?? []) : (rows.mine ?? [])
+    );
+  }
+
+  const OWNER = 'a'.repeat(24);
+  const pkg = (id: string, name: string, ownerId: string | null = OWNER) => ({
+    ...baseDoc(),
+    _id: id,
+    ownerId,
+    name,
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     countDocuments.mockResolvedValue(0);
+    findLean.mockReset();
     findLean.mockResolvedValue([]);
   });
 
   /**
-   * The list is the ONLY unbounded read in this file — every other one is
-   * `_id`-scoped to a single document — and it fires on every
-   * `/audio/packages` visit and every soundboard mount. A maxed package (64
-   * items with 200-char labels, 32 moods of 64 states, a 2000-char
-   * description) serializes to ~410 KiB, essentially all of it `items`/
-   * `moods`, and the web pod is `replicaCount: 1` at 512Mi. Loading whole
-   * documents here made one user's package count an out-of-memory kill for
-   * every user of the site, retriggered by the victim's own next page load.
+   * The list is the ONLY read in this file without an `_id` — every other one
+   * narrows to a single document — and it fires on every `/audio/packages`
+   * visit and every soundboard mount. A maxed package (64 items with 200-char
+   * labels, 32 moods of 64 states, a 2000-char description) serializes to ~410
+   * KiB, essentially all of it `items`/`moods`, and the web pod is
+   * `replicaCount: 1` at 512Mi.
    *
    * Asserted on the projection actually handed to the model, not on the
    * serialized output: a mock returns whatever it was told regardless of what
-   * the query asked for, so only the argument itself proves the arrays never
-   * left Mongo.
+   * the query asked for, so only the argument itself proves what was asked
+   * for. BOTH arms are checked — a projection applied to one read and not the
+   * other leaves the whole hazard reachable through the other.
    */
-  it('projects items/moods away and asks Mongo for their sizes instead', async () => {
+  it('projects items/moods away on every arm, and asks for their sizes instead', async () => {
     const { listPackages } = await import('~/server/functions/packages');
-    await listPackages({ userId: 'u1' });
-    const projection = vi.mocked(find).mock.calls[0][1] as unknown as Record<string, unknown>;
-    expect(projection).toBeDefined();
-    // Neither array may be requested — not as `1`, and not as `0` either: a
-    // `{ items: 0 }` exclusion projection cannot coexist with the inclusions
-    // this needs, and would silently return every other field too.
-    expect(projection).not.toHaveProperty('items');
-    expect(projection).not.toHaveProperty('moods');
-    expect(projection.itemCount).toEqual({ $size: { $ifNull: ['$items', []] } });
-    expect(projection.moodCount).toEqual({ $size: { $ifNull: ['$moods', []] } });
+    await listPackages({ data: PAGE, userId: OWNER });
+    const projections = vi.mocked(find).mock.calls.map((c) => c[1] as Record<string, unknown>);
+    expect(projections).toHaveLength(2);
+    for (const projection of projections) {
+      expect(projection).toBeDefined();
+      // Neither array may be requested — not as `1`, and not as `0` either: a
+      // `{ items: 0 }` exclusion projection cannot coexist with the inclusions
+      // this needs, and would silently return every other field too.
+      expect(projection).not.toHaveProperty('items');
+      expect(projection).not.toHaveProperty('moods');
+      expect(projection.itemCount).toEqual({ $size: { $ifNull: ['$items', []] } });
+      expect(projection.moodCount).toEqual({ $size: { $ifNull: ['$moods', []] } });
+    }
+  });
+
+  /**
+   * THE PUSHDOWN ASSERTION, and the reason this task exists.
+   *
+   * `packageVisibilityFilter`'s `$or` is invisible to the graph model's index
+   * pushdown — only top-level indexed keys reach the store's `where` — so the
+   * single-query form narrowed nothing and read every package in the install.
+   * The split is only a fix if each arm really does carry a bare, top-level,
+   * indexed `ownerId`, which is a property of the ARGUMENTS and of nothing
+   * else: asserting on the rows that come back would pass just as happily
+   * against the `$or` this replaces.
+   */
+  it('issues two arms, each with a pushed-down ownerId and no $or', async () => {
+    const { listPackages } = await import('~/server/functions/packages');
+    await listPackages({ data: PAGE, userId: OWNER });
+    const filters = vi.mocked(find).mock.calls.map((c) => c[0] as Record<string, unknown>);
+    expect(filters).toHaveLength(2);
+    expect(filters).toContainEqual({ ownerId: OWNER });
+    expect(filters).toContainEqual({ ownerId: null });
+    // Not just "no `$or`" — no extra key of any kind. A second top-level key
+    // that the model cannot push down (a `$and`, a regex, an unindexed field)
+    // does not itself widen the read, but `ownerId` alone is what makes each
+    // arm provably one `has`/`hasNot` lookup.
+    for (const filter of filters) expect(Object.keys(filter)).toEqual(['ownerId']);
   });
 
   it('serializes counts, and never an items/moods array', async () => {
-    findLean.mockResolvedValue([{ ...baseDoc(), itemCount: 7, moodCount: 3 }]);
+    seedVisibility({ mine: [{ ...baseDoc(), itemCount: 7, moodCount: 3 }] });
     const { listPackages } = await import('~/server/functions/packages');
-    const res = await listPackages({ userId: 'u1' });
+    const res = await listPackages({ data: PAGE, userId: OWNER });
     expect(res.items[0].itemCount).toBe(7);
     expect(res.items[0].moodCount).toBe(3);
     expect(res.items[0]).not.toHaveProperty('items');
@@ -92,48 +186,191 @@ describe('listPackages', () => {
   });
 
   /**
-   * A document written before the counts existed — or any document Mongo
+   * A document written before the counts existed — or any document the store
    * returns without the field — must serialize as 0, not `NaN` or a crash.
    */
   it('treats a missing count as zero', async () => {
-    findLean.mockResolvedValue([baseDoc()]);
+    seedVisibility({ mine: [baseDoc()] });
     const { listPackages } = await import('~/server/functions/packages');
-    const res = await listPackages({ userId: 'u1' });
+    const res = await listPackages({ data: PAGE, userId: OWNER });
     expect(res.items[0].itemCount).toBe(0);
     expect(res.items[0].moodCount).toBe(0);
   });
 
-  it('reads are visible to the owner and to everyone for system packages', async () => {
-    const { listPackages } = await import('~/server/functions/packages');
-    await listPackages({ userId: 'u1' });
-    expect(vi.mocked(find).mock.calls[0][0]).toEqual({
-      $or: [{ ownerId: 'u1' }, { ownerId: null }],
-    });
-  });
-
   it('serializes the rows it gets back', async () => {
-    findLean.mockResolvedValue([baseDoc()]);
+    seedVisibility({ mine: [baseDoc()] });
     const { listPackages } = await import('~/server/functions/packages');
-    const res = await listPackages({ userId: 'u1' });
+    const res = await listPackages({ data: PAGE, userId: OWNER });
     expect(res.items).toHaveLength(1);
     expect(res.items[0].id).toBe('p1');
     expect(res.items[0].ownerId).toBe('u1');
   });
 
   it('serializes a system package (null ownerId) without throwing', async () => {
-    findLean.mockResolvedValue([{ ...baseDoc(), ownerId: null }]);
+    seedVisibility({ system: [{ ...baseDoc(), ownerId: null }] });
     const { listPackages } = await import('~/server/functions/packages');
-    const res = await listPackages({ userId: 'u1' });
+    const res = await listPackages({ data: PAGE, userId: OWNER });
     expect(res.items[0].ownerId).toBeNull();
+  });
+
+  /**
+   * The union of the two arms is what the `$or` used to return, so the two
+   * sets must interleave by `name` rather than concatenating owner-set-first.
+   * Without the in-process merge sort the list would show every one of the
+   * caller's packages, then every system package — a visible regression from
+   * the `.sort({ name: 1 })` the single query carried.
+   */
+  it('merges the two arms into one name-ordered list', async () => {
+    seedVisibility({
+      mine: [pkg('b'.repeat(24), 'Bravo'), pkg('d'.repeat(24), 'Delta')],
+      system: [pkg('c'.repeat(24), 'Charlie', null), pkg('e'.repeat(24), 'Alpha', null)],
+    });
+    const { listPackages } = await import('~/server/functions/packages');
+    const res = await listPackages({ data: PAGE, userId: OWNER });
+    expect(res.items.map((p) => p.name)).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta']);
+  });
+
+  /** `name` is not unique, so the order has to stay total via `_id`. */
+  it('breaks a duplicate name by id, deterministically', async () => {
+    seedVisibility({
+      mine: [pkg('2'.repeat(24), 'Storm'), pkg('1'.repeat(24), 'Storm')],
+      system: [pkg('3'.repeat(24), 'Storm', null)],
+    });
+    const { listPackages } = await import('~/server/functions/packages');
+    const res = await listPackages({ data: PAGE, userId: OWNER });
+    expect(res.items.map((p) => p.id)).toEqual(['1'.repeat(24), '2'.repeat(24), '3'.repeat(24)]);
+  });
+
+  it('pages by name and resumes from the cursor without repeating or skipping a row', async () => {
+    seedVisibility({
+      mine: [pkg('1'.repeat(24), 'a'), pkg('2'.repeat(24), 'b'), pkg('3'.repeat(24), 'c')],
+    });
+    const { listPackages } = await import('~/server/functions/packages');
+    const first = await listPackages({ data: { limit: 2 }, userId: OWNER });
+    expect(first.items.map((p) => p.name)).toEqual(['a', 'b']);
+    expect(first.nextCursor).not.toBeNull();
+
+    const second = await listPackages({
+      data: { limit: 2, cursor: first.nextCursor! },
+      userId: OWNER,
+    });
+    expect(second.items.map((p) => p.name)).toEqual(['c']);
+    expect(second.nextCursor).toBeNull();
+  });
+
+  /**
+   * The boundary the naive `items.length === limit` rule gets wrong: three
+   * rows read with `limit: 3` is a full page AND the end of the list, so
+   * minting a cursor there costs the client a whole extra empty round trip —
+   * and in an append-style UI, a "load more" button that does nothing.
+   */
+  it('returns no cursor when the last page is exactly limit rows long', async () => {
+    seedVisibility({
+      mine: [pkg('1'.repeat(24), 'a'), pkg('2'.repeat(24), 'b'), pkg('3'.repeat(24), 'c')],
+    });
+    const { listPackages } = await import('~/server/functions/packages');
+    const res = await listPackages({ data: { limit: 3 }, userId: OWNER });
+    expect(res.items).toHaveLength(3);
+    expect(res.nextCursor).toBeNull();
+  });
+
+  /**
+   * `name` is free text and may contain the `_` the cursor delimits on, or
+   * any non-ASCII the encoding has to survive. Driven through the PUBLIC API
+   * rather than the codec (which is module-private) so the round trip proves
+   * the seek lands correctly, not merely that two private functions invert.
+   */
+  it('pages correctly across a name containing the cursor delimiter and non-ASCII', async () => {
+    seedVisibility({
+      mine: [
+        pkg('1'.repeat(24), 'a_b — wind & 嵐'),
+        pkg('2'.repeat(24), 'a_b — wind & 嵐 II'),
+        pkg('3'.repeat(24), 'z'),
+      ],
+    });
+    const { listPackages } = await import('~/server/functions/packages');
+    const first = await listPackages({ data: { limit: 1 }, userId: OWNER });
+    expect(first.items.map((p) => p.name)).toEqual(['a_b — wind & 嵐']);
+    const second = await listPackages({
+      data: { limit: 2, cursor: first.nextCursor! },
+      userId: OWNER,
+    });
+    expect(second.items.map((p) => p.name)).toEqual(['a_b — wind & 嵐 II', 'z']);
+  });
+
+  /**
+   * A cursor naming a row that sorts at or after everything left — the last
+   * page was deleted between requests, say — must end the list. Restarting at
+   * page 1 is what fails closed prevents on an UNDECODABLE cursor; this is the
+   * same hazard through a perfectly decodable one.
+   */
+  it('ends the list rather than restarting when the cursor is past every row', async () => {
+    const { listPackages } = await import('~/server/functions/packages');
+    // Mint a real page-1 cursor against a two-row list...
+    seedVisibility({ mine: [pkg('1'.repeat(24), 'a'), pkg('2'.repeat(24), 'b')] });
+    const page1 = await listPackages({ data: { limit: 1 }, userId: OWNER });
+    expect(page1.nextCursor).not.toBeNull();
+    // ...then delete everything after it and ask for page 2.
+    seedVisibility({ mine: [pkg('1'.repeat(24), 'a')] });
+    const past = await listPackages({
+      data: { limit: 5, cursor: page1.nextCursor! },
+      userId: OWNER,
+    });
+    expect(past.items).toEqual([]);
+    expect(past.nextCursor).toBeNull();
+  });
+
+  it('rejects an undecodable cursor rather than restarting at page 1', async () => {
+    seedVisibility({ mine: [pkg('1'.repeat(24), 'a'), pkg('2'.repeat(24), 'b')] });
+    const { listPackages } = await import('~/server/functions/packages');
+    await expect(
+      listPackages({ data: { limit: 2, cursor: 'garbage' }, userId: OWNER })
+    ).rejects.toThrow('Invalid pagination cursor');
+  });
+
+  /**
+   * Node's base64url decoder does not throw on characters outside the
+   * alphabet — it skips them — so a cursor whose name half is junk would
+   * otherwise decode to an arbitrary string and seek to an arbitrary place in
+   * the list. The id half is well-formed here precisely so the only thing
+   * under test is the name half's alphabet check.
+   */
+  it('rejects a cursor whose name half is not base64url', async () => {
+    const { listPackages } = await import('~/server/functions/packages');
+    await expect(
+      listPackages({ data: { limit: 2, cursor: `!!!!_${'1'.repeat(24)}` }, userId: OWNER })
+    ).rejects.toThrow('Invalid pagination cursor');
+  });
+
+  it('rejects a cursor whose id half is not a package id', async () => {
+    const { listPackages } = await import('~/server/functions/packages');
+    const encoded = Buffer.from('a', 'utf8').toString('base64url');
+    await expect(
+      listPackages({ data: { limit: 2, cursor: `${encoded}_notanid` }, userId: OWNER })
+    ).rejects.toThrow('Invalid pagination cursor');
+  });
+
+  /**
+   * A bad cursor is the caller's own doing, and a client looping on one would
+   * otherwise author a GlitchTip event per request — the attacker-controlled
+   * volume path `PackageClientError` exists to close.
+   */
+  it('files no GlitchTip event for a refused cursor', async () => {
+    const { serverCaptureException } = await import('~/server/utils/telemetry');
+    const { listPackages } = await import('~/server/functions/packages');
+    await expect(
+      listPackages({ data: { limit: 2, cursor: 'garbage' }, userId: OWNER, sessionUserId: 's1' })
+    ).rejects.toThrow('Invalid pagination cursor');
+    expect(serverCaptureException).not.toHaveBeenCalled();
   });
 
   it('tags telemetry with the session identity, not the Mongo id', async () => {
     const { serverCaptureException } = await import('~/server/utils/telemetry');
-    findLean.mockRejectedValue(new Error('atlas is down'));
+    findLean.mockRejectedValue(new Error('the graph is down'));
     const { listPackages } = await import('~/server/functions/packages');
     await expect(
-      listPackages({ userId: 'mongo-id-1', sessionUserId: 'provider-id-1' })
-    ).rejects.toThrow('atlas is down');
+      listPackages({ data: PAGE, userId: 'mongo-id-1', sessionUserId: 'provider-id-1' })
+    ).rejects.toThrow('the graph is down');
     expect(vi.mocked(serverCaptureException).mock.calls[0][1]).toBe('provider-id-1');
   });
 });
@@ -260,24 +497,81 @@ describe('createPackage', () => {
   });
 });
 
+/**
+ * What the stored `p1` is at, and the older revision a second tab would still
+ * be holding. Deliberately an hour apart rather than a millisecond: a fixture
+ * whose two timestamps differed only in sub-second digits would still pass if
+ * the precondition were compared as a truncated string somewhere.
+ */
+const STORED_UPDATED_AT = new Date('2026-07-31T10:00:00.000Z');
+const STALE_UPDATED_AT = new Date('2026-07-31T09:00:00.000Z');
+
+const storedDoc = () => ({ ...baseDoc(), updatedAt: STORED_UPDATED_AT });
+
+/**
+ * A filter-EVALUATING fake, not a canned answer, and that distinction is the
+ * whole test.
+ *
+ * A mock returns whatever it was told regardless of what the query asked, so
+ * `findOneAndUpdateLean.mockResolvedValue(null)` would make a "stale write is
+ * refused" test pass with the precondition deleted from the source — the
+ * function would still see no document, still run the discriminating read,
+ * and still throw the stale-write error. This fake instead applies the filter
+ * it is actually handed to a stored document.
+ *
+ * Note the shape of the `updatedAt` clause specifically: an ABSENT
+ * precondition MATCHES here. That is the property that gives the stale test
+ * teeth — delete `updatedAt` from `updatePackage`'s filter and this fake
+ * happily returns the document, so the write succeeds and the test fails on
+ * its "rejects" assertion. A fake that refused whenever the clause was
+ * missing would fail the same test for the opposite reason, and would prove
+ * nothing about the source.
+ */
+function fenceTheModel() {
+  findOneAndUpdateLean.mockImplementation(async () => {
+    const filter = (vi.mocked(findOneAndUpdate).mock.calls.at(-1)?.[0] ?? {}) as {
+      _id?: string;
+      ownerId?: string;
+      updatedAt?: Date;
+    };
+    if (filter._id !== 'p1' || filter.ownerId !== 'u1') return null;
+    if (
+      filter.updatedAt !== undefined &&
+      filter.updatedAt.getTime() !== STORED_UPDATED_AT.getTime()
+    ) {
+      return null;
+    }
+    return storedDoc();
+  });
+  // The discriminating read `staleWriteOrNotFound` performs on the failure
+  // path: `p1` DOES exist and IS `u1`'s, so a refusal for `u1` can only be a
+  // stale write.
+  findOneLean.mockResolvedValue({ _id: 'p1', updatedAt: STORED_UPDATED_AT });
+}
+
 describe('updatePackage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fenceTheModel();
   });
 
   it('updates are owner-scoped, so a system package cannot be mutated', async () => {
-    findOneAndUpdateLean.mockResolvedValue(null);
     const { updatePackage } = await import('~/server/functions/packages');
-    await updatePackage({ data: { id: 'p1', name: 'x' }, userId: 'u1' }).catch(() => {});
+    await updatePackage({
+      data: { id: 'p1', expectedUpdatedAt: STORED_UPDATED_AT.toISOString(), name: 'x' },
+      userId: 'u1',
+    }).catch(() => {});
     const filter = vi.mocked(findOneAndUpdate).mock.calls[0][0];
-    expect(filter).toEqual({ _id: 'p1', ownerId: 'u1' });
+    expect(filter).toEqual({ _id: 'p1', ownerId: 'u1', updatedAt: STORED_UPDATED_AT });
     expect(filter).not.toHaveProperty('$or');
   });
 
   it('sets only the fields actually provided', async () => {
-    findOneAndUpdateLean.mockResolvedValue(baseDoc());
     const { updatePackage } = await import('~/server/functions/packages');
-    await updatePackage({ data: { id: 'p1', name: 'New Name' }, userId: 'u1' });
+    await updatePackage({
+      data: { id: 'p1', expectedUpdatedAt: STORED_UPDATED_AT.toISOString(), name: 'New Name' },
+      userId: 'u1',
+    });
     const [, update] = vi.mocked(findOneAndUpdate).mock.calls[0] as [
       unknown,
       { $set: Record<string, unknown> },
@@ -300,7 +594,7 @@ describe('updatePackage', () => {
     findOneAndUpdateLean.mockResolvedValue(baseDoc());
     const { updatePackage } = await import('~/server/functions/packages');
     await updatePackage({
-      data: { id: 'p1', name: 'New Name' },
+      data: { id: 'p1', expectedUpdatedAt: STORED_UPDATED_AT.toISOString(), name: 'New Name' },
       userId: 'mongo-id-1',
       sessionUserId: 'provider-id-1',
     });
@@ -312,11 +606,158 @@ describe('updatePackage', () => {
   });
 
   it('throws "not found" when the model returns no document (does not distinguish absent vs. another owner)', async () => {
-    findOneAndUpdateLean.mockResolvedValue(null);
+    // `u2` fails the fake's ownership clause, and the discriminating read
+    // finds nothing for `u2` either — a package that is not yours must stay
+    // indistinguishable from one that does not exist.
+    findOneLean.mockResolvedValue(null);
     const { updatePackage } = await import('~/server/functions/packages');
-    await expect(updatePackage({ data: { id: 'p1', name: 'x' }, userId: 'u2' })).rejects.toThrow(
-      /not found/i
+    await expect(
+      updatePackage({
+        data: { id: 'p1', expectedUpdatedAt: STORED_UPDATED_AT.toISOString(), name: 'x' },
+        userId: 'u2',
+      })
+    ).rejects.toThrow(/not found/i);
+  });
+});
+
+/**
+ * Task 7: the editor replaces `items` and `moods` wholesale, so an unfenced
+ * update is last-write-wins over entire arrays — an idle tab does not merely
+ * lose the newer edit, it resurrects whatever the newer write removed
+ * (including items `deleteAudioAsset`'s prune took out because their asset is
+ * gone).
+ */
+describe('updatePackage optimistic concurrency', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fenceTheModel();
+  });
+
+  /**
+   * The stale write. Both halves matter:
+   *
+   * - the FILTER assertion pins the precondition actually handed to Mongo, as
+   *   a `Date` (a BSON date never equals a string, so shipping the raw ISO
+   *   would refuse every save rather than only the stale ones — the "guard
+   *   must not make every save fail" failure mode, arriving through the type
+   *   rather than through the logic);
+   * - the REJECTION comes from the filter-evaluating fake above, so it is the
+   *   precondition doing the refusing rather than a canned `null`.
+   */
+  it('refuses a save built on a stale read, and hands Mongo the precondition as a Date', async () => {
+    const { updatePackage } = await import('~/server/functions/packages');
+    await expect(
+      updatePackage({
+        data: {
+          id: 'p1',
+          expectedUpdatedAt: STALE_UPDATED_AT.toISOString(),
+          name: 'From the idle tab',
+          items: [],
+        },
+        userId: 'u1',
+      })
+    ).rejects.toThrow(/changed somewhere else/i);
+
+    const filter = vi.mocked(findOneAndUpdate).mock.calls[0][0] as { updatedAt?: unknown };
+    expect(filter).toEqual({ _id: 'p1', ownerId: 'u1', updatedAt: STALE_UPDATED_AT });
+    expect(filter.updatedAt).toBeInstanceOf(Date);
+  });
+
+  /**
+   * "Distinguishable from a not-found" means two identities, not two
+   * spellings of one. This asserts the identity the BROWSER sees — `.name`,
+   * via the shared predicate — because the server's class does not survive
+   * the server-fn wire and a UI keyed on `instanceof` would silently stop
+   * recognising the refusal in production while every unit test still passed.
+   */
+  it('refuses with an identity distinguishable from a not-found, and files no GlitchTip event', async () => {
+    const { serverCaptureException } = await import('~/server/utils/telemetry');
+    const { isStalePackageWriteError } = await import('~/lib/soundboard/stale-write');
+    const { updatePackage, PackageStaleWriteError, PackageClientError } =
+      await import('~/server/functions/packages');
+
+    const stale = await updatePackage({
+      data: { id: 'p1', expectedUpdatedAt: STALE_UPDATED_AT.toISOString(), name: 'x' },
+      userId: 'u1',
+    }).catch((e: unknown) => e);
+
+    expect(stale).toBeInstanceOf(PackageStaleWriteError);
+    expect(isStalePackageWriteError(stale)).toBe(true);
+    expect((stale as Error).name).toBe('PackageStaleWriteError');
+    // Not a not-found, by message as well as by type: the two failures are
+    // adjacent enough that a copy-paste of the wrong string is the likely
+    // regression.
+    expect((stale as Error).message).not.toMatch(/not found/i);
+    // The token a "keep my edits" retry needs, so the retry is a fresh
+    // compare-and-swap rather than an unfenced force.
+    expect((stale as { currentUpdatedAt?: string }).currentUpdatedAt).toBe(
+      STORED_UPDATED_AT.toISOString()
     );
+
+    // The same run, through the OTHER door: nothing to update because the
+    // package is not this caller's. Same `findOneAndUpdate` miss, different
+    // refusal — which is exactly what the second read exists to decide.
+    findOneLean.mockResolvedValue(null);
+    const missing = await updatePackage({
+      data: { id: 'p1', expectedUpdatedAt: STALE_UPDATED_AT.toISOString(), name: 'x' },
+      userId: 'u2',
+    }).catch((e: unknown) => e);
+
+    expect(missing).toBeInstanceOf(PackageClientError);
+    expect(missing).not.toBeInstanceOf(PackageStaleWriteError);
+    expect(isStalePackageWriteError(missing)).toBe(false);
+    expect((missing as Error).message).toMatch(/not found/i);
+
+    // Neither refusal is a server fault, and both are caller-triggerable at
+    // will (an open second tab; a guessed id) — so neither may author a
+    // GlitchTip event.
+    expect(vi.mocked(serverCaptureException)).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The guard must not make every save fail. Same fixture, same fake, same
+   * code path — only the caller's expectation is current — and this must go
+   * all the way through to the serialized result and the telemetry event, not
+   * merely "not throw".
+   */
+  it('lets a save built on the current revision through', async () => {
+    const { serverCaptureEvent } = await import('~/server/utils/telemetry');
+    const { updatePackage } = await import('~/server/functions/packages');
+
+    const res = await updatePackage({
+      data: {
+        id: 'p1',
+        expectedUpdatedAt: STORED_UPDATED_AT.toISOString(),
+        name: 'Storm Set',
+        items: [],
+      },
+      userId: 'u1',
+    });
+
+    expect(res.id).toBe('p1');
+    expect(vi.mocked(serverCaptureEvent)).toHaveBeenCalledTimes(1);
+    // The success path must NOT pay for the discriminating read — that one
+    // exists only to tell the two refusals apart.
+    expect(vi.mocked(findOne)).not.toHaveBeenCalled();
+    const filter = vi.mocked(findOneAndUpdate).mock.calls[0][0];
+    expect(filter).toEqual({ _id: 'p1', ownerId: 'u1', updatedAt: STORED_UPDATED_AT });
+  });
+
+  /**
+   * The discriminating read must repeat the ownership scope. Re-reading by
+   * `_id` alone would answer "does this document exist" instead of "does it
+   * exist for you", turning a probe against somebody else's package id into a
+   * stale-write refusal — an existence oracle for documents the caller cannot
+   * see. Asserted on the filter argument, because a mock that was told to
+   * return a document returns it whatever the filter said.
+   */
+  it('scopes the discriminating read to the same owner, so another user stays invisible', async () => {
+    const { updatePackage } = await import('~/server/functions/packages');
+    await updatePackage({
+      data: { id: 'p1', expectedUpdatedAt: STALE_UPDATED_AT.toISOString(), name: 'x' },
+      userId: 'u1',
+    }).catch(() => {});
+    expect(vi.mocked(findOne).mock.calls[0][0]).toEqual({ _id: 'p1', ownerId: 'u1' });
   });
 });
 
@@ -418,5 +859,247 @@ describe('serializePackage normalises Mongoose null defaults to undefined', () =
     expect(state.fadeSeconds).toBeUndefined();
     expect(state.randomIntervalMin).toBeUndefined();
     expect(state.randomIntervalMax).toBeUndefined();
+  });
+});
+
+/**
+ * THE OTHER HALF OF THE OPTIMISTIC-CONCURRENCY FENCE.
+ *
+ * The fence's stated justification is that an unfenced whole-array replace
+ * "RESURRECTS whatever the newer write removed, including the items
+ * `deleteAudioAsset`'s prune took out because their asset no longer exists."
+ * The fence REFUSES such a save — and the editor's conflict notice then offers
+ * "Keep my edits and overwrite", which replays the same draft against the
+ * newer revision. That is the right affordance, and without a check on the
+ * server it was also a supported two-click path back into precisely the state
+ * the fence exists to prevent: the deleted asset's pad returns, permanently
+ * dangling, and nothing tells the GM it happened.
+ *
+ * These tests drive the SECOND write — the overwrite — because that is the
+ * one the fence lets through.
+ */
+describe('updatePackage drops items whose asset no longer resolves', () => {
+  const deadItem = {
+    id: 'i-dead',
+    assetId: 'a'.repeat(24),
+    volume: 1,
+    fadeSeconds: 2,
+    loop: false,
+    sortIndex: 0,
+  };
+  const liveItem = {
+    id: 'i-live',
+    assetId: 'b'.repeat(24),
+    volume: 1,
+    fadeSeconds: 2,
+    loop: true,
+    sortIndex: 1,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fenceTheModel();
+    // Only the live asset comes back — the other was deleted between the
+    // editor's load and this save.
+    assetFindLean.mockResolvedValue([{ _id: liveItem.assetId }]);
+  });
+
+  async function overwrite(items: unknown[], moods?: unknown[]) {
+    const { updatePackage } = await import('~/server/functions/packages');
+    await updatePackage({
+      data: {
+        id: 'p1',
+        expectedUpdatedAt: STORED_UPDATED_AT.toISOString(),
+        items,
+        ...(moods ? { moods } : {}),
+      },
+      userId: 'u1',
+    } as never);
+    const [, update] = vi.mocked(findOneAndUpdate).mock.calls[0] as [
+      unknown,
+      { $set: Record<string, unknown> },
+    ];
+    return update.$set;
+  }
+
+  it('writes only the items whose asset still exists', async () => {
+    const set = await overwrite([deadItem, liveItem]);
+    expect(set.items).toEqual([liveItem]);
+  });
+
+  it('prunes the mood states that referenced the dropped item', async () => {
+    // Moods reference `item.id`, never `assetId`, so dropping an item without
+    // this leaves states pointing at an id that no longer exists — the same
+    // orphan `deleteAudioAsset`'s prune handles with the same helper.
+    const survivor = { itemId: 'i-live', playing: true, volume: 0.35 };
+    const orphan = { itemId: 'i-dead', playing: true, volume: 0.7 };
+    const set = await overwrite(
+      [deadItem, liveItem],
+      [{ id: 'm1', name: 'Overhead', states: [orphan, survivor] }]
+    );
+    const moods = set.moods as { states: unknown[] }[];
+    expect(moods).toHaveLength(1);
+    expect(moods[0].states).toEqual([survivor]);
+  });
+
+  /**
+   * EXISTENCE, NOT VISIBILITY — the distinction this function turns on.
+   *
+   * A package may legitimately reference an asset its owner cannot read: a
+   * foreign-owned one, which `listPackageAssets` deliberately refuses to
+   * return so the board renders the pad in its unresolved group. That asset
+   * is ALIVE and that reference is intact. An ownership-scoped query here
+   * cannot tell it apart from a deleted one and deletes it on the owner's
+   * next save — the exact data loss this check exists to prevent, aimed at a
+   * case that was working.
+   *
+   * The first version of this check was ownership-scoped and did precisely
+   * that; `e2e/soundboard.spec.ts` caught it, because it seeds a
+   * foreign-owned item for this reason. The unit mocks could not: a mongoose
+   * mock returns what it was told regardless of the filter, so only an
+   * assertion on the filter ITSELF pins this.
+   */
+  it('asks only whether the asset EXISTS, with no ownership clause', async () => {
+    await overwrite([liveItem]);
+    const [filter] = vi.mocked(assetFind).mock.calls[0] as [Record<string, unknown>, unknown];
+    expect(filter).toEqual({ _id: { $in: [liveItem.assetId] } });
+    expect(filter).not.toHaveProperty('$or');
+    expect(filter).not.toHaveProperty('ownerId');
+  });
+
+  it('keeps an item whose asset exists but belongs to someone else', async () => {
+    // The `find` resolves it — it exists — even though `listPackageAssets`
+    // would refuse to return it to this caller. The board's unresolved group
+    // is where that pad belongs; the package must not lose it.
+    const foreignItem = { ...deadItem, id: 'i-foreign' };
+    assetFindLean.mockResolvedValue([{ _id: liveItem.assetId }, { _id: foreignItem.assetId }]);
+
+    const set = await overwrite([foreignItem, liveItem]);
+    expect(set.items).toEqual([foreignItem, liveItem]);
+  });
+
+  it('leaves an all-live draft byte-identical, and does not touch moods it was not given', async () => {
+    // The no-op case has to stay a genuine no-op: this check must not become
+    // a silent rewrite of every save, and an omitted `moods` must stay
+    // omitted rather than being materialised by the prune.
+    const set = await overwrite([liveItem]);
+    expect(set.items).toEqual([liveItem]);
+    expect('moods' in set).toBe(false);
+  });
+
+  it('issues no asset query at all for a save that carries no items', async () => {
+    const { updatePackage } = await import('~/server/functions/packages');
+    await updatePackage({
+      data: { id: 'p1', expectedUpdatedAt: STORED_UPDATED_AT.toISOString(), name: 'Renamed' },
+      userId: 'u1',
+    });
+    expect(vi.mocked(assetFind)).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The mood half of the same invariant: whatever this write leaves standing as
+ * `items` and `moods` must be mutually consistent. Two cases the first cut of
+ * the check got wrong, both found by re-reviewing its own diff.
+ */
+describe('updatePackage keeps moods consistent with the items it writes', () => {
+  const deadItem = {
+    id: 'i-dead',
+    assetId: 'a'.repeat(24),
+    volume: 1,
+    fadeSeconds: 2,
+    loop: false,
+    sortIndex: 0,
+  };
+  const liveItem = {
+    id: 'i-live',
+    assetId: 'b'.repeat(24),
+    volume: 1,
+    fadeSeconds: 2,
+    loop: true,
+    sortIndex: 1,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fenceTheModel();
+    assetFindLean.mockResolvedValue([{ _id: liveItem.assetId }]);
+  });
+
+  function setFromCall() {
+    const [, update] = vi.mocked(findOneAndUpdate).mock.calls[0] as [
+      unknown,
+      { $set: Record<string, unknown> },
+    ];
+    return update.$set;
+  }
+
+  /**
+   * `updatePackageSchema` allows `items` without `moods`. The editor always
+   * sends both, so this is the caller the first version silently got wrong:
+   * it dropped the dead item and left the STORED moods untouched, still naming
+   * that item's id. Exactly the orphan the whole prune exists to avoid,
+   * reintroduced by the fix for a different bug.
+   */
+  it('prunes the STORED moods when items are dropped and none were supplied', async () => {
+    const survivor = { itemId: 'i-live', playing: true, volume: 0.35 };
+    const orphan = { itemId: 'i-dead', playing: true, volume: 0.7 };
+    findOneLean.mockResolvedValue({
+      moods: [{ id: 'm1', name: 'Overhead', states: [orphan, survivor] }],
+    });
+
+    const { updatePackage } = await import('~/server/functions/packages');
+    await updatePackage({
+      data: {
+        id: 'p1',
+        expectedUpdatedAt: STORED_UPDATED_AT.toISOString(),
+        items: [deadItem, liveItem],
+      },
+      userId: 'u1',
+    } as never);
+
+    const set = setFromCall();
+    expect(set.items).toEqual([liveItem]);
+    const moods = set.moods as { states: unknown[] }[];
+    expect(moods[0].states).toEqual([survivor]);
+    // Owner-scoped, like every other read in this file.
+    expect(vi.mocked(findOne).mock.calls[0][0]).toEqual({ _id: 'p1', ownerId: 'u1' });
+  });
+
+  it('does not read or write moods when nothing was dropped', async () => {
+    const { updatePackage } = await import('~/server/functions/packages');
+    await updatePackage({
+      data: { id: 'p1', expectedUpdatedAt: STORED_UPDATED_AT.toISOString(), items: [liveItem] },
+      userId: 'u1',
+    } as never);
+
+    // The extra read is on the failure path only — an ordinary save must not
+    // pay for it, and an untouched `moods` must stay untouched.
+    expect(vi.mocked(findOne)).not.toHaveBeenCalled();
+    expect('moods' in setFromCall()).toBe(false);
+  });
+
+  /**
+   * `items: []` with mood states in the payload is every state orphaned. The
+   * first version returned early on the empty array and skipped mood pruning
+   * entirely, so the guarantee held for 1..64 items and failed at 0 — the
+   * shape of edge case that reads like an optimisation.
+   */
+  it('strips every mood state when the caller clears all items', async () => {
+    const { updatePackage } = await import('~/server/functions/packages');
+    await updatePackage({
+      data: {
+        id: 'p1',
+        expectedUpdatedAt: STORED_UPDATED_AT.toISOString(),
+        items: [],
+        moods: [{ id: 'm1', name: 'Overhead', states: [{ itemId: 'i-live', playing: true }] }],
+      },
+      userId: 'u1',
+    } as never);
+
+    const moods = setFromCall().moods as { states: unknown[] }[];
+    expect(moods[0].states).toEqual([]);
+    // No ids to resolve, so no query either.
+    expect(vi.mocked(assetFind)).not.toHaveBeenCalled();
   });
 });
