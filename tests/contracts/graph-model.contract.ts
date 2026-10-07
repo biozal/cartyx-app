@@ -30,9 +30,10 @@ const Widget = defineGraphModel({
       .array(z.object({ _id: objectIdString.default(newObjectId), label: z.string() }))
       .default([]),
     notes: z.string().optional(),
+    ownerId: objectIdString.nullable().default(null),
     createdAt: z.date().default(() => new Date()),
   }),
-  index: { campaignId: 'ix_s1', name: 'ix_s2', kind: 'ix_s3', count: 'ix_n1' },
+  index: { campaignId: 'ix_s1', name: 'ix_s2', kind: 'ix_s3', count: 'ix_n1', ownerId: 'ix_s4' },
   searchText: (doc) => doc.name,
   unique: { campaignId_name: (doc) => [doc.campaignId, doc.name] },
   // Like a Mongoose pre('save') hook: tidies tags only when they changed.
@@ -43,6 +44,7 @@ const Widget = defineGraphModel({
 export async function graphModelContract() {
   const campaignId = hexId();
   const otherCampaign = hexId();
+  const ownerScope = hexId();
   try {
     // create: defaults and a generated, creation-ordered _id.
     const first = await Widget.create({ campaignId, name: 'Iron Gate', tags: ['door'] });
@@ -88,6 +90,22 @@ export async function graphModelContract() {
       'Iron Gate',
       'Oak Door',
     ]);
+
+    // A null indexed value is stored as an absent property, so querying for one
+    // narrows with `hasNot` rather than an equality match. A fresh campaign scopes
+    // this away from every other widget above, which also defaults ownerId to null.
+    const owned = await Widget.create({
+      campaignId: ownerScope,
+      name: 'owned',
+      ownerId: 'a'.repeat(24),
+    });
+    const system = await Widget.create({ campaignId: ownerScope, name: 'system', ownerId: null });
+    const found = await Widget.find({ campaignId: ownerScope, ownerId: null }).lean();
+    assert.deepEqual(
+      found.map((w) => w._id),
+      [system._id]
+    );
+    assert.ok(!found.some((w) => w._id === owned._id));
 
     // Sort, skip, limit, projection.
     assert.deepEqual(await names({ campaignId }, { count: -1, name: 1 }), [
@@ -269,5 +287,6 @@ export async function graphModelContract() {
   } finally {
     await Widget.deleteMany({ campaignId });
     await Widget.deleteMany({ campaignId: otherCampaign });
+    await Widget.deleteMany({ campaignId: ownerScope });
   }
 }

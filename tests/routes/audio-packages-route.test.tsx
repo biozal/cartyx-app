@@ -3,7 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { AudioPackageData, AudioPackageSummaryData } from '~/types/soundboard';
+import {
+  PACKAGE_LIST_PAGE_SIZE,
+  type AudioPackageData,
+  type AudioPackageSummaryData,
+} from '~/types/soundboard';
+import { listPackagesSchema } from '~/types/schemas/soundboard';
 
 const listPackagesFn = vi.fn();
 const createPackageFn = vi.fn();
@@ -90,6 +95,27 @@ function renderPage() {
     </QueryClientProvider>
   );
 }
+
+describe('PackagesListPage — the list read', () => {
+  /**
+   * `listPackagesFn` gained an input validator when `listPackages` became
+   * paged, so a call with no `data` no longer parses — it fails
+   * `listPackagesSchema` server-side, and the list renders its error state
+   * instead of any packages. Asserted on the ACTUAL argument rather than on
+   * "was called", for the same reason the create case below is: a route that
+   * called `listPackagesFn()` would still satisfy a weaker assertion here
+   * while being broken in production.
+   */
+  it('asks for one page with a limit listPackagesSchema accepts', async () => {
+    listPackagesFn.mockResolvedValue({ items: [], nextCursor: null });
+    renderPage();
+    await screen.findByText(/no.*packages/i);
+
+    expect(listPackagesFn).toHaveBeenCalledTimes(1);
+    const arg = listPackagesFn.mock.calls[0][0] as { data: unknown };
+    expect(listPackagesSchema.parse(arg.data)).toEqual({ limit: PACKAGE_LIST_PAGE_SIZE });
+  });
+});
 
 describe('PackagesListPage — create a package', () => {
   // Load-bearing: asserts the ACTUAL argument `createPackageFn` was called

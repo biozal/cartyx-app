@@ -3,7 +3,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-import type { AudioPackageSummaryData, AudioPackageData, BoardStateData } from '~/types/soundboard';
+import {
+  PACKAGE_LIST_PAGE_SIZE,
+  type AudioPackageSummaryData,
+  type AudioPackageData,
+  type BoardStateData,
+} from '~/types/soundboard';
+import { listPackagesSchema } from '~/types/schemas/soundboard';
 import type { AudioAssetData, AudioKind } from '~/types/audio';
 import type { BoardState } from '~/lib/soundboard/reducer';
 import type { BoardPadProps } from '~/components/soundboard/BoardPad';
@@ -344,6 +350,21 @@ describe('soundboardBeforeLoad', () => {
 });
 
 describe('SoundboardPage — assembly', () => {
+  /**
+   * `listPackagesFn` gained an input validator when `listPackages` became
+   * paged. The picker is the second of its two callers and the easier one to
+   * forget: a call with no `data` fails `listPackagesSchema` server-side, and
+   * the GM gets an empty package picker with no package to load. Asserted on
+   * the ACTUAL argument, since "was called" would pass either way.
+   */
+  it('asks the package picker for one page listPackagesSchema accepts', async () => {
+    renderBoard();
+
+    await waitFor(() => expect(listPackagesFn).toHaveBeenCalled());
+    const arg = listPackagesFn.mock.calls[0][0] as { data: unknown };
+    expect(listPackagesSchema.parse(arg.data)).toEqual({ limit: PACKAGE_LIST_PAGE_SIZE });
+  });
+
   it('reads the board’s assets from the package-scoped resolver, once per package', async () => {
     renderBoard();
 

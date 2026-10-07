@@ -143,7 +143,20 @@ function applyFilters<T>(
     if (!slot) throw new Error(`${field} is not an indexed field of ${codec.kind}`);
     if (filter === undefined) continue;
     const value = filter as Filter;
-    if (value && typeof value === 'object' && !(value instanceof Date) && 'within' in value)
+    // Absent-property match; see `writeProperties`, which drops null slots.
+    // NOT index-served the way the `has(slot, value)` branch below is: the
+    // composite indexes here are (scope, kind) and (scope, kind, ix_sN),
+    // which require EQUALITY on every key, and `hasNot` supplies no equality
+    // value for `slot`. The planner falls back to the (scope, kind) index and
+    // walks every vertex of that kind testing absence per vertex — this
+    // narrows the RESULT SET returned from the graph, not the SCAN cost, so
+    // it is O(kind), not O(matches). It is still worth doing: Gremlin filters
+    // before `project()`, so only matching documents are ever materialised
+    // into this process, which is what keeps a caller like `listPackages`'s
+    // `{ ownerId: null }` arm from loading every document of the kind into
+    // the pod's heap the way an unfiltered read would.
+    if (value === null) traversal = traversal.hasNot(slot);
+    else if (value && typeof value === 'object' && !(value instanceof Date) && 'within' in value)
       traversal = traversal.has(slot, P.within(...value.within.map(encodeIndexValue)));
     else traversal = traversal.has(slot, encodeIndexValue(value as IndexValue));
   }

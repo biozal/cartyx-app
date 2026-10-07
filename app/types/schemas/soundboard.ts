@@ -111,6 +111,35 @@ export const createPackageSchema = z.object({
 
 export const updatePackageSchema = z.object({
   id: objectId,
+  /**
+   * The `updatedAt` the caller last SAW, as the ISO string `serializePackage`
+   * emitted — the optimistic-concurrency precondition. `updatePackage` ANDs
+   * it into the update filter, so a write built from a stale read matches no
+   * document and is refused instead of replacing `items`/`moods` wholesale
+   * over whatever landed in between (see `updatePackage`'s doc comment).
+   *
+   * REQUIRED, not optional. Every field below is a whole-array replace, so an
+   * unfenced update is a last-write-wins clobber by construction; making the
+   * fence opt-in would mean any caller that simply omitted it — a stale
+   * bundle, a hand-rolled request — got the old destructive behaviour back
+   * and the guard would protect only the callers that did not need
+   * protecting.
+   *
+   * `.datetime()` (the same form `~/types/schemas/sessions.ts` uses) accepts
+   * exactly what `Date.prototype.toISOString` produces, which is the only
+   * thing that ever populates this field.
+   *
+   * Corollary worth knowing before anyone writes an `AudioPackage` outside the
+   * functions in `~/server/functions/packages`: a stored document whose
+   * `updatedAt` is absent or not a `Date` is UNSAVEABLE through this schema.
+   * `serializePackage` normalises such a value to `''` (the same fallback it
+   * applies to `createdAt`), the editor hands that straight back here, and
+   * `.datetime()` rejects it — on every attempt, with no way for the user to
+   * recover by reloading. Unreachable today (the model defaults the field and
+   * every writer stamps it) and deliberately not special-cased, but it is the
+   * load-side mirror of the same `''` fallback in `staleWriteOrNotFound`.
+   */
+  expectedUpdatedAt: z.string().datetime(),
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional(),
   items: z.array(packageItemSchema).max(MAX_PACKAGE_ITEMS).optional(),
@@ -131,6 +160,56 @@ export const deletePackageSchema = z.object({ id: objectId });
 
 /** A single package lookup by id, visibility-scoped (owner or system package). */
 export const getPackageSchema = z.object({ id: objectId });
+
+/**
+ * `<base64url(name)>_<packageId>` — the exact shape `encodePackageCursor`
+ * produces (see `~/server/functions/packages.ts`). The sort key is `name`, a
+ * free-text string that can legally contain the delimiter, so the name half is
+ * base64url-encoded; the id half is always 24 lowercase hex, which contains no
+ * `_`, so a `lastIndexOf('_')` split is unambiguous.
+ *
+ * The length bound is DERIVED, not guessed: `name` is
+ * `z.string().min(1).max(200)`, 200 JS characters are at most 600 UTF-8 bytes
+ * (a 4-byte code point costs two JS characters), and base64 expands 600 bytes
+ * to 800 characters. A 200-character package name therefore mints an
+ * 825-character cursor, and capping this at, say, 200 would make page 2
+ * permanently unreachable — with a 400 the client cannot act on — for any user
+ * whose page boundary landed on a long name.
+ *
+ * That derivation ASSUMES the 200-character name cap this file imposes, which
+ * binds `createPackage`/`updatePackage`/`clonePackage` and nothing else. A
+ * package written around those schemas — a seed script, a migration, a direct
+ * store write — with a name past ~218 characters would mint a cursor this
+ * validator then refuses, stranding the page after it. Widen the bound with
+ * the name cap if one ever moves; do not widen one without the other.
+ */
+const packageCursor = z
+  .string()
+  .max(900)
+  .regex(/^[A-Za-z0-9_-]+_[0-9a-f]{24}$/, 'Invalid cursor');
+
+/**
+ * The package list's input. It has no filter fields: visibility is decided
+ * server-side from the caller's own id (see `listPackages`), and there is
+ * nothing here a caller may narrow.
+ *
+ * `limit`/`cursor` bound the RESPONSE, not the read — see `listPackages`,
+ * where the split visibility query is what bounds the read.
+ */
+export const listPackagesSchema = z.object({
+  /**
+   * `.max(200).default(50)` — the same pair `listAudioAssetsSchema.limit`
+   * carries (`~/types/schemas/audio.ts`), so this is the house number rather
+   * than a new one. The ceiling has to admit `PACKAGE_LIST_PAGE_SIZE`
+   * (`MAX_PACKAGES_PER_USER * 2`), which is what both callers actually send
+   * while neither has a "load more" affordance;
+   * `tests/server/functions/packages.test.ts` parses that constant through
+   * this schema so a future bump past the cap fails a test rather than
+   * becoming a 400 on every board mount.
+   */
+  limit: z.number().int().min(1).max(200).default(50),
+  cursor: packageCursor.optional(),
+});
 
 /**
  * The assets one package's items reference — Task 21's package-gated read.
