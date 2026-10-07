@@ -76,7 +76,7 @@
     "@tanstack/react-start": "^1.168.58",
     "cassandra-driver": "4.10.0",
     "dayjs": "^1.11.23",
-    "gremlin": "3.8.2",
+    "gremlin": "3.7.7",
     "jose": "^6.2.12",
     "konva": "^10.7.0",
     "lucide-react": "^1.48.0",

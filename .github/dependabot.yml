@@ -86,6 +86,21 @@ updates:
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
 
+      # --- TinkerPop 3.8 boundary (gremlin) ---
+      # gremlin 3.8.x fails against the JanusGraph version deployed on dev.
+      # Verified on PR #570: with 3.8.2 the driver connects, authenticates and
+      # runs the schema scripts fine (the `graph:schema apply` step passes),
+      # but the first typed property write fails — the entity-store contract
+      # dies in graph-entity-store.ts `create`, which is
+      # `addV().property(cardinality.single, …)` inside a `coalesce`. The same
+      # workflow is green on the commit this branch forked from, where the only
+      # difference is the driver — so this is the client, not our traversal.
+      # Note `@types/gremlin` is stuck at 3.6.7, so `tsc` does
+      # NOT check this surface — only the Graph foundation workflow catches it.
+      # Lift this together with a JanusGraph/TinkerPop server upgrade.
+      - dependency-name: 'gremlin'
+        versions: ['>=3.8.0']
+
       # --- zod 5 boundary ---
       # zod 5 will be the next breaking release after 4. The 3→4 migration
       # (PR #439) renamed errorMap → error and required explicit key schemas
@@ -133,6 +148,10 @@ updates:
         versions: ['>=7.0.0']
       - dependency-name: 'vitest'
         versions: ['>=5.0.0']
+      # TinkerPop 3.8 fails against the deployed JanusGraph — see the root
+      # package's gremlin entry above for the verified failure.
+      - dependency-name: 'gremlin'
+        versions: ['>=3.8.0']
 
   # --- audio-worker service (own package.json + lockfile) ---
   # Same reasoning as /realtime: without an entry here dependabot runs no
@@ -162,6 +181,10 @@ updates:
         versions: ['>=7.0.0']
       - dependency-name: 'vitest'
         versions: ['>=5.0.0']
+      # TinkerPop 3.8 fails against the deployed JanusGraph — see the root
+      # package's gremlin entry above for the verified failure.
+      - dependency-name: 'gremlin'
+        versions: ['>=3.8.0']
 
   - package-ecosystem: 'github-actions'
     directory: '/'
