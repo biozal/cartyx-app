@@ -13,9 +13,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1129.0",
-    "cassandra-driver": "4.9.0",
-    "gremlin": "3.7.7",
+    "@aws-sdk/client-s3": "^3.1141.0",
+    "cassandra-driver": "4.10.0",
+    "gremlin": "3.8.2",
     "mingo": "7.2.4",
     "pino": "^10.3.1",
     "stemmer": "2.0.1",
